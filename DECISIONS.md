@@ -193,3 +193,35 @@ consumed by the combat system (one hammer blow per press).
 **Consequences.** Forced-down victories count as in RB2; mission designers get
 flak "for free" near the lines; the input layer only has to set the flag on key
 press edges.
+||||||| 956f402
+## D-018 — Single composition point for subsystems (game layer)
+**Context.** Eight subsystems are built in parallel; the flight loop has to
+run and be tested before any of them exists.
+**Decision.** `src/game/modules.ts` is the only file that binds
+implementations, typed by `GameModules` (`src/game/moduleTypes.ts`).
+Placeholder implementations live in `src/game/stubs/`. Swapping in a real
+module is an import change in one file.
+**Consequences.** The loop, input, cameras and mission director are tested
+today against stubs; integration is mechanical. Assumed factory shapes that
+`src/core/interfaces.ts` does not pin (`createWorldRenderer(canvas, opts)`,
+`createAIController(ac, AIControllerOptions)`, `HudHandle`) are documented in
+docs/game.md.
+
+## D-019 — Mouse-aim "instructor" is the default mouse mode
+**Decision.** Mouse-aim (the player points a reticle; an autopilot banks and
+pulls toward it) is the default, with direct-stick and keyboard/gamepad
+available. Any key or pad input overrides the instructor instantly and
+re-syncs the aim to the nose, so authentic stick flying is never locked out.
+**Consequences.** WWI aircraft become approachable to new players while the
+flight model underneath stays unchanged; the stub AI reuses the same steering.
+
+## D-020 — Kill confirmation inputs and end-flight rules
+**Decision.** The mission director marks a claim *witnessed* when it falls
+over friendly lines or a live friendly aircraft is within 3 km, and *shared*
+when another friendly also hit the victim; the campaign decides confirmation.
+Enemy aircraft forced to land on our side count as victories. "End flight"
+requires no enemy within 5 km and friendly ground below; "Abandon mission"
+always works but counts as captured over enemy lines. Time compression drops
+to ×1 when an enemy is within 4 km.
+**Consequences.** Mirrors RB2's "end flight when safe" and period
+confirmation practice without exploits (quitting mid-fight over enemy lines).
