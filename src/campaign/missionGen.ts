@@ -644,7 +644,8 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
         const es = pointOnSide(fp, enemySide, 9000, date, lat);
         fighterFlight(ctx, { side: enemySide, role: 'enemy', near: c, count: enemyCount(ctx, 2), start: es, altitude: eAlt(), waypoints: [wp(c, eAlt(), 'patrol', { duration: 400 }), wp(es, eAlt(), 'fly')], task: 'fighter-sweep', spawnDelay: meetDelay(ctx, [start, ingress], c, es, 60, [0, 90]) });
       }
-      addObjective(ctx, { kind: 'destroy-ground', description: `Destroy at least ${Math.ceil(ids.length / 2)} targets: machine-gun posts, batteries and transport.`, targetIds: ids, count: Math.ceil(ids.length / 2), primary: true });
+      addObjective(ctx, { kind: 'destroy-ground', description: `Destroy at least ${Math.ceil(ids.length / 3)} targets: machine-gun posts, batteries and transport.`, targetIds: ids, count: Math.ceil(ids.length / 3), primary: true });
+      addObjective(ctx, { kind: 'destroy-ground', description: 'Destroy every target.', targetIds: ids, count: ids.length, primary: false });
       const orders = `Go down and strafe the enemy\'s forward positions ${describeLocation(c)}: machine-gun posts in the front line, a battery behind it, and transport on the roads. Keep moving and do not linger over the trenches - every rifle in the line will be firing at you.`;
       return { type: 'ground-attack', title: `${TITLES['ground-attack'][side]} ${describeLocation(c)}`, orders, playerStart: start, playerAltitude: Math.min(alt, 2000), playerTask: 'ground-attack', playerWaypoints: [wp(ingress, 1500, 'fly', { label: 'The lines' }), wp(c, terrainHeightAt(c.x, c.z) + 300, 'attack-ground', { targetIds: ids, label: 'Targets' }), wp(ingress, 1000, 'fly', { label: 'Home side' }), home] };
     }
