@@ -226,6 +226,7 @@ export class AIPilot implements AIController {
     steer.lowLevel = false;
     steer.minSpeed = undefined;
     steer.maxPerformance = false;
+    steer.landing = false;
     steer.speed = Infinity;
     this.computeSteer(self, world, dt, steer);
     this.avoidCollisions(self, world, steer);
@@ -288,6 +289,7 @@ export class AIPilot implements AIController {
     steer.aggression = 1;
     steer.minSpeed = undefined;
     steer.maxPerformance = false;
+    steer.landing = false;
     this.autopilot.fly(self, steer, world, dt);
     return true;
   }
@@ -916,6 +918,7 @@ export class AIPilot implements AIController {
     const s = self.state;
     const vs = this.traits.stallSpeed;
     steer.lowLevel = true;
+    steer.landing = true;
     steer.maxG = 2;
     const along = _tmp.copy(s.position).sub(plan.threshold).dot(plan.dir);
     const gy = world.groundHeightAt(s.position.x, s.position.z);

@@ -41,6 +41,8 @@ export interface SteerCommand {
   lowLevel?: boolean;
   /** Speed below which climbs are flattened to protect energy (default 1.4 x stall). */
   minSpeed?: number;
+  /** Landing approach: slow flight near the ground is intended (no low-altitude speed floor). */
+  landing?: boolean;
   /** Max-performance turn: allow over-banking (trading height for turn) instead of a level-turn cap. */
   maxPerformance?: boolean;
 }
@@ -93,6 +95,11 @@ const _p = new Vector3();
 const _vb = new Vector3();
 const _ff = new Vector3();
 const _qInv = new Quaternion();
+// Scratch for groundCheck only (fly() holds _f/_u/_r/_v/_p across the call).
+const _gcV = new Vector3();
+const _gcUp = new Vector3();
+const _gcR = new Vector3();
+const _gcU = new Vector3();
 
 export class Autopilot {
   gains: AutopilotGains;
@@ -474,6 +481,14 @@ export class Autopilot {
         c.throttle = clamp(0.65 + this.thrI + k.speedKp * ev, 0, 1);
       }
     }
+    // Energy discipline: never idle below the speed floor (a range-hold behind a slow
+    // target otherwise bleeds a scout into a stall), and keep more speed near the ground,
+    // where there is no height to recover from one. Power-off landings are exempt.
+    if (cmd.speed !== 0 && !s.onGround && !cmd.landing) {
+      const lowFactor = s.heightAboveGround < minAgl * 2 ? 1.65 : 1.4;
+      const floor = Math.max(cmd.minSpeed ?? 0, this.traits.stallSpeed * lowFactor);
+      if (V < floor * 1.1) c.throttle = Math.max(c.throttle, clamp((floor * 1.1 - V) / (0.1 * floor), 0.5, 1));
+    }
     // Throttle back in a fast dive (before the governor bites).
     if (!ground.emergency && s.velocity.y < 0) {
       const thrCap = clamp((govStart + 0.02 - vr) / 0.12, 0, 1);
@@ -516,11 +531,26 @@ export class Autopilot {
     const sinDive = clamp(-s.velocity.y / V, -1, 1);
     let loss = 0;
     if (sinDive > 0) {
-      const n = Math.max(1.5, nPull);
-      const radius = (V * V) / ((n - 1) * G);
+      // Before pulling, the lift vector must be rolled into the vertical plane: an aircraft
+      // banked steeply (or inverted) in a dive spends ~1-1.5 s rolling at ~1 g, sinking and
+      // accelerating. Estimate that time from the roll angle and the available roll rate.
+      const vhat = _gcV.copy(s.velocity).divideScalar(V);
+      const upPerp = _gcUp.set(0, 1, 0).addScaledVector(vhat, -vhat.y);
+      let rollOut = 0;
+      if (upPerp.lengthSq() > 0.02) {
+        const rr = _gcR.set(1, 0, 0).applyQuaternion(s.orientation);
+        const uu = _gcU.set(0, 1, 0).applyQuaternion(s.orientation);
+        rollOut = Math.abs(Math.atan2(upPerp.dot(rr), upPerp.dot(uu)));
+      }
+      const rollRate = this.co ? Math.min(3, (this.co.rollAuthority / (2 * this.co.rollDamping)) * V) : 2;
+      const tRoll = 0.35 + rollOut / Math.max(0.8, rollRate);
+      const sink = -s.velocity.y;
+      const vAfter = V + G * sinDive * tRoll;
+      // The pitch law lags in a sustained pull: plan on ~85% of the usable g.
+      const n = Math.max(1.5, nPull * 0.85);
+      const radius = (vAfter * vAfter) / ((n - 1) * G);
       const cosDive = Math.sqrt(1 - sinDive * sinDive);
-      // Roll-out + reaction time (~0.9 s) at the current sink rate.
-      loss = radius * (1 - cosDive) + -s.velocity.y * 0.9;
+      loss = radius * (1 - cosDive) + sink * tRoll + 0.5 * G * sinDive * sinDive * tRoll * tRoll;
     }
     const emergency = sinDive > 0.03 && hEff < loss + margin * 0.3;
     let climb = 0;

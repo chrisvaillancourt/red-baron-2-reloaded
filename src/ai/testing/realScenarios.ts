@@ -151,12 +151,12 @@ export function historyTap(rows: string[], label: string): (w: SimWorld) => void
         h.push(
           `  t=${world.time.toFixed(1)} V=${ac.state.airspeed.toFixed(0)}/${co.vne.toFixed(0)} g=${ac.state.gLoad.toFixed(1)}/${co.gLimit.toFixed(1)} vy=${ac.state.velocity.y.toFixed(0)} agl=${ac.state.heightAboveGround.toFixed(0)} aoa=${(ac.state.aoa * 57.3).toFixed(0)} st=${ac.state.stalled ? 1 : 0} ctl=${ac.controls.pitch.toFixed(2)},${ac.controls.roll.toFixed(2)},${ac.controls.yaw.toFixed(2)},${ac.controls.throttle.toFixed(2)} wd=${Math.max(ac.damage.zones.leftWing, ac.damage.zones.rightWing).toFixed(2)} ${ctl?.debugState}`,
         );
-      if (h.length > 30) h.shift();
+      if (h.length > Number(process.env.AI_HIST ?? 15) + 5) h.shift();
       hist.set(ac.id, h);
       const why = ac.damage.structuralFailure ? 'STRUCTURAL' : ac.outcome === 'crashed' && ac.damage.lastAttackerId === null ? 'CRASHED' : null;
       if (why) {
         seen.add(ac.id);
-        rows.push(`--- ${label} ${ac.spec.id}#${ac.id} (${ac.skill}) ${why} attacker=${ac.damage.lastAttackerId}`, ...h.slice(-15));
+        rows.push(`--- ${label} ${ac.spec.id}#${ac.id} (${ac.skill}) ${why} attacker=${ac.damage.lastAttackerId}`, ...h.slice(-Number(process.env.AI_HIST ?? 15)));
       }
       if (ac.outcome) seen.add(ac.id);
     }

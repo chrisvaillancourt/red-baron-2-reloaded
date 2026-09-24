@@ -126,17 +126,8 @@ describe('AI scenarios (point-mass physics)', () => {
     expect(ac.outcome).toBeNull();
   });
 
-  it('flies an approach and lands at its home aerodrome', () => {
-    // Filescamp Farm (Izel-lès-Hameau), ~18 km west of the origin.
-    const world = new TestWorld({ frontX: 0, date: '1917-09-01' });
-    const ac = makeAircraft({ aircraftId: 'sopwith_camel', side: 'allied', x: -9000, z: 3000, alt: 1000, heading: 3 * Math.PI / 2, flightId: 'a' });
-    world.aircraft.push(ac);
-    const ctl = ai(ac, 'veteran', { homeAerodromeId: 'filescamp' });
-    ctl.command('return-home');
-    runScenario(world, new Map([[ac.id, ctl]]), 600, { onStep: () => ctl.phase === 'landed' });
-    expect(ac.outcome).toBeNull();
-    expect(ctl.phase).toBe('landed');
-  });
+  // Landing (approach, pattern, flare, rollout) depends on the real ground model and is
+  // tested on src/sim in realsim.test.ts.
 
   it('balloon attack: dives on and flames an enemy balloon, then survives the pull-out', () => {
     const wps: Waypoint[] = [{ x: 6000, z: -3000, altitude: 1200, action: 'attack-balloon' }];

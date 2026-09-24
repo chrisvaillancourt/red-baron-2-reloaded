@@ -99,6 +99,35 @@ describe.skipIf(!SOAK.includes('combat'))('soak: combat matrix', () => {
   }, 1_800_000);
 });
 
+describe.skipIf(!SOAK.includes('terrain'))('soak: 30 min of low-level mixed dogfights over hills', () => {
+  it('never flies into the ground', () => {
+    const rows: string[] = [];
+    const hills = (x: number, z: number) => 200 + 220 * Math.sin(x / 1300) * Math.cos(z / 1100) + 80 * Math.sin((x + z) / 500);
+    const allied: AircraftId[] = ['se5a', 'sopwith_camel', 'spad_xiii', 'nieuport_17', 'sopwith_pup', 'bristol_f2b', 'airco_dh2', 'sopwith_triplane'];
+    const central: AircraftId[] = ['albatros_dv', 'fokker_dri', 'fokker_dvii', 'pfalz_diiia', 'albatros_diii', 'fokker_eiii', 'halberstadt_clii', 'fokker_dviii'];
+    const skills: SkillLevel[] = ['novice', 'regular', 'veteran', 'ace'];
+    let simTime = 0, selfCrashes = 0, kills = 0;
+    for (let run = 0; run < 10; run++) {
+      const world = new SimWorld({ ground: hills, frontX: 1e9, seed: run + 1 });
+      const all = [];
+      for (let i = 0; i < 4; i++) {
+        all.push(world.addAircraft({ aircraftId: central[(run + i) % 8], side: 'central', x: i * 200, z: -900, alt: 700 + 60 * i, heading: Math.PI, flightId: 'c', skill: skills[(run + i) % 4] }));
+        all.push(world.addAircraft({ aircraftId: allied[(run + 2 * i) % 8], side: 'allied', x: i * 200, z: 900, alt: 650 + 60 * i, heading: 0, flightId: 'a', skill: skills[(run + 3 - i) % 4] }));
+      }
+      all.forEach((a, i) => world.addAI(a, a.skill, { seed: run * 50 + i }));
+      const tap = historyTap(rows, `run ${run}`);
+      runSim(world, 180, { onStep: () => tap(world) });
+      simTime += world.time;
+      const bad = all.filter((a) => (a.outcome === 'crashed' || a.outcome === 'ditched') && a.damage.lastAttackerId === null);
+      selfCrashes += bad.length;
+      kills += world.eventsOf('aircraft-destroyed').length;
+      rows.push(`run ${run}: self-crashes ${bad.map((a) => `${a.spec.id}/${a.skill}`).join(',') || 'none'}; destroyed ${world.eventsOf('aircraft-destroyed').length}`);
+    }
+    rows.push(`TOTAL sim ${(simTime / 60).toFixed(0)} min, self-crashes ${selfCrashes}, destroyed ${kills}`);
+    report(rows.filter((r) => !r.startsWith('  t=') || process.env.AI_VERBOSE));
+  }, 1_800_000);
+});
+
 describe.skipIf(!SOAK.includes('struct'))('soak: diagnose self-inflicted losses', () => {
   it('logs history before structural failures / uncredited crashes', () => {
     const rows: string[] = [];

@@ -193,3 +193,30 @@ consumed by the combat system (one hammer blow per press).
 **Consequences.** Forced-down victories count as in RB2; mission designers get
 flak "for free" near the lines; the input layer only has to set the flag on key
 press edges.
+
+## D-XXX — AI flies by inverting the sim's control laws
+**Context.** The AI autopilot was built as a model-agnostic PID law on a
+point-mass stand-in. On the real 6-DOF model (stick commands AoA, roll rate ∝ V)
+fixed gains went unstable at high speed (no dive pull-outs, wings shed) and
+porpoised when aiming (the nose leads the flight path by the AoA, which grows with
+g).
+**Decision.** `src/ai` reads `getCoefficients` and inverts the sim's pitch and
+roll laws (with pitch-damping lag compensation and small PI trims), caps the aim
+gain from dα/dn, and governs dives against the sim's Vne and gLimit. The generic
+PID law is kept behind `controlLaw: 'generic'` for the point-mass tests. AI
+traits (stall speed and AoA, Vne, gLimit, best-climb speed) come from the sim, not
+from separate estimates.
+**Consequences.** `src/ai` depends on `src/sim/coefficients` and `stickForAlpha`
+(pure modules). Retuning the flight model retunes the AI automatically; changing
+the stick laws in `flightModel.ts` requires updating `Autopilot.modelLaw`.
+Combat outcomes and landing are tested on the real sim (`realsim.test.ts`).
+
+## D-XXX — AI take-off and field landings
+**Decision.** Parked aircraft start in phase `takeoff` (level-attitude roll to
+1.2 Vs, rotate, climb straight out; wingmen wait 6 s per slot). Landings use a
+right-hand pattern when not lined up, a power-off flare that holds heavier types
+level until 1.2 Vs, and an aileron/rudder rollout. Flight members land abreast in
+lanes 40 m apart, since the fields are open grass.
+**Consequences.** Missions can start on the ground (`startOnGround`). The flight
+session only needs to set `landed-*` outcomes; `phase === 'landed'` or
+`isStoppedOnGround` tells it when.
