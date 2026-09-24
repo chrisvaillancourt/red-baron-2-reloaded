@@ -41,6 +41,8 @@ const RAW: Aerodrome[] = [
   { id: 'lechelle', name: 'Léchelle', lat: 50.050, lon: 2.985, side: 'central', activeFrom: '1918-03-25', activeTo: '1918-08-30', runwayHeadingDeg: 260, runwayLength: 600 },
   { id: 'cappy', name: 'Cappy', lat: 49.925, lon: 2.760, side: 'central', activeFrom: '1918-04-01', activeTo: '1918-08-25', runwayHeadingDeg: 250, runwayLength: 600 },
   { id: 'bernes', name: 'Bernes', lat: 49.910, lon: 3.100, side: 'central', activeFrom: '1917-03-20', activeTo: '1918-09-10', runwayHeadingDeg: 250, runwayLength: 600 },
+  { id: 'valenciennes', name: 'Valenciennes', lat: 50.335, lon: 3.520, side: 'central', activeFrom: '1916-01-01', activeTo: '1918-10-31', runwayHeadingDeg: 250, runwayLength: 700 },
+  { id: 'chievres', name: 'Chièvres', lat: 50.585, lon: 3.805, side: 'central', activeFrom: '1917-01-01', activeTo: '1918-11-11', runwayHeadingDeg: 250, runwayLength: 750 },
 
   // --- British (RFC/RNAS/RAF) ------------------------------------------
   { id: 'bertangles', name: 'Bertangles', lat: 49.972, lon: 2.300, side: 'allied', activeFrom: '1915-07-01', activeTo: '1918-11-11', runwayHeadingDeg: 250, runwayLength: 700 },
