@@ -94,7 +94,8 @@ export class CameraRig {
 
   /** Whether mouse movement should steer (vs. look around) in this view. */
   get mouseSteers(): boolean {
-    return this.mode === 'cockpit' || this.mode === 'chase' || this.mode === 'target' || this.mode === 'flyby';
+    // Padlock too: the view tracks the target while the mouse keeps flying the aeroplane.
+    return this.mode !== 'orbit';
   }
 
   setMode(mode: CameraMode, world?: WorldQuery, player?: AircraftEntity | null): void {

@@ -135,8 +135,23 @@ export function mouseAimAssist(
     st.pilotKey = key;
   }
   const c = ac.controls;
+  const s = ac.state;
+  if (s.onGround || (s.heightAboveGround < 4 && s.airspeed < traitsFor(ac.spec).stallSpeed * 1.3)) {
+    groundHandling(ac, aim, out);
+    return;
+  }
+  // Throttled back near the ground = landing: let the aim point take the aircraft down
+  // (the instructor otherwise defends its terrain margin) and keep the pull gentle.
+  const landing = c.throttle < 0.3 && s.heightAboveGround < 150;
   const saved = { pitch: c.pitch, roll: c.roll, yaw: c.yaw, throttle: c.throttle, blip: c.blip };
-  st.pilot.fly(ac, { dir: aim, speed: Infinity, aim: true, maxPerformance: cfg.maxPerformance, minAgl: cfg.minAgl }, world, Math.max(dt, 1e-3));
+  st.pilot.fly(
+    ac,
+    landing
+      ? { dir: aim, speed: Infinity, aim: false, maxG: 2, minAgl: 6, lowLevel: true, landing: true }
+      : { dir: aim, speed: Infinity, aim: true, maxPerformance: cfg.maxPerformance, minAgl: cfg.minAgl },
+    world,
+    Math.max(dt, 1e-3),
+  );
   out.pitch = c.pitch;
   out.roll = c.roll;
   out.yaw = c.yaw;
@@ -190,6 +205,36 @@ export function mouseAimControls(
   // Ground safety: don't dive into the ground chasing a low aim point.
   if (ac.state.heightAboveGround < 120 && ac.state.velocity.y < 0) out.pitch = Math.max(out.pitch, 0.35);
 }
+
+/**
+ * Mouse-aim on the ground: the mouse steers (rudder toward the aim heading),
+ * wings are held level, and the stick follows the tail-dragger routine —
+ * tail up to accelerate, rotate once there is flying speed and the aim is
+ * raised, stick back to keep the tail down when rolling out slowly.
+ */
+function groundHandling(ac: AircraftEntity, aim: Vector3, out: { pitch: number; roll: number; yaw: number }): void {
+  const s = ac.state;
+  const q = s.orientation;
+  const f = _gf.set(0, 0, -1).applyQuaternion(q);
+  const r = _gr.set(1, 0, 0).applyQuaternion(q);
+  const u = _gu.set(0, 1, 0).applyQuaternion(q);
+  const vs = traitsFor(ac.spec).stallSpeed;
+  const bank = Math.atan2(-r.y, u.y);
+  const hdg = Math.atan2(f.x, -f.z);
+  const aimHdg = Math.atan2(aim.x, -aim.z);
+  let hErr = aimHdg - hdg;
+  hErr = Math.atan2(Math.sin(hErr), Math.cos(hErr));
+  const aimElev = Math.asin(clamp(aim.y, -1, 1));
+  const pitchAng = Math.asin(clamp(f.y, -1, 1));
+  out.roll = clamp(-bank * 2 + s.angularVelocity.z * 0.4, -1, 1);
+  out.yaw = clamp(hErr * 3 + s.angularVelocity.y * 0.8, -1, 1);
+  if (s.airspeed < vs * 0.6 && ac.controls.throttle < 0.5) out.pitch = 0.35; // taxi / rollout: tail down
+  else if (s.airspeed > vs * 1.15 && aimElev > 0.04) out.pitch = clamp(0.25 + aimElev, 0.25, 0.5); // rotate
+  else out.pitch = clamp((0.02 - pitchAng) * 5 - s.angularVelocity.x, -1, 1); // tail up, accelerate
+}
+const _gf = new Vector3();
+const _gr = new Vector3();
+const _gu = new Vector3();
 
 const KEY_AXIS_RATE = 3.5; // per s toward full deflection
 const KEY_AXIS_RETURN = 6;
