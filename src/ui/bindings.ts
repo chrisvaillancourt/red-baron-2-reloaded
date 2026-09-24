@@ -36,6 +36,7 @@ export const ACTIONS: ActionMeta[] = [
   { id: 'lookRight', label: 'Look right', group: 'Views' },
   { id: 'lookBack', label: 'Look behind', group: 'Views' },
   { id: 'lookUp', label: 'Look up', group: 'Views' },
+  { id: 'wingmenMenu', label: 'Wingmen: show orders', group: 'Wingmen' },
   { id: 'wingmenAttack', label: 'Wingmen: attack my target', group: 'Wingmen' },
   { id: 'wingmenEngage', label: 'Wingmen: engage at will', group: 'Wingmen' },
   { id: 'wingmenFormUp', label: 'Wingmen: form up', group: 'Wingmen' },

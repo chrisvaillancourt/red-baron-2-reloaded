@@ -1,10 +1,11 @@
 /**
- * App bootstrap: settings, services, UI mount, audio unlock on the first
- * user gesture, and a fatal-error overlay.
+ * App bootstrap: settings, services, display catalog, UI mount, and a
+ * fatal-error overlay. Audio is unlocked by the UI on the first gesture.
  */
 import type { GameServices } from '../core/interfaces';
 import { loadSettings, saveSettings } from '../core/settings';
 import type { GameSettings } from '../core/types';
+import { catalogFromCampaignData, setUiCatalog } from '../ui';
 import { createFlightLauncher } from './flightSession';
 import type { GameModules, UiHandle } from './moduleTypes';
 
@@ -42,13 +43,8 @@ export function startApp(root: HTMLElement, modules: GameModules): App {
     },
   };
 
-  const unlock = () => {
-    audio.resume().catch(() => {});
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
-  };
-  window.addEventListener('pointerdown', unlock);
-  window.addEventListener('keydown', unlock);
+  // Rank/medal/ace names in the UI come from the campaign's data.
+  setUiCatalog(catalogFromCampaignData());
 
   window.__rb2 = { session: null, ...window.__rb2, services };
   const ui = modules.createUi(root, services);

@@ -19,11 +19,13 @@ import type {
 } from '../core/interfaces';
 import type { AircraftEntity, GameEvent, GameSettings, MissionDefinition, MissionResult } from '../core/types';
 import { CameraRig, type CameraMode } from './cameras';
-import { buildHudFrame } from './hudView';
+import { advanceWaypoint, buildHudView } from './hudView';
 import { InputManager, type EdgeAction } from './input';
 import { MissionDirector } from './missionDirector';
-import type { GameModules, HudHandle } from './moduleTypes';
-import { MapOverlay, PauseOverlay } from './overlays';
+import type { GameModules } from './moduleTypes';
+import type { Hud } from '../ui/hud/types';
+import type { MapMarker, MapView } from '../ui/map/mapRenderer';
+import { resolveUnits } from '../ui/format';
 import { buildWorld, type SessionWorld } from './world';
 
 export const SIM_HZ = 120;
@@ -32,6 +34,14 @@ export const TIME_SCALES = [1, 2, 4, 8] as const;
 const MAX_FRAME_DT = 0.1;
 const COMPRESSION_SAFE_RANGE = 4000;
 const DEFAULT_EYE = new Vector3(0, 1, 0);
+const START_HINT = 'Mouse to steer · Space fire · +/− throttle · F1–F5 views · P padlock · O orders · M map · Esc menu';
+const ORDER_LABELS: Record<WingmanCommand, string> = {
+  'attack-my-target': 'Attack',
+  'engage-at-will': 'Engage',
+  'form-up': 'Form up',
+  'cover-me': 'Cover',
+  'return-home': 'Home',
+};
 
 export interface SessionDebug {
   readonly time: number;
@@ -69,11 +79,14 @@ export class FlightSession {
   private renderer!: WorldRenderer;
   private combat!: CombatSystem;
   private director!: MissionDirector;
-  private hud!: HudHandle;
+  private hud!: Hud;
   private input!: InputManager;
   private rig!: CameraRig;
-  private pauseOverlay!: PauseOverlay;
-  private mapOverlay!: MapOverlay;
+  private mapOpen = false;
+  private mapRedrawAt = 0;
+  private ordersOpen = false;
+  private waypointIndex = 0;
+  private wingmanOrders = new Map<number, string>();
   private ai = new Map<number, AIController>();
   private visuals = new Map<number, AircraftVisual>();
   private entityObjects = new Map<number, Object3D>();
@@ -186,19 +199,6 @@ export class FlightSession {
     } else {
       this.rig.setMode('chase');
     }
-    this.pauseOverlay = new PauseOverlay(this.root, {
-      onResume: () => this.setPaused(false),
-      onEndFlight: () => {
-        if (this.director.requestEndFlight()) this.setPaused(false);
-        else this.pauseOverlay.setNote(this.director.canEndFlight().reason ?? '');
-      },
-      onAbandon: () => {
-        this.director.abort();
-        this.setPaused(false);
-      },
-    });
-    this.mapOverlay = new MapOverlay(this.root);
-
     // Event fan-out.
     this.unsubs.push(
       this.bus.onAny((e) => this.onEvent(e)),
@@ -252,17 +252,87 @@ export class FlightSession {
     this.rig.setAspect(w / Math.max(1, h));
   }
 
-  private setPaused(p: boolean): void {
+  /** Pause/resume the simulation; `menu` shows the HUD pause card while paused. */
+  private setPaused(p: boolean, menu = true): void {
     this.paused = p;
-    this.pauseOverlay.show(p);
-    this.input.enabled = true;
     if (p && document.pointerLockElement) document.exitPointerLock?.();
+    if (!p) {
+      this.hud.hidePauseMenu();
+      this.canvas.focus();
+      return;
+    }
+    if (!menu) return;
+    this.hud.showPauseMenu({
+      onResume: () => this.setPaused(false),
+      onEndFlight: () => this.promptEndFlight(true),
+      onQuit: () => {
+        this.director.abort();
+        this.setPaused(false);
+      },
+    });
+  }
+
+  /**
+   * "End flight" (N or pause menu): confirm with the HUD card. Safe ends are
+   * recorded as returned; unsafe ends are an abandon (captured if over enemy lines).
+   */
+  private promptEndFlight(fromPause = false): void {
+    const r = this.director.canEndFlight();
+    this.setPaused(true, false);
+    this.hud.showEndFlightPrompt({
+      safe: r.ok,
+      reason: r.reason,
+      onConfirm: () => {
+        if (!this.director.requestEndFlight()) this.director.abort();
+        this.setPaused(false);
+      },
+      onCancel: () => (fromPause ? this.setPaused(true) : this.setPaused(false)),
+    });
   }
 
   private onEvent(e: GameEvent): void {
     this.renderer.handleEvent(e);
     this.audio.handleEvent(e, this.rig.camera.position);
-    if (e.type === 'radio') this.hud.showMessage(e.text, e.from || undefined);
+    const player = this.world.player;
+    if (e.type === 'radio') this.hud.showMessage(e.text, { from: e.from || undefined, kind: e.from ? 'radio' : 'info' });
+    else if (e.type === 'bullet-hit' && player && e.targetId === player.id) this.hud.setDamageFlash(0.35);
+    else if (e.type === 'objective-complete') this.hud.showMessage('Objective complete.', { kind: 'objective' });
+    else if (player && e.type === 'aircraft-destroyed' && e.killerId === player.id && e.victimId !== player.id) {
+      const v = this.world.getEntity(e.victimId);
+      this.hud.showMessage(`${v && v.kind === 'aircraft' ? v.spec.name : 'Enemy'} going down!`, { kind: 'victory' });
+    } else if (player && e.type === 'balloon-destroyed' && e.killerId === player.id) this.hud.showMessage('Balloon flamed!', { kind: 'victory' });
+    else if (player && e.type === 'gun-jammed' && e.aircraftId === player.id) this.hud.showMessage('Gun jammed! Hammer the clear-jam key.', { kind: 'warning', duration: 3 });
+  }
+
+  private buildMapView(): MapView {
+    const p = this.world.player;
+    const units = resolveUnits(this.settings.units, p?.nation ?? 'britain').system;
+    const markers: MapMarker[] = [];
+    for (const a of this.world.aircraft) {
+      if (a.outcome !== null) continue;
+      const friendly = p && a.side === p.side;
+      const near = p && a.state.position.distanceTo(p.state.position) < 6000;
+      if (a !== p && !friendly && !near) continue;
+      const fwd = new Vector3(0, 0, -1).applyQuaternion(a.state.orientation);
+      markers.push({ kind: 'aircraft', x: a.state.position.x, z: a.state.position.z, side: a.side, heading: Math.atan2(fwd.x, -fwd.z), isPlayer: a === p });
+    }
+    for (const b of this.world.balloons) markers.push({ kind: 'balloon', x: b.position.x, z: b.position.z, side: b.side, destroyed: b.destroyed });
+    for (const g of this.world.groundTargets)
+      markers.push({ kind: 'ground', x: g.position.x, z: g.position.z, side: g.side, destroyed: g.destroyed, label: g.type.replace(/-/g, ' ') });
+    const flight = p ? this.world.getFlight(p.flightId) : undefined;
+    return {
+      date: this.mission.date,
+      units,
+      playerSide: p?.side,
+      center: p ? { x: p.state.position.x, z: p.state.position.z } : undefined,
+      spanM: 40_000,
+      route: flight?.waypoints,
+      activeWaypoint: this.waypointIndex,
+      markers,
+      homeAerodromeId: this.mission.homeAerodromeId,
+      title: this.mission.title,
+      style: 'overlay',
+    };
   }
 
   private enemiesNear(): boolean {
@@ -311,10 +381,15 @@ export class FlightSession {
           this.timeScaleIdx = 0;
           break;
         case 'map':
-          this.mapOverlay.toggle();
+          this.mapOpen = !this.mapOpen;
+          if (!this.mapOpen) this.hud.showMap(null);
           break;
         case 'endFlight':
-          this.director.requestEndFlight();
+          this.promptEndFlight();
+          break;
+        case 'wingmenMenu':
+          this.ordersOpen = !this.ordersOpen;
+          this.hud.showWingmanMenu(this.ordersOpen);
           break;
         case 'toggleHud':
           this.hudVisible = !this.hudVisible;
@@ -354,7 +429,15 @@ export class FlightSession {
       this.hud.showMessage('Select a target first (T).');
       return;
     }
-    for (const m of mates) this.ai.get(m.id)?.command(cmd, target);
+    const label = ORDER_LABELS[cmd];
+    for (const m of mates) {
+      this.ai.get(m.id)?.command(cmd, target);
+      this.wingmanOrders.set(m.id, label);
+    }
+    if (this.ordersOpen) {
+      this.ordersOpen = false;
+      this.hud.showWingmanMenu(false);
+    }
     this.bus.emit({ type: 'radio', from: mates[0].callsign, text: ack });
   }
 
@@ -376,6 +459,8 @@ export class FlightSession {
     const world = this.world;
     const player = world.player;
 
+    // HUD cards (pause, end flight) own the keyboard while open.
+    this.input.enabled = !this.hud.menuOpen;
     const inp = this.input.update(dtReal, player && player.outcome === null ? player : null, this.rig.mouseSteers);
     this.handleCommands(inp.commands);
     if (player && player.outcome === null && !this.paused) {
@@ -422,26 +507,30 @@ export class FlightSession {
     if (this.pixelRequests.length) this.samplePixels();
     this.audio.updateFlight(this.rig.camera, player, world, this.paused ? 0 : dtReal, this.rig.inCockpit);
     if (player) {
+      this.waypointIndex = advanceWaypoint(player, world, this.waypointIndex);
       this.hud.update(
-        buildHudFrame({
+        buildHudView({
           player,
           world,
           camera: this.rig.camera,
           settings: this.settings,
           timeScale: this.timeScale,
-          paused: this.paused,
           cameraMode: this.rig.mode,
           padlockId: this.rig.mode === 'padlock' ? this.rig.padlockId : null,
           padlockObstructed: this.rig.padlockObstructed,
           targetId: this.rig.targetId,
           aimDirection: inp.aimDirection,
-          gEffect: this.gEffect,
-          enemiesNear: this.enemiesNear(),
-          playerName: player.callsign,
+          waypointIndex: this.waypointIndex,
+          wingmanOrders: this.wingmanOrders,
+          hint: this.settings.showTutorialHints && world.time < 20 ? START_HINT : null,
         }),
       );
+      this.hud.setGEffect(this.gEffect);
     }
-    this.mapOverlay.draw(world, player);
+    if (this.mapOpen && now >= this.mapRedrawAt) {
+      this.mapRedrawAt = now + 200;
+      this.hud.showMap(this.buildMapView());
+    }
 
     if (this.director.ended) this.finish();
   }
@@ -546,8 +635,6 @@ export class FlightSession {
     });
     this.visuals.clear();
     this.hud?.dispose();
-    this.pauseOverlay?.dispose();
-    this.mapOverlay?.dispose();
     this.renderer?.dispose();
     this.root?.remove();
     if (window.__rb2) window.__rb2.session = null;

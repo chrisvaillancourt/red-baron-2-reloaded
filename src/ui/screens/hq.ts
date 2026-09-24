@@ -102,19 +102,14 @@ export const hqScreen: ScreenFactory = (ctx, params) => {
         'div',
         { class: 'hospital-note' },
         h('h3', { class: 'panel-h' }, 'Convalescing'),
-        h('p', { class: 'typed' }, `You are recovering from your wounds. The medical officer expects you fit for duty in ${p.hospitalDays} day${p.hospitalDays === 1 ? '' : 's'}.`),
+        h('p', { class: 'typed' }, `After ${p.hospitalDays} day${p.hospitalDays === 1 ? '' : 's'} in hospital the medical officer passes you fit for flying duties.`),
         h(
           'button',
           {
             class: 'btn primary',
             'data-autofocus': '',
             onClick: () => {
-              // Campaign normally advances time; this fallback discharges the pilot directly.
-              const d = new Date(Date.parse(p.date + 'T00:00:00Z') + p.hospitalDays * 86_400_000).toISOString().slice(0, 10);
-              p.date = d;
-              p.hospitalDays = 0;
-              p.status = 'active';
-              campaign.savePilot(p);
+              campaign.returnToDuty(p);
               ctx.router.replace('hq', { pilotId: p.id });
             },
           },

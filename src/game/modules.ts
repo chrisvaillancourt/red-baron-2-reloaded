@@ -6,14 +6,13 @@
 import { createAIController } from '../ai';
 import { createAudioEngine } from '../audio';
 import { createCampaignService } from '../campaign';
+import { createHud, createUi } from '../ui';
 import { createCombatSystem, createFlightEnvironment, setGunnerTarget, sim } from '../sim';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
 import type { GameModules } from './moduleTypes';
 import { stubCreateAircraftVisual, stubPreloadAircraftModels } from './stubs/aircraftVisual';
-import { stubCreateHud } from './stubs/hud';
 import { stubCreateWorldRenderer } from './stubs/renderer';
-import { stubCreateUi } from './stubs/ui';
 
 export const modules: GameModules = {
   // src/sim
@@ -43,8 +42,8 @@ export const modules: GameModules = {
   // src/campaign
   createCampaignService: () => createCampaignService(),
   // src/ui
-  createUi: stubCreateUi,
-  createHud: stubCreateHud,
+  createUi: (root, services) => createUi(root, services),
+  createHud,
   // src/world
   terrainHeightAt,
   sideOfFrontAt,

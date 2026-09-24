@@ -125,6 +125,13 @@ export function createCampaignService(storage?: StorageLike): CampaignServiceExt
       return generateCareerMission(p, aircraftChoice, options);
     },
 
+    returnToDuty(p) {
+      if (p.status !== 'hospital') return;
+      p.status = 'active';
+      p.hospitalDays = 0;
+      service.savePilot(p);
+    },
+
     applyMissionResult(p, mission: MissionDefinition, result: MissionResult): DebriefReport {
       if (!mission.isCareer) throw new Error('applyMissionResult called with a non-career mission');
       const report = applyResult(p, mission, result);

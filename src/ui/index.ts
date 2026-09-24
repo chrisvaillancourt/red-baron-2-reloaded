@@ -41,6 +41,7 @@ export type {
 export { drawMap, createMapCanvas, missionMapView, fitMission } from './map/mapRenderer';
 export type { MapView, MapMarker } from './map/mapRenderer';
 export { setUiCatalog } from './catalog';
+export { catalogFromCampaignData } from './campaignCatalog';
 export type { UiCatalog, RankDisplay, MedalDisplay, AceDisplay } from './catalog';
 export type { ScreenId } from './context';
 export * as uiFormat from './format';

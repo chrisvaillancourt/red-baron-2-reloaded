@@ -23,6 +23,7 @@ export const EDGE_ACTIONS = [
   'pause',
   'map',
   'endFlight',
+  'wingmenMenu',
   'wingmenAttack',
   'wingmenEngage',
   'wingmenFormUp',
