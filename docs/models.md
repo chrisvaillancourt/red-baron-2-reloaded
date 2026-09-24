@@ -96,3 +96,26 @@ v.dispose();
   the visual's parent, so add the visual to the scene, not to a transient group).
 * Muzzle flashes fire whenever a gun's `roundsLeft` drops — no dependency on control state.
 * If a GLB fails to load, `buildFallbackModel(spec)` provides a boxy stand-in with the same names.
+
+## Gotchas (Blender 5.2 headless, learned building this pipeline)
+
+* **Long renders:** run `render_art.sh` / `build_models.py --preview` as a background job and wait
+  for its completion notification — never `sleep`-poll. Finals (1920×1080, 160 samples) take
+  ~5–15 min per scene on an M3 Max; iterate at `--res 960 --samples 48` (~1 min).
+* **Mix node sockets:** `ShaderNodeMix` has float, vector and colour sockets that share names, so
+  `inputs['A']` is the *float* A. For `data_type = 'RGBA'` use `inputs[0]` (factor), `inputs[6]`/`[7]`
+  (A/B colour) and `outputs[2]` (result colour).
+* **Physical sky** (`MULTIPLE_SCATTERING`): at background strength 1 the sun is ~4 stops too hot;
+  use ≈0.07. It renders black below the horizon — `sky_world(ground_color=…)` fades to haze there.
+  `sun_rotation` ≈ azimuth measured from +Y (camera-forward in these scenes), positive toward +X;
+  `sun_direction` does not update in background mode, so render a quick equirectangular pano to
+  check sun placement.
+* **View transform:** AgX Punchy pushes saturated reds to orange at golden hour; outdoor scenes use
+  `Khronos PBR Neutral`.
+* **EEVEE engine id** is `BLENDER_EEVEE`. `World.use_nodes` is deprecated (still works).
+* **Normals:** loft code must end with `bmesh.ops.recalc_face_normals` for closed parts; Blender
+  previews hide inverted normals because they draw back faces.
+* **Keyframes for prop motion blur:** set `preferences.edit.keyframe_new_interpolation_type =
+  'LINEAR'` before `keyframe_insert` (5.x layered actions make editing fcurves awkward).
+* **ImageMagick:** `montage`/`-annotate` need an explicit `-font` path on this Mac; contact sheets
+  use `+append`/`-append` with `/System/Library/Fonts/Supplemental/Arial.ttf`.
