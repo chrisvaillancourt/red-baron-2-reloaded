@@ -278,7 +278,9 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
     clMax += 0.12;
     stallSharpness = Math.min(stallSharpness, 0.3);
   }
-  const alpha0 = -2 * DEG;
+  // Zero-lift angle of the fuselage datum: wings are rigged at ~2.5 deg incidence, so the
+  // fuselage (and the guns) sit nearly level in cruise.
+  const alpha0 = -4.5 * DEG;
   const alphaStall = alpha0 + clMax / clAlpha;
 
   const isRotary = p.engineType === 'rotary';
