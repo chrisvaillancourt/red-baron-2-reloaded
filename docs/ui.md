@@ -9,13 +9,14 @@ when present (`title.jpg`, `menu-aerodrome.jpg`, `briefing-desk.jpg`,
 ## Integrator API
 
 ```ts
-import { createUi, createHud, setUiCatalog } from './ui';
+import { createUi, createHud, setUiCatalog, catalogFromCampaignData } from './ui';
 
 // Menus: mounts into root, drives everything through GameServices.
 const ui = createUi(document.getElementById('app')!, services, { flightHost?: HTMLElement });
 
-// Optional: align display names with campaign data (ranks/medals/aces by id).
-setUiCatalog({ ranks: {...}, medals: {...}, aces: [...] });
+// Display names from the campaign data (ranks/medals/aces by campaign id).
+// src/game/app.ts does this at boot; the dev harness keeps the UI defaults.
+setUiCatalog(catalogFromCampaignData());
 
 // In flight (inside FlightLauncher.fly's container):
 const hud = createHud(container, settings);
@@ -27,6 +28,16 @@ Flying: briefing's "Take off" calls `services.launcher.fly(mission, settings, ho
 The UI hides its layer, appends a full-screen `.rb-flight-host` div to `flightHost`
 (default `document.body`), and restores itself when the promise resolves. Career
 results go through `campaign.applyMissionResult` and into the debrief.
+The hospital "Return to duty" button calls `campaign.returnToDuty(p)` (the
+debrief has already advanced the date past the stay).
+
+`catalogFromCampaignData()` (`src/ui/campaignCatalog.ts`) takes names,
+precedence and ids from `src/data/{ranks,medals,aces}.ts` and maps campaign
+medal ids onto the UI's hand-drawn medal visuals (`ek2` → Iron Cross, `plm` →
+Pour le Mérite, …); unmapped medals get ribbons from the campaign data.
+
+`HudView.mouseAim` (optional `{ aim, nose }`) draws the mouse-aim circle and
+nose cross. Key action `wingmenMenu` (default O) toggles the orders card.
 
 ## Screen map
 

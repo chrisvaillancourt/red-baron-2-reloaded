@@ -244,3 +244,24 @@ a readable label and a generic medal rather than breaking a screen.
 ## D-023 — Units follow the pilot's service (UI agent)
 **Decision.** `units: 'auto'` shows mph and feet for British and American pilots and
 km/h and metres for German and French pilots, as their instruments read.
+
+## D-XXX — The flight session builds the UI's HudView directly (UI integration)
+**Context.** The game layer had its own `HudFrame` and a stub HUD; the UI
+defined `HudView` and a full HUD with pause/end-flight/orders/map cards. An
+adapter between two per-frame structs would be dead weight.
+**Decision.** `src/game/hudView.ts` builds `HudView` directly; `HudFrame`, the
+stub HUD/UI and the game-layer pause/map overlays are deleted. The HUD's
+cards are the only in-flight menus; `hud.menuOpen` disables flight input.
+"End flight" always asks: safe ends record a return, unsafe ends abandon
+(captured over enemy lines). The HUD target box auto-selects the nearest
+enemy within 2.5 km when nothing is padlocked or selected. Added optional
+`HudView.mouseAim` and key action `wingmenMenu` (O).
+**Consequences.** One HUD contract (`src/ui/hud/types.ts`); game-side logic
+for targets/threats/waypoints lives in one file.
+
+## D-XXX — Campaign data is the source of display names; campaign owns hospital discharge
+**Decision.** At boot `app.ts` calls `setUiCatalog(catalogFromCampaignData())`
+so ranks, medals and aces display under their campaign ids (the UI's
+defaults remain for the mock harness). `CampaignService.returnToDuty(p)`
+(additive) discharges a hospitalised pilot; the UI no longer edits pilot
+state, which previously advanced the date twice.
