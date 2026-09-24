@@ -21,7 +21,7 @@ void main() {
   vec3 toCam = cameraPosition - p;
   float d = length(toCam);
   vec3 side = normalize(cross(axis, toCam));
-  float w = max(0.09, d * 0.0011);
+  float w = max(0.09, d * 0.0028); // ~1.5 px at any range: tracers must read at a glance
   p += side * position.y * w;
   vAlong = position.x;
   vSide = position.y;

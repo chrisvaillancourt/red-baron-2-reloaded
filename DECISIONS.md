@@ -364,3 +364,35 @@ real engine into an OfflineAudioContext. The per-sound gains (`UI_GAIN`) keep UI
 8–12 dB below the menu music's peaks. At unity gain, confirm and back peaked about 2 dB
 above the music on every button press.
 **Consequences.** Re-run the script after changing a UI sound's synthesis.
+## D-039 — Mouse-aim flies through the AI's model-inverse autopilot (polish-flight)
+**Context.** The original mouse-aim instructor (a PD law on nose error) was written before the real
+flight model existed. On it, an idealised mouse user crashed, pulled wings off and stalled, holding
+the nose within 6° of the aim only 5–30% of the time.
+**Decision.** In flight the instructor drives `src/ai`'s `Autopilot` in gun-aim mode, with per-realism
+g/margin limits (`INSTRUCTOR` in `src/game/input.ts`), plus a tail-dragger ground mode and a
+low-throttle landing mode. Only stick and rudder are taken; throttle and blip stay with the player.
+**Consequences.** Real-sim soak across 10 types × 3 levels: no crashes or structural failures, kills in
+28/30 duels. The player can't out-fly the instructor's stall protection with the mouse; keys or a
+gamepad override it for raw control. The game layer now depends on `src/ai` for this one class.
+
+## D-040 — Spotting dots for distant aircraft (polish-flight)
+**Context.** A scout covers ~1 px at 4 km, so the GPU drops it; RB2 players spot dots at miles.
+**Decision.** Every aircraft visual carries a fixed-pixel dot (`src/render/aircraft/spotDot.ts`) that
+fades in as the model's projected span falls below ~3–7 px and fades out between 3.5 and 9 km.
+**Consequences.** Enemies can be spotted and padlocked at RB2-like ranges. Visibility no longer
+depends on haze/fog at those ranges; the fade-out stands in for it.
+
+## D-041 — Render-state interpolation between sim steps (polish-flight)
+**Decision.** Aircraft poses are blended between the last two 120 Hz steps for drawing
+(`src/game/renderInterp.ts`), then restored before audio/HUD/sim run.
+**Consequences.** Smooth motion on 120/144 Hz displays, at the cost of up to one sim step (8 ms) of
+display latency.
+
+## D-042 — Ground bounce on aircraft materials (polish-flight)
+**Context.** The sky environment map is dim below the horizon, so wing undersides seen from the
+cockpit rendered near-black.
+**Decision.** Aircraft materials add a ground-bounce irradiance term for down-facing normals, driven by
+the scene's sun (`patchGroundBounce` in `aircraftVisual.ts`), instead of changing the world renderer's
+environment map.
+**Consequences.** Undersides read as their doped colours. The fix only affects aircraft; other
+down-facing surfaces (hangar eaves, balloons) are unchanged.

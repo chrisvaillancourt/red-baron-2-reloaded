@@ -81,12 +81,39 @@ The session builds the UI's `HudView` directly (no adapter layer):
 
 ## Mouse-aim
 
-`mouseAimControls(ac, aimDir, state, dt, out)` steers toward a world
-direction: banks the lift vector toward the aim point, pulls, levels the
-wings when the aim is within a few degrees, adds rudder, and refuses to dive
-into the ground below 120 m. Damping uses error derivatives so it doesn't
-depend on the sim's angular-velocity sign convention. Keyboard or gamepad
-input overrides it and re-syncs the aim to the nose.
+In flight the instructor is `mouseAimAssist` (`input.ts`): it drives the
+AI's model-inverse `Autopilot` (src/ai) in gun-aim mode, so it respects each
+type's stall AoA, g limit, Vne, torque and the terrain. Limits per realism
+level live in `INSTRUCTOR` (relaxed 5 g / wide margins … authentic 6.2 g).
+It takes stick and rudder only; throttle and blip stay with the player.
+
+- **Ground:** mouse steers with rudder, wings held level, tail up to
+  accelerate, rotates at 1.15 Vs when the aim is raised, tail down on
+  rollout.
+- **Landing:** throttle under 30% below 150 m switches to a landing law
+  (no terrain-margin defence, gentle g), so pointing at the field lands.
+- Keyboard or gamepad input overrides it and re-syncs the aim to the nose.
+- `mouseAimControls` is the legacy PD law, kept as the fallback when no
+  WorldQuery is available (unit tests, harnesses).
+
+Regression tests on the real sim: `mouseAim.realsim.test.ts` (duels; full
+10-type × 3-level table with `MOUSEAIM_SOAK=1`, written to
+`test-results/mouseaim-soak.txt`), `mouseAimField.realsim.test.ts`
+(take-off/landing), `keyboardFeel.realsim.test.ts` (held keys).
+
+## Render interpolation
+
+`renderInterp.ts` blends aircraft poses between the last two 120 Hz sim
+steps by the accumulator fraction for drawing only, then restores the true
+state before audio/HUD/sim — no stutter when a frame sees 0, 1 or 2 steps
+(120/144 Hz displays).
+
+## Playtest screenshots
+
+`node tools/playtest/flight-shots.mjs --aircraft <id> --views cockpit,chase,padlock --fly 4`
+against a running dev server (`--port`, `--keys Space --hold 1.5`, `--count`,
+`--start`, `--realism`; `|`-separate views that carry JS). The session debug
+handle exposes `rig`, `visuals` and `freeze()` for QA.
 
 ## Swapping stubs
 

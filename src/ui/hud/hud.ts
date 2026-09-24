@@ -282,6 +282,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
 
     update(v: HudView) {
       unitsFor(v);
+      toggleClass(root, 'in-cockpit', v.view === 'cockpit' || v.view === 'padlock');
       const hdg = headingDegrees(v.heading);
       strip.style.transform = `translateX(${(13 - (((hdg % 360) + 360) % 360 + 360) * K_TAPE).toFixed(2)}em)`;
       setText(headingBox, `${hdg.toString().padStart(3, '0')}°`);
@@ -297,6 +298,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
 
       const showCluster = v.showInstruments;
       toggleClass(cluster, 'hidden', !showCluster);
+      toggleClass(root, 'with-cluster', showCluster);
       if (showCluster) {
         gAsi?.set(speedValue(v.airspeed, units.speed));
         gAlt?.set(altitudeValue(v.altitude, units.system));

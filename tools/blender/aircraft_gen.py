@@ -663,10 +663,15 @@ class Aircraft:
         for i in range(len(rings) - 1):
             for j in range(n):
                 j2 = (j + 1) % n
-                m = 0 if (rmat[i][j] == 0 and rmat[i][j2] == 0) else 1
-                # the upper->lower wrap faces use bottom material with bottom uvs
+                # The leading-edge nose (last lower point -> upper LE) takes the top finish: it is
+                # what the pilot sees looking forward over a wing, and camouflage wrapped the LE.
+                le_wrap = f0 == 0.0 and j2 == 0
+                m = 0 if ((rmat[i][j] == 0 and rmat[i][j2] == 0) or le_wrap) else 1
+                # the trailing-edge wrap faces use bottom material with bottom uvs
                 q = [idx[i][j], idx[i + 1][j], idx[i + 1][j2], idx[i][j2]]
                 quv = [ruv[i][j], ruv[i + 1][j], ruv[i + 1][j2], ruv[i][j2]]
+                if le_wrap:
+                    quv = [(ruv[i][j][0], top_region), (ruv[i + 1][j][0], top_region), ruv[i + 1][j2], ruv[i][j2]]
                 if side == 'L':
                     q = list(reversed(q))
                     quv = list(reversed(quv))
@@ -678,7 +683,12 @@ class Aircraft:
             if (k == 0) == (side == 'R'):
                 cap.reverse()
                 cuv.reverse()
-            mb.face(cap, cuv, 1)
+            if k == 0 and x0 > 0.0:
+                # Root cap against the fuselage: where it pokes above the fuselage side (Dr.I middle
+                # wing) the pilot sees it, so paint it in the top finish, sampled from one spot.
+                mb.face(cap, [(uv[0], top_region + 0.01) for uv in cuv], 0)
+            else:
+                mb.face(cap, cuv, 1)
 
     def build_wing(self, parent, which, span, chord, le, z0, root_x, top_region, bot_region, ailerons):
         dih = self.g['dihedralDeg']
@@ -1261,8 +1271,8 @@ class Aircraft:
     def build_crew(self, root):
         pilot = empty('Pilot', (0, 0, 0), root)
         top = self.fuselage_top(self.cpY)
-        ez = top + 0.3
-        ey = self.cpY - 0.06
+        ez = top + 0.2  # seated eye height over the coaming (was 0.3: too high to see the panel)
+        ey = self.cpY - 0.2  # head over the seat, aft in the opening
         # Keep the eye below the top wing when the pilot sits under it (Bristol, Albatros...).
         for name in ('Upper', 'Main'):
             if name in self.wings:
@@ -1270,7 +1280,7 @@ class Aircraft:
                 if z0 > top and le + 0.1 >= ey >= le - ch - 0.1:
                     under = self.wing_surface_z(name, 0.3, max(le - ch, min(le, ey)))[1]
                     ez = min(ez, under - 0.09)
-        ez = max(ez, top + 0.14)
+        ez = max(ez, top + 0.12)
         self.eye = (0.0, ey, ez)
         self._figure(pilot, 'Pilot', (0, ey - 0.08, ez - 0.03), facing=1)
         if self.two:
@@ -1311,10 +1321,10 @@ class Aircraft:
         box(mb, (0, cy + 0.36, bot + 0.18), (0.55, 0.05, 0.04), mat=2)  # rudder bar
         mb.build('CockpitInterior', ck, smooth=False)
         gm = MB(['Gauge'])
-        gz = ptop - 0.14
+        gz = ptop - 0.075  # gauges just under the coaming line, in the forward view
         rpm_unit = 0.045
         gauges = [('Gauge_RPM', -0.14, gz, 0.05), ('Gauge_Speed', 0.14, gz, 0.045), ('Gauge_Alt', 0.0, gz - 0.02, 0.045),
-                  ('Gauge_Compass', 0.0, gz - 0.13, 0.04), ('Gauge_Fuel', -0.2, gz - 0.12, 0.03)]
+                  ('Gauge_Compass', 0.0, gz - 0.115, 0.04), ('Gauge_Fuel', -0.2, gz - 0.105, 0.03)]
         for name, x, z, r in gauges:
             if abs(x) + r > phw:
                 x = math.copysign(phw - r - 0.01, x)

@@ -45,7 +45,7 @@ translations only.
 | `Gun_Flexible` | Two-seaters: observer's gun on the Scarff ring, pivot at the ring. |
 | `Pilot` (`Pilot_Figure`), `Gunner` | Crew. `Pilot` is hidden in cockpit view. |
 | `Cockpit` | `CockpitInterior`, `Gauge_RPM`, `Gauge_Alt`, `Gauge_Speed`, `Gauge_Compass`, `Gauge_Fuel` (+ `_Bezel`). Gauge discs face the pilot with UV 0..1, canvas-top = gauge-top. |
-| `EyePoint` | Pilot eye (cockpit camera). |
+| `EyePoint` | Pilot eye (cockpit camera): over the seat (cockpit centre − 0.2 m), 0.2 m above the coaming (kept under an overhead wing), so the gauges — just under the coaming — sit in the forward view. |
 | `Contact_WheelL`, `Contact_WheelR`, `Contact_Skid` | Ground contact points (wheel bottoms, skid tip). The generator gives every type an ~11° tail-down ground angle. |
 | `Muzzle_<i>` | Muzzle of `spec.guns[i]` (child of `Gun_Flexible` for flexible guns). Visual positions can differ slightly from `GunMount.position`, which the sim uses for ballistics. |
 

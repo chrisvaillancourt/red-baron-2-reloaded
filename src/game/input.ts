@@ -4,7 +4,11 @@
  * render frame; the flight session copies `controls` into the player.
  */
 import { Quaternion, Vector3 } from 'three';
-import type { AircraftEntity, ControlInputs, ControlSettings } from '../core/types';
+import type { WorldQuery } from '../core/interfaces';
+import type { AircraftEntity, ControlInputs, ControlSettings, FlightModelLevel } from '../core/types';
+import { Autopilot } from '../ai/autopilot';
+import { traitsFor } from '../ai/traits';
+import { getCoefficients } from '../sim/coefficients';
 
 /** Edge-triggered actions (fire once per press). */
 export const EDGE_ACTIONS = [
@@ -90,10 +94,72 @@ export interface MouseAimState {
   prevPitchErr: number;
   prevRollErr: number;
   prevYawErr: number;
+  /** Model-inverse autopilot (src/ai) used by the instructor when a WorldQuery is available. */
+  pilot: Autopilot | null;
+  pilotKey: string;
 }
 
 export function createMouseAimState(): MouseAimState {
-  return { prevPitchErr: 0, prevRollErr: 0, prevYawErr: 0 };
+  return { prevPitchErr: 0, prevRollErr: 0, prevYawErr: 0, pilot: null, pilotKey: '' };
+}
+
+/** Instructor limits per flight-model level: relaxed is gentle and safe, authentic lets you pull hard. */
+export const INSTRUCTOR: Record<FlightModelLevel, { maxG: number; caution: number; maxPerformance: boolean; minAgl: number }> = {
+  relaxed: { maxG: 5, caution: 1, maxPerformance: true, minAgl: 90 },
+  standard: { maxG: 5.2, caution: 0.85, maxPerformance: true, minAgl: 60 },
+  authentic: { maxG: 6.2, caution: 0.6, maxPerformance: true, minAgl: 35 },
+};
+
+/**
+ * Mouse-aim instructor on the real flight model: the AI's model-inverse
+ * autopilot points the gun line at the aim direction. It knows each type's
+ * stall AoA, g limit, Vne, rotary torque and the terrain, so the player can
+ * fight hard without departing. Only stick and rudder are taken; throttle
+ * and blip stay with the player.
+ */
+export function mouseAimAssist(
+  ac: AircraftEntity,
+  aim: Vector3,
+  st: MouseAimState,
+  world: WorldQuery,
+  level: FlightModelLevel,
+  dt: number,
+  out: { pitch: number; roll: number; yaw: number },
+): void {
+  const key = `${ac.id}:${ac.spec.id}:${level}`;
+  const cfg = INSTRUCTOR[level];
+  if (!st.pilot || st.pilotKey !== key) {
+    const p = ac.spec.performance;
+    st.pilot = new Autopilot(traitsFor(ac.spec), cfg.maxG, cfg.minAgl, p.rollRate, p.pitchRate, getCoefficients(ac.spec));
+    st.pilot.diveCaution = cfg.caution;
+    st.pilotKey = key;
+  }
+  const c = ac.controls;
+  const s = ac.state;
+  if (s.onGround || (s.heightAboveGround < 4 && s.airspeed < traitsFor(ac.spec).stallSpeed * 1.3)) {
+    groundHandling(ac, aim, out);
+    return;
+  }
+  // Throttled back near the ground = landing: let the aim point take the aircraft down
+  // (the instructor otherwise defends its terrain margin) and keep the pull gentle.
+  const landing = c.throttle < 0.3 && s.heightAboveGround < 150;
+  const saved = { pitch: c.pitch, roll: c.roll, yaw: c.yaw, throttle: c.throttle, blip: c.blip };
+  st.pilot.fly(
+    ac,
+    landing
+      ? { dir: aim, speed: Infinity, aim: false, maxG: 2, minAgl: 6, lowLevel: true, landing: true }
+      : { dir: aim, speed: Infinity, aim: true, maxPerformance: cfg.maxPerformance, minAgl: cfg.minAgl },
+    world,
+    Math.max(dt, 1e-3),
+  );
+  out.pitch = c.pitch;
+  out.roll = c.roll;
+  out.yaw = c.yaw;
+  c.pitch = saved.pitch;
+  c.roll = saved.roll;
+  c.yaw = saved.yaw;
+  c.throttle = saved.throttle;
+  c.blip = saved.blip;
 }
 
 const _inv = new Quaternion();
@@ -140,6 +206,36 @@ export function mouseAimControls(
   if (ac.state.heightAboveGround < 120 && ac.state.velocity.y < 0) out.pitch = Math.max(out.pitch, 0.35);
 }
 
+/**
+ * Mouse-aim on the ground: the mouse steers (rudder toward the aim heading),
+ * wings are held level, and the stick follows the tail-dragger routine —
+ * tail up to accelerate, rotate once there is flying speed and the aim is
+ * raised, stick back to keep the tail down when rolling out slowly.
+ */
+function groundHandling(ac: AircraftEntity, aim: Vector3, out: { pitch: number; roll: number; yaw: number }): void {
+  const s = ac.state;
+  const q = s.orientation;
+  const f = _gf.set(0, 0, -1).applyQuaternion(q);
+  const r = _gr.set(1, 0, 0).applyQuaternion(q);
+  const u = _gu.set(0, 1, 0).applyQuaternion(q);
+  const vs = traitsFor(ac.spec).stallSpeed;
+  const bank = Math.atan2(-r.y, u.y);
+  const hdg = Math.atan2(f.x, -f.z);
+  const aimHdg = Math.atan2(aim.x, -aim.z);
+  let hErr = aimHdg - hdg;
+  hErr = Math.atan2(Math.sin(hErr), Math.cos(hErr));
+  const aimElev = Math.asin(clamp(aim.y, -1, 1));
+  const pitchAng = Math.asin(clamp(f.y, -1, 1));
+  out.roll = clamp(-bank * 2 + s.angularVelocity.z * 0.4, -1, 1);
+  out.yaw = clamp(hErr * 3 + s.angularVelocity.y * 0.8, -1, 1);
+  if (s.airspeed < vs * 0.6 && ac.controls.throttle < 0.5) out.pitch = 0.35; // taxi / rollout: tail down
+  else if (s.airspeed > vs * 1.15 && aimElev > 0.04) out.pitch = clamp(0.25 + aimElev, 0.25, 0.5); // rotate
+  else out.pitch = clamp((0.02 - pitchAng) * 5 - s.angularVelocity.x, -1, 1); // tail up, accelerate
+}
+const _gf = new Vector3();
+const _gr = new Vector3();
+const _gu = new Vector3();
+
 const KEY_AXIS_RATE = 3.5; // per s toward full deflection
 const KEY_AXIS_RETURN = 6;
 const THROTTLE_RATE = 0.5;
@@ -181,6 +277,9 @@ export class InputManager {
   constructor(
     private readonly element: HTMLElement,
     private readonly getControls: () => ControlSettings,
+    /** Live world + realism for the model-aware mouse-aim instructor (legacy law without them). */
+    private readonly getWorld: () => WorldQuery | null = () => null,
+    private readonly getLevel: () => FlightModelLevel = () => 'standard',
   ) {}
 
   attach(): void {
@@ -350,7 +449,9 @@ export class InputManager {
       }
       aimDirection = this.aim!.clone();
       const out = { pitch: 0, roll: 0, yaw: 0 };
-      mouseAimControls(player, this.aim!, this.aimState, dt, out);
+      const world = this.getWorld();
+      if (world) mouseAimAssist(player, this.aim!, this.aimState, world, this.getLevel(), dt, out);
+      else mouseAimControls(player, this.aim!, this.aimState, dt, out);
       mousePitch = out.pitch;
       mouseRoll = out.roll;
       mouseYaw = out.yaw;

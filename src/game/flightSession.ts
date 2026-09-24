@@ -19,6 +19,7 @@ import type {
 } from '../core/interfaces';
 import type { AircraftEntity, GameEvent, GameSettings, MissionDefinition, MissionResult } from '../core/types';
 import { CameraRig, type CameraMode } from './cameras';
+import { RenderInterpolator } from './renderInterp';
 import { advanceWaypoint, buildHudView } from './hudView';
 import { InputManager, type EdgeAction } from './input';
 import { MissionDirector } from './missionDirector';
@@ -56,6 +57,10 @@ export interface SessionDebug {
   command(action: EdgeAction): void;
   endFlight(): boolean;
   abandon(): void;
+  /** QA hooks (polish-flight): camera rig, aircraft visuals, silent sim freeze. */
+  readonly rig: CameraRig;
+  readonly visuals: Map<number, AircraftVisual>;
+  freeze(frozen: boolean): void;
 }
 
 declare global {
@@ -89,6 +94,7 @@ export class FlightSession {
   private wingmanOrders = new Map<number, string>();
   private ai = new Map<number, AIController>();
   private visuals = new Map<number, AircraftVisual>();
+  private interp = new RenderInterpolator();
   private entityObjects = new Map<number, Object3D>();
   private root!: HTMLDivElement;
   private canvas!: HTMLCanvasElement;
@@ -190,7 +196,7 @@ export class FlightSession {
 
     // Camera, input, overlays.
     this.rig = new CameraRig(settings.fov, 1, this.renderer.near, this.renderer.far);
-    this.input = new InputManager(this.canvas, () => this.settings.controls);
+    this.input = new InputManager(this.canvas, () => this.settings.controls, () => this.world, () => this.settings.realism.flightModel);
     this.input.attach();
     const player = this.world.player;
     if (player) {
@@ -244,6 +250,15 @@ export class FlightSession {
       command: (a) => self.handleCommands([a]),
       endFlight: () => self.director.requestEndFlight(),
       abandon: () => self.director.abort(),
+      get rig() {
+        return self.rig;
+      },
+      get visuals() {
+        return self.visuals;
+      },
+      freeze: (f: boolean) => {
+        self.paused = f;
+      },
     };
   }
 
@@ -505,6 +520,7 @@ export class FlightSession {
       let first = true;
       while (this.accumulator >= h) {
         this.accumulator -= h;
+        this.interp.capture(world.aircraft);
         this.step(h);
         if (first && player) {
           player.controls.clearJam = false; // edge: one step only
@@ -515,7 +531,8 @@ export class FlightSession {
       this.updateGEffect(dtReal);
     }
 
-    // Visual sync.
+    // Visual sync (poses blended between sim steps; see renderInterp.ts).
+    this.interp.apply(world.aircraft, this.paused ? 1 : this.accumulator * SIM_HZ);
     for (const ac of world.aircraft) {
       const v = this.visuals.get(ac.id);
       if (!v) continue;
@@ -531,6 +548,7 @@ export class FlightSession {
     }
     this.renderer.update(this.paused ? 0 : dtReal, this.rig.camera, world, this.combat.bullets);
     this.renderer.render(this.rig.camera);
+    this.interp.restore();
     if (this.pixelRequests.length) this.samplePixels();
     this.audio.updateFlight(this.rig.camera, player, world, this.paused ? 0 : dtReal, this.rig.inCockpit);
     if (player) {
