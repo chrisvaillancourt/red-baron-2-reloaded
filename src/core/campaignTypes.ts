@@ -80,6 +80,12 @@ export interface CareerPilot {
   preferredAircraft?: AircraftId;
   /** Personal livery override once pilot is famous enough (RB2 let aces paint aircraft). */
   personalLivery?: Livery;
+  /**
+   * Historical aces whose fate this career has changed (shot down by the
+   * player, or lost flying in the player's flight). They stop scoring and
+   * appearing from `date`.
+   */
+  alteredAces?: Record<string, { fate: 'killed' | 'captured'; date: string }>;
   /** Seed for deterministic mission generation. */
   rngSeed: number;
   createdAt: string;
