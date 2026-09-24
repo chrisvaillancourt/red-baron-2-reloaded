@@ -23,7 +23,7 @@ import type {
 import { getAerodrome } from '../data/aerodromes';
 import { Autopilot, type SteerCommand } from './autopilot';
 import { angularRadius, leadSolution, type LeadSolution } from './gunnery';
-import { angleBetween, clamp, DEG, forwardOf, makeRng, upOf, rightOf } from './math';
+import { angleBetween, clamp, DEG, forwardOf, headingOf, makeRng, upOf, rightOf, wrapPi } from './math';
 import { chooseDefensive, maneuverSteer, type Maneuver } from './maneuvers';
 import {
   formationOffset,
@@ -39,6 +39,7 @@ import {
 import { isAlive, isAttacking, Perception, threatLevel } from './perception';
 import { makeSkillProfile, skillValue, type SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
+import { getCoefficients } from '../sim/coefficients';
 
 export interface AIControllerOptions {
   role: FlightRole;
@@ -55,9 +56,15 @@ export interface AIControllerOptions {
   homeAerodromeId?: string;
   /** RNG seed (defaults to the entity id) for reproducible behaviour. */
   seed?: number;
+  /**
+   * Control law: `sim` (default) inverts src/sim's stick laws using its coefficients;
+   * `generic` is a model-agnostic PID law (used with the point-mass test model).
+   */
+  controlLaw?: 'sim' | 'generic';
 }
 
 export type AIPhase =
+  | 'takeoff'
   | 'mission'
   | 'formation'
   | 'escort'
@@ -108,6 +115,9 @@ export class AIPilot implements AIController {
   private orderTargetId: number | null = null;
 
   private now = 0;
+  /** Take-off state: runway heading and when this aircraft may start its roll (wingmen wait). */
+  private takeoffHeading = 0;
+  private takeoffStart = -1;
   private wpIndex = 0;
   private patrolUntil = -1;
   private wpStarted = -1;
@@ -148,8 +158,21 @@ export class AIPilot implements AIController {
     this.profile = makeSkillProfile(skillValue(opts.skill, opts.role, opts.realism));
     this.perception = new Perception(this.profile);
     this.rng = makeRng(opts.seed ?? ac.id * 7919 + 13);
-    this.autopilot = new Autopilot(this.traits, this.profile.maxG, this.profile.groundMargin, ac.spec.performance.rollRate, ac.spec.performance.pitchRate);
+    this.autopilot = new Autopilot(
+      this.traits,
+      this.profile.maxG,
+      this.profile.groundMargin,
+      ac.spec.performance.rollRate,
+      ac.spec.performance.pitchRate,
+      opts.controlLaw === 'generic' ? null : getCoefficients(ac.spec),
+    );
+    this.autopilot.diveCaution = this.profile.t;
     this.lastDamage = damageSum(ac);
+    // Parked on a field at mission start: take off first.
+    if (ac.state.onGround && ac.state.airspeed < 5) {
+      this.phase = 'takeoff';
+      this.takeoffHeading = headingOf(forwardOf(ac.state.orientation, _tmp));
+    }
     REGISTRY.set(ac, this);
   }
 
@@ -181,6 +204,14 @@ export class AIPilot implements AIController {
       this.debugState = 'landed';
       return;
     }
+    if (this.phase === 'takeoff') {
+      this.perception.sweep(self, world, this.rng);
+      if (this.flyTakeoff(self, world, dt)) {
+        this.debugState = `takeoff${self.state.onGround ? ' roll' : ' climb'}`;
+        return;
+      }
+      this.phase = 'mission';
+    }
 
     this.perception.sweep(self, world, this.rng);
     this.checkDamage(self, world);
@@ -204,6 +235,61 @@ export class AIPilot implements AIController {
     this.gunner(self, world);
     if (this.phase === 'defend') this.stats.defendTime += dt;
     this.debugState = `${this.phase}${this.targetId != null ? ` #${this.targetId}` : ''}${this.maneuver ? ` ${this.maneuver.kind}` : ''}${this.autopilot.recovering ? ' recover' : ''}${this.autopilot.groundEmergency ? ' pull-up' : ''}`;
+  }
+
+  /**
+   * Take-off from a grass field (src/sim ground model): full throttle, wings level, rudder
+   * holds the runway heading, and the stick holds the fuselage level (tail up) until
+   * 1.2 Vs, then rotates. Too much forward stick noses the aircraft over, so the pitch
+   * loop targets a slightly nose-up attitude with rate damping. After lift-off it climbs
+   * straight ahead at best-climb speed to ~120 m AGL. Wingmen wait a few seconds per slot
+   * so the flight doesn't collide on the strip. Returns false when complete.
+   */
+  private flyTakeoff(self: AircraftEntity, world: WorldQuery, dt: number): boolean {
+    const s = self.state;
+    const c = self.controls;
+    c.fireGuns = false;
+    c.clearJam = false;
+    c.blip = false;
+    if (this.takeoffStart < 0) {
+      const leader = this.resolveLeader(self, world);
+      const slot = leader ? this.formationSlot(self, world, leader) : 0;
+      this.takeoffStart = this.now + slot * 6;
+    }
+    if (this.now < this.takeoffStart) {
+      c.throttle = 0;
+      c.pitch = 0.3;
+      c.roll = c.yaw = 0;
+      return true;
+    }
+    if (this.now - this.takeoffStart > 150) return false; // give up managing it; the mission layer takes over
+    const f = forwardOf(s.orientation, _tmp);
+    const hErr = wrapPi(this.takeoffHeading - headingOf(f));
+    const bank = Autopilot.bankAngle(self);
+    const rollRate = -s.angularVelocity.z; // + = rolling right
+    const yawRate = -s.angularVelocity.y; // + = yawing right
+    const agl = s.heightAboveGround;
+    c.throttle = 1;
+    if (s.onGround || agl < 6) {
+      c.roll = clamp(-bank * 2 - rollRate * 0.4, -1, 1);
+      c.yaw = clamp(hErr * 3 - yawRate * 0.8, -1, 1);
+      const pitchAng = Math.asin(clamp(f.y, -1, 1));
+      c.pitch = s.airspeed < this.traits.stallSpeed * 1.2 ? clamp((0.02 - pitchAng) * 5 - s.angularVelocity.x, -1, 1) : 0.3;
+      return true;
+    }
+    if (agl > 120) return false;
+    const steer = this.steer;
+    steer.dir.set(Math.sin(this.takeoffHeading), 0.15, -Math.cos(this.takeoffHeading));
+    steer.speed = this.traits.bestClimbSpeed * 1.1;
+    steer.aim = false;
+    steer.maxG = 2;
+    steer.minAgl = 20;
+    steer.lowLevel = true;
+    steer.aggression = 1;
+    steer.minSpeed = undefined;
+    steer.maxPerformance = false;
+    this.autopilot.fly(self, steer, world, dt);
+    return true;
   }
 
   // =====================================================================
@@ -389,7 +475,7 @@ export class AIPilot implements AIController {
     }
 
     // Engagement radius depends on role and orders.
-    let radius = this.profile.spotRange * 0.8;
+    let radius = this.profile.spotRange;
     let anchor: Vector3 = self.state.position;
     const leaderCtl = leader ? REGISTRY.get(leader) : undefined;
     if (leader && this.order === 'default') {
@@ -553,7 +639,7 @@ export class AIPilot implements AIController {
       case 'land': {
         const a = nearestFriendlyAerodrome(self.side, wp.x, wp.z, world.date);
         if (a && dist < 5000) {
-          this.landing = planLanding(a, (x, z) => world.groundHeightAt(x, z));
+          this.landing = planLanding(a, (x, z) => world.groundHeightAt(x, z), this.landingLane(self, world));
           this.landingStage = 'approach';
           this.phase = 'landing';
           this.steerLanding(self, world, steer);
@@ -640,8 +726,10 @@ export class AIPilot implements AIController {
       this.applyAimNoise(self, dir, dt);
       steer.aim = true;
       // Overshoot guard: lag pursuit and throttle back when closing fast at high angle-off.
-      if (r < 280 && closure > 18 && angleOff > 45 * DEG) {
-        const behind = ts.position.clone().addScaledVector(_tmp2.copy(ts.velocity).normalize(), -120).sub(s.position);
+      // The lag point is a fraction of the range behind the target, so the nose stays on
+      // the inside of its turn (a fixed 120 m would point outside it at longer range).
+      if (r < 220 && closure > 18 && angleOff > 45 * DEG) {
+        const behind = ts.position.clone().addScaledVector(_tmp2.copy(ts.velocity).normalize(), -Math.min(60, 0.25 * r)).sub(s.position);
         steer.dir.copy(behind);
         steer.aim = false;
       }
@@ -689,7 +777,7 @@ export class AIPilot implements AIController {
   /** Ornstein-Uhlenbeck aim wander, rotating dir by small angles. */
   private applyAimNoise(self: AircraftEntity, dir: Vector3, dt: number): void {
     const sigma = this.profile.aimNoiseRad;
-    const theta = 1.2;
+    const theta = 0.5;
     const k = Math.sqrt(2 * theta * dt) * sigma;
     this.noise.x += -theta * this.noise.x * dt + k * gauss(this.rng);
     this.noise.y += -theta * this.noise.y * dt + k * gauss(this.rng);
@@ -793,7 +881,7 @@ export class AIPilot implements AIController {
     if (home) {
       const d = Math.hypot(home.x - s.position.x, home.z - s.position.z);
       if (d < 4500 && !threatened) {
-        this.landing = planLanding(home, (x, z) => world.groundHeightAt(x, z));
+        this.landing = planLanding(home, (x, z) => world.groundHeightAt(x, z), this.landingLane(self, world));
         this.landingStage = 'approach';
         this.phase = 'landing';
         this.steerLanding(self, world, steer);
@@ -806,6 +894,16 @@ export class AIPilot implements AIController {
     }
     steer.speed = threatened || world.sideOfFrontAt(s.position.x, s.position.z) !== self.side ? Infinity : this.traits.cruiseSpeed;
     steer.maxG = 3;
+  }
+
+  /** Landing lane by formation slot: grass fields are wide, so a flight lands abreast (40 m apart). */
+  private landingLane(self: AircraftEntity, world: WorldQuery): number {
+    // Rank within the flight by id (independent of who currently leads: a leader that is
+    // already landing no longer "leads", but still occupies lane 0).
+    let slot = this.opts.formationSlot ?? 0;
+    if (!slot) for (const a of world.aircraft) if (a.flightId === self.flightId && a.id < self.id) slot++;
+    if (!slot) return 0;
+    return (slot % 2 === 1 ? 1 : -1) * 40 * Math.ceil(slot / 2);
   }
 
   private steerLanding(self: AircraftEntity, world: WorldQuery, steer: SteerCommand): void {
@@ -832,13 +930,34 @@ export class AIPilot implements AIController {
       }
       return;
     }
+    const ap = plan.approachPoint;
+    // Horizontal alignment of our track with the runway direction.
+    const hv = Math.hypot(s.velocity.x, s.velocity.z) || 1;
+    const align = (s.velocity.x * plan.dir.x + s.velocity.z * plan.dir.z) / hv;
     if (this.landingStage === 'approach') {
-      const ap = plan.approachPoint;
+      // Arriving from the far side of the field (or the gate's side, misaligned): fly a
+      // base point well outside the approach gate first, so the turn onto final is made
+      // with height and room instead of a low 180 at the gate.
+      const alongGate = (s.position.x - ap.x) * plan.dir.x + (s.position.z - ap.z) * plan.dir.z;
+      if (alongGate > -600 && align < 0.5) this.landingStage = 'pattern';
+    }
+    if (this.landingStage === 'pattern') {
+      const side = 1; // right-hand pattern
+      const bx = ap.x - plan.dir.x * 1600 + plan.dir.z * 900 * side;
+      const bz = ap.z - plan.dir.z * 1600 - plan.dir.x * 900 * side;
+      steer.dir.copy(toPointSteer(self, bx, ap.y + 60, bz));
+      steer.speed = vs * 1.8;
+      steer.minAgl = 150;
+      if (Math.hypot(bx - s.position.x, bz - s.position.z) < 500) this.landingStage = 'approach';
+      return;
+    }
+    if (this.landingStage === 'approach') {
       steer.dir.copy(toPointSteer(self, ap.x, ap.y, ap.z));
       steer.speed = vs * 1.7;
       steer.minAgl = 120;
       const d = Math.hypot(ap.x - s.position.x, ap.z - s.position.z);
-      if (d < 450) this.landingStage = 'final';
+      if (d < 500 && align > 0.75) this.landingStage = 'final';
+      else if (d < 350) this.landingStage = 'pattern'; // reached the gate misaligned: go round
       return;
     }
     if (this.landingStage === 'final') {
@@ -846,7 +965,7 @@ export class AIPilot implements AIController {
       const aim = plan.threshold.clone().addScaledVector(plan.dir, ahead);
       aim.y = plan.threshold.y + Math.max(0, -ahead) * Math.tan(5 * DEG) + 1;
       steer.dir.copy(aim.sub(s.position));
-      steer.speed = vs * 1.35;
+      steer.speed = agl > 60 ? vs * 1.35 : vs * 1.25;
       steer.minSpeed = vs * 1.2;
       steer.minAgl = 0;
       // Go around if badly misaligned or overshooting the field.
@@ -858,11 +977,14 @@ export class AIPilot implements AIController {
       if (agl < 10) this.landingStage = 'flare';
       return;
     }
-    // Flare: level off just above the grass and let the speed bleed away.
-    // Hold a shallow sink with a whisker of power, then cut it for the touchdown.
+    // Flare: power off (the pilot blips/cuts the engine), hold a gentle sink and let the
+    // speed bleed away onto the grass. Holding power here floats a light scout for miles.
+    // Heavier types arrive fast: hold them level just off the grass until the speed has
+    // decayed, or they touch down fast, bounce and drop a wing.
     steer.dir.copy(plan.dir);
-    steer.dir.y = clamp(-0.004 - agl * 0.004, -0.04, -0.004);
-    steer.speed = agl > 1.5 ? vs * 1.15 : 0;
+    const fast = s.airspeed > vs * 1.2;
+    steer.dir.y = fast ? clamp((2.5 - agl) * 0.01, -0.03, 0.01) : clamp(-0.02 - agl * 0.006, -0.06, -0.02);
+    steer.speed = 0;
     steer.minSpeed = 0;
     steer.minAgl = 0;
   }

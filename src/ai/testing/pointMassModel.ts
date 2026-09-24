@@ -13,6 +13,7 @@
 import { Quaternion, Vector3 } from 'three';
 import type { AircraftEntity, AircraftSpec, FlightEnvironment } from '../../core/types';
 import { clamp, G } from '../math';
+import { getCoefficients } from '../../sim/coefficients';
 
 export interface PointMassParams {
   mass: number;
@@ -34,7 +35,7 @@ export function isaDensity(alt: number): number {
 export function paramsFor(spec: AircraftSpec): PointMassParams {
   const p = spec.performance;
   const powerW = p.enginePowerHp * 745.7;
-  const clMax = spec.geometry.layout === 'triplane' ? 1.45 : 1.25;
+  const clMax = getCoefficients(spec).clMax;
   const ar = (spec.geometry.span * spec.geometry.span) / p.wingArea;
   const inducedK = 1 / (Math.PI * Math.max(ar, 3) * 0.7);
   const vmax = p.maxSpeedKmh / 3.6;
@@ -81,9 +82,11 @@ export interface ModelVariant {
 export class PointMassModel {
   private rollRate = 0;
   readonly p: PointMassParams;
+  private readonly stallAoa: number;
 
   constructor(spec: AircraftSpec, private readonly variant: ModelVariant = {}) {
     this.p = paramsFor(spec);
+    this.stallAoa = getCoefficients(spec).alphaStall;
   }
 
   step(ac: AircraftEntity, env: FlightEnvironment, dt: number): void {
@@ -163,7 +166,7 @@ export class PointMassModel {
     const gh = env.groundHeightAt(s.position.x, s.position.z);
     s.heightAboveGround = s.position.y - gh;
     s.gLoad = n;
-    s.aoa = s.stalled ? 0.3 : (Math.max(n, 0) / Math.max(nAvail, 0.1)) * 0.26;
+    s.aoa = s.stalled ? 0.3 : (Math.max(n, 0) / Math.max(nAvail, 0.1)) * this.stallAoa;
     s.sideslip = c.yaw * 0.05;
     s.engineRpm = 600 + 800 * c.throttle;
     s.angularVelocity.set(0, yawRate, this.rollRate);
