@@ -40,6 +40,16 @@ export const acesScreen: ScreenFactory = (ctx) => {
           ),
         )
       : h('p', { class: 'typed muted' }, 'No pilots yet. Their names will be written here.'),
+    h('hr', { class: 'rule' }),
+    h('h3', { class: 'panel-h' }, 'What makes an ace'),
+    h(
+      'div',
+      { class: 'fame-notes' },
+      h('p', null, 'The French press first called a pilot with five victories an ', h('em', null, 'as'), ' — Adolphe Pégoud, in 1915. The British never made it official, but the name stuck on both sides of the wire.'),
+      h('p', null, 'A victory counted only when confirmed: by witnesses in the air or on the ground, or by wreckage found behind your own lines. Many a claim over enemy territory was never credited.'),
+      h('p', null, 'In Germany, eight victories once earned the Pour le Mérite; by 1917 the bar had risen to sixteen, and by 1918 to twenty or more.'),
+      h('p', { class: 'muted' }, 'Win your victories in a Career and your pilots will take their place on this roll.'),
+    ),
   );
 
   const byNation = (n: Nation | 'all') => () => {

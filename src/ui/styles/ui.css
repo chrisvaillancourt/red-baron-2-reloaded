@@ -717,6 +717,66 @@ select.input option {
   padding: 2em 2.2em 1.6em;
   animation: rb-screen-in 0.3s both;
 }
+.rb-modal [hidden] {
+  display: none !important;
+}
+.rb-modal.wide {
+  width: min(56em, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+}
+.flying-school .fs-intro {
+  margin: 0 0 1em;
+  color: var(--ink-soft);
+}
+.flying-school .fs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22em, 1fr));
+  gap: 0.9em 2em;
+}
+.fs-lesson {
+  display: grid;
+  grid-template-columns: 2.2em 1fr;
+  gap: 0.7em;
+  align-items: start;
+}
+.fs-lesson .fs-n {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2em;
+  color: var(--stamp);
+  text-align: center;
+  border: 2px solid var(--stamp);
+  border-radius: 50%;
+  width: 1.9em;
+  height: 1.9em;
+  line-height: 1.75em;
+}
+.fs-lesson h3 {
+  margin: 0 0 0.2em;
+  font-family: var(--font-display);
+  font-size: 1.05em;
+}
+.fs-lesson p {
+  margin: 0 0 0.35em;
+  font-size: 0.86em;
+  line-height: 1.45;
+}
+.fs-keys {
+  font-family: var(--font-type);
+  font-size: 0.78em;
+  color: var(--ink-soft);
+}
+.fs-keys kbd,
+.flying-school kbd {
+  font-family: var(--font-type);
+  border: 1px solid var(--ink);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 0 0.4em;
+  background: rgba(255, 252, 240, 0.6);
+  color: var(--ink);
+}
 .rb-modal h2 {
   margin: 0 0 0.5em;
   font-family: var(--font-display);
@@ -780,7 +840,7 @@ select.input option {
 
 .scr-title .rb-bg {
   background:
-    linear-gradient(180deg, rgba(20, 12, 5, 0.1) 0%, rgba(20, 12, 5, 0) 40%, rgba(12, 7, 3, 0.85) 100%),
+    linear-gradient(180deg, rgba(20, 12, 5, 0.1) 0%, rgba(20, 12, 5, 0) 45%, rgba(12, 7, 3, 0.62) 100%),
     var(--title-art, none) center / cover no-repeat,
     radial-gradient(ellipse 70% 45% at 72% 78%, #ffd28a 0%, #f09a4a 16%, #c2582a 32%, transparent 62%),
     linear-gradient(180deg, #1b1420 0%, #3b2330 28%, #7a3a2a 55%, #c86a34 74%, #e89a52 82%, #2a160c 83%, #120a05 100%);
@@ -891,9 +951,12 @@ select.input option {
 }
 .logo .tagline {
   margin-top: 1em;
+  max-width: min(21em, 30vw);
   font-style: italic;
-  font-size: 1.1em;
-  color: rgba(244, 230, 194, 0.8);
+  font-size: 1.05em;
+  line-height: 1.4;
+  color: rgba(244, 230, 194, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 .title-foot {
   font-family: var(--font-type);
@@ -902,11 +965,49 @@ select.input option {
   line-height: 1.6;
 }
 .title-menu {
-  width: min(24em, 36vw);
-  align-self: center;
+  width: min(22em, 30vw);
+  margin: 2.2vh 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 0.7em;
+  gap: 0.55em;
+}
+/* Left-hand scrim so the menu column reads over the key art; the right two thirds
+   (where the art's aircraft fly) stay untouched. */
+.title-scrim {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(12, 7, 3, 0.78) 0%, rgba(12, 7, 3, 0.55) 22%, rgba(12, 7, 3, 0.18) 34%, rgba(12, 7, 3, 0) 44%),
+    radial-gradient(ellipse 120% 70% at 50% 50%, transparent 55%, rgba(8, 4, 2, 0.45) 100%);
+}
+.scr-title .rb-content {
+  z-index: 2;
+}
+.title-quote {
+  position: absolute;
+  z-index: 2;
+  right: 3em;
+  bottom: 3.6em;
+  max-width: min(30em, 40vw);
+  margin: 0;
+  color: rgba(248, 236, 206, 0.86);
+  font-style: italic;
+  font-size: 0.85em;
+  text-align: right;
+  line-height: 1.5;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 1em rgba(0, 0, 0, 0.6);
+}
+.title-quote cite {
+  display: block;
+  font-style: normal;
+  font-family: var(--font-type);
+  font-size: 0.85em;
+  margin-top: 0.3em;
+  color: var(--brass-hi);
 }
 .title-menu .menu-head {
   font-family: var(--font-type);
@@ -1626,8 +1727,8 @@ select.input option {
   font-weight: 700;
 }
 .objectives li.done::before {
-  content: '☒';
-  color: var(--stamp);
+  content: '☑';
+  color: #3d6b34;
 }
 .flight-roster {
   font-family: var(--font-type);
@@ -1659,6 +1760,37 @@ select.input option {
   max-height: 100%;
   overflow: auto;
   padding: 2em 2.6em 1.8em;
+}
+.report-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4em 2.2em;
+}
+.report-side .field-label {
+  margin-top: 0.6em;
+}
+/* Landscape screens: the CO's remarks sit beside the claims so the whole report
+   fits without scrolling at 1280×720. */
+@media (min-aspect-ratio: 4/3) {
+  .report {
+    width: min(74em, 94%);
+  }
+  .report-body {
+    grid-template-columns: 1.05fr 1fr;
+  }
+  .report:not(:has(.report-side)) {
+    width: min(50em, 94%);
+  }
+  .report:not(:has(.report-side)) .report-body {
+    grid-template-columns: 1fr;
+  }
+  .report-side .field-label {
+    margin-top: 0;
+  }
+  .report-side {
+    border-left: 1px solid var(--ink-faint);
+    padding-left: 2.2em;
+  }
 }
 .report .hdr {
   display: flex;
@@ -1702,6 +1834,9 @@ select.input option {
   font-size: 0.92em;
   line-height: 1.55;
   margin: 0 0 0.7em;
+}
+.narrative p + p {
+  clear: left;
 }
 .narrative p:first-child::first-letter {
   font-family: var(--font-display);
@@ -1809,6 +1944,8 @@ select.input option {
 
 /* Ceremony (promotion / medal) */
 .ceremony {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1817,6 +1954,35 @@ select.input option {
   color: #f4e6c2;
   max-width: 44em;
   padding: 2em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+/* Soft dark pool behind ceremony text so the sky art (and the aircraft in it)
+   never fights the lettering. */
+.memorial {
+  position: relative;
+  isolation: isolate;
+  padding: 2em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+.memorial::before,
+.ceremony::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -4em -8em;
+  background: radial-gradient(closest-side, rgba(10, 6, 3, 0.62), rgba(10, 6, 3, 0.35) 60%, transparent);
+  pointer-events: none;
+}
+.ceremony .paper,
+.ceremony .photo,
+.ceremony .btn {
+  text-shadow: none;
+}
+/* Status stamp on the HQ dossier must fit the narrow card. */
+.hq-dossier .stamp.big {
+  font-size: 1.15em;
+  white-space: nowrap;
+  max-width: 100%;
 }
 .ceremony .c-kicker {
   font-family: var(--font-type);
@@ -2146,6 +2312,12 @@ select.input option {
   padding: 1.4em 1.8em;
   overflow: auto;
 }
+.fame-notes p {
+  font-family: var(--font-type);
+  font-size: 0.88em;
+  line-height: 1.55;
+  margin: 0 0 0.7em;
+}
 
 /* ======================================================== responsive */
 
@@ -2188,7 +2360,11 @@ select.input option {
 }
 
 .quick .spec-sheet .profile-big svg {
-  max-width: 15em;
+  max-width: 13em;
+  max-height: 6.2em;
+}
+.quick .paper {
+  gap: 0.6em;
 }
 .quick .spec-desc {
   font-size: 0.8em;

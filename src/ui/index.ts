@@ -169,13 +169,14 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
         { class: 'rb-modal-backdrop', role: 'dialog', 'aria-modal': 'true' },
         h(
           'div',
-          { class: 'rb-modal paper' },
+          { class: `rb-modal paper ${o.className ?? ''}` },
           h('h2', null, o.title),
-          h('p', { class: 'typed' }, o.body),
+          typeof o.body === 'string' ? h('p', { class: 'typed' }, o.body) : o.body,
           h(
             'div',
             { class: 'actions' },
-            h('button', { class: 'btn', 'data-cancel': '', onClick: () => close(false) }, o.cancelLabel ?? 'Cancel'),
+            // Info cards keep a hidden cancel target so Esc/B still closes them.
+            h('button', { class: 'btn', 'data-cancel': '', hidden: o.infoOnly || undefined, onClick: () => close(false) }, o.cancelLabel ?? 'Cancel'),
             h('button', { class: `btn primary ${o.danger ? 'danger' : ''}`, 'data-autofocus': '', onClick: () => close(true) }, o.confirmLabel ?? 'Confirm'),
           ),
         ),
@@ -253,7 +254,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
 
   router.reset(currentId, opts.initialParams ?? {});
 
-  return {
+  const controller: UiController = {
     get current() {
       return currentId;
     },
@@ -269,4 +270,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       layer.remove();
     },
   };
+  // Dev-only QA hook: lets Playwright scripts jump to screens with real data.
+  if (import.meta.env?.DEV) (window as unknown as { __rb2ui?: UiController }).__rb2ui = controller;
+  return controller;
 }

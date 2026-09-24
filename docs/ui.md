@@ -91,3 +91,27 @@ traces, active aerodromes, route, markers, compass and scale bar.
 * Screenshots: `node dev/screenshot-ui.mjs http://localhost:5173 docs/screenshots`.
 * Flow test: `node dev/flow-ui.mjs http://localhost:5173` drives a full career
   loop, quick mission and options with the mock services.
+* Real-data walk: `node dev/walk-menus.mjs http://localhost:5173 <outDir> [w] [h] [only]`
+  screenshots every screen of the **real** app: careers for all four nations with forced
+  debrief outcomes (claims, promotion, medals, newspaper, wounded/captured/killed), the
+  Flying School card and a short flight. It prints the music cue per screen and any
+  console errors. It uses the dev-only `window.__rb2ui` router hook (`createUi` sets it
+  under `import.meta.env.DEV`). `only` filters sections: `title`, `static`, `create`,
+  `career-de|gb|fr|us`, `fate`, `school`, `music`, `roster2`.
+* UI sound levels: `node dev/measure-ui-audio.mjs http://localhost:5173` renders each UI
+  sound and music cue offline and prints peak/RMS dBFS (`UI_GAIN` in
+  `src/audio/audioEngine.ts` is tuned from it).
+
+## First-run and period details
+
+* **Flying School** (`src/ui/flyingSchool.ts`): the first take-off on a browser, while
+  `showTutorialHints` is on, shows a one-page primer built from the live key bindings.
+  The seen flag is `localStorage['rb2r.flyingSchool.seen.v1']`. The Flying Manual has a
+  button that reopens it. e2e flows acknowledge it after "Take off".
+* `ctx.confirm()` takes rich `body` elements, `infoOnly` (no cancel button; Esc still
+  closes) and `className` (e.g. `wide`).
+* `serviceName(nation, date, squadronId)` (`catalog.ts`) gives the period name of the
+  service. RFC and RNAS both become the Royal Air Force from 1918-04-01. The German
+  service is "Die Fliegertruppe" before 1916-10-08.
+* The Flying Manual's mouse and gamepad tables mirror `src/game/input.ts`; keep the two
+  in step.

@@ -5,7 +5,7 @@ import { getAerodrome } from '../../data/aerodromes';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, svg } from '../dom';
 import { formatDate, formatDateShort, resolveUnits } from '../format';
-import { aceDisplay, medalDisplay, NATION_INFO, rankDisplay } from '../catalog';
+import { aceDisplay, medalDisplay, NATION_INFO, rankDisplay, serviceName } from '../catalog';
 import { aircraftProfile, medalSvg, pilotPortrait, ribbonBar, squadronBadge } from '../insignia';
 import { folderTabs, screenShell, stamp, statBox, withHints } from '../components';
 import { aircraftCard, specSheet } from '../aircraftCards';
@@ -57,7 +57,7 @@ export const hqScreen: ScreenFactory = (ctx, params) => {
   const shell = screenShell({
     id: 'hq',
     title: sq?.name ?? 'Squadron Office',
-    kicker: `${NATION_INFO[p.nation].service} · ${formatDate(p.date)}`,
+    kicker: `${serviceName(p.nation, p.date, p.squadronId)} · ${formatDate(p.date)}`,
     background: artBackground('art/menu-aerodrome.jpg', 'radial-gradient(ellipse at 70% 20%, #4f3a24, #1b120b 75%)'),
     onBack: () => ctx.router.reset('title'),
     backLabel: 'Main menu',

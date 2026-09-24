@@ -4,12 +4,12 @@ import { AIRCRAFT } from '../../data/aircraft';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
 import { formatDate, formatDuration, percent } from '../format';
-import { medalDisplay, NATION_INFO, rankDisplay } from '../catalog';
+import { medalDisplay, rankDisplay, serviceName } from '../catalog';
 import { medalSvg, pilotPortrait } from '../insignia';
 import { screenShell, stamp, statBox, withHints } from '../components';
 import { FATE_LABEL, MISSION_TYPE_LABEL } from '../labels';
 
-type Page = { kind: string; render: () => HTMLElement; music?: 'victory' | 'defeat' | 'medal' };
+type Page = { kind: string; render: () => HTMLElement; music?: 'victory' | 'defeat' | 'medal' | 'briefing' };
 
 const MASTHEAD: Record<Nation, string> = {
   britain: 'The Morning Gazette',
@@ -103,7 +103,8 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
   // 2. Combat report.
   pages.push({
     kind: 'report',
-    music: success && fate !== 'killed' ? 'victory' : undefined,
+    // Victory fanfare for a good day; otherwise the sober briefing theme (killed/captured keep the telegram's lament).
+    music: success && fate !== 'killed' ? 'victory' : fate === 'killed' || fate === 'captured' ? undefined : 'briefing',
     render: () => {
       const claims = report?.claims ?? result.claims.map((c) => ({ ...c, confirmed: false }));
       const acc = result.roundsFired > 0 ? result.hits / result.roundsFired : 0;
@@ -117,6 +118,12 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
           stamp(success ? 'Mission Successful' : 'Mission Failed', success ? 'green' : '', 'big slam outcome'),
         ),
         h('hr', { class: 'rule double' }),
+        h(
+          'div',
+          { class: 'report-body' },
+          h(
+            'div',
+            { class: 'report-main' },
         h('div', { class: 'field-label' }, 'Claims'),
         h(
           'div',
@@ -153,7 +160,11 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
         result.friendlyLosses.length
           ? h('div', null, h('div', { class: 'field-label' }, 'Losses'), h('div', { class: 'typed', style: 'font-size:.9em' }, result.friendlyLosses.map((l) => `${l.name} — ${FATE_LABEL[l.fate].toLowerCase()}`).join('; ')))
           : null,
-        report?.narrative.length ? h('div', { class: 'narrative', style: 'margin-top:.8em' }, ...report.narrative.map((t) => h('p', null, t))) : null,
+          ),
+          report?.narrative.length
+            ? h('div', { class: 'report-side' }, h('div', { class: 'field-label' }, 'Remarks of the commanding officer'), h('div', { class: 'narrative' }, ...report.narrative.map((t) => h('p', null, t))))
+            : null,
+        ),
         h('div', { class: 'report-foot' }, continueBtn()),
       );
     },
@@ -175,7 +186,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
             { class: 'cols' },
             h('p', null, `From our correspondent at the front. — ${name}${squadron ? ` of ${squadron.name}` : ''} was in action again this week in the skies above the lines.`),
             h('p', null, newspaperBody(report)),
-            h('p', null, `The ${NATION_INFO[nation].service} continues to hold the upper hand, and the public may take heart from the daring of these young men of the air.`),
+            h('p', null, `The ${serviceName(nation, mission.date, pilot?.squadronId)} continues to hold the upper hand, and the public may take heart from the daring of these young men of the air.`),
           ),
           h('div', { style: 'text-align:right;margin-top:1em' }, continueBtn()),
         ),
@@ -230,6 +241,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
   }
 
   let index = 0;
+  const typing: number[] = [];
   const stage = h('div', { class: 'debrief' });
   const glow = h('div', { class: 'glow-rays' });
 
@@ -243,12 +255,20 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
   }
 
   function show(): void {
+    typing.splice(0).forEach((id) => clearTimeout(id));
     const page = pages[index];
     setChildren(stage, page.render());
     glow.hidden = !(page.kind === 'promotion' || page.kind === 'medal');
     if (page.music) ctx.services.audio.playMusic(page.music);
     if (page.kind === 'report' || page.kind === 'medal') ctx.services.audio.playUi('stamp');
-    if (page.kind === 'telegram') ctx.services.audio.playUi('typewriter');
+    if (page.kind === 'telegram') {
+      // A short burst of teleprinter strikes while the strips "arrive".
+      let t = 0;
+      for (let i = 0; i < 12; i++) {
+        t += 70 + Math.random() * 60 + (i % 5 === 4 ? 140 : 0);
+        typing.push(window.setTimeout(() => ctx.services.audio.playUi('typewriter'), t));
+      }
+    }
     // Telegram and newspaper have no in-page button: add one below.
     if (page.kind === 'telegram') stage.append(h('div', { style: 'margin-top:1.4em' }, continueBtn(true)));
     requestAnimationFrame(() => (stage.querySelector('[data-autofocus]') as HTMLElement | null)?.focus());
@@ -276,6 +296,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
       next();
       return true;
     },
+    dispose: () => typing.splice(0).forEach((id) => clearTimeout(id)),
   };
 
   function medalPage(m: MedalAward, n: Nation): Page {

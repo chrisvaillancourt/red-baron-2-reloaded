@@ -30,8 +30,8 @@ export const titleScreen: ScreenFactory = (ctx) => {
     item('IV', 'Options', 'Realism · controls', () => ctx.router.push('options')),
     item('V', 'Flying Manual', 'Keys & tactics', () => ctx.router.push('controls')),
     item('VI', 'Credits', '', () => ctx.router.push('credits')),
-    h('div', { class: 'quote' }, `“${quote}”`, h('cite', null, `— ${who}`)),
   );
+  const quoteEl = h('blockquote', { class: 'title-quote' }, `“${quote}”`, h('cite', null, `— ${who}`));
 
   const planes = h('div', { class: 'title-silhouettes' });
   const addPlane = (id: keyof typeof AIRCRAFT, left: string, top: string, width: string, rot: number, delay: number) => {
@@ -68,6 +68,7 @@ export const titleScreen: ScreenFactory = (ctx) => {
     'div',
     { class: 'title-left' },
     logo,
+    menu,
     h(
       'div',
       { class: 'title-foot' },
@@ -85,7 +86,9 @@ export const titleScreen: ScreenFactory = (ctx) => {
     h('div', { class: 'title-sun' }),
     planes,
     ground,
-    h('div', { class: 'rb-content' }, left, menu),
+    h('div', { class: 'title-scrim' }),
+    h('div', { class: 'rb-content' }, left),
+    quoteEl,
     h('div', { style: 'position:absolute;right:3em;bottom:1.2em;z-index:2' }, hintBar([['↑↓', 'Choose'], ['Enter', 'Select']])),
   );
 

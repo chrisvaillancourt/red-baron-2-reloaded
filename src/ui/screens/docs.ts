@@ -2,6 +2,7 @@ import type { ScreenFactory } from '../context';
 import { artBackground, h } from '../dom';
 import { ACTION_GROUPS, ACTIONS, codeLabel } from '../bindings';
 import { screenShell, withHints } from '../components';
+import { showFlyingSchool } from '../flyingSchool';
 
 const BG = artBackground('art/briefing-desk.jpg', 'radial-gradient(ellipse at 50% 30%, #4a3421, #150e08 80%)');
 
@@ -22,7 +23,7 @@ export const controlsScreen: ScreenFactory = (ctx) => {
     'article',
     { class: 'doc-paper paper' },
     h('h2', null, 'Notes for pilots'),
-    h('p', { class: 'typed muted' }, 'Current key assignments. Change them under Options → Keys.'),
+    h('p', { class: 'typed muted' }, 'Current key assignments. Change them under Options → Keys. ', h('button', { class: 'btn small', onClick: () => void showFlyingSchool(ctx) }, 'Flying School primer')),
     ...ACTION_GROUPS.flatMap((g) => [
       h('h3', null, g),
       h(
@@ -33,20 +34,38 @@ export const controlsScreen: ScreenFactory = (ctx) => {
         ),
       ),
     ]),
-    h('h3', null, 'Mouse & gamepad'),
+    // Mirrors src/game/input.ts (standard gamepad mapping); keep the two in step.
+    h('h3', null, 'Mouse'),
     h(
       'div',
       { class: 'key-grid' },
       ...[
-        ['Mouse-aim', 'Move the mouse to point; the aeroplane follows'],
-        ['Left mouse button', 'Fire guns'],
-        ['Right mouse (hold)', 'Free look'],
-        ['Mouse wheel', 'Throttle'],
+        ['Move mouse', 'Mouse-aim: point, and the aeroplane follows'],
+        ['Left button', 'Fire guns'],
+        ['Right button (hold)', 'Look around'],
+        ['Wheel', 'Throttle'],
+      ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
+    ),
+    h('h3', null, 'Gamepad'),
+    h(
+      'div',
+      { class: 'key-grid' },
+      ...[
         ['Left stick', 'Pitch & roll'],
         ['Right stick', 'Look around'],
-        ['Triggers', 'Rudder'],
-        ['A / Cross', 'Fire'],
-        ['Shoulder buttons', 'Throttle'],
+        ['LB / RB', 'Left / right rudder'],
+        ['RT', 'Fire guns'],
+        ['LT', 'Blip switch'],
+        ['D-pad ↑ / ↓', 'Throttle up / down'],
+        ['D-pad ← / →', 'Normal time / compress'],
+        ['A', 'Hammer jammed gun'],
+        ['X', 'Cycle target'],
+        ['Y', 'Padlock view'],
+        ['R3', 'Padlock nearest enemy'],
+        ['B', 'Chase view'],
+        ['L3', 'Cockpit view'],
+        ['View / Back', 'Map'],
+        ['Menu / Start', 'Pause'],
       ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
     ),
     h('h3', null, 'Tactics'),

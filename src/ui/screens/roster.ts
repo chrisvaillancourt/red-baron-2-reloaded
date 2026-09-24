@@ -3,7 +3,7 @@ import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
 import { formatDate } from '../format';
 import { insigniaFor, nationalInsignia } from '../insignia';
-import { NATION_INFO } from '../catalog';
+import { serviceName } from '../catalog';
 import { screenShell, stamp, withHints } from '../components';
 
 const STATUS_STAMP: Record<PilotSummary['status'], [string, '' | 'blue' | 'green'] | null> = {
@@ -43,7 +43,7 @@ export const rosterScreen: ScreenFactory = (ctx) => {
     }
     const alive = p.status === 'active' || p.status === 'hospital';
     setChildren(side, 
-      h('div', { class: 'engraved muted' }, NATION_INFO[p.nation].service),
+      h('div', { class: 'engraved muted' }, serviceName(p.nation, p.date, ctx.services.campaign.loadPilot(p.id)?.squadronId)),
       h('h2', null, `${p.rankAbbrev} ${p.name}`),
       h('div', { class: 'typed' }, p.squadronName),
       h('hr', { class: 'rule' }),
