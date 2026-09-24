@@ -41,6 +41,7 @@ import { applyPalette, createTerrainMaterial, PALETTES } from './terrain/terrain
 import { TerrainSystem } from './terrain/terrainSystem';
 import { TownLayer } from './towns';
 import { TreeLayer } from './trees';
+import { terrainHeightAt } from '../world/terrain';
 
 export interface WorldRendererOptions {
   quality: GraphicsQuality;
@@ -174,6 +175,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.scene.add(this.effects.group);
 
     this.setEnvironment(this.date, 'morning', DEFAULT_WEATHER);
+    if (import.meta.env?.DEV) (globalThis as unknown as { __rb2render?: WorldRendererImpl }).__rb2render = this;
   }
 
   private sideOfGround: (x: number, z: number) => Side = () => 'allied';
@@ -272,6 +274,8 @@ export class WorldRendererImpl implements WorldRenderer {
   }
 
   update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[]): void {
+    this.debugCameraHook?.(camera);
+    camera.updateMatrixWorld();
     this.time += dt;
     this.sideOfGround = (x, z) => world.sideOfFrontAt(x, z);
     const cam = camera.getWorldPosition(new Vector3());
@@ -288,6 +292,17 @@ export class WorldRendererImpl implements WorldRenderer {
     this.sun.position.copy(cam).addScaledVector(this.sunDirection, 2000);
     this.sun.target.position.copy(cam);
     this.sun.target.updateMatrixWorld();
+    // The shadow box must reach the ground below the camera: with a reversed depth
+    // buffer, fragments beyond the shadow camera's far plane read as shadowed.
+    {
+      const agl = Math.max(0, cam.y - Math.max(0, terrainHeightAt(cam.x, cam.z)));
+      const far = Math.min(40_000, Math.max(4000, 2000 + (agl + 400) / Math.max(0.12, this.sunDirection.y) + 400));
+      const sc = this.sun.shadow.camera;
+      if (Math.abs(sc.far - far) > far * 0.08) {
+        sc.far = far;
+        sc.updateProjectionMatrix();
+      }
+    }
     T("towns", () => this.towns.update(cam));
     T("trees", () => this.trees.update(cam));
     T("rivers", () => this.rivers.update(cam));
@@ -316,7 +331,11 @@ export class WorldRendererImpl implements WorldRenderer {
     this.effects.handleEvent(e);
   }
 
+  /** Dev/QA: called with the game camera just before rendering (screenshot rigs). */
+  debugCameraHook: ((camera: Camera) => void) | null = null;
+
   render(camera: Camera): void {
+    this.debugCameraHook?.(camera);
     const now = performance.now();
     this.frameTimes.push(now - this.lastFrame);
     if (this.frameTimes.length > 120) this.frameTimes.shift();
