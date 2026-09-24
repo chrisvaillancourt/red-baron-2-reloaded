@@ -104,7 +104,6 @@ written in a small text notation and played by synthesised instruments.
 anywhere WebAudio does and the synthesis is unit-testable in Node. Startup
 pays about 100 ms to render the flight bank (`warmUp()`). Timbre scales a
 little with rpm because the whole loop is resampled, which suits engines.
-||||||| 956f402
 ## D-010 — Historical simplifications in the career data
 **Context.** The aircraft roster starts in mid-1915 but lacks several types
 squadrons actually flew (SE5, D.H.5, Morane, B.E.2, 1½ Strutter).
@@ -134,7 +133,6 @@ turn over every three months rather than tracking individual losses.
 career date jumps past the stay at once. The next `generateMission` returns
 the pilot to `active`. The UI can show "returned from hospital" while the
 status is `hospital`.
-||||||| 956f402
 ## D-013 — AI flies through the same controls as the player
 **Context.** AI pilots could be kinematic (set position/velocity directly) or
 fly the real flight model.
@@ -155,7 +153,6 @@ stay in the turn. Aces gain height before engaging and approach two-seaters
 from below the observer's gun. Threat assessment weighs aspect (enemy on our
 tail vs a head-on pass) so experienced pilots don't break from every nose
 pointed their way.
-||||||| 956f402
 ## D-015 — Flight model: calibrated lumped polar in an acceleration-form 6-DOF
 **Context.** WWI types must feel distinct and match their history, but full
 per-panel aerodynamics with real inertia tensors is hard to tune for 23
@@ -193,7 +190,6 @@ consumed by the combat system (one hammer blow per press).
 **Consequences.** Forced-down victories count as in RB2; mission designers get
 flak "for free" near the lines; the input layer only has to set the flag on key
 press edges.
-||||||| 956f402
 ## D-018 — Single composition point for subsystems (game layer)
 **Context.** Eight subsystems are built in parallel; the flight loop has to
 run and be tested before any of them exists.
@@ -225,7 +221,6 @@ always works but counts as captured over enemy lines. Time compression drops
 to ×1 when an enemy is within 4 km.
 **Consequences.** Mirrors RB2's "end flight when safe" and period
 confirmation practice without exploits (quitting mid-fight over enemy lines).
-||||||| 956f402
 ## D-021 — UI: framework-free DOM, generated period art (UI agent)
 **Decision.** Menus and HUD are plain DOM + CSS with tiny helpers (`src/ui/dom.ts`), a
 stack router and spatial keyboard/gamepad focus navigation. Visual identity is aged paper,
@@ -265,7 +260,6 @@ so ranks, medals and aces display under their campaign ids (the UI's
 defaults remain for the mock harness). `CampaignService.returnToDuty(p)`
 (additive) discharges a hospitalised pilot; the UI no longer edits pilot
 state, which previously advanced the date twice.
-||||||| 1ca820c
 
 ## D-026 — AI flies by inverting the sim's control laws
 **Context.** The AI autopilot was built as a model-agnostic PID law on a
@@ -293,7 +287,6 @@ lanes 40 m apart, since the fields are open grass.
 **Consequences.** Missions can start on the ground (`startOnGround`). The flight
 session only needs to set `landed-*` outcomes; `phase === 'landed'` or
 `isStoppedOnGround` tells it when.
-||||||| 956f402
 ## D-028 — Front lines as sectioned keyframes, cratering as rasterised history (world)
 **Context.** The front must move with the date (campaign, AI, rendering, capture rules) and be queried per frame.
 **Decision.** Each historical keyframe is six named sections (Yser, Ypres, French Flanders, Artois, Arras–Cambrai, Somme) sharing joints; dates between keyframes interpolate section by section after arc-length resampling, and quiet periods repeat a keyframe. Queries use a bucketed segment index with pseudo-normal signing. Shell cratering is the max over every line held up to the date (sampled every 10 days through offensives) rasterised once per date into a 250 m grid.
@@ -310,7 +303,6 @@ session only needs to set `landed-*` outcomes; `phase === 'landed'` or
 ## D-031 — Flak colour by ground side (render)
 **Decision.** `flak-burst` events carry no side; the effects system colours bursts by the side holding the ground beneath (black German "archie" over central ground, white-grey British/French over allied ground).
 **Consequences.** Historically plausible with no contract change; a burst fired across the lines would be mis-coloured (rare).
-||||||| 956f402
 ## D-032 — Aircraft model pipeline: one parametric generator, runtime-painted liveries
 **Context.** 23 types are needed, each in many squadron and personal colours, and they must stay
 in sync with `src/data/aircraft.ts`.
