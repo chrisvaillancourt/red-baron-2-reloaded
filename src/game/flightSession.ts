@@ -25,6 +25,8 @@ import type { GameModules } from './moduleTypes';
 import type { Hud } from '../ui/hud/types';
 import type { MapMarker, MapView } from '../ui/map/mapRenderer';
 import { resolveUnits } from '../ui/format';
+// Read-only gunner state for the rear-gun visuals (pure sim helper, no composition needed).
+import { getGunnerTarget } from '../sim';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
 
@@ -278,6 +280,16 @@ export class FlightSession {
     });
   }
 
+  /** Swing a two-seater's rear gun (visual only) toward whatever its gunner is engaging. */
+  private aimGunnerVisual(ac: AircraftEntity, v: AircraftVisual): void {
+    const ext = v as AircraftVisual & { aimFlexibleGun?: (p: Vector3 | null) => void };
+    if (!ext.aimFlexibleGun) return;
+    const tid = ac.outcome === null ? getGunnerTarget(ac) : null;
+    const t = tid !== null ? this.world.getEntity(tid) : undefined;
+    const live = t?.kind === 'aircraft' && t.outcome === null && t.state.position.distanceTo(ac.state.position) < 1200;
+    ext.aimFlexibleGun(live ? t.state.position : null);
+  }
+
   /** Stream terrain around the start position behind the loading screen (max ~12 s). */
   private async warmUpTerrain(loading: HTMLElement): Promise<void> {
     if (!this.renderer.whenReady) return;
@@ -505,6 +517,7 @@ export class FlightSession {
       if (!v) continue;
       v.object.visible = true;
       v.update(ac, this.paused ? 0 : dtReal);
+      if (ac.spec.guns.some((g) => g.mount === 'flexible')) this.aimGunnerVisual(ac, v);
     }
     for (const b of world.balloons) this.entityObjects.get(b.id)?.position.copy(b.position);
 
