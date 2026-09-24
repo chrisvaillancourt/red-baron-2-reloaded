@@ -298,6 +298,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
 
       const showCluster = v.showInstruments;
       toggleClass(cluster, 'hidden', !showCluster);
+      toggleClass(root, 'with-cluster', showCluster);
       if (showCluster) {
         gAsi?.set(speedValue(v.airspeed, units.speed));
         gAlt?.set(altitudeValue(v.altitude, units.system));

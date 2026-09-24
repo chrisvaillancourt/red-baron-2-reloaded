@@ -810,3 +810,11 @@
 .rb-hud.in-cockpit .hud-throttle {
   height: 1.2em;
 }
+
+/* With the round-gauge cluster up (external views), the strip keeps only
+ * what the gauges don't show: throttle and g. */
+.rb-hud.with-cluster .hud-readout .r:nth-child(1),
+.rb-hud.with-cluster .hud-readout .r:nth-child(2),
+.rb-hud.with-cluster .hud-readout .r:nth-child(4) {
+  display: none;
+}
