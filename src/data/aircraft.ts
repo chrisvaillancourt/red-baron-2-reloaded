@@ -96,7 +96,7 @@ const SPECS: AircraftSpec[] = [
     role: 'fighter', flyable: true, introduced: '1917-08-28', retired: '1918-07-01',
     description: 'The Red Baron\'s triplane. Slow on the level but it climbs like a lift and turns inside anything in the sky. The rotary engine\'s torque and a sensitive rudder demand a firm hand.',
     geometry: geom({ layout: 'triplane', span: 7.19, middleSpan: 6.23, lowerSpan: 5.73, length: 5.77, chord: 1.0, lowerChord: 1.0, gap: 0.85, stagger: 0.15, height: 2.95, fuselageWidth: 0.72, tailShape: 'triangular', dihedralDeg: 0, wheelTrack: 1.66 }),
-    performance: perf({ massLoaded: 586, massEmpty: 406, wingArea: 18.7, enginePowerHp: 110, engineType: 'rotary', engineName: 'Oberursel Ur.II', maxSpeedKmh: 165, maxSpeedAltM: 1000, ceilingM: 6100, climbTo3000mMin: 7.5, enduranceHours: 1.5, rollRate: 0.9, pitchRate: 1.0, structuralStrength: 0.7, fuelCapacityL: 72 }),
+    performance: perf({ massLoaded: 586, massEmpty: 406, wingArea: 18.7, enginePowerHp: 110, engineType: 'rotary', engineName: 'Oberursel Ur.II', maxSpeedKmh: 165, maxSpeedAltM: 1000, ceilingM: 6100, climbTo3000mMin: 8.5, enduranceHours: 1.5, rollRate: 0.9, pitchRate: 1.0, structuralStrength: 0.7, fuelCapacityL: 72 }),
     guns: [sync('spandau', -0.12), sync('spandau', 0.12)],
   },
   {
@@ -112,7 +112,7 @@ const SPECS: AircraftSpec[] = [
     role: 'fighter', flyable: true, introduced: '1918-08-01', retired: '1918-11-11',
     description: 'The "Flying Razor": a parasol monoplane with a thick wooden wing. Light and agile, it arrived in the last weeks of the war.',
     geometry: geom({ layout: 'parasol', span: 8.4, length: 5.86, chord: 1.4, gap: 0.7, height: 2.82, fuselageWidth: 0.72, tailShape: 'comma', dihedralDeg: 0 }),
-    performance: perf({ massLoaded: 605, massEmpty: 405, wingArea: 10.7, enginePowerHp: 110, engineType: 'rotary', engineName: 'Oberursel Ur.II', maxSpeedKmh: 204, maxSpeedAltM: 0, ceilingM: 6300, climbTo3000mMin: 8, enduranceHours: 1.5, rollRate: 0.95, pitchRate: 0.9, structuralStrength: 0.8, fuelCapacityL: 75 }),
+    performance: perf({ massLoaded: 605, massEmpty: 405, wingArea: 10.7, enginePowerHp: 110, engineType: 'rotary', engineName: 'Oberursel Ur.II', maxSpeedKmh: 190, maxSpeedAltM: 0, ceilingM: 6300, climbTo3000mMin: 8.5, enduranceHours: 1.5, rollRate: 0.95, pitchRate: 0.9, structuralStrength: 0.8, fuelCapacityL: 75 }),
     guns: [sync('spandau', -0.12), sync('spandau', 0.12)],
   },
   {
