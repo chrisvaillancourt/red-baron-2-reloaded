@@ -17,6 +17,7 @@ import type {
   WorldRenderer,
 } from '../core/interfaces';
 import type { AircraftEntity, GameEvent, GameSettings, MissionDefinition, MissionResult } from '../core/types';
+import { getAerodrome } from '../data/aerodromes';
 import { CameraRig, type CameraMode } from './cameras';
 import { advanceWaypoint, buildHudView } from './hudView';
 import { InputManager, type EdgeAction } from './input';
@@ -57,6 +58,10 @@ export interface SessionDebug {
   command(action: EdgeAction): void;
   endFlight(): boolean;
   abandon(): void;
+  /** AI behaviour label of an aircraft ("formation", "engage #4"...), for tests. */
+  aiState(id: number): string | undefined;
+  /** Test hook: set the player down, stopped, on the home aerodrome (to exercise landing rules). */
+  placeAtHome(): boolean;
 }
 
 declare global {
@@ -232,6 +237,8 @@ export class FlightSession {
       command: (a) => self.handleCommands([a]),
       endFlight: () => self.director.requestEndFlight(),
       abandon: () => self.director.abort(),
+      aiState: (id) => self.core.ai.get(id)?.debugState,
+      placeAtHome: () => self.placeAtHome(),
     };
   }
 
@@ -278,6 +285,19 @@ export class FlightSession {
       },
       onCancel: () => (fromPause ? this.setPaused(true) : this.setPaused(false)),
     });
+  }
+
+  /** Debug/test hook: park the player on the home aerodrome's strip, stopped. */
+  private placeAtHome(): boolean {
+    const p = this.world.player;
+    const home = getAerodrome(this.mission.homeAerodromeId);
+    if (!p || !home || p.outcome !== null) return false;
+    const heading = (home.runwayHeadingDeg * Math.PI) / 180;
+    const parked = this.modules.sim.createFlightState(p.spec, { x: home.x, z: home.z, altitude: this.world.groundHeightAt(home.x, home.z), heading, airspeed: 0 }, this.world.env, true);
+    Object.assign(p.state, parked);
+    p.controls.throttle = 0;
+    this.input.setThrottle(0);
+    return true;
   }
 
   /** Swing a two-seater's rear gun (visual only) toward whatever its gunner is engaging. */
