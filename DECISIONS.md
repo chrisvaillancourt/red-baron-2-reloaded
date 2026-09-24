@@ -89,3 +89,24 @@ module.
 **Decision.** Working title *Red Baron II: Reloaded*, a non-commercial fan
 rebuild. No original Dynamix/Sierra assets, code, or trademarks-as-branding
 beyond the title homage.
+
+## D-XXX — AI flies through the same controls as the player
+**Context.** AI pilots could be kinematic (set position/velocity directly) or
+fly the real flight model.
+**Decision.** AI writes only `ControlInputs`; the same `stepFlight` flies AI and
+player aircraft. A layered controller (autopilot → tactics → mission) sits on
+top: a bank-to-turn autopilot with a PI loop on measured g, line-of-sight
+feed-forward, and stall/terrain protection built only from `FlightState`.
+**Consequences.** AI obeys the same performance, stalls, torque and damage as
+the player (a D.VII really out-climbs a Camel; a damaged engine really forces
+the AI home). Gains need retuning when the flight model changes; the point-mass
+test model and robustness tests keep the controller tolerant of that.
+
+## D-XXX — Continuous skill scale and period tactics
+**Decision.** Skill is a continuous 0..1 value (novice 0, regular 0.35,
+veteran 0.7, ace 1) so `enemySkillBias` can shift it. Aircraft are tagged
+turn fighters or energy fighters; energy fighters boom-and-zoom, turn fighters
+stay in the turn. Aces gain height before engaging and approach two-seaters
+from below the observer's gun. Threat assessment weighs aspect (enemy on our
+tail vs a head-on pass) so experienced pilots don't break from every nose
+pointed their way.
