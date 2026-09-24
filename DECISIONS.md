@@ -225,3 +225,22 @@ always works but counts as captured over enemy lines. Time compression drops
 to ×1 when an enemy is within 4 km.
 **Consequences.** Mirrors RB2's "end flight when safe" and period
 confirmation practice without exploits (quitting mid-fight over enemy lines).
+||||||| 956f402
+## D-021 — UI: framework-free DOM, generated period art (UI agent)
+**Decision.** Menus and HUD are plain DOM + CSS with tiny helpers (`src/ui/dom.ts`), a
+stack router and spatial keyboard/gamepad focus navigation. Visual identity is aged paper,
+typewriter text, rubber stamps and brass plaques, all from CSS gradients and inline SVG
+noise; insignia, medals/ribbons, squadron badges, pilot portraits and aircraft side
+profiles (from `AircraftSpec.geometry`) are generated SVG. System font stacks only.
+**Consequences.** No font or image downloads; screens work before Blender art exists.
+
+## D-022 — UI display catalog decoupled from campaign data (UI agent)
+**Decision.** The UI names/draws ranks, medals and aces from its own catalog keyed by
+expected ids (`src/ui/catalog.ts`), falling back to prettified ids for unknown ones.
+The integrator may call `setUiCatalog()` to feed campaign data in.
+**Consequences.** UI and campaign could be built in parallel; any id mismatch degrades to
+a readable label and a generic medal rather than breaking a screen.
+
+## D-023 — Units follow the pilot's service (UI agent)
+**Decision.** `units: 'auto'` shows mph and feet for British and American pilots and
+km/h and metres for German and French pilots, as their instruments read.
