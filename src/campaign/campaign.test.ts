@@ -246,6 +246,34 @@ describe('mission generator', () => {
     expect(standing.victories).toBe(aceVictoriesOn(getAce('mvr')!, '1917-04-09'));
   });
 
+  it('retires an ace brought down by someone else in the fight (acesDown)', () => {
+    const s = newService();
+    const p = s.createPilot({ firstName: 'A', lastName: 'B', nation: 'britain', startDate: '1917-04-10', squadronId: 'rfc60', difficulty: 'pilot' });
+    const m = s.generateMission(p);
+    const rng = new Rng(3);
+    const r = { ...randomResult(m, rng, 'returned'), claims: [], acesDown: [{ aceId: 'wolff', side: 'central' as const, fate: 'killed' as const }] };
+    const report = s.applyMissionResult(p, m, r);
+    expect(p.alteredAces?.wolff?.fate).toBe('killed');
+    expect(report.narrative.join(' ')).toMatch(/Wolff/);
+    for (let i = 0; i < 30; i++) {
+      p.missionsFlown = 10 + i;
+      for (const f of s.generateMission(p).flights) for (const x of f.members) expect(x.aceId).not.toBe('wolff');
+    }
+  });
+
+  it('keeps enemy numbers fightable against the player flight', () => {
+    const s = newService();
+    for (const [nation, date] of [['britain', '1918-06-01'], ['germany', '1918-06-01'], ['france', '1917-06-01']] as const) {
+      const p = s.createPilot({ firstName: 'A', lastName: 'B', nation, startDate: date, difficulty: 'pilot' });
+      for (let i = 0; i < 25; i++) {
+        p.missionsFlown = i;
+        const m = s.generateMission(p);
+        const mine = m.flights[0].members.length;
+        for (const f of m.flights) if (f.role === 'enemy' && AIRCRAFT[f.aircraftId].role === 'fighter') expect(f.members.length).toBeLessThanOrEqual(mine + 1);
+      }
+    }
+  });
+
   it('builds every kind of quick mission', () => {
     const s = newService();
     const types = ['dogfight', 'balloon-attack', 'escort', 'intercept', 'ground-attack'] as const;
