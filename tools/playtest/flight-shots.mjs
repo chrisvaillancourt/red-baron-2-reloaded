@@ -14,7 +14,8 @@ const args = Object.fromEntries(
 const port = args.port ?? '5301';
 const out = args.out ?? 'test-results/playtest';
 const aircraft = args.aircraft ?? 'sopwith_camel';
-const views = (args.views ?? 'cockpit,chase').split(',');
+// Views are comma-separated; use '|' instead when a view carries JS containing commas.
+const views = (args.views ?? 'cockpit,chase').split((args.views ?? '').includes('|') ? '|' : ',');
 const flySeconds = Number(args.fly ?? 4);
 mkdirSync(out, { recursive: true });
 
@@ -62,11 +63,18 @@ await page.evaluate(
 );
 await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 60_000 });
 if (args.eval) await page.evaluate(args.eval);
-await page.waitForTimeout(flySeconds * 1000);
+// --keys Space,Equal : held for the last --hold seconds of the flight (default: all of it).
+const keys = args.keys ? args.keys.split(',') : [];
+const hold = Math.min(flySeconds, Number(args.hold ?? flySeconds));
+await page.waitForTimeout((flySeconds - hold) * 1000);
+for (const k of keys) await page.keyboard.down(k);
+await page.waitForTimeout(hold * 1000);
 if (args.freeze !== 'no') await page.evaluate(() => window.__rb2.session.freeze(true));
 const cmd = { cockpit: 'viewCockpit', chase: 'viewChase', padlock: 'viewPadlock', flyby: 'viewFlyby', target: 'viewTarget' };
 for (const v of views) {
-  const [name, extra] = v.split(':');
+  const cut = v.indexOf(':');
+  const name = cut < 0 ? v : v.slice(0, cut);
+  const extra = cut < 0 ? '' : v.slice(cut + 1);
   await page.evaluate(({ c }) => window.__rb2.session.command(c), { c: cmd[name] ?? name });
   if (extra) await page.evaluate(extra);
   await page.waitForTimeout(Number(args.settle ?? 700));

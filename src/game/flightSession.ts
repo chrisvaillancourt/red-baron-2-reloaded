@@ -19,6 +19,7 @@ import type {
 } from '../core/interfaces';
 import type { AircraftEntity, GameEvent, GameSettings, MissionDefinition, MissionResult } from '../core/types';
 import { CameraRig, type CameraMode } from './cameras';
+import { RenderInterpolator } from './renderInterp';
 import { advanceWaypoint, buildHudView } from './hudView';
 import { InputManager, type EdgeAction } from './input';
 import { MissionDirector } from './missionDirector';
@@ -93,6 +94,7 @@ export class FlightSession {
   private wingmanOrders = new Map<number, string>();
   private ai = new Map<number, AIController>();
   private visuals = new Map<number, AircraftVisual>();
+  private interp = new RenderInterpolator();
   private entityObjects = new Map<number, Object3D>();
   private root!: HTMLDivElement;
   private canvas!: HTMLCanvasElement;
@@ -518,6 +520,7 @@ export class FlightSession {
       let first = true;
       while (this.accumulator >= h) {
         this.accumulator -= h;
+        this.interp.capture(world.aircraft);
         this.step(h);
         if (first && player) {
           player.controls.clearJam = false; // edge: one step only
@@ -528,7 +531,8 @@ export class FlightSession {
       this.updateGEffect(dtReal);
     }
 
-    // Visual sync.
+    // Visual sync (poses blended between sim steps; see renderInterp.ts).
+    this.interp.apply(world.aircraft, this.paused ? 1 : this.accumulator * SIM_HZ);
     for (const ac of world.aircraft) {
       const v = this.visuals.get(ac.id);
       if (!v) continue;
@@ -544,6 +548,7 @@ export class FlightSession {
     }
     this.renderer.update(this.paused ? 0 : dtReal, this.rig.camera, world, this.combat.bullets);
     this.renderer.render(this.rig.camera);
+    this.interp.restore();
     if (this.pixelRequests.length) this.samplePixels();
     this.audio.updateFlight(this.rig.camera, player, world, this.paused ? 0 : dtReal, this.rig.inCockpit);
     if (player) {
