@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stats } from './dsp';
 import { createAudioEngine, NullAudioEngine } from './index';
+import { softClipCurve } from './limiter';
 import { midiOf, midiToFreq, parseTrack, trackLength } from './music/notation';
 import { SCORES } from './music/scores';
 import { airAbsorptionCutoff, dopplerFactor, selectNearest, soundDelay } from './spatial';
@@ -165,5 +166,15 @@ describe('engine factory', () => {
     const e = createAudioEngine();
     expect(e).toBeInstanceOf(NullAudioEngine);
     expect(() => e.playMusic('menu')).not.toThrow();
+  });
+});
+
+describe('master limiter curve', () => {
+  it('is monotonic, transparent below the knee and never reaches full scale', () => {
+    const c = softClipCurve(1025);
+    for (let i = 1; i < c.length; i++) expect(c[i]).toBeGreaterThanOrEqual(c[i - 1]);
+    expect(Math.max(...Array.from(c, Math.abs))).toBeLessThan(1);
+    // Real input 0.5 sits (0.5 + 2) / 4 of the way along the ±2 domain.
+    expect(c[Math.round(((0.5 + 2) / 4) * 1024)]).toBeCloseTo(0.5, 2);
   });
 });

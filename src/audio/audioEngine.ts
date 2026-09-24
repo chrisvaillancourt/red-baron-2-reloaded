@@ -15,6 +15,7 @@ import { SoundBank, type SoundId } from './bank';
 import { MusicPlayer } from './music/player';
 import { airAbsorptionCutoff, dopplerFactor, selectNearest, soundDelay } from './spatial';
 import { engineKindFor, type HitMaterial } from './synthBuffers';
+import { createLimiter } from './limiter';
 import { EngineVoice, LoopVoice } from './voices';
 
 export const MAX_ENGINE_VOICES = 6;
@@ -81,8 +82,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
   private world: WorldQuery | null = null;
   private lastClearJam = false;
   private readonly crashed = new Set<number>();
-  private readonly bulletDist = new WeakMap<BulletView, number>();
-  private readonly whizzed = new WeakSet<BulletView>();
+  private readonly bulletTrack = new WeakMap<BulletView, { d: number; age: number; whizzed: boolean }>();
   private whizzBudget = 0;
   private playerSide: AircraftEntity['side'] | null = null;
   private cockpit = true;
@@ -92,14 +92,10 @@ export class WebAudioEngine implements ReloadedAudioEngine {
     const c = this.context;
     this.bank = new SoundBank(c);
 
-    const limiter = c.createDynamicsCompressor();
-    limiter.threshold.value = -8;
-    limiter.knee.value = 4;
-    limiter.ratio.value = 12;
-    limiter.attack.value = 0.002;
-    limiter.release.value = 0.2;
+    const limiter = createLimiter(c);
     this.master = c.createGain();
-    this.master.connect(limiter).connect(c.destination);
+    this.master.connect(limiter.input);
+    limiter.output.connect(c.destination);
 
     this.musicBus = c.createGain();
     this.fxBus = c.createGain();
@@ -131,7 +127,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
   setVolumes(master: number, music: number, effects: number): void {
     const t = this.context.currentTime;
     this.master.gain.setTargetAtTime(clamp01(master), t, 0.05);
-    this.musicBus.gain.setTargetAtTime(clamp01(music) * 0.7, t, 0.05);
+    this.musicBus.gain.setTargetAtTime(clamp01(music), t, 0.05);
     this.fxBus.gain.setTargetAtTime(clamp01(effects), t, 0.05);
     this.uiBus.gain.setTargetAtTime(clamp01(effects) * 0.8, t, 0.05);
   }
@@ -260,7 +256,9 @@ export class WebAudioEngine implements ReloadedAudioEngine {
     // --- Falling wrecks hitting the ground.
     for (const a of world.aircraft) {
       if (this.crashed.has(a.id)) continue;
-      if ((a.outcome || a.damage.destroyed) && a.state.heightAboveGround < 3 && a.state.airspeed > 15) {
+      const wrecked =
+        a.damage.destroyed || a.outcome === 'shot-down' || a.outcome === 'crashed' || a.outcome === 'collided' || a.outcome === 'pilot-killed';
+      if (wrecked && a.state.heightAboveGround < 3 && a.state.airspeed > 15) {
         this.crashed.add(a.id);
         this.crashAt(a.state.position, a.id === this.playerId);
       }
@@ -272,13 +270,18 @@ export class WebAudioEngine implements ReloadedAudioEngine {
   updateBullets(bullets: readonly BulletView[]): void {
     if (!this.hasListener || this.playerSide === null) return;
     for (const b of bullets) {
-      if (b.side === this.playerSide || this.whizzed.has(b)) continue;
+      if (b.side === this.playerSide) continue;
+      // Bullet objects may be pooled: an age lower than last seen means a new bullet.
       const d = b.position.distanceTo(this.listenerPos);
-      const prev = this.bulletDist.get(b);
-      this.bulletDist.set(b, d);
-      if (prev !== undefined && prev < WHIZZ_RADIUS && d > prev && this.whizzBudget >= 1) {
+      const track = this.bulletTrack.get(b);
+      const fresh = !track || b.age < track.age;
+      const prev = fresh ? undefined : track.d;
+      const done = !fresh && track.whizzed;
+      const next = { d, age: b.age, whizzed: done };
+      this.bulletTrack.set(b, next);
+      if (!done && prev !== undefined && prev < WHIZZ_RADIUS && d > prev && this.whizzBudget >= 1) {
         this.whizzBudget -= 1;
-        this.whizzed.add(b);
+        next.whizzed = true;
         this.oneShot('whizz', { position: b.position.clone(), ref: 4, gain: 0.9 * (1 - prev / WHIZZ_RADIUS) + 0.2, rate: 0.9 + Math.random() * 0.2 });
       }
     }
@@ -405,6 +408,14 @@ export class WebAudioEngine implements ReloadedAudioEngine {
     this.listenerVel.set(0, 0, 0);
   }
 
+  /** Debug/QA: an analyser tapped off the master bus (post-volume, pre-limiter). */
+  debugTap(): AnalyserNode {
+    const a = this.context.createAnalyser();
+    a.fftSize = 2048;
+    this.master.connect(a);
+    return a;
+  }
+
   /** Tear down everything (e.g. on page unload). */
   async close(): Promise<void> {
     this.stopFlight();
@@ -421,7 +432,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
     if (this.playerVoice && this.playerVoice.kind === kind) return;
     this.releasePlayer();
     const c = this.context;
-    this.playerPanner = makePanner(c, 'equalpower', 8);
+    this.playerPanner = makePanner(c, 'equalpower', 15);
     this.playerPanner.connect(this.fxBus);
     this.playerVoice = new EngineVoice(c, this.bank, kind, this.playerPanner);
     this.playerLoops = {
