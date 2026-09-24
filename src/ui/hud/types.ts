@@ -128,6 +128,8 @@ export interface HudView {
   guns: HudGun[];
   damage: HudDamage;
   target: HudTarget | null;
+  /** Mouse-aim instructor: where the mouse aims (circle) and where the nose points (cross). */
+  mouseAim?: { aim: HudScreenPoint; nose: HudScreenPoint } | null;
   padlock: { active: boolean; name?: string; lost?: boolean };
   threats: HudThreat[];
   wingmen: HudWingman[];

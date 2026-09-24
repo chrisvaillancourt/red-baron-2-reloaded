@@ -35,6 +35,7 @@ export const DEFAULT_KEY_BINDINGS: Record<string, string[]> = {
   pause: ['Escape'],
   map: ['KeyM'],
   endFlight: ['KeyN'],
+  wingmenMenu: ['KeyO'],
   wingmenAttack: ['Digit1'],
   wingmenEngage: ['Digit2'],
   wingmenFormUp: ['Digit3'],

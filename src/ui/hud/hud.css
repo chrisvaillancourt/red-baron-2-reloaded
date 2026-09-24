@@ -760,3 +760,24 @@
   font-size: 0.75em;
   color: var(--hud-dim);
 }
+
+/* Mouse-aim instructor markers */
+.hud-aim {
+  position: absolute;
+  width: 1.6em;
+  height: 1.6em;
+  margin: -0.8em 0 0 -0.8em;
+  border: 2px solid rgba(243, 234, 211, 0.85);
+  border-radius: 50%;
+  filter: drop-shadow(0 0 1px #000);
+}
+.hud-nose {
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  margin: -0.5em 0 0 -0.5em;
+  background:
+    linear-gradient(var(--hud-amber, #ffcf6a), var(--hud-amber, #ffcf6a)) center / 100% 2px no-repeat,
+    linear-gradient(var(--hud-amber, #ffcf6a), var(--hud-amber, #ffcf6a)) center / 2px 100% no-repeat;
+  filter: drop-shadow(0 0 1px #000);
+}

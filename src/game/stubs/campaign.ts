@@ -92,6 +92,7 @@ export function stubCreateCampaignService(): CampaignService {
     loadPilot: () => null,
     savePilot: () => {},
     deletePilot: () => {},
+    returnToDuty: () => {},
     squadronsFor: () => [],
     getSquadron: () => undefined,
     availableAircraft: (p: CareerPilot) => [p.preferredAircraft ?? 'sopwith_camel'],

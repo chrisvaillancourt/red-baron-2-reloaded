@@ -21,7 +21,8 @@ export default defineConfig({
     // Call the vite shim directly: `pnpm exec` does not forward SIGTERM, which hangs teardown.
     command: `./node_modules/.bin/vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse: a server left running from another worktree would serve the wrong code.
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 });

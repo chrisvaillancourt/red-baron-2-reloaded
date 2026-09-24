@@ -203,6 +203,11 @@ export function createMockServices(opts: MockOptions = {}): GameServices {
 
   const campaign: CampaignService = {
     listPilots: () => pilots.map(summary),
+    returnToDuty(p) {
+      p.status = 'active';
+      p.hospitalDays = 0;
+      campaign.savePilot(p);
+    },
     createPilot(o: NewPilotOptions) {
       const sq = o.squadronId ? MOCK_SQUADRONS.find((s) => s.id === o.squadronId)! : MOCK_SQUADRONS.find((s) => s.nation === o.nation)!;
       const p: CareerPilot = {

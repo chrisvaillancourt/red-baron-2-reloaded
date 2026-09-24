@@ -167,6 +167,8 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   const wpMarker = h('div', { class: 'hud-marker hidden' }, h('div', { class: 'hud-wp' }), h('div', { class: 'hud-wp-label' }));
   const wpEdge = h('div', { class: 'hud-marker hidden' }, h('div', { class: 'hud-edge wp' }));
   const reticle = h('div', { class: 'hud-marker hidden' }, h('div', { class: 'hud-reticle' }));
+  const aimMarker = h('div', { class: 'hud-marker hidden' }, h('div', { class: 'hud-aim' }));
+  const noseMarker = h('div', { class: 'hud-marker hidden' }, h('div', { class: 'hud-nose' }));
   const threats = h('div', { class: 'hud-threats' });
   const padlockEl = h('div', { class: 'hud-padlock hidden' });
   const alert = h('div', { class: 'hud-alert hidden' });
@@ -174,7 +176,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   const gFx = h('div', { class: 'hud-g' });
   const flash = h('div', { class: 'hud-flash' });
 
-  root.append(gFx, flash, reticle, leadMarker, wpMarker, wpEdge, targetMarker, targetEdge, threats, tape, headingBox, padlockEl, alert, messages, status, damageWrap, gunsWrap, cluster, readout, hint);
+  root.append(gFx, flash, reticle, aimMarker, noseMarker, leadMarker, wpMarker, wpEdge, targetMarker, targetEdge, threats, tape, headingBox, padlockEl, alert, messages, status, damageWrap, gunsWrap, cluster, readout, hint);
 
   // ------------------------------------------------------ helpers
   function place(marker: HTMLElement, p: HudScreenPoint | null | undefined, edge?: HTMLElement): void {
@@ -369,6 +371,8 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
       } else place(wpMarker, null, wpEdge);
 
       place(reticle, v.gunReticle && v.view !== 'cockpit' ? v.gunReticle : null);
+      place(aimMarker, v.mouseAim?.aim ?? null);
+      place(noseMarker, v.mouseAim?.nose ?? null);
 
       // Threat ring
       const ring = Math.min(W, H) * 0.2;

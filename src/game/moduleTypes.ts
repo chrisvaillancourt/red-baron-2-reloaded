@@ -28,7 +28,7 @@ import type {
   Side,
   SkillLevel,
 } from '../core/types';
-import type { HudFrame } from './hudView';
+import type { Hud } from '../ui/hud/types';
 
 export interface WorldRendererOptions {
   quality: GraphicsQuality;
@@ -45,15 +45,6 @@ export interface AIControllerOptions {
   realism: RealismSettings;
   /** Aerodrome friendly flights return to (mission.homeAerodromeId for the player's side). */
   homeAerodromeId?: string;
-}
-
-/** In-flight HUD handle. The real UI's HUD is adapted to this in modules.ts. */
-export interface HudHandle {
-  update(frame: HudFrame): void;
-  /** Radio/system message line. */
-  showMessage(text: string, from?: string): void;
-  setVisible(visible: boolean): void;
-  dispose(): void;
 }
 
 export interface UiHandle {
@@ -73,7 +64,7 @@ export interface GameModules {
   createAudioEngine(): AudioEngine;
   createCampaignService(): CampaignService;
   createUi(root: HTMLElement, services: GameServices): UiHandle;
-  createHud(container: HTMLElement, settings: GameSettings): HudHandle;
+  createHud(container: HTMLElement, settings: GameSettings): Hud;
   terrainHeightAt(x: number, z: number): number;
   sideOfFrontAt(x: number, z: number, date: string): Side;
 }

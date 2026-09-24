@@ -193,6 +193,8 @@ export interface CampaignService {
   availableAircraft(p: CareerPilot): AircraftId[];
   /** Build the next mission for this pilot. Deterministic for a given pilot state. */
   generateMission(p: CareerPilot, aircraftChoice?: AircraftId): MissionDefinition;
+  /** Discharge a pilot from hospital (status -> active). The debrief already advanced the date past the stay. */
+  returnToDuty(p: CareerPilot): void;
   /** Apply a result: confirm claims, promotions, medals, wounds, date advance. Mutates & saves p. */
   applyMissionResult(p: CareerPilot, mission: MissionDefinition, result: MissionResult): DebriefReport;
   /** Leaderboard of historical aces + the player on the pilot's current date. */
