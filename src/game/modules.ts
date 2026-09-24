@@ -7,12 +7,12 @@ import { createAIController } from '../ai';
 import { createAudioEngine } from '../audio';
 import { createCampaignService } from '../campaign';
 import { createHud, createUi } from '../ui';
+import { createAircraftVisual, preloadAircraftModels } from '../render/aircraft';
 import { createWorldRenderer } from '../render/worldRenderer';
 import { createCombatSystem, createFlightEnvironment, setGunnerTarget, sim } from '../sim';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
 import type { GameModules } from './moduleTypes';
-import { stubCreateAircraftVisual, stubPreloadAircraftModels } from './stubs/aircraftVisual';
 
 export const modules: GameModules = {
   // src/sim
@@ -23,8 +23,8 @@ export const modules: GameModules = {
   // src/render
   createWorldRenderer: (canvas, opts) => createWorldRenderer(canvas, opts),
   // src/render/aircraft
-  createAircraftVisual: stubCreateAircraftVisual,
-  preloadAircraftModels: stubPreloadAircraftModels,
+  createAircraftVisual,
+  preloadAircraftModels: (ids) => preloadAircraftModels(ids),
   // src/ai — adapt the game's per-slot options to the AI's vic-slot options.
   createAIController: (ac, o) =>
     createAIController(ac, {
