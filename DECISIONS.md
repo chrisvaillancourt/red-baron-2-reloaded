@@ -89,3 +89,33 @@ module.
 **Decision.** Working title *Red Baron II: Reloaded*, a non-commercial fan
 rebuild. No original Dynamix/Sierra assets, code, or trademarks-as-branding
 beyond the title homage.
+
+## D-XXX (campaign) — Historical simplifications in the career data
+**Context.** The aircraft roster starts in mid-1915 but lacks several types
+squadrons actually flew (SE5, D.H.5, Morane, B.E.2, 1½ Strutter).
+**Decision.** Squadron start dates are moved to when a rostered type arrives
+(No. 56 Sqn enters play 1 June 1917 with the S.E.5a, skipping its SE5
+period; No. 24 Sqn goes from D.H.2 straight to S.E.5a, skipping the D.H.5).
+Where a side has no rostered type of a role yet (Allied scouts and two-seaters
+before 1916; two-seaters before late 1916/1917), AI flights use the earliest
+rostered type of that role as a stand-in. The Lafayette Escadrille (N.124) is
+modelled as a US squadron so American careers can begin in 1916; it transfers
+to the 103rd Aero on 18 February 1918. JG I's later 1918 moves off-map (the
+Marne) are replaced by in-sector fields.
+**Consequences.** Every nation/date has a playable squadron; a few squadrons
+fly a type a few weeks early or late.
+
+## D-XXX (campaign) — Career consequences are pilot-local
+**Decision.** Killing or capturing a historical ace in a career records it in
+`CareerPilot.alteredAces` (additive optional field); that ace stops scoring
+and never reappears in that career. History otherwise runs on schedule
+(aces die on their historical dates). Squadron mates are a deterministic
+quarterly roster (seed + squadron + quarter), not persisted individuals.
+**Consequences.** No shared "world state" to migrate between careers; mates
+turn over every three months rather than tracking individual losses.
+
+## D-XXX (campaign) — Wounds resolve immediately
+**Decision.** A wound sets `status: 'hospital'` and `hospitalDays`, and the
+career date jumps past the stay at once. The next `generateMission` returns
+the pilot to `active`. The UI can show "returned from hospital" while the
+status is `hospital`.
