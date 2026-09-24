@@ -9,7 +9,7 @@ import type { ModelVariant } from './testing/pointMassModel';
 import { makeAircraft, runScenario, TestWorld, TEST_REALISM } from './testing/testWorld';
 
 function ai(ac: AircraftEntity, skill: SkillLevel, extra: Partial<Parameters<typeof createAIController>[1]> = {}): AIPilot {
-  return createAIController(ac, { role: ac.side === 'allied' ? 'friendly' : 'enemy', task: 'fighter-sweep', skill, realism: TEST_REALISM, ...extra });
+  return createAIController(ac, { role: ac.side === 'allied' ? 'friendly' : 'enemy', task: 'fighter-sweep', skill, realism: TEST_REALISM, controlLaw: 'generic', ...extra });
 }
 
 const VARIANTS: [string, ModelVariant][] = [

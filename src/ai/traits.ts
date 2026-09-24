@@ -1,11 +1,12 @@
 /**
- * Per-type traits the AI derives from AircraftSpec: fighting style, stall
- * estimates, gun ballistics. Kept independent of the flight model so the AI
- * adapts to any sim that honours the ControlInputs contract.
+ * Per-type traits the AI derives from AircraftSpec: fighting style, stall and
+ * structural limits, gun ballistics. Stall/structural figures come from the
+ * sim's calibrated coefficients (src/sim getCoefficients), so the AI flies the
+ * same envelope the flight model enforces.
  */
 import type { AircraftId, AircraftSpec } from '../core/types';
 import { GUNS } from '../data/aircraft';
-import { DEG, G } from './math';
+import { getCoefficients } from '../sim/coefficients';
 
 export type CombatStyle = 'turn' | 'energy' | 'mixed';
 
@@ -17,40 +18,46 @@ const TURN: AircraftId[] = [
 
 export interface AircraftTraits {
   style: CombatStyle;
-  /** 1 g stall speed at sea level, m/s (estimate). */
+  /** 1 g stall speed at sea level, m/s. */
   stallSpeed: number;
-  /** Stall angle of attack, rad (estimate). */
+  /** Stall angle of attack (fuselage datum, as FlightState.aoa), rad. */
   stallAoa: number;
   /** Typical cruise speed, m/s. */
   cruiseSpeed: number;
   maxSpeed: number;
+  /** Best-climb true airspeed at sea level, m/s. */
+  bestClimbSpeed: number;
   /** Muzzle velocity of the fixed forward guns, m/s (0 if none). */
   fixedMuzzleVelocity: number;
   hasFixedGuns: boolean;
   hasFlexibleGun: boolean;
   isTwoSeater: boolean;
-  /** Structural caution: fragile types avoid sustained high-speed dives. */
+  /** Never-exceed speed, m/s: the airframe fails beyond it. */
+  vne: number;
+  /** Positive structural load limit, g. */
+  gLimit: number;
+  /** Structural caution: dives are governed to stay below this speed. */
   maxSafeDiveSpeed: number;
 }
 
 export function traitsFor(spec: AircraftSpec): AircraftTraits {
   const p = spec.performance;
-  const layout = spec.geometry.layout;
-  const clMax = layout === 'triplane' ? 1.45 : spec.id === 'fokker_dvii' ? 1.4 : layout === 'monoplane' ? 1.1 : 1.25;
-  const stallSpeed = Math.sqrt((2 * p.massLoaded * G) / (1.225 * p.wingArea * clMax));
-  const stallAoa = (layout === 'triplane' || spec.id === 'fokker_dvii' ? 18 : 15) * DEG;
+  const co = getCoefficients(spec);
   const fixed = spec.guns.filter((g) => g.mount !== 'flexible');
-  const maxSpeed = p.maxSpeedKmh / 3.6;
+  const maxSpeed = co.vMax;
   return {
     style: ENERGY.includes(spec.id) ? 'energy' : TURN.includes(spec.id) ? 'turn' : 'mixed',
-    stallSpeed,
-    stallAoa,
+    stallSpeed: co.vStallSL,
+    stallAoa: co.alphaStall,
     cruiseSpeed: maxSpeed * 0.8,
     maxSpeed,
+    bestClimbSpeed: co.vBestClimbSL,
     fixedMuzzleVelocity: fixed.length ? GUNS[fixed[0].type].muzzleVelocity : 0,
     hasFixedGuns: fixed.length > 0,
     hasFlexibleGun: spec.guns.some((g) => g.mount === 'flexible'),
     isTwoSeater: spec.geometry.crew === 2,
-    maxSafeDiveSpeed: maxSpeed * (1.15 + 0.35 * p.structuralStrength),
+    vne: co.vne,
+    gLimit: co.gLimit,
+    maxSafeDiveSpeed: co.vne * (0.86 + 0.02 * p.structuralStrength),
   };
 }

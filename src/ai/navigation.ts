@@ -55,6 +55,13 @@ export function formationSteer(self: AircraftEntity, leader: AircraftEntity, off
   const ls = lv.length();
   const lead = clamp(distance / Math.max(ls, 10), 1.5, 6);
   const aim = slot.clone().addScaledVector(lv, lead).sub(self.state.position);
+  // Joining up from far below/above: bound the gradient to what a WWI scout can
+  // sustain, otherwise the wingman zooms, stalls and falls further behind.
+  if (distance > 120) {
+    const h = Math.hypot(aim.x, aim.z) || 1;
+    const slope = clamp(aim.y / Math.max(h, 150), -0.45, 0.28);
+    aim.set((aim.x / h) * 100, slope * 100, (aim.z / h) * 100);
+  }
   // Along-track error: positive if the slot is ahead of us.
   const lfwd = lv.clone().normalize();
   const along = toSlot.dot(lfwd);
@@ -118,7 +125,7 @@ export function homeDirection(self: AircraftEntity, world: WorldQuery): Vector3 
   return self.side === 'allied' ? new Vector3(-1, 0, 0) : new Vector3(1, 0, 0);
 }
 
-export type LandingStage = 'approach' | 'final' | 'flare' | 'rollout' | 'stopped';
+export type LandingStage = 'pattern' | 'approach' | 'final' | 'flare' | 'rollout' | 'stopped';
 
 export interface LandingPlan {
   aerodrome: AerodromeWorld;
@@ -128,10 +135,13 @@ export interface LandingPlan {
   approachPoint: Vector3;
 }
 
-export function planLanding(a: AerodromeWorld, groundAt: (x: number, z: number) => number): LandingPlan {
+/** `lane`: lateral offset (m, + = right of the landing direction) so a flight lands abreast. */
+export function planLanding(a: AerodromeWorld, groundAt: (x: number, z: number) => number, lane = 0): LandingPlan {
   const dir = dirFromHeading((a.runwayHeadingDeg * Math.PI) / 180);
   const gy = groundAt(a.x, a.z);
   const threshold = new Vector3(a.x, gy, a.z).addScaledVector(dir, -a.runwayLength * 0.45);
+  threshold.x += -dir.z * lane;
+  threshold.z += dir.x * lane;
   const approachPoint = threshold.clone().addScaledVector(dir, -2500);
   approachPoint.y = gy + 220;
   return { aerodrome: a, dir, threshold, approachPoint };

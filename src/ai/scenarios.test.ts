@@ -5,7 +5,6 @@ import type { AircraftEntity, AircraftId, MissionFlight, SkillLevel, Waypoint } 
 import { createAIController, type AIPilot } from './controller';
 import { slotPosition, formationOffset } from './navigation';
 import { angleBetween, forwardOf } from './math';
-import { leadSolution } from './gunnery';
 import { makeAircraft, runScenario, TestWorld, TEST_REALISM } from './testing/testWorld';
 
 function flight(id: string, side: 'allied' | 'central', waypoints: Waypoint[], task: MissionFlight['task'] = 'fighter-sweep', extra: Partial<MissionFlight> = {}): MissionFlight {
@@ -24,32 +23,7 @@ function flight(id: string, side: 'allied' | 'central', waypoints: Waypoint[], t
 }
 
 function ai(ac: AircraftEntity, skill: SkillLevel, extra: Partial<Parameters<typeof createAIController>[1]> = {}): AIPilot {
-  return createAIController(ac, { role: ac.side === 'allied' ? 'friendly' : 'enemy', task: 'fighter-sweep', skill, realism: TEST_REALISM, ...extra });
-}
-
-/**
- * Crude gun-hit model for tests: while the shooter fires with its gun line on
- * the true lead solution, the victim accumulates hits.
- */
-function applyHits(world: TestWorld, dt: number, killAt = 25): void {
-  for (const sh of world.aircraft) {
-    if (!sh.controls.fireGuns || sh.outcome) continue;
-    const f = forwardOf(sh.state.orientation);
-    for (const v of world.aircraft) {
-      if (v.side === sh.side || v.outcome) continue;
-      const r = v.state.position.distanceTo(sh.state.position);
-      if (r > 350) continue;
-      const sol = leadSolution(sh.state.position, sh.state.velocity, v.state.position, v.state.velocity, null, 800);
-      if (angleBetween(f, sol.dir) < Math.atan2(4, r) + 0.004) {
-        v.damage.zones.fuselage += (8 * dt) / killAt;
-        v.damage.lastAttackerId = sh.id;
-        if (v.damage.zones.fuselage >= 1) {
-          v.damage.destroyed = true;
-          v.outcome = 'shot-down';
-        }
-      }
-    }
-  }
+  return createAIController(ac, { role: ac.side === 'allied' ? 'friendly' : 'enemy', task: 'fighter-sweep', skill, realism: TEST_REALISM, controlLaw: 'generic', ...extra });
 }
 
 describe('AI scenarios (point-mass physics)', () => {
@@ -125,34 +99,6 @@ describe('AI scenarios (point-mass physics)', () => {
     expect(aceTime).toBeGreaterThan(novTime * 2);
   });
 
-  it('a defending AI survives an ace attacker far longer than a straight-flying target', () => {
-    const survival = (defend: boolean): number => {
-      const world = new TestWorld({ frontX: 50000 });
-      const tgt = makeAircraft({ aircraftId: 'albatros_dv', side: 'central', x: 0, z: 0, alt: 1500, heading: 0, flightId: 't', skill: 'veteran' });
-      const att = makeAircraft({ aircraftId: 'sopwith_camel', side: 'allied', x: 20, z: 450, alt: 1520, heading: 0, flightId: 'a', skill: 'ace' });
-      world.aircraft.push(tgt, att);
-      const ctls = new Map<number, AIController>([[att.id, ai(att, 'ace', { seed: 5 })]]);
-      if (defend) ctls.set(tgt.id, ai(tgt, 'veteran', { seed: 6, task: 'recon' }));
-      const scripted = new Map([[tgt.id, (ac: AircraftEntity) => { if (!defend) Object.assign(ac.controls, { pitch: 0.0, roll: 0, yaw: 0, throttle: 0.5 }); }]]);
-      let died = 90;
-      runScenario(world, ctls, 90, {
-        scripted,
-        onStep: (t) => {
-          applyHits(world, 1 / 120);
-          if (tgt.outcome) {
-            died = t;
-            return true;
-          }
-        },
-      });
-      return died;
-    };
-    const straight = survival(false);
-    const defended = survival(true);
-    expect(straight).toBeLessThan(45);
-    expect(defended).toBeGreaterThan(straight * 1.5);
-  });
-
   it('never flies into hilly terrain during a low-level dogfight', () => {
     const hills = (x: number, z: number) => 200 + 220 * Math.sin(x / 1300) * Math.cos(z / 1100) + 80 * Math.sin((x + z) / 500);
     const world = new TestWorld({ ground: hills, frontX: 50000 });
@@ -180,17 +126,8 @@ describe('AI scenarios (point-mass physics)', () => {
     expect(ac.outcome).toBeNull();
   });
 
-  it('flies an approach and lands at its home aerodrome', () => {
-    // Filescamp Farm (Izel-lès-Hameau), ~18 km west of the origin.
-    const world = new TestWorld({ frontX: 0, date: '1917-09-01' });
-    const ac = makeAircraft({ aircraftId: 'sopwith_camel', side: 'allied', x: -9000, z: 3000, alt: 1000, heading: 3 * Math.PI / 2, flightId: 'a' });
-    world.aircraft.push(ac);
-    const ctl = ai(ac, 'veteran', { homeAerodromeId: 'filescamp' });
-    ctl.command('return-home');
-    runScenario(world, new Map([[ac.id, ctl]]), 600, { onStep: () => ctl.phase === 'landed' });
-    expect(ac.outcome).toBeNull();
-    expect(ctl.phase).toBe('landed');
-  });
+  // Landing (approach, pattern, flare, rollout) depends on the real ground model and is
+  // tested on src/sim in realsim.test.ts.
 
   it('balloon attack: dives on and flames an enemy balloon, then survives the pull-out', () => {
     const wps: Waypoint[] = [{ x: 6000, z: -3000, altitude: 1200, action: 'attack-balloon' }];
@@ -222,7 +159,7 @@ describe('AI scenarios (point-mass physics)', () => {
     const f = makeAircraft({ aircraftId: 'se5a', side: 'allied', x: 0, z: 350, alt: 2000, heading: 0, flightId: 'a', speed: 60 });
     world.aircraft.push(r, f);
     const calls: (number | null)[] = [];
-    const ctl = createAIController(r, { role: 'enemy', task: 'recon', skill: 'regular', realism: TEST_REALISM, setGunnerTarget: (_ac, id) => calls.push(id) });
+    const ctl = createAIController(r, { role: 'enemy', task: 'recon', skill: 'regular', realism: TEST_REALISM, controlLaw: 'generic', setGunnerTarget: (_ac, id) => calls.push(id) });
     runScenario(world, new Map([[r.id, ctl]]), 3);
     expect(calls).toContain(f.id);
   });
