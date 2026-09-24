@@ -345,7 +345,7 @@ function paintFuselage(spec: AircraftSpec, liv: Livery, meta: AircraftMeta, seed
   for (const [v, flipX, flipY] of [[0.25, true, false], [0.75, false, true]] as const) {
     stamp(ctx, uIns * FUS_W, v * FUS_H, size, pxU, pxV, (k) => drawInsignia(k, liv.insignia), flipX, flipY);
     if (liv.marking) {
-      const mSize = size * 0.9;
+      const mSize = size * 1.15;
       const u = uIns - (size * 0.5 + mSize * 0.55 + 0.1) / L;
       ctx.save();
       ctx.translate(u * FUS_W, v * FUS_H);

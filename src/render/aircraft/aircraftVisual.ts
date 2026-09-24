@@ -8,20 +8,17 @@ import {
   CanvasTexture,
   CircleGeometry,
   Color,
+  Float32BufferAttribute,
+  BufferGeometry,
   DoubleSide,
-  DynamicDrawUsage,
-  InstancedMesh,
-  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
-  Quaternion,
   SRGBColorSpace,
   Sprite,
   SpriteMaterial,
   Vector3,
-  type BufferGeometry,
   type Material,
   type Texture,
 } from 'three';
@@ -163,6 +160,9 @@ interface Debris {
 }
 
 const MAX_HOLES = 160;
+const HOLES_PER_PART = 40;
+const UP = new Vector3(0, 1, 0);
+const RIGHT = new Vector3(1, 0, 0);
 
 class AircraftVisualImpl implements AircraftVisual {
   readonly object: Object3D;
@@ -181,7 +181,8 @@ class AircraftVisualImpl implements AircraftVisual {
   private readonly muzzles: { node: Object3D; sprite: Sprite; lastRounds: number; flash: number }[] = [];
   private readonly zoneMats = new Map<ZoneGroup, MeshStandardMaterial[]>();
   private readonly zoneMeshes = new Map<ZoneGroup, Mesh[]>();
-  private readonly holes: InstancedMesh;
+  private readonly holeMat: MeshBasicMaterial;
+  private readonly holeMeshes = new Map<Mesh, Mesh>();
   private holeCount = 0;
   private readonly zoneHoleLevel: Record<ZoneGroup, number> = { leftWing: 0, rightWing: 0, tail: 0, fuselage: 0, engine: 0 };
   private readonly debris: Debris[] = [];
@@ -218,8 +219,8 @@ class AircraftVisualImpl implements AircraftVisual {
           map: tex[slot],
           roughness: slot === 'cowling' ? 0.38 : ply ? 0.5 : 0.8,
           metalness: slot === 'cowling' ? 0.45 : 0,
-          side: slot === 'fuselage' || slot === 'tail' ? DoubleSide : undefined,
         });
+        if (slot === 'fuselage' || slot === 'tail' || slot === 'cowling') m.side = DoubleSide;
       }
       m.name = name;
       cache.set(key, m);
@@ -288,14 +289,8 @@ class AircraftVisualImpl implements AircraftVisual {
     });
 
     // Bullet-hole decals
-    const holeMat = new MeshBasicMaterial({ color: 0x0d0b09, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: DoubleSide });
-    this.ownedMaterials.push(holeMat);
-    this.holes = new InstancedMesh(new CircleGeometry(0.03, 6), holeMat, MAX_HOLES);
-    this.holes.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.holes.count = 0;
-    this.holes.frustumCulled = false;
-    this.holes.name = 'BulletHoles';
-    root.add(this.holes);
+    this.holeMat = new MeshBasicMaterial({ color: 0x0d0b09, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: DoubleSide });
+    this.ownedMaterials.push(this.holeMat);
   }
 
   update(ac: AircraftEntity, dt: number): void {
@@ -340,7 +335,7 @@ class AircraftVisualImpl implements AircraftVisual {
       m.flash -= dt;
       m.sprite.visible = m.flash > 0 && Math.random() > 0.25;
       if (m.sprite.visible) {
-        m.sprite.scale.setScalar(0.3 + Math.random() * 0.3);
+        m.sprite.scale.setScalar((0.3 + Math.random() * 0.3) * (this.cockpit ? 0.4 : 1));
         m.sprite.material.rotation = Math.random() * Math.PI;
       }
     }
@@ -417,23 +412,42 @@ class AircraftVisualImpl implements AircraftVisual {
     let u = Math.random(), v = Math.random();
     if (u + v > 1) { u = 1 - u; v = 1 - v; }
     const p = a.clone().addScaledVector(b.clone().sub(a), u).addScaledVector(c.clone().sub(a), v);
-    const n = b.clone().sub(a).cross(c.clone().sub(a)).normalize();
-    // mesh-local -> aircraft root local
-    const toRoot = new Matrix4();
-    const chain: Object3D[] = [];
-    for (let o: Object3D | null = mesh; o && o !== this.object; o = o.parent) chain.push(o);
-    for (let i = chain.length - 1; i >= 0; i--) {
-      chain[i].updateMatrix();
-      toRoot.multiply(chain[i].matrix);
+    const n = b.clone().sub(a).cross(c.clone().sub(a));
+    if (n.lengthSq() < 1e-12) return;
+    n.normalize();
+    // Decals live in the part's own space so they follow detached/animated parts.
+    let decal = this.holeMeshes.get(mesh);
+    if (!decal) {
+      const g = new BufferGeometry();
+      g.setAttribute('position', new Float32BufferAttribute(new Float32Array(HOLES_PER_PART * 18 * 3), 3));
+      g.setDrawRange(0, 0);
+      decal = new Mesh(g, this.holeMat);
+      decal.name = 'BulletHoles';
+      decal.frustumCulled = false;
+      mesh.add(decal);
+      this.holeMeshes.set(mesh, decal);
     }
-    p.applyMatrix4(toRoot);
-    n.transformDirection(toRoot);
-    p.addScaledVector(n, 0.004);
-    const q = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), n);
-    const s = 0.6 + Math.random() * 0.9;
-    this.holes.setMatrixAt(this.holeCount++, new Matrix4().compose(p, q, new Vector3(s, s, s)));
-    this.holes.count = this.holeCount;
-    this.holes.instanceMatrix.needsUpdate = true;
+    const g = decal.geometry;
+    const used = g.drawRange.count / 18;
+    if (used >= HOLES_PER_PART) return;
+    const attr = g.getAttribute('position') as Float32BufferAttribute;
+    const e1 = new Vector3().crossVectors(n, Math.abs(n.y) < 0.9 ? UP : RIGHT).normalize();
+    const e2 = new Vector3().crossVectors(n, e1);
+    const r = 0.018 + Math.random() * 0.03;
+    p.addScaledVector(n, 0.003);
+    const q = new Vector3();
+    for (let k = 0; k < 6; k++) {
+      const a0 = (k / 6) * Math.PI * 2, a1 = ((k + 1) / 6) * Math.PI * 2;
+      const base = (used * 18 + k * 3) * 3;
+      attr.array[base] = p.x; attr.array[base + 1] = p.y; attr.array[base + 2] = p.z;
+      q.copy(p).addScaledVector(e1, Math.cos(a0) * r).addScaledVector(e2, Math.sin(a0) * r * (0.7 + Math.random() * 0.6));
+      attr.array[base + 3] = q.x; attr.array[base + 4] = q.y; attr.array[base + 5] = q.z;
+      q.copy(p).addScaledVector(e1, Math.cos(a1) * r).addScaledVector(e2, Math.sin(a1) * r);
+      attr.array[base + 6] = q.x; attr.array[base + 7] = q.y; attr.array[base + 8] = q.z;
+    }
+    attr.needsUpdate = true;
+    g.setDrawRange(0, (used + 1) * 18);
+    this.holeCount++;
   }
 
   private breakApart(ac: AircraftEntity): void {
@@ -490,8 +504,7 @@ class AircraftVisualImpl implements AircraftVisual {
     this.gauges?.dispose();
     for (const m of this.ownedMaterials) m.dispose();
     this.disc.geometry.dispose();
-    this.holes.geometry.dispose();
-    this.holes.dispose();
+    for (const d of this.holeMeshes.values()) d.geometry.dispose();
   }
 }
 

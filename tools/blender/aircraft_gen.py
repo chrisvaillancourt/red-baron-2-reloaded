@@ -600,7 +600,7 @@ class Aircraft:
                 path.append(rings[i1][j])
             for i in reversed(ids[1:-1]):
                 path.append(rings[i][N - 2])
-            tube(mb, path, radius=0.035, sides=6, closed_path=True)
+            tube(mb, path, radius=0.024, sides=6, closed_path=True)
         return mb.build('Coaming', parent, smooth=True)
 
     # ------------------------------------------------------------ wings
@@ -694,14 +694,14 @@ class Aircraft:
                 self.wing_half(mb, side, a_start, half, le, chord, z0, dih, span_ref, chord_ref, top_region, bot_region, cut=(0.0, 0.74))
             else:
                 self.wing_half(mb, side, root_x, half, le, chord, z0, dih, span_ref, chord_ref, top_region, bot_region)
-            objs.append(mb.build(f'Wing_{which}_{side}', parent, smooth=True, sharp_angle=60, recalc=False))
+            objs.append(mb.build(f'Wing_{which}_{side}', parent, smooth=True, sharp_angle=60, recalc=True))
             if ailerons:
                 am = MB(['Livery_WingTop', 'Livery_WingBottom'])
                 self.wing_half(am, side, a_start + 0.01, half, le, chord, z0, dih, span_ref, chord_ref, top_region, bot_region, cut=(0.74, 1.0))
                 sgn = 1 if side == 'R' else -1
                 hx = (a_start + half) / 2
                 hinge = (sgn * hx, le - 0.74 * chord, z0 + hx * math.tan(math.radians(dih)))
-                objs.append(am.build(f'Aileron_{side}', parent, origin=hinge, smooth=True, sharp_angle=60, recalc=False))
+                objs.append(am.build(f'Aileron_{side}', parent, origin=hinge, smooth=True, sharp_angle=60, recalc=True))
         return objs
 
     def wing_z(self):
@@ -1188,7 +1188,7 @@ class Aircraft:
         mx, my, mz = muzzle
         if gtype in ('vickers', 'spandau'):
             cylinder(mb, (mx, my - length * 0.35, mz), (0, 1, 0), 0.045, length * 0.7, sides=8, mat=mat)
-            box(mb, (mx, my - length * 0.83, mz - 0.01), (0.1, length * 0.34, 0.13), mat=mat)
+            box(mb, (mx, my - length * 0.83, mz - 0.01), (0.075, length * 0.3, 0.095), mat=mat)
             cylinder(mb, (mx, my + 0.02, mz), (0, 1, 0), 0.02, 0.06, sides=6, mat=mat)
         else:  # lewis / parabellum
             cylinder(mb, (mx, my - length * 0.3, mz), (0, 1, 0), 0.05 if gtype == 'lewis' else 0.035, length * 0.55, sides=8, mat=mat)
@@ -1261,8 +1261,18 @@ class Aircraft:
     def build_crew(self, root):
         pilot = empty('Pilot', (0, 0, 0), root)
         top = self.fuselage_top(self.cpY)
-        self.eye = (0.0, self.cpY - 0.08, top + 0.2)
-        self._figure(pilot, 'Pilot', (0, self.cpY - 0.12, top + 0.2), facing=1)
+        ez = top + 0.3
+        ey = self.cpY - 0.06
+        # Keep the eye below the top wing when the pilot sits under it (Bristol, Albatros...).
+        for name in ('Upper', 'Main'):
+            if name in self.wings:
+                z0, le, ch, sp = self.wings[name]
+                if z0 > top and le + 0.1 >= ey >= le - ch - 0.1:
+                    under = self.wing_surface_z(name, 0.3, max(le - ch, min(le, ey)))[1]
+                    ez = min(ez, under - 0.09)
+        ez = max(ez, top + 0.14)
+        self.eye = (0.0, ey, ez)
+        self._figure(pilot, 'Pilot', (0, ey - 0.08, ez - 0.03), facing=1)
         if self.two:
             gtop = self.fuselage_top(self.gunY)
             g = empty('Gunner', (0, 0, 0), root)
@@ -1288,10 +1298,11 @@ class Aircraft:
         top = self.fuselage_top(cy)
         bot = self.fuselage_bot(cy)
         hw = self.fuselage_halfw(cy)
-        panelY = cy + 0.4
+        panelY = cy + 0.3
         ptop = self.fuselage_top(panelY) - 0.03
         phw = self.fuselage_halfw(panelY) * 0.92
-        box(mb, (0, panelY, ptop - 0.17), (phw * 2, 0.02, 0.32), mat=0)
+        pbot = self.fuselage_bot(panelY) + 0.1
+        box(mb, (0, panelY, (ptop + pbot) / 2), (phw * 1.8, 0.02, ptop - pbot), mat=0)  # panel + bulkhead
         box(mb, (0, cy, bot + 0.12), (hw * 1.6, 1.1, 0.02), mat=0)  # floor
         box(mb, (0, cy - 0.3, bot + 0.3), (0.42, 0.35, 0.05), mat=1)  # seat
         box(mb, (0, cy - 0.47, bot + 0.52), (0.42, 0.05, 0.45), mat=1)  # seat back
@@ -1313,7 +1324,7 @@ class Aircraft:
             ring = [g.vert((x + r * math.sin(TAU * j / N), panelY - 0.013, z + r * math.cos(TAU * j / N))) for j in range(N)]
             for j in range(N):
                 j2 = (j + 1) % N
-                g.face([c, ring[j], ring[j2]], [(0.5, 0.5), (0.5 + 0.5 * math.sin(TAU * j / N), 0.5 - 0.5 * math.cos(TAU * j / N)), (0.5 + 0.5 * math.sin(TAU * j2 / N), 0.5 - 0.5 * math.cos(TAU * j2 / N))], 0)
+                g.face([c, ring[j2], ring[j]], [(0.5, 0.5), (0.5 + 0.5 * math.sin(TAU * j2 / N), 0.5 - 0.5 * math.cos(TAU * j2 / N)), (0.5 + 0.5 * math.sin(TAU * j / N), 0.5 - 0.5 * math.cos(TAU * j / N))], 0)
             # bezel
             b = MB(['Metal'])
             tube(b, [(x + r * math.sin(TAU * j / 16), panelY - 0.012, z + r * math.cos(TAU * j / 16)) for j in range(16)], radius=0.006, sides=4, closed_path=True)

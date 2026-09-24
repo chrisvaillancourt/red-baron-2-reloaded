@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Box3, Mesh, Object3D, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { describe, expect, it } from 'vitest';
@@ -8,7 +8,7 @@ import { controlSurfaceAngles, insigniaSlots, metaFromUserData, roundelRings, ru
 import { headingDeg } from './gauges';
 import { Quaternion } from 'three';
 
-const MODELS = resolve(__dirname, '../../../public/models');
+const MODELS = fileURLToPath(new URL('../../../public/models/', import.meta.url));
 
 function parse(file: string): Promise<Object3D> {
   const buf = readFileSync(file);
@@ -19,7 +19,7 @@ function parse(file: string): Promise<Object3D> {
 describe('aircraft GLB models', () => {
   for (const spec of AIRCRAFT_LIST) {
     it(`${spec.id} follows the node/material/frame contract`, async () => {
-      const file = resolve(MODELS, `${spec.id}.glb`);
+      const file = `${MODELS}${spec.id}.glb`;
       expect(existsSync(file)).toBe(true);
       const scene = await parse(file);
       const root = scene.getObjectByName(`Aircraft_${spec.id}`)!;
