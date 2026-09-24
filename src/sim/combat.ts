@@ -674,6 +674,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
   }
 
   // --------------------------------------------------------- collisions
+  const collidedAt = new Map<number, number>();
   function updateCollisions(world: WorldQuery) {
     if (!getRealism().midairCollisions) return;
     const list = world.aircraft;
@@ -687,6 +688,11 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         const rb = getHitModel(b.spec).collisionRadius;
         const r = ra + rb;
         if (a.state.position.distanceToSquared(b.state.position) > r * r) continue;
+        // Two wrecks tumbling down together don't collide again; any pair reports at most once a second.
+        if (a.damage.destroyed && b.damage.destroyed) continue;
+        const pairKey = a.id < b.id ? a.id * 100_000 + b.id : b.id * 100_000 + a.id;
+        if (now - (collidedAt.get(pairKey) ?? -Infinity) < 1) continue;
+        collidedAt.set(pairKey, now);
         const relSpeed = tmpA.copy(a.state.velocity).sub(b.state.velocity).length();
         const pos = tmpB.copy(a.state.position).lerp(b.state.position, 0.5).clone();
         bus.emit({ type: 'collision', aId: a.id, bId: b.id, position: pos });
