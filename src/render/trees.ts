@@ -250,7 +250,7 @@ export class TreeLayer {
           }
           const c = leaf[Math.floor(hash(x, z, 7) * leaf.length)].clone().multiplyScalar(0.8 + 0.4 * hash(x, z, 8));
           push(KIND_BROAD, x, z, 0.9 + 0.8 * hash(x, z, 3), hash(x, z, 6) * 6.28, c);
-        } else if (hash(x, z, 11) < 0.006 * this.q.treeDensity && crater < 0.4) {
+        } else if (hash(x, z, 11) < 0.004 * this.q.treeDensity && crater < 0.4) {
           // Lone field / hedgerow trees.
           if (townDensityAt(x, z) > 0.4 || aerodromeClearance(x, z) < 1) continue;
           if (coastDistance(x, z) < 200) continue;

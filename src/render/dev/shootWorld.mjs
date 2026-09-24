@@ -29,6 +29,7 @@ const SHOTS = [
   { name: 'flak-central', q: 'town=Cambrai&alt=1500&pitch=4&date=1917-06-01&tod=afternoon&cover=0.3&fx=flak&back=2000' },
   { name: 'flak-allied', q: 'town=Doullens&alt=1500&pitch=4&date=1917-06-01&tod=morning&cover=0.3&base=2600&fx=flak&back=2000' },
   { name: 'boom', q: 'town=Bapaume&alt=80&pitch=-2&date=1917-05-01&tod=afternoon&cover=0.3&fx=boom&back=2500' },
+  { name: 'lowlevel-30', q: 'town=Bertangles&alt=30&pitch=-3&yaw=250&date=1917-06-01&tod=morning&cover=0.35&back=1400' },
   { name: 'demo-fx', q: 'town=Bapaume&alt=250&pitch=-8&date=1917-05-01&tod=morning&cover=0.3&demo=1&back=2500' },
 ];
 
@@ -51,7 +52,7 @@ for (const s of SHOTS) {
     await page.waitForTimeout(1000);
   }
   const stats = await page.evaluate(() => window.__harness.stats());
-  await page.evaluate(() => document.getElementById('panel').classList.add('hidden'));
+  await page.evaluate((clean) => { document.getElementById('panel').classList.add('hidden'); if (clean) document.getElementById('stats').style.display = 'none'; }, !!process.env.CLEAN);
   await page.screenshot({ path: `${out}/${s.name}.png` });
   console.log(s.name, `${Date.now() - t0}ms`, JSON.stringify(stats));
 }
