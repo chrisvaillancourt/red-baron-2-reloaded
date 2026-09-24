@@ -253,7 +253,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
 
   router.reset(currentId, opts.initialParams ?? {});
 
-  return {
+  const controller: UiController = {
     get current() {
       return currentId;
     },
@@ -269,4 +269,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       layer.remove();
     },
   };
+  // Dev-only QA hook: lets Playwright scripts jump to screens with real data.
+  if (import.meta.env?.DEV) (window as unknown as { __rb2ui?: UiController }).__rb2ui = controller;
+  return controller;
 }

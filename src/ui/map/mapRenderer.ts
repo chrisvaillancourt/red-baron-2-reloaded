@@ -194,8 +194,11 @@ export function drawMap(canvas: HTMLCanvasElement, view: MapView): void {
   drawFront(ctx, P, view, u);
   drawTowns(ctx, P, u, span);
   drawAerodromes(ctx, P, view, u, span);
+  // Markers first, route on top, so waypoint numbers are never hidden under the
+  // player's aircraft icon; the icon is nudged back along its heading when a
+  // waypoint sits on top of it.
+  for (const m of view.markers ?? []) drawMarker(ctx, P, clearOfRoute(m, view, scale, u), view, u);
   if (view.route) drawRoute(ctx, P, view, u);
-  for (const m of view.markers ?? []) drawMarker(ctx, P, m, view, u);
   drawCompass(ctx, W - 58 * u, 62 * u, 40 * u, u);
   drawScale(ctx, W, H, u, scale, view.units);
   if (view.title) drawCartouche(ctx, view, u);
@@ -444,6 +447,24 @@ function drawFront(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u: num
   ctx.restore();
 }
 
+function clearOfRoute(m: MapMarker, view: MapView, scale: number, u: number): MapMarker {
+  if (m.kind !== 'aircraft' || !m.isPlayer || !view.route?.length) return m;
+  const clash = view.route.some((w) => Math.hypot(w.x - m.x, w.z - m.z) * scale < 22 * u);
+  if (!clash) return m;
+  const d = (28 * u) / scale;
+  const hdg = m.heading ?? 0;
+  return { ...m, x: m.x - Math.sin(hdg) * d, z: m.z + Math.cos(hdg) * d };
+}
+
+/** An aerodrome named after a nearby town ("Bertincourt") needn't repeat the name. */
+function townNamesAerodrome(name: string, x: number, z: number): boolean {
+  return TOWNS.some((t) => {
+    if (!name.startsWith(t.name)) return false;
+    const p = ll(t.lat, t.lon);
+    return Math.hypot(p.x - x, p.z - z) < 5000;
+  });
+}
+
 function drawTowns(ctx: CanvasRenderingContext2D, P: Proj, u: number, span: number): void {
   ctx.textBaseline = 'middle';
   for (const t of TOWNS) {
@@ -493,7 +514,7 @@ function drawAerodromes(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u
     ctx.lineTo(0, r * 0.75);
     ctx.stroke();
     ctx.restore();
-    if (home || span < 70_000) {
+    if (home || (span < 70_000 && !townNamesAerodrome(a.name, a.x, a.z))) {
       ctx.fillStyle = col;
       ctx.font = `${home ? 'bold ' : ''}${(home ? 11 : 9) * u}px "Courier New", monospace`;
       ctx.textAlign = 'center';
@@ -557,10 +578,13 @@ function drawRoute(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u: num
       const alt = view.units === 'metric' ? `${Math.round(w.altitude / 100) * 100} m` : `${Math.round((w.altitude * 3.28084) / 500) * 500} ft`;
       const text = `${label} · ${alt}`;
       const tw = ctx.measureText(text).width;
-      ctx.fillStyle = 'rgba(255,250,235,0.8)';
-      ctx.fillRect(x + r + 3 * u, y - 7 * u, tw + 6 * u, 14 * u);
+      // Flip the tag to the left of the circle when it would run off the sheet.
+      const left = x + r + tw + 12 * u > ctx.canvas.width - 16 * u;
+      const bx = left ? x - r - 9 * u - tw : x + r + 3 * u;
+      ctx.fillStyle = 'rgba(255,250,235,0.85)';
+      ctx.fillRect(bx, y - 7 * u, tw + 6 * u, 14 * u);
       ctx.fillStyle = '#1d1813';
-      ctx.fillText(text, x + r + 6 * u, y);
+      ctx.fillText(text, bx + 3 * u, y);
     }
   });
   ctx.restore();
@@ -712,10 +736,11 @@ function drawScale(ctx: CanvasRenderingContext2D, W: number, H: number, u: numbe
   const x = W - 30 * u - len;
   const y = H - 34 * u;
   ctx.save();
-  ctx.fillStyle = 'rgba(255,250,235,0.75)';
+  ctx.fillStyle = PAPER;
   ctx.fillRect(x - 10 * u, y - 18 * u, len + 20 * u, 32 * u);
   ctx.strokeStyle = INK;
   ctx.lineWidth = u;
+  ctx.strokeRect(x - 10 * u, y - 18 * u, len + 20 * u, 32 * u);
   const segs = n <= 2 ? n * 2 : n >= 10 ? 5 : n;
   for (let i = 0; i < segs; i++) {
     ctx.fillStyle = i % 2 === 0 ? INK : 'rgba(255,250,235,1)';

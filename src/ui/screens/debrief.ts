@@ -4,7 +4,7 @@ import { AIRCRAFT } from '../../data/aircraft';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
 import { formatDate, formatDuration, percent } from '../format';
-import { medalDisplay, NATION_INFO, rankDisplay } from '../catalog';
+import { medalDisplay, rankDisplay, serviceName } from '../catalog';
 import { medalSvg, pilotPortrait } from '../insignia';
 import { screenShell, stamp, statBox, withHints } from '../components';
 import { FATE_LABEL, MISSION_TYPE_LABEL } from '../labels';
@@ -117,6 +117,12 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
           stamp(success ? 'Mission Successful' : 'Mission Failed', success ? 'green' : '', 'big slam outcome'),
         ),
         h('hr', { class: 'rule double' }),
+        h(
+          'div',
+          { class: 'report-body' },
+          h(
+            'div',
+            { class: 'report-main' },
         h('div', { class: 'field-label' }, 'Claims'),
         h(
           'div',
@@ -153,7 +159,11 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
         result.friendlyLosses.length
           ? h('div', null, h('div', { class: 'field-label' }, 'Losses'), h('div', { class: 'typed', style: 'font-size:.9em' }, result.friendlyLosses.map((l) => `${l.name} — ${FATE_LABEL[l.fate].toLowerCase()}`).join('; ')))
           : null,
-        report?.narrative.length ? h('div', { class: 'narrative', style: 'margin-top:.8em' }, ...report.narrative.map((t) => h('p', null, t))) : null,
+          ),
+          report?.narrative.length
+            ? h('div', { class: 'report-side' }, h('div', { class: 'field-label' }, 'Remarks of the commanding officer'), h('div', { class: 'narrative' }, ...report.narrative.map((t) => h('p', null, t))))
+            : null,
+        ),
         h('div', { class: 'report-foot' }, continueBtn()),
       );
     },
@@ -175,7 +185,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
             { class: 'cols' },
             h('p', null, `From our correspondent at the front. — ${name}${squadron ? ` of ${squadron.name}` : ''} was in action again this week in the skies above the lines.`),
             h('p', null, newspaperBody(report)),
-            h('p', null, `The ${NATION_INFO[nation].service} continues to hold the upper hand, and the public may take heart from the daring of these young men of the air.`),
+            h('p', null, `The ${serviceName(nation, mission.date, pilot?.squadronId)} continues to hold the upper hand, and the public may take heart from the daring of these young men of the air.`),
           ),
           h('div', { style: 'text-align:right;margin-top:1em' }, continueBtn()),
         ),

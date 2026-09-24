@@ -189,6 +189,21 @@ export const NATION_INFO: Record<Nation, { service: string; adjective: string; s
   },
 };
 
+/**
+ * The air service's name as it stood on `date`: the RFC and RNAS merged into the
+ * Royal Air Force on 1 April 1918; the German Fliegertruppe became the
+ * Luftstreitkräfte on 8 October 1916. `squadronId` distinguishes naval squadrons.
+ */
+export function serviceName(nation: Nation, date?: string, squadronId?: string): string {
+  if (!date) return NATION_INFO[nation].service;
+  if (nation === 'britain') {
+    if (date >= '1918-04-01') return 'Royal Air Force';
+    return squadronId?.startsWith('rnas') ? 'Royal Naval Air Service' : 'Royal Flying Corps';
+  }
+  if (nation === 'germany' && date < '1916-10-08') return 'Die Fliegertruppe';
+  return NATION_INFO[nation].service;
+}
+
 /** Period highlights for the pilot-creation date slider. */
 export const WAR_PERIODS: { from: string; title: string; text: string }[] = [
   { from: '1915-07-01', title: 'The Fokker Scourge', text: 'The Eindecker\'s synchronised gun makes Allied two-seaters "Fokker fodder". Immelmann and Boelcke write the first rules of air fighting.' },
