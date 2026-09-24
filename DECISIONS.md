@@ -89,3 +89,18 @@ module.
 **Decision.** Working title *Red Baron II: Reloaded*, a non-commercial fan
 rebuild. No original Dynamix/Sierra assets, code, or trademarks-as-branding
 beyond the title homage.
+
+## D-XXX — Audio: pre-rendered synthesis + WebAudio graph, not AudioWorklets
+**Context.** D-003 rules out sample files; engine sounds must track rpm for
+up to seven aircraft at once without glitching.
+**Decision.** Sounds are synthesised in pure TypeScript into buffers at
+startup (`src/audio/synthBuffers.ts`), then played through a normal WebAudio
+node graph. Engines are pre-rendered exhaust-pulse loops played at
+`playbackRate = rpm / 1200`, with per-type profiles (rotary9 / inline6 / v8 /
+v12). Doppler is applied as a pitch factor, since WebAudio removed its own.
+The master bus ends in a compressor plus soft clipper. Music is original,
+written in a small text notation and played by synthesised instruments.
+**Consequences.** No AudioWorklet or Blob-URL module loading, so it works
+anywhere WebAudio does and the synthesis is unit-testable in Node. Startup
+pays about 100 ms to render the flight bank (`warmUp()`). Timbre scales a
+little with rpm because the whole loop is resampled, which suits engines.
