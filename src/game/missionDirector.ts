@@ -368,6 +368,9 @@ export class MissionDirector {
       hits: this.hits,
       wingmanClaims: [...this.wingmanKills].map(([pilotName, count]) => ({ pilotName, count })),
       aborted: this.aborted || undefined,
+      acesDown: all
+        .filter((a) => a.aceId && a !== player && isLost(a))
+        .map((a) => ({ aceId: a.aceId!, side: a.side, fate: lossFate(a, w) })),
     };
   }
 }

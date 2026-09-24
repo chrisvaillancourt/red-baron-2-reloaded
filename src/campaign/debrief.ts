@@ -113,6 +113,20 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
       if (ace) narrative.push(`${ace.displayName} failed to return from the patrol. The whole squadron feels his loss.`);
     }
   }
+  // Any other ace brought down in the fight (by a wingman, a gunner, flak) is out of the war too.
+  for (const down of result.acesDown ?? []) {
+    if ((down.fate !== 'killed' && down.fate !== 'captured') || p.alteredAces?.[down.aceId]) continue;
+    p.alteredAces = { ...(p.alteredAces ?? {}), [down.aceId]: { fate: down.fate, date: missionDate } };
+    const ace = getAce(down.aceId);
+    if (!ace) continue;
+    narrative.push(
+      down.side === p.side
+        ? `${ace.displayName} was lost in the fighting today.`
+        : down.fate === 'captured'
+          ? `${ace.displayName} came down on our side of the lines today and is now a prisoner.`
+          : `The squadron is saying that ${ace.displayName} fell in today's fight.`,
+    );
+  }
 
   const confirmedNow = claims.filter((c) => c.confirmed).length;
   const total = confirmedVictories(p);

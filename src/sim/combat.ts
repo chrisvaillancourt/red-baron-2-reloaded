@@ -273,7 +273,9 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         z[zone] = Math.min(1, z[zone] + amount);
         if (zone === 'pilot') {
           const wasWounded = d.pilotWounded;
-          const killed = z.pilot >= 1 || rng() < (wasWounded ? 0.35 : 0.18);
+          // Splinters (flak, ground fire) mostly wound; a full bullet strike is likelier to kill.
+          const severity = 0.3 + 0.7 * Math.min(1, amount / ZONE_DAMAGE.pilot);
+          const killed = z.pilot >= 1 || rng() < (wasWounded ? 0.35 : 0.18) * severity;
           if (killed) {
             z.pilot = 1;
             d.pilotKilled = true;
@@ -764,10 +766,10 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       let interval = 0;
       let sigma = 75 + agl * 0.02;
       if (t.balloon) {
-        interval = 1.5 + rng() * 1.5;
-        sigma *= 0.6;
+        interval = 2.5 + rng() * 2;
+        sigma *= 0.75;
       } else if (t.aaGuns > 0) {
-        interval = (2 + rng() * 2) / Math.min(3, t.aaGuns);
+        interval = (3 + rng() * 2) / Math.min(2, t.aaGuns);
       } else if (t.nearFront) {
         interval = 4 + rng() * 3;
       } else if (t.enemyGround) {

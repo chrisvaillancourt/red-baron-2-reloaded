@@ -40,6 +40,8 @@ export interface AutoplayOptions {
   maxTime?: number;
   /** Distance (m) at which enemy aircraft count as "in contact" (default 3 km). */
   contactRange?: number;
+  /** End the flight (N) once the player AI is heading home and it is safe (default true). */
+  endFlightWhenSafe?: boolean;
 }
 
 export interface AutoplayReport {
@@ -47,6 +49,8 @@ export interface AutoplayReport {
   /** Simulated seconds flown. */
   time: number;
   timedOut: boolean;
+  /** The flight was ended with "end flight" while safe (vs landing/crash/timeout). */
+  endedFlight: boolean;
   /** First time an enemy aircraft came within contactRange of the player (null: never). */
   firstContact: number | null;
   /** Nearest enemy aircraft to the player at the start (m; Infinity if none). */
@@ -116,10 +120,17 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   let firstContact: number | null = null;
   const h = 1 / SIM_HZ;
   let timedOut = false;
+  let endedFlight = false;
+  let stepN = 0;
   while (!director.ended) {
     core.step(h);
-    if (firstContact === null && player && player.outcome === null && Math.round(world.time * SIM_HZ) % 30 === 0) {
-      if (nearestEnemy(core, player.state.position) < contactRange) firstContact = world.time;
+    if (player && player.outcome === null && ++stepN % 30 === 0) {
+      if (firstContact === null && nearestEnemy(core, player.state.position) < contactRange) firstContact = world.time;
+      // Like a human player: once heading home with the job done, end the flight when it's safe.
+      const phase = (core.ai.get(player.id) as { phase?: string } | undefined)?.phase;
+      if (opts.endFlightWhenSafe !== false && (phase === 'rtb' || phase === 'landing') && director.canEndFlight().ok) {
+        endedFlight = director.requestEndFlight();
+      }
     }
     if (world.time >= maxTime) {
       timedOut = true;
@@ -132,6 +143,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
     result,
     time: world.time,
     timedOut,
+    endedFlight,
     firstContact,
     initialEnemyRange,
     objectiveRange,
