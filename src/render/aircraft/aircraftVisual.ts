@@ -29,6 +29,7 @@ import { createGaugeSet, GAUGE_KINDS, type GaugeKind, type GaugeSet } from './ga
 import { getLiveryTextures, type LiveryTextures } from './livery';
 import { controlSurfaceAngles, metaFromUserData, type AircraftMeta } from './meta';
 import { loadTemplate } from './modelLoader';
+import { createSpotDot } from './spotDot';
 
 // ---------------------------------------------------------------------------
 // Shared (non-livery) materials and textures
@@ -225,6 +226,7 @@ class AircraftVisualImpl implements AircraftVisual {
   private readonly prop: Object3D | null;
   private readonly blades: Object3D | null;
   private readonly disc: Mesh;
+  private readonly dotGeometry: BufferGeometry;
   private readonly surfaces: Partial<Record<'aileronL' | 'aileronR' | 'elevator' | 'rudder', Object3D>> = {};
   private readonly pilot: Object3D | null;
   private readonly flexGun: Object3D | null;
@@ -338,6 +340,12 @@ class AircraftVisualImpl implements AircraftVisual {
       node.add(sprite);
       this.muzzles.push({ node, sprite, lastRounds: -1, flash: 0 });
     });
+
+    // Spotting dot for distant viewing (see spotDot.ts)
+    const dot = createSpotDot(spec.geometry.span);
+    root.add(dot.points);
+    this.ownedMaterials.push(dot.material);
+    this.dotGeometry = dot.points.geometry;
 
     // Bullet-hole decals
     this.holeMat = new MeshBasicMaterial({ color: 0x0d0b09, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: DoubleSide });
@@ -556,6 +564,7 @@ class AircraftVisualImpl implements AircraftVisual {
     this.gauges?.dispose();
     for (const m of this.ownedMaterials) m.dispose();
     this.disc.geometry.dispose();
+    this.dotGeometry.dispose();
     for (const d of this.holeMeshes.values()) d.geometry.dispose();
   }
 }
