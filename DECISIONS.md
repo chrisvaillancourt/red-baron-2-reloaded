@@ -293,3 +293,20 @@ lanes 40 m apart, since the fields are open grass.
 **Consequences.** Missions can start on the ground (`startOnGround`). The flight
 session only needs to set `landed-*` outcomes; `phase === 'landed'` or
 `isStoppedOnGround` tells it when.
+||||||| 956f402
+## D-028 — Front lines as sectioned keyframes, cratering as rasterised history (world)
+**Context.** The front must move with the date (campaign, AI, rendering, capture rules) and be queried per frame.
+**Decision.** Each historical keyframe is six named sections (Yser, Ypres, French Flanders, Artois, Arras–Cambrai, Somme) sharing joints; dates between keyframes interpolate section by section after arc-length resampling, and quiet periods repeat a keyframe. Queries use a bucketed segment index with pseudo-normal signing. Shell cratering is the max over every line held up to the date (sampled every 10 days through offensives) rasterised once per date into a 250 m grid.
+**Consequences.** Offensives move only their sector; ground stays scarred after the front moves on (Somme 1917, Passchendaele 1918). First crater query per date costs ~0.5 s (done in the terrain workers too).
+
+## D-029 — Terrain: authored relief grid + analytic features, worker-built quadtree LOD (render)
+**Decision.** Height is a pure function (coarse hand-authored 0.125° grid, named ridges/hills, carved river valleys with monotonic floors, coast, fBm with no wavelengths under ~500 m, flattened aerodromes) so physics and the mesh agree. Chunks (33×33 + skirts) are generated in a Web Worker pool with per-vertex land-use attributes; a procedural shader draws fields/woods/war zone; a canvas-rasterised mask carries rivers and roads, with true-width ribbons near the camera. Depth uses a reversed-Z buffer (log-depth fallback) for 0.2 m–130 km clip range.
+**Consequences.** No texture assets; consistent heights for landing. Visual detail below ~1 m is procedural noise only.
+
+## D-030 — Clouds as lit billboard puffs, not ray-marching (render)
+**Decision.** Cumulus are clusters of soft, sphere-lit billboards on a drifting 3 km grid (nearest-first with distance LOD, back-to-front sorted), plus a noise deck for overcast; entering a cloud raises fog density (white-out) while nearby puffs fade out.
+**Consequences.** Cheap and flyable-through at 60 fps; clouds read as soft cotton rather than volumetric towers. A ray-marched layer could replace it later behind the same `CloudLayer` API.
+
+## D-031 — Flak colour by ground side (render)
+**Decision.** `flak-burst` events carry no side; the effects system colours bursts by the side holding the ground beneath (black German "archie" over central ground, white-grey British/French over allied ground).
+**Consequences.** Historically plausible with no contract change; a burst fired across the lines would be mis-coloured (rare).
