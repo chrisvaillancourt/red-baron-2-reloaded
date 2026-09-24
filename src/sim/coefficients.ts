@@ -290,7 +290,7 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
   const inertiaPitch = mass * Math.pow(0.24 * g.length, 2);
   const inertiaRoll = mass * Math.pow(0.19 * g.span, 2);
   const inertiaYaw = inertiaPitch + inertiaRoll * 0.6;
-  const engineInertia = isRotary ? 12 + p.enginePowerHp * 0.06 : 4 + p.enginePowerHp * 0.01;
+  const engineInertia = isRotary ? 20 + p.enginePowerHp * 0.08 : 4 + p.enginePowerHp * 0.01;
 
   // --- Handling in acceleration form ---------------------------------------
   const vRef = 45;
@@ -322,8 +322,9 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
   const vStallSL = Math.sqrt((2 * weight) / (RHO0 * p.wingArea * clMax));
 
   // Gear geometry: taildragger sitting ~11 degrees nose-up (less for long two-seaters).
-  const mainY = -Math.max(0.75, 0.34 * g.height);
-  const mainZ = -Math.max(0.35, 0.09 * g.length);
+  // Wheels sit ~0.8 m below the lower wing root so lower wingtips clear the grass by ~0.5 m.
+  const mainY = g.layout === 'monoplane' ? -1.1 : g.layout === 'parasol' ? -1.0 : -1.2;
+  const mainZ = -Math.max(0.25, 0.05 * g.length);
   const tailZ = 0.62 * g.length;
   const groundPitch = (g.crew === 2 ? 9 : 11) * DEG;
   const tailY = mainY + Math.tan(groundPitch) * (tailZ - mainZ);

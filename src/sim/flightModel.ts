@@ -41,7 +41,10 @@ export interface SimInternal {
   /** What happened at ground contact ('crashed', 'ditched', 'impact'). */
   impactKind: 'crashed' | 'ditched' | 'impact' | null;
   wasStalled: boolean;
+  /** Latched developed spin. */
   spinning: boolean;
+  spinDir: number;
+  spinRecover: number;
 }
 
 const internals = new WeakMap<AircraftEntity, SimInternal>();
@@ -59,6 +62,8 @@ export function getSimInternal(ac: AircraftEntity): SimInternal {
       impactKind: null,
       wasStalled: false,
       spinning: false,
+      spinDir: 1,
+      spinRecover: 0,
     };
     internals.set(ac, it);
   }
@@ -333,18 +338,36 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
     const gCap = relaxed ? Math.min(5.5, co.gLimit * 0.8) : level === 'standard' ? co.gLimit * 1.08 : Infinity;
     if (Number.isFinite(gCap)) alphaCmd = Math.min(alphaCmd, co.alpha0 + (gCap * co.weight) / qS / co.clAlpha);
   }
-  if (relaxed) alphaCmd = Math.min(alphaCmd, co.alphaStall - 1.5 * DEG);
+  if (relaxed) alphaCmd = Math.min(alphaCmd, co.alphaStall - 2.5 * DEG);
   alphaCmd -= co.stallSharpness * stallFactor * 3 * DEG; // nose drops at the break
 
-  // Spin autorotation (not in relaxed): drives roll+yaw in the direction of yaw while stalled.
-  const spinGain = relaxed ? 0 : authentic ? 1.0 : 0.3;
-  const spinDir = rRate >= 0 ? 1 : -1;
-  const spinDrive = spinGain * stallFactor * clamp(Math.abs(rRate) / 0.35, 0, 1);
-  it.spinning = spinDrive > 0.4 && Math.abs(rRate) > 0.8;
+  // Spin mode (latched; never in relaxed). Entered from a stall with yaw rate:
+  // any uncoordinated stall on 'authentic', only with pro-spin rudder held on 'standard'.
+  if (!it.spinning && !relaxed && !s.onGround && stallFactor > 0.4 && Math.abs(rRate) > 0.15) {
+    const proSpin = yawIn * Math.sign(rRate);
+    const uncoordinated = Math.abs(yawIn) > 0.3 || Math.abs(beta) > 4 * DEG;
+    if (authentic ? uncoordinated && proSpin > -0.2 : proSpin > 0.5) {
+      it.spinning = true;
+      it.spinDir = rRate >= 0 ? 1 : -1;
+      it.spinRecover = 0;
+    }
+  }
+  let spinDrive = 0;
+  if (it.spinning) {
+    const dir = it.spinDir;
+    // Recovery: stick forward + opposite rudder (authentic), or simply releasing pro-spin controls (standard).
+    const recovering = authentic ? pitchIn < 0.2 && yawIn * dir < -0.3 : pitchIn < 0.3 && yawIn * dir < 0.3;
+    it.spinRecover = recovering ? it.spinRecover + dt : Math.max(0, it.spinRecover - dt);
+    if (it.spinRecover > (authentic ? 1.5 : 0.6) || s.onGround || relaxed) it.spinning = false;
+    else spinDrive = 1;
+  }
+  const spinDir = it.spinDir;
 
-  let pitchStiff = co.pitchStiffness * (1 - 0.5 * spinDrive);
+  let pitchStiff = co.pitchStiffness * (1 - 0.8 * spinDrive);
   if (it.failedPart === 'tail') pitchStiff *= 0.05;
   let qDot = pitchStiff * qTail * (alphaCmd - alphaTail) - co.pitchDamping * dampMul * rho * vDamp * qRate;
+  // In a developed spin the wing stays deeply stalled (~32 deg alpha).
+  if (spinDrive > 0) qDot += 5 * (32 * DEG - alpha) - 1.5 * qRate;
 
   const rollEff = controlEff * (1 - 0.6 * stallFactor) * (1 - 0.2 * (dL + dR));
   const asym = (it.failedPart === 'leftWing' || it.failedPart === 'rightWing' ? 0.03 : 0.012) * qd * clamp(cl / co.clMax, -1, 1);
@@ -354,7 +377,12 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
     co.dihedralEffect * qd * clamp(beta, -0.5, 0.5) -
     (dL - dR) * asym;
 
-  if (realism.autoRudder || relaxed) yawIn = clamp(yawIn + clamp(beta * 5, -0.8, 0.8) + 0.12 * rollIn, -1, 1);
+  if (realism.autoRudder || relaxed) {
+    // Coordinate turns in the air; on the ground, damp yaw to stop ground loops.
+    yawIn = s.onGround
+      ? clamp(yawIn - rRate * 4, -1, 1)
+      : clamp(yawIn + clamp(beta * 5, -0.8, 0.8) + 0.12 * rollIn, -1, 1);
+  }
   let rDot =
     co.yawAuthority * qTail * yawIn * controlEff +
     co.weathercock * qd * clamp(beta, -0.6, 0.6) -
@@ -368,13 +396,13 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
 
   // Stall break: wing drop on entry (sharper for Albatros/Nieuport-type sections).
   if (stalled && !it.wasStalled && !relaxed && !s.onGround) {
-    const bias = Math.abs(rRate) > 0.05 ? spinDir : ((it.seed >> 3) & 1 ? 1 : -1);
+    const bias = Math.abs(rRate) > 0.05 ? Math.sign(rRate) : ((it.seed >> 3) & 1 ? 1 : -1);
     s.angularVelocity.z -= bias * co.stallSharpness * 0.6; // roll toward bias (p = -wz)
   }
   it.wasStalled = stalled;
   if (spinDrive > 0) {
-    pDot += spinDrive * (spinDir * 2.6 - pRate) * 2.2;
-    rDot += spinDrive * (spinDir * 1.3 - rRate) * 1.6;
+    pDot += (spinDir * 2.2 - pRate) * 3;
+    rDot += (spinDir * 1.3 - rRate) * 2.5;
   }
 
   // Out-of-control tumbling for structural failure.
@@ -390,12 +418,12 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
     const torque = shaftPower / omegaEng;
     const h = co.engineInertia * omegaEng;
     // Reaction torque rolls left (engine turns clockwise seen from the cockpit).
-    pDot -= (torque / co.inertiaRoll) * (co.isRotary ? 1 : 0.5);
+    pDot -= (torque / co.inertiaRoll) * (co.isRotary ? 0.5 : 0.3);
     // Gyroscopic: M = H x w with H along body -Z. (body x: +h*wy, body y: -h*wx)
     qDot += (h * s.angularVelocity.y) / co.inertiaPitch;
     rDot += (h * s.angularVelocity.x) / co.inertiaYaw; // body y accel = -h*wx -> r (=-wy) accel = +h*wx
     // Spiral slipstream / rigging: rotaries want to yaw right under power.
-    rDot += (co.isRotary ? 0.3 : 0.08) * it.powerFrac * clamp(qd / 800, 0.3, 1.5);
+    rDot += (co.isRotary ? 0.6 : 0.08) * it.powerFrac * clamp(qd / 800, 0.3, 1.5);
   }
 
   // Convert to body angular acceleration.
@@ -429,10 +457,13 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
     }
     const hSpeed = Math.hypot(_vp.x, _vp.z);
     if (cp.kind === 'hard') {
-      if (s.velocity.length() > 9) {
+      // Wingtips (skids) tolerate a scrape; nose-over or inverted contact at speed is a crash.
+      const isTip = Math.abs(cp.r.x) > 1;
+      if (s.velocity.length() > (isTip ? 22 : 9)) {
         crash = 'crashed';
         break;
       }
+      if (isTip) dmg.zones[cp.r.x < 0 ? 'leftWing' : 'rightWing'] = Math.min(0.9, dmg.zones[cp.r.x < 0 ? 'leftWing' : 'rightWing'] + dt * 0.5);
     } else if (cp.kind === 'wheel') {
       const sinkLimit = relaxed ? 7 : authentic ? 3.8 : 4.8;
       if (_vp.y < -sinkLimit || hSpeed > Math.max(48, co.vStallSL * 2.3)) {
