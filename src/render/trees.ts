@@ -322,6 +322,9 @@ export class TreeLayer {
     };
   }
 
+  /** Cells in range still waiting to be built (for loading screens). */
+  pendingCount = 0;
+
   update(cam: Vector3): void {
     const R = this.q.treeRadius;
     // Build a few cells per frame, nearest first.
@@ -341,11 +344,14 @@ export class TreeLayer {
       }
     need.sort((a, b) => a[2] - b[2]);
     const t0 = performance.now();
+    let built = 0;
     for (const [i, j] of need) {
       if (performance.now() - t0 > 4) break;
       this.cells.set(`${i},${j}`, this.buildCell(i, j));
       this.dirty = true;
+      built++;
     }
+    this.pendingCount = need.length - built;
     const now = performance.now();
     if ((this.dirty && now - this.lastPackTime > 300) || cam.distanceTo(this.lastPackPos) > 120) {
       this.lastPackTime = now;
@@ -392,12 +398,25 @@ export class TreeLayer {
     for (let k = 0; k < KINDS; k++) {
       const mesh = this.meshes[k];
       mesh.count = counts[k];
+      // Upload only the live range (the buffers are sized for the worst case).
+      mesh.instanceMatrix.clearUpdateRanges();
+      mesh.instanceMatrix.addUpdateRange(0, counts[k] * 16);
       mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      if (mesh.instanceColor) {
+        mesh.instanceColor.clearUpdateRanges();
+        mesh.instanceColor.addUpdateRange(0, counts[k] * 3);
+        mesh.instanceColor.needsUpdate = true;
+      }
     }
     this.farMesh.count = far;
+    this.farMesh.instanceMatrix.clearUpdateRanges();
+    this.farMesh.instanceMatrix.addUpdateRange(0, far * 16);
     this.farMesh.instanceMatrix.needsUpdate = true;
-    if (farCol) farCol.needsUpdate = true;
+    if (farCol) {
+      farCol.clearUpdateRanges();
+      farCol.addUpdateRange(0, far * 3);
+      farCol.needsUpdate = true;
+    }
     if (this.farMesh.instanceColor) this.farMesh.instanceColor.needsUpdate = true;
   }
 

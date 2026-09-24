@@ -138,6 +138,51 @@ export class EffectsSystem {
     if (onGround) this.fires.push({ x: p.x, y: p.y, z: p.z, t: 0, life: 45 + Math.random() * 30, size });
   }
 
+  /** A kite balloon's hydrogen going up: a rolling fireball, a towering smoke plume, burning fabric. */
+  hydrogenFireball(p: Vector3): void {
+    this.flash({ x: p.x, y: p.y, z: p.z, life: 0.25, size0: 20, size1: 45, color: [1, 0.72, 0.42], alpha0: 0.8, alpha1: 0 });
+    // Rolling flame billows: alpha-blended so they stay orange instead of summing to white,
+    // with a few additive hot cores for glow.
+    for (let i = 0; i < 20; i++) {
+      const a = rnd(1), c = rnd(1), up = Math.random();
+      this.puff({
+        x: p.x + a * 10, y: p.y + rnd(5), z: p.z + c * 10, vx: a * 6, vy: 5 + up * 9, vz: c * 6,
+        life: 1.6 + Math.random() * 1.8, size0: 8 + Math.random() * 6, size1: 18 + Math.random() * 14,
+        color: [1.6, 0.55 + Math.random() * 0.35, 0.08], alpha0: 0.9, alpha1: 0, drag: 1.2, lift: 2, spin: rnd(0.5),
+      });
+    }
+    for (let i = 0; i < 8; i++) {
+      this.flash({
+        x: p.x + rnd(6), y: p.y + rnd(4), z: p.z + rnd(6), vy: 6 + Math.random() * 6,
+        life: 0.8 + Math.random() * 0.8, size0: 7, size1: 14, color: [1, 0.45, 0.1], alpha0: 0.45, alpha1: 0, drag: 1.5, lift: 2,
+      });
+    }
+    for (let i = 0; i < 18; i++) {
+      this.puff({
+        x: p.x + rnd(8), y: p.y + 4 + Math.random() * 10, z: p.z + rnd(8), vx: rnd(3), vy: 6 + Math.random() * 6, vz: rnd(3),
+        life: 30 + Math.random() * 20, size0: 8, size1: 30 + Math.random() * 20, color: [0.09, 0.075, 0.06], alpha0: 0.75, alpha1: 0, drag: 0.35, lift: 0.4, windFollow: 1, spin: rnd(0.2),
+      });
+    }
+    for (let i = 0; i < 30; i++) {
+      this.flash({
+        x: p.x + rnd(6), y: p.y + rnd(4), z: p.z + rnd(6), vx: rnd(14), vy: rnd(8) + 3, vz: rnd(14),
+        life: 3 + Math.random() * 4, size0: 0.6, size1: 0.3, color: [1, 0.55, 0.2], alpha0: 1, alpha1: 0.3, drag: 0.8, lift: -5, shape: 1,
+      });
+    }
+  }
+
+  /** Per-frame fire and smoke on a falling, burning balloon wreck (intensity 1 → 0). */
+  balloonFire(p: Vector3, intensity: number, dt: number): void {
+    if (intensity <= 0) return;
+    const n = Math.random() < dt * 40 * intensity ? 2 : 0;
+    for (let i = 0; i < n; i++)
+      this.flash({ x: p.x + rnd(4), y: p.y + rnd(3), z: p.z + rnd(4), vy: 6, life: 0.7, size0: 4 + 3 * intensity, size1: 8 + 4 * intensity, color: [1, 0.38 + Math.random() * 0.15, 0.08], alpha0: 0.5, alpha1: 0, drag: 2 });
+    if (Math.random() < dt * 20 * intensity)
+      this.puff({ x: p.x + rnd(4), y: p.y + rnd(3), z: p.z + rnd(4), vy: 5, life: 1.2, size0: 4, size1: 9, color: [1.5, 0.55, 0.1], alpha0: 0.8, alpha1: 0, drag: 2 });
+    if (Math.random() < dt * 12 * (0.3 + intensity))
+      this.puff({ x: p.x + rnd(3), y: p.y + 4, z: p.z + rnd(3), vy: 4, life: 20, size0: 5, size1: 20 + 10 * intensity, color: [0.08, 0.07, 0.06], alpha0: 0.7, alpha1: 0, drag: 0.5, windFollow: 1, lift: 0.8 });
+  }
+
   groundImpact(p: Vector3): void {
     const lu = landUseAt(p.x, p.z, this.date);
     if (lu === 'water' || lu === 'sea') {
@@ -187,7 +232,7 @@ export class EffectsSystem {
         this.explosion(e.position, 2, false);
         break;
       case 'balloon-destroyed':
-        this.explosion(e.position, 8, false);
+        this.hydrogenFireball(e.position);
         break;
       case 'ground-destroyed':
         this.explosion(e.position, 5, true);
@@ -235,14 +280,7 @@ export class EffectsSystem {
       }
       this.emitAcc.set(ac.id, acc);
     }
-    // Burning balloons.
-    for (const b of world.balloons) {
-      if (!b.burning) continue;
-      for (let i = 0; i < 3; i++) {
-        this.flash({ x: b.position.x + rnd(5), y: b.position.y + rnd(4), z: b.position.z + rnd(5), vy: 4, life: 0.6, size0: 5, size1: 9, color: [1, 0.55, 0.15], alpha0: 0.9, alpha1: 0, drag: 2 });
-      }
-      this.puff({ x: b.position.x, y: b.position.y + 6, z: b.position.z, vy: 3, life: 14, size0: 6, size1: 22, color: [0.07, 0.06, 0.05], alpha0: 0.85, alpha1: 0, drag: 0.5, windFollow: 1, lift: 0.8 });
-    }
+    // Burning balloons are driven by the renderer from each visual's burn state (balloonFire).
     // Ground fires & wreck smoke columns.
     for (let i = this.fires.length - 1; i >= 0; i--) {
       const f = this.fires[i];

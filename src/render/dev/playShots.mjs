@@ -57,6 +57,15 @@ const SCENARIOS = {
     shots: [6, 9, 13, 18, 26, 40],
     cams: ['victim', 'fight-wide'],
   },
+  balloonfx: {
+    opts: { playerAircraft: 'spad_xiii', enemyAircraft: 'fokker_dvii', enemyCount: 1, wingmen: 0, enemySkill: 'novice', wingmanSkill: 'ace', altitudeM: 900, startPosition: 'advantage', timeOfDay: 'afternoon', cloudCover: 0.3, type: 'balloon-attack', date: '1918-09-15' },
+    actions: [
+      { t: 3, code: `const b = __rb2.session.world.balloons[0]; b.observerBailed = true;` },
+      { t: 5, code: `const b = __rb2.session.world.balloons[0]; b.burning = true; b.destroyed = true; b.health = 0; __rb2render.effects.hydrogenFireball(b.position.clone());` },
+    ],
+    shots: [4, 5.3, 6, 7.5, 10, 14, 20],
+    cams: ['balloon'],
+  },
   big: {
     opts: { playerAircraft: 'sopwith_camel', enemyAircraft: 'fokker_dvii', enemyCount: 8, wingmen: 3, enemySkill: 'veteran', wingmanSkill: 'veteran', altitudeM: 1500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.45, type: 'dogfight', date: '1918-08-08' },
     shots: [10, 30, 50, 70],
@@ -154,9 +163,10 @@ for (const [name, sc] of Object.entries(SCENARIOS)) {
         case 'balloon': {
           const b = w.balloons.find((x) => x.burning) ?? w.balloons[0];
           if (!b) return;
-          const a = player ?? live[0];
-          const d = b.position.clone().sub(a.state.position).setY(0).normalize();
-          place(b.position.clone().addScaledVector(d, -180).add(new P(0, 40, 0)), b.position);
+          const vis = T.balloonVisuals.get(b.id);
+          const bp = vis ? vis.position.clone() : b.position.clone();
+          const d = new P(1, 0, 0.6).normalize();
+          place(b.position.clone().addScaledVector(d, -st.balloonDist || -220).add(new P(0, 20, 0)), bp);
           break;
         }
         case 'ground': {

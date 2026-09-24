@@ -29,7 +29,7 @@ import { AerodromeLayer } from './aerodromes';
 import { CloudLayer } from './clouds';
 import { EffectsSystem } from './effects/effectsSystem';
 import { hourForTimeOfDay, seasonOf, sunPosition, turbidityFor } from './environment';
-import { createBalloonVisual, syncBalloonVisual } from './objects/balloon';
+import { balloonBurnState, createBalloonVisual, syncBalloonVisual } from './objects/balloon';
 import { createGroundTargetVisual, setGroundTargetDestroyed } from './objects/groundTargets';
 import { QUALITY, type QualityPreset } from './quality';
 import { RiverRibbons } from './rivers';
@@ -310,7 +310,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.aerodromes.update(dt, this.weather);
     T("clouds", () => this.clouds.update(dt, camera));
     T("effects", () => this.effects.update(dt, camera, world, bullets));
-    this.syncBalloons(world);
+    this.syncBalloons(world, dt);
     // In-cloud whiteout: thicken fog when the camera is inside a cloud.
     const inside = this.clouds.densityAt(cam);
     const fog = this.scene.fog as FogExp2;
@@ -320,10 +320,13 @@ export class WorldRendererImpl implements WorldRenderer {
     fog.color.setRGB(this.tmpColor.r, this.tmpColor.g, this.tmpColor.b, SRGBColorSpace);
   }
 
-  private syncBalloons(world: WorldQuery): void {
+  private syncBalloons(world: WorldQuery, dt: number): void {
     for (const b of world.balloons) {
       const v = this.balloonVisuals.get(b.id);
-      if (v) syncBalloonVisual(v, b, this.time);
+      if (!v) continue;
+      syncBalloonVisual(v, b, this.time, world.groundHeightAt(b.anchor.x, b.anchor.z));
+      const burn = balloonBurnState(v);
+      if (burn && v.visible) this.effects.balloonFire(burn.pos, burn.intensity, dt);
     }
   }
 
@@ -369,8 +372,17 @@ export class WorldRendererImpl implements WorldRenderer {
     setGroundTargetDestroyed(obj);
   }
 
-  whenReady(): Promise<void> {
-    return this.terrain.whenReady();
+  /** Resolves once terrain, near trees and town tiles around the camera have streamed in (loading screens keep calling update()). */
+  async whenReady(): Promise<void> {
+    await this.terrain.whenReady();
+    await new Promise<void>((resolve) => {
+      const t0 = performance.now();
+      const check = () => {
+        if ((this.trees.pendingCount === 0 && this.towns.pendingCount === 0) || performance.now() - t0 > 8000) resolve();
+        else setTimeout(check, 40);
+      };
+      check();
+    });
   }
 
   stats(): WorldRendererStats {

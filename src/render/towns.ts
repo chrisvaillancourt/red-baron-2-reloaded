@@ -190,6 +190,9 @@ export class TownLayer {
     });
   }
 
+  /** Tiles in range still waiting to be built (for loading screens). */
+  pendingCount = 0;
+
   update(cam: Vector3): void {
     const R = this.q.buildingDistance;
     const t0x = Math.floor((cam.x - R) / TILE);
@@ -215,6 +218,7 @@ export class TownLayer {
         builtThisFrame++;
       }
     }
+    this.pendingCount = wanted.reduce((n, t) => n + (t.built ? 0 : 1), 0);
     for (const t of this.tiles.values()) {
       const d = Math.max(0, Math.hypot(t.cx - cam.x, t.cz - cam.z) - TILE * 0.71);
       t.group.visible = t.built && d < R;

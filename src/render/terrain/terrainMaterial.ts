@@ -26,17 +26,17 @@ export interface TerrainPalette {
 export const PALETTES: Record<'winter' | 'spring' | 'summer' | 'autumn', TerrainPalette> = {
   spring: {
     fields: ['#6b8a40', '#78944a', '#6a5a42', '#8b7d58', '#587636', '#8f8c54'],
-    pasture: '#6e8f44', forest: '#46633a', forestDark: '#35502b', hedge: '#34502a', townGround: '#77705f',
+    pasture: '#6e8f44', forest: '#52703f', forestDark: '#405b33', hedge: '#34502a', townGround: '#77705f',
     mud: '#5c4c3b', chalk: '#ab9f89', road: '#a79d86', water: '#26393d', sand: '#c9bc9b', deadWood: '#5d554a',
   },
   summer: {
     fields: ['#a8935a', '#b5a472', '#5f7639', '#786448', '#4c632d', '#98905c'],
-    pasture: '#66823f', forest: '#3e5631', forestDark: '#2f4527', hedge: '#2e4526', townGround: '#7c7463',
+    pasture: '#66823f', forest: '#4b6739', forestDark: '#3a522f', hedge: '#2e4526', townGround: '#7c7463',
     mud: '#5f4e3b', chalk: '#b1a58d', road: '#b1a78e', water: '#25383c', sand: '#cfc2a0', deadWood: '#62594c',
   },
   autumn: {
     fields: ['#a2906a', '#6c5539', '#6f8044', '#586d33', '#86754f', '#968358'],
-    pasture: '#6c7f41', forest: '#5f5834', forestDark: '#47452b', hedge: '#484828', townGround: '#76705f',
+    pasture: '#6c7f41', forest: '#6a6139', forestDark: '#534f31', hedge: '#484828', townGround: '#76705f',
     mud: '#584732', chalk: '#aa9e87', road: '#a79d86', water: '#24363a', sand: '#c7b998', deadWood: '#5a5246',
   },
   winter: {
