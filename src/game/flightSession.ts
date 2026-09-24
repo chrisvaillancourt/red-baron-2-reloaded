@@ -56,6 +56,10 @@ export interface SessionDebug {
   command(action: EdgeAction): void;
   endFlight(): boolean;
   abandon(): void;
+  /** QA hooks (polish-flight): camera rig, aircraft visuals, silent sim freeze. */
+  readonly rig: CameraRig;
+  readonly visuals: Map<number, AircraftVisual>;
+  freeze(frozen: boolean): void;
 }
 
 declare global {
@@ -190,7 +194,7 @@ export class FlightSession {
 
     // Camera, input, overlays.
     this.rig = new CameraRig(settings.fov, 1, this.renderer.near, this.renderer.far);
-    this.input = new InputManager(this.canvas, () => this.settings.controls);
+    this.input = new InputManager(this.canvas, () => this.settings.controls, () => this.world, () => this.settings.realism.flightModel);
     this.input.attach();
     const player = this.world.player;
     if (player) {
@@ -244,6 +248,15 @@ export class FlightSession {
       command: (a) => self.handleCommands([a]),
       endFlight: () => self.director.requestEndFlight(),
       abandon: () => self.director.abort(),
+      get rig() {
+        return self.rig;
+      },
+      get visuals() {
+        return self.visuals;
+      },
+      freeze: (f: boolean) => {
+        self.paused = f;
+      },
     };
   }
 

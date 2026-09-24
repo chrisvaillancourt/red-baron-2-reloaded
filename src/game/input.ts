@@ -4,7 +4,11 @@
  * render frame; the flight session copies `controls` into the player.
  */
 import { Quaternion, Vector3 } from 'three';
-import type { AircraftEntity, ControlInputs, ControlSettings } from '../core/types';
+import type { WorldQuery } from '../core/interfaces';
+import type { AircraftEntity, ControlInputs, ControlSettings, FlightModelLevel } from '../core/types';
+import { Autopilot } from '../ai/autopilot';
+import { traitsFor } from '../ai/traits';
+import { getCoefficients } from '../sim/coefficients';
 
 /** Edge-triggered actions (fire once per press). */
 export const EDGE_ACTIONS = [
@@ -90,10 +94,57 @@ export interface MouseAimState {
   prevPitchErr: number;
   prevRollErr: number;
   prevYawErr: number;
+  /** Model-inverse autopilot (src/ai) used by the instructor when a WorldQuery is available. */
+  pilot: Autopilot | null;
+  pilotKey: string;
 }
 
 export function createMouseAimState(): MouseAimState {
-  return { prevPitchErr: 0, prevRollErr: 0, prevYawErr: 0 };
+  return { prevPitchErr: 0, prevRollErr: 0, prevYawErr: 0, pilot: null, pilotKey: '' };
+}
+
+/** Instructor limits per flight-model level: relaxed is gentle and safe, authentic lets you pull hard. */
+export const INSTRUCTOR: Record<FlightModelLevel, { maxG: number; caution: number; maxPerformance: boolean; minAgl: number }> = {
+  relaxed: { maxG: 5, caution: 1, maxPerformance: true, minAgl: 90 },
+  standard: { maxG: 5.2, caution: 0.85, maxPerformance: true, minAgl: 60 },
+  authentic: { maxG: 6.2, caution: 0.6, maxPerformance: true, minAgl: 35 },
+};
+
+/**
+ * Mouse-aim instructor on the real flight model: the AI's model-inverse
+ * autopilot points the gun line at the aim direction. It knows each type's
+ * stall AoA, g limit, Vne, rotary torque and the terrain, so the player can
+ * fight hard without departing. Only stick and rudder are taken; throttle
+ * and blip stay with the player.
+ */
+export function mouseAimAssist(
+  ac: AircraftEntity,
+  aim: Vector3,
+  st: MouseAimState,
+  world: WorldQuery,
+  level: FlightModelLevel,
+  dt: number,
+  out: { pitch: number; roll: number; yaw: number },
+): void {
+  const key = `${ac.id}:${ac.spec.id}:${level}`;
+  const cfg = INSTRUCTOR[level];
+  if (!st.pilot || st.pilotKey !== key) {
+    const p = ac.spec.performance;
+    st.pilot = new Autopilot(traitsFor(ac.spec), cfg.maxG, cfg.minAgl, p.rollRate, p.pitchRate, getCoefficients(ac.spec));
+    st.pilot.diveCaution = cfg.caution;
+    st.pilotKey = key;
+  }
+  const c = ac.controls;
+  const saved = { pitch: c.pitch, roll: c.roll, yaw: c.yaw, throttle: c.throttle, blip: c.blip };
+  st.pilot.fly(ac, { dir: aim, speed: Infinity, aim: true, maxPerformance: cfg.maxPerformance, minAgl: cfg.minAgl }, world, Math.max(dt, 1e-3));
+  out.pitch = c.pitch;
+  out.roll = c.roll;
+  out.yaw = c.yaw;
+  c.pitch = saved.pitch;
+  c.roll = saved.roll;
+  c.yaw = saved.yaw;
+  c.throttle = saved.throttle;
+  c.blip = saved.blip;
 }
 
 const _inv = new Quaternion();
@@ -181,6 +232,9 @@ export class InputManager {
   constructor(
     private readonly element: HTMLElement,
     private readonly getControls: () => ControlSettings,
+    /** Live world + realism for the model-aware mouse-aim instructor (legacy law without them). */
+    private readonly getWorld: () => WorldQuery | null = () => null,
+    private readonly getLevel: () => FlightModelLevel = () => 'standard',
   ) {}
 
   attach(): void {
@@ -350,7 +404,9 @@ export class InputManager {
       }
       aimDirection = this.aim!.clone();
       const out = { pitch: 0, roll: 0, yaw: 0 };
-      mouseAimControls(player, this.aim!, this.aimState, dt, out);
+      const world = this.getWorld();
+      if (world) mouseAimAssist(player, this.aim!, this.aimState, world, this.getLevel(), dt, out);
+      else mouseAimControls(player, this.aim!, this.aimState, dt, out);
       mousePitch = out.pitch;
       mouseRoll = out.roll;
       mouseYaw = out.yaw;
