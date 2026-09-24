@@ -335,7 +335,7 @@ emission) instead of a world volume, and the world shader fades to a haze colour
 rather than downloading browsers. Tests that need Node built-ins declare minimal ambient types
 locally (`src/render/aircraft/node-shim.d.ts`) instead of adding `@types/node`.
 
-## D-XXX — Menu screens are composed around the key art (polish-menus)
+## D-036 — Menu screens are composed around the key art (polish-menus)
 **Context.** The Blender key art arrived after the menus were designed against CSS
 fallbacks. The title's centred-right menu covered the art's hero, the red Dr.I, and at
 1280×720 the combat report overflowed and scrolled its header out of view.
@@ -348,7 +348,7 @@ checks.
 **Consequences.** Future key art should keep its subject out of the left ~35% of the
 frame, or the title layout needs revisiting.
 
-## D-XXX — First-run Flying School card instead of an interactive tutorial (polish-menus)
+## D-037 — First-run Flying School card instead of an interactive tutorial (polish-menus)
 **Context.** RB2 shipped a manual; a modern player expects in-game onboarding, but a
 scripted tutorial mission would cut across the game, sim and AI layers.
 **Decision.** The first take-off on a browser, while tutorial hints are on, shows a
@@ -358,7 +358,7 @@ Flying Manual. The in-flight HUD hint line does the rest.
 **Consequences.** It is cheap and always matches the rebinding. Automated flows must
 acknowledge the card on a fresh profile (the e2e tests do).
 
-## D-XXX — UI sound levels are measured, not guessed (polish-menus)
+## D-038 — UI sound levels are measured, not guessed (polish-menus)
 **Decision.** `dev/measure-ui-audio.mjs` renders every UI sound and music cue through the
 real engine into an OfflineAudioContext. The per-sound gains (`UI_GAIN`) keep UI sounds
 8–12 dB below the menu music's peaks. At unity gain, confirm and back peaked about 2 dB
