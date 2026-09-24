@@ -10,6 +10,7 @@ import {
   Color,
   Float32BufferAttribute,
   BufferGeometry,
+  DirectionalLight,
   DoubleSide,
   Mesh,
   MeshBasicMaterial,
@@ -33,12 +34,60 @@ import { loadTemplate } from './modelLoader';
 // Shared (non-livery) materials and textures
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Ground bounce: sunlight reflected off the fields onto down-facing surfaces
+// (wing undersides seen from the cockpit). The scene's sky environment map is
+// dim below the horizon, which left undersides near-black. One shared uniform,
+// driven from the scene's sun, feeds every aircraft material.
+// ---------------------------------------------------------------------------
+
+const GROUND_BOUNCE = { value: new Color(0.3, 0.32, 0.26) };
+const GROUND_ALBEDO = new Color(0.2, 0.22, 0.16);
+let bounceScene: Object3D | null = null;
+let bounceSun: DirectionalLight | null = null;
+let bounceStamp = -1;
+
+function patchGroundBounce(m: MeshStandardMaterial): void {
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uGroundBounce = GROUND_BOUNCE;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uGroundBounce;')
+      .replace(
+        '#include <lights_fragment_maps>',
+        `#include <lights_fragment_maps>
+#if defined( RE_IndirectDiffuse )
+  { vec3 wN = inverseTransformDirection( normal, viewMatrix ); irradiance += uGroundBounce * clamp( 0.5 - 0.5 * wN.y, 0.0, 1.0 ); }
+#endif`,
+      );
+  };
+  m.customProgramCacheKey = () => 'rb2-ground-bounce';
+}
+
+/** Track the scene's sun (once per frame, shared by all visuals). */
+function updateGroundBounce(scene: Object3D | null): void {
+  const now = performance.now();
+  if (now - bounceStamp < 4 || !scene) return;
+  bounceStamp = now;
+  if (scene !== bounceScene || !bounceSun || bounceSun.parent !== scene) {
+    bounceScene = scene;
+    bounceSun = null;
+    for (const c of scene.children) if ((c as DirectionalLight).isDirectionalLight) bounceSun = c as DirectionalLight;
+  }
+  const sun = bounceSun;
+  if (!sun) return;
+  const dir = _sunDir.copy(sun.position).sub(sun.target.position).normalize();
+  const e = sun.intensity * Math.max(0.15, dir.y) + 0.35; // direct + a little skylight on the fields
+  GROUND_BOUNCE.value.copy(GROUND_ALBEDO).multiply(sun.color).multiplyScalar(e);
+}
+const _sunDir = new Vector3();
+
 let shared: Record<string, Material> | null = null;
 function sharedMaterials(): Record<string, Material> {
   if (shared) return shared;
   const woodTex = woodTexture();
   shared = {
-    Metal: new MeshStandardMaterial({ color: 0x2b2b2a, metalness: 0.85, roughness: 0.42, name: 'Metal' }),
+    // Gunmetal: moderately metallic so it still reads under a dim sky env map (0.85 went black).
+    Metal: new MeshStandardMaterial({ color: 0x4c4c48, metalness: 0.55, roughness: 0.5, name: 'Metal' }),
     Wood: new MeshStandardMaterial({ color: 0xffffff, map: woodTex, metalness: 0, roughness: 0.5, name: 'Wood' }),
     Rubber: new MeshStandardMaterial({ color: 0x151412, roughness: 0.92, name: 'Rubber' }),
     Pilot: new MeshStandardMaterial({ color: 0x4a2f1d, roughness: 0.62, name: 'Pilot' }),
@@ -48,6 +97,7 @@ function sharedMaterials(): Record<string, Material> {
     Cloth: new MeshStandardMaterial({ color: 0xe9e4d6, roughness: 0.9, name: 'Cloth' }),
     Gauge: new MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.4, name: 'Gauge' }),
   };
+  for (const m of Object.values(shared)) patchGroundBounce(m as MeshStandardMaterial);
   return shared;
 }
 
@@ -223,6 +273,7 @@ class AircraftVisualImpl implements AircraftVisual {
         if (slot === 'fuselage' || slot === 'tail' || slot === 'cowling') m.side = DoubleSide;
       }
       m.name = name;
+      patchGroundBounce(m);
       cache.set(key, m);
       this.ownedMaterials.push(m);
       const list = this.zoneMats.get(zone) ?? [];
@@ -297,6 +348,7 @@ class AircraftVisualImpl implements AircraftVisual {
     const o = this.object;
     o.position.copy(ac.state.position);
     o.quaternion.copy(ac.state.orientation);
+    updateGroundBounce(o.parent);
 
     // Propeller: rotary engines spin the whole cylinder block with it.
     const rpm = ac.damage.engineDead ? Math.max(0, ac.state.engineRpm) : ac.state.engineRpm;
@@ -304,7 +356,7 @@ class AircraftVisualImpl implements AircraftVisual {
     if (this.prop) this.prop.rotation.z = this.pusherSign() * this.propAngle;
     const blur = smooth(250, 800, rpm);
     const discMat = this.disc.material as MeshBasicMaterial;
-    discMat.opacity = blur * (this.cockpit ? 0.35 : 0.75);
+    discMat.opacity = blur * (this.cockpit ? 0.1 : 0.75); // from the seat the blur is a faint shimmer
     this.disc.visible = blur > 0.01;
     if (this.blades) this.blades.visible = rpm < 700 || this.detached.has('prop');
 

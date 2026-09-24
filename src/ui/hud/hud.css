@@ -591,7 +591,7 @@
 .hud-hint {
   position: absolute;
   left: 50%;
-  bottom: 5.2em;
+  top: 7.4em; /* clear of the bottom instruments and the padlock label */
   transform: translateX(-50%);
   max-width: 40em;
   text-align: center;
@@ -780,4 +780,33 @@
     linear-gradient(var(--hud-amber, #ffcf6a), var(--hud-amber, #ffcf6a)) center / 100% 2px no-repeat,
     linear-gradient(var(--hud-amber, #ffcf6a), var(--hud-amber, #ffcf6a)) center / 2px 100% no-repeat;
   filter: drop-shadow(0 0 1px #000);
+}
+
+/* --------------------------------------------------- cockpit layout
+ * In the cockpit the 3D instrument panel owns the bottom-centre of the
+ * screen, so the numeric readouts shrink into a column at bottom-left. */
+.rb-hud.in-cockpit .hud-readout {
+  left: 1.2em;
+  bottom: 1.1em;
+  transform: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2em;
+  font-size: 0.82em;
+  opacity: 0.85;
+}
+.rb-hud.in-cockpit .hud-readout .r {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.6em;
+  min-width: 0;
+}
+.rb-hud.in-cockpit .hud-readout .k {
+  min-width: 3.8em;
+}
+.rb-hud.in-cockpit .hud-readout .v {
+  font-size: 1.15em;
+}
+.rb-hud.in-cockpit .hud-throttle {
+  height: 1.2em;
 }
