@@ -89,3 +89,41 @@ module.
 **Decision.** Working title *Red Baron II: Reloaded*, a non-commercial fan
 rebuild. No original Dynamix/Sierra assets, code, or trademarks-as-branding
 beyond the title homage.
+
+## D-XXX — Flight model: calibrated lumped polar in an acceleration-form 6-DOF
+**Context.** WWI types must feel distinct and match their history, but full
+per-panel aerodynamics with real inertia tensors is hard to tune for 23
+aircraft with sparse data.
+**Decision.** Forces come from one lumped wing polar per type; moments use
+stiffness/damping/authority per unit dynamic pressure derived from the spec's
+`rollRate`/`pitchRate`, with physical couplings (torque, gyroscopic
+precession, dihedral, adverse yaw) layered on. Three parameters per type
+(`cd0`, propeller design speed, power-lapse exponent) are solved so max
+speed, climb to 3000 m and ceiling reproduce `performance`; a Vitest suite
+flies every aircraft to prove it. The stick commands angle of attack, which
+gives natural speed stability, accelerated stalls and g-loads.
+**Consequences.** Adding an aircraft needs only historical figures. Handling
+is deterministic and cheap (~0.7 µs/step). Two data points were corrected
+where the model could not reach them physically: Dr.I climb 7.5 → 8.5 min,
+D.VIII max speed 204 → 190 km/h (the 204 km/h figure belongs to a more
+powerful engine).
+
+## D-XXX — Spins are a latched mode, not emergent inertia coupling
+**Decision.** A spin is entered from a stall with yaw rate (authentic: any
+uncoordinated stall; standard: only with pro-spin rudder held; relaxed:
+never) and holds deep-stall alpha and autorotation until recovery inputs are
+held (forward stick + opposite rudder ~1.5 s on authentic).
+**Consequences.** Spins are reliable, teachable and recoverable instead of
+depending on fragile inertia-coupling tuning.
+
+## D-XXX — Combat conventions
+**Decision.** Rounds pass through fabric and damage every zone on their path
+until the engine stops them; kill credit goes to the last attacker when a loss
+(including structural failure, crash or ditching) follows a hit within 30 s;
+rear gunners on two-seaters auto-engage with skill-based error (AI may
+override the target); archie is generated from the front line, enemy balloons
+and AA-gun ground targets rather than placed batteries; `controls.clearJam` is
+consumed by the combat system (one hammer blow per press).
+**Consequences.** Forced-down victories count as in RB2; mission designers get
+flak "for free" near the lines; the input layer only has to set the flag on key
+press edges.

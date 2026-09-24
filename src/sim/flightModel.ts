@@ -418,7 +418,7 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
     const torque = shaftPower / omegaEng;
     const h = co.engineInertia * omegaEng;
     // Reaction torque rolls left (engine turns clockwise seen from the cockpit).
-    pDot -= (torque / co.inertiaRoll) * (co.isRotary ? 0.5 : 0.3);
+    pDot -= (torque / co.inertiaRoll) * (co.isRotary ? 0.35 : 0.15);
     // Gyroscopic: M = H x w with H along body -Z. (body x: +h*wy, body y: -h*wx)
     qDot += (h * s.angularVelocity.y) / co.inertiaPitch;
     rDot += (h * s.angularVelocity.x) / co.inertiaYaw; // body y accel = -h*wx -> r (=-wy) accel = +h*wx

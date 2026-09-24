@@ -162,6 +162,40 @@ describe('hits and kills', () => {
     expect(target.damage.lastAttackerId).toBe(1);
   });
 
+  it('a wing shot away is a structural failure credited to the attacker', () => {
+    const s = scenario();
+    const victim = s.add(2, 'albatros_diii', 0, 0, 1000, 0, 'germany');
+    s.combat.damageAircraft(victim, 'leftWing', 1, 7, 0);
+    s.step(0.5);
+    const fail = s.events.find((e) => e.type === 'structural-failure');
+    const kill = s.events.find((e) => e.type === 'aircraft-destroyed');
+    expect(fail?.type === 'structural-failure' && fail.part).toBe('leftWing');
+    expect(kill?.type === 'aircraft-destroyed' && kill.killerId).toBe(7);
+    expect(victim.outcome).toBe('shot-down');
+  });
+
+  it('forcing a damaged aircraft into the ground counts as a victory; a lone crash does not', () => {
+    const s = scenario();
+    const victim = s.add(2, 'albatros_dv', 0, 0, 120, 0, 'germany');
+    const loner = s.add(3, 'albatros_dv', 500, 0, 120, 0, 'germany');
+    s.combat.damageAircraft(victim, 'engine', 1, 9, 0);
+    victim.controller = 'none';
+    loner.controller = 'none';
+    for (const ac of [victim, loner]) {
+      orientationFrom(0, -0.6, 0, ac.state.orientation);
+      ac.state.velocity.set(0, -25, -35);
+    }
+    s.step(8);
+    const kills = s.events.filter((e) => e.type === 'aircraft-destroyed');
+    expect(victim.outcome).toBe('crashed');
+    expect(loner.outcome).toBe('crashed');
+    const byVictim = new Map(kills.map((k) => (k.type === 'aircraft-destroyed' ? [k.victimId, k.killerId] : [0, 0])));
+    expect(byVictim.get(2)).toBe(9);
+    expect(byVictim.get(3)).toBeNull();
+    expect(count(s.events, 'engine-dead')).toBe(1);
+    expect(count(s.events, 'explosion')).toBeGreaterThanOrEqual(2);
+  });
+
   it('the invulnerable player takes no damage', () => {
     const s = scenario({ realism: { gunJams: false, invulnerable: true } });
     const player = s.add(2, 'sopwith_camel', 0, -100, 1000);
