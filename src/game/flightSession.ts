@@ -145,7 +145,8 @@ export class FlightSession {
       const leaderId = members[0].id;
       members.forEach((ac, slot) => {
         if (ac.controller !== 'ai') return;
-        this.ai.set(ac.id, modules.createAIController(ac, { skill: ac.skill, flight, slot, leaderId, realism: settings.realism }));
+        const homeAerodromeId = flight.role === 'enemy' ? undefined : mission.homeAerodromeId;
+        this.ai.set(ac.id, modules.createAIController(ac, { skill: ac.skill, flight, slot, leaderId, realism: settings.realism, homeAerodromeId }));
       });
     }
 

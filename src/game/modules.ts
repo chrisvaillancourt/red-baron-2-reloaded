@@ -1,42 +1,51 @@
 /**
  * COMPOSITION POINT. The only place that binds subsystem implementations.
- * Each entry is currently a stub from ./stubs; swap an import here to bring
- * a real module online (see docs/game.md "Swapping stubs").
+ * Entries still bound to ./stubs are swapped as their modules land
+ * (see docs/game.md "Swapping stubs").
  */
+import { createAIController } from '../ai';
+import { createAudioEngine } from '../audio';
+import { createCampaignService } from '../campaign';
+import { createCombatSystem, createFlightEnvironment, setGunnerTarget, sim } from '../sim';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
 import type { GameModules } from './moduleTypes';
-import { stubCreateAIController } from './stubs/ai';
 import { stubCreateAircraftVisual, stubPreloadAircraftModels } from './stubs/aircraftVisual';
-import { stubCreateAudioEngine } from './stubs/audio';
-import { stubCreateCampaignService } from './stubs/campaign';
-import { stubCreateCombatSystem, stubSetGunnerTarget } from './stubs/combat';
 import { stubCreateHud } from './stubs/hud';
 import { stubCreateWorldRenderer } from './stubs/renderer';
-import { stubCreateFlightEnvironment, stubSim } from './stubs/sim';
 import { stubCreateUi } from './stubs/ui';
 
 export const modules: GameModules = {
   // src/sim
-  sim: stubSim,
-  createFlightEnvironment: stubCreateFlightEnvironment,
-  createCombatSystem: stubCreateCombatSystem,
-  setGunnerTarget: stubSetGunnerTarget,
+  sim,
+  createFlightEnvironment,
+  createCombatSystem: (bus, getRealism) => createCombatSystem(bus, getRealism),
+  setGunnerTarget,
   // src/render
   createWorldRenderer: stubCreateWorldRenderer,
   // src/render/aircraft
   createAircraftVisual: stubCreateAircraftVisual,
   preloadAircraftModels: stubPreloadAircraftModels,
-  // src/ai
-  createAIController: stubCreateAIController,
+  // src/ai — adapt the game's per-slot options to the AI's vic-slot options.
+  createAIController: (ac, o) =>
+    createAIController(ac, {
+      role: o.flight.role,
+      task: o.flight.task,
+      skill: o.skill,
+      leaderId: o.leaderId === ac.id ? undefined : o.leaderId,
+      formationSlot: o.slot > 0 ? o.slot : undefined,
+      realism: o.realism,
+      setGunnerTarget,
+      homeAerodromeId: o.homeAerodromeId,
+    }),
   // src/audio
-  createAudioEngine: stubCreateAudioEngine,
+  createAudioEngine: () => createAudioEngine(),
   // src/campaign
-  createCampaignService: stubCreateCampaignService,
+  createCampaignService: () => createCampaignService(),
   // src/ui
   createUi: stubCreateUi,
   createHud: stubCreateHud,
-  // src/world (real modules; the lead's stubs today, the world agent's later)
+  // src/world
   terrainHeightAt,
   sideOfFrontAt,
 };

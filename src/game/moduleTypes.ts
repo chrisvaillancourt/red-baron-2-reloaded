@@ -43,6 +43,8 @@ export interface AIControllerOptions {
   /** Entity id of the flight leader (== own id for the leader). */
   leaderId: number;
   realism: RealismSettings;
+  /** Aerodrome friendly flights return to (mission.homeAerodromeId for the player's side). */
+  homeAerodromeId?: string;
 }
 
 /** In-flight HUD handle. The real UI's HUD is adapted to this in modules.ts. */
