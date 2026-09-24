@@ -1,0 +1,374 @@
+/**
+ * WorldRenderer implementation (see src/core/interfaces.ts).
+ *
+ * Owns the WebGLRenderer, the scene, sky/sun/fog, streamed terrain, sea,
+ * towns, trees, aerodromes, clouds and the effects system. Game code adds
+ * aircraft visuals to `scene` and renders with its own camera.
+ */
+import {
+  ACESFilmicToneMapping,
+  Color,
+  DirectionalLight,
+  FogExp2,
+  Group,
+  PCFShadowMap,
+  PerspectiveCamera,
+  PMREMGenerator,
+  Scene,
+  SRGBColorSpace,
+  Vector3,
+  WebGLRenderer,
+  type Camera,
+  type Object3D,
+  type Texture,
+  type WebGLRenderTarget,
+} from 'three';
+import type { WorldQuery, WorldRenderer, BulletView } from '../core/interfaces';
+import type { BalloonEntity, GameEvent, GraphicsQuality, GroundTargetType, Side, TimeOfDay, Weather } from '../core/types';
+import { AerodromeLayer } from './aerodromes';
+import { CloudLayer } from './clouds';
+import { EffectsSystem } from './effects/effectsSystem';
+import { hourForTimeOfDay, seasonOf, sunPosition, turbidityFor } from './environment';
+import { createBalloonVisual, syncBalloonVisual } from './objects/balloon';
+import { createGroundTargetVisual } from './objects/groundTargets';
+import { QUALITY, type QualityPreset } from './quality';
+import { RiverRibbons } from './rivers';
+import { RoadRibbons } from './roadRibbons';
+import { Sea } from './sea';
+import { linearToDisplay, skyRadiance, SkyDome, type SkyParams } from './sky';
+import { buildFeatureMask, type FeatureMask } from './terrain/featureMask';
+import { applyPalette, createTerrainMaterial, PALETTES } from './terrain/terrainMaterial';
+import { TerrainSystem } from './terrain/terrainSystem';
+import { TownLayer } from './towns';
+import { TreeLayer } from './trees';
+
+export interface WorldRendererOptions {
+  quality: GraphicsQuality;
+  date: string;
+}
+
+export interface WorldRendererStats {
+  fps: number;
+  frameMs: number;
+  drawCalls: number;
+  triangles: number;
+  terrainChunks: number;
+  terrainPending: number;
+  particles: number;
+}
+
+function supportsClipControl(): boolean {
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2');
+    const ok = !!gl?.getExtension('EXT_clip_control');
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+const DEFAULT_WEATHER: Weather = { cloudCover: 0.35, cloudBaseM: 1500, cloudTopM: 2300, wind: [4, 0, 1], visibilityM: 30_000, turbulence: 0.2 };
+
+export class WorldRendererImpl implements WorldRenderer {
+  readonly scene = new Scene();
+  readonly renderer: WebGLRenderer;
+  readonly quality: QualityPreset;
+  readonly sun = new DirectionalLight(0xffffff, 3);
+  readonly sunDirection = new Vector3(0, 1, 0);
+  /** Recommended camera clip planes for this renderer. */
+  readonly near = 0.2;
+  readonly far: number;
+
+  private readonly sky = new SkyDome();
+  private readonly terrain: TerrainSystem;
+  private readonly terrainMaterial;
+  private readonly sea = new Sea();
+  private readonly towns: TownLayer;
+  private readonly trees: TreeLayer;
+  private readonly aerodromes: AerodromeLayer;
+  private readonly clouds: CloudLayer;
+  private readonly rivers: RiverRibbons;
+  private readonly roads: RoadRibbons;
+  private readonly tmpColor = new Color();
+  readonly effects: EffectsSystem;
+  private readonly pmrem: PMREMGenerator;
+  private envTarget: WebGLRenderTarget | null = null;
+  private mask: FeatureMask;
+  private date: string;
+  private weather: Weather = DEFAULT_WEATHER;
+  private readonly balloonVisuals = new Map<number, Group>();
+  private time = 0;
+  private frameTimes: number[] = [];
+  private lastFrame = performance.now();
+  private readonly skyParams: SkyParams = { sunDirection: new Vector3(0, 1, 0), turbidity: 4, rayleigh: 1.5, mieCoefficient: 0.005, mieDirectionalG: 0.8, overcast: 0 };
+  private readonly fogDisplay = new Color();
+
+  constructor(canvas: HTMLCanvasElement, opts: WorldRendererOptions) {
+    this.quality = QUALITY[opts.quality];
+    this.far = this.quality.farPlane;
+    this.date = opts.date;
+    const reversed = supportsClipControl();
+    this.renderer = new WebGLRenderer({
+      canvas,
+      antialias: this.quality.antialias,
+      powerPreference: 'high-performance',
+      reversedDepthBuffer: reversed,
+      logarithmicDepthBuffer: !reversed,
+      stencil: false,
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.quality.pixelRatioCap));
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1;
+    this.renderer.outputColorSpace = SRGBColorSpace;
+    this.renderer.shadowMap.enabled = this.quality.shadows;
+    this.renderer.shadowMap.type = PCFShadowMap;
+    this.pmrem = new PMREMGenerator(this.renderer);
+
+    this.scene.add(this.sky);
+    this.scene.fog = new FogExp2(0xb0b8c0, 0.00005);
+
+    // Sun (+ shadows following the camera).
+    this.sun.castShadow = this.quality.shadows;
+    this.sun.shadow.mapSize.set(this.quality.shadowMapSize, this.quality.shadowMapSize);
+    const sc = this.sun.shadow.camera;
+    sc.left = -220;
+    sc.right = 220;
+    sc.top = 220;
+    sc.bottom = -220;
+    sc.near = 10;
+    sc.far = 4000;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.6;
+    this.scene.add(this.sun, this.sun.target);
+
+    this.mask = buildFeatureMask(this.date, this.quality.maskResolution);
+    this.terrainMaterial = createTerrainMaterial(this.mask.texture, this.mask.rect);
+    this.terrain = new TerrainSystem(this.terrainMaterial, this.date, {
+      maxLevel: this.quality.terrainMaxLevel,
+      splitFactor: this.quality.terrainSplit,
+      maxCached: this.quality.terrainCache,
+      workers: Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 2)),
+      farDistance: this.far * 1.1,
+    });
+    this.scene.add(this.terrain.group);
+    this.scene.add(this.sea.mesh);
+
+    this.roads = new RoadRibbons();
+    this.scene.add(this.roads.group);
+    this.rivers = new RiverRibbons();
+    this.scene.add(this.rivers.group);
+    this.towns = new TownLayer(this.date, this.quality);
+    this.scene.add(this.towns.group);
+    this.trees = new TreeLayer(this.date, this.quality);
+    this.scene.add(this.trees.group);
+    this.aerodromes = new AerodromeLayer(this.date);
+    this.scene.add(this.aerodromes.group);
+    this.clouds = new CloudLayer(this.quality);
+    this.scene.add(this.clouds.group);
+    this.effects = new EffectsSystem(this.quality.maxParticles, (x, z) => this.sideOfGround(x, z));
+    this.scene.add(this.effects.group);
+
+    this.setEnvironment(this.date, 'morning', DEFAULT_WEATHER);
+  }
+
+  private sideOfGround: (x: number, z: number) => Side = () => 'allied';
+
+  setEnvironment(date: string, timeOfDay: TimeOfDay, weather: Weather): void {
+    const dateChanged = date !== this.date;
+    this.date = date;
+    this.weather = weather;
+    const hour = hourForTimeOfDay(date, timeOfDay);
+    const sun = sunPosition(date, hour);
+    this.sunDirection.set(...sun.direction);
+    const overcast = Math.max(0, (weather.cloudCover - 0.55) / 0.45);
+    const p = this.skyParams;
+    p.sunDirection.copy(this.sunDirection);
+    p.turbidity = turbidityFor(weather);
+    p.rayleigh = 1.2 + 0.8 * Math.max(0, 1 - sun.elevationDeg / 25);
+    p.mieCoefficient = 0.004 + 0.003 * (1 - Math.min(1, weather.visibilityM / 40_000));
+    p.mieDirectionalG = 0.8;
+    p.overcast = overcast * 0.9;
+    this.sky.setParams(p);
+
+    // Fog colour: the sky just above the horizon, averaged around the compass, display space.
+    const acc = [0, 0, 0];
+    const dir = new Vector3();
+    const tmp: [number, number, number] = [0, 0, 0];
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      dir.set(Math.cos(a), 0.035, Math.sin(a)).normalize();
+      skyRadiance(dir, p, tmp);
+      acc[0] += tmp[0] / 16;
+      acc[1] += tmp[1] / 16;
+      acc[2] += tmp[2] / 16;
+    }
+    const disp = linearToDisplay(acc as [number, number, number], this.renderer.toneMappingExposure);
+    // Haze is a little greyer/brighter than the clear-sky horizon.
+    const grey = (disp[0] + disp[1] + disp[2]) / 3;
+    const hz = 0.25 + 0.2 * Math.min(1, 25_000 / weather.visibilityM);
+    this.fogDisplay.setRGB(disp[0] + (grey - disp[0]) * hz, disp[1] + (grey - disp[1]) * hz, disp[2] + (grey - disp[2]) * hz);
+    const fog = this.scene.fog as FogExp2;
+    // three encodes fog.color (linear) to the output space before mixing; our display-space value must be decoded.
+    fog.color.setRGB(this.fogDisplay.r, this.fogDisplay.g, this.fogDisplay.b, SRGBColorSpace);
+    fog.density = 2.0 / Math.max(2000, weather.visibilityM);
+    this.sky.material.uniforms.hazeColor.value.copy(this.fogDisplay);
+    this.sky.material.uniforms.hazeBand.value = 0.05 + 0.1 * Math.min(1, 20_000 / weather.visibilityM);
+
+    // Sun light: warm and weak near the horizon, dimmed by overcast.
+    const el = Math.max(0, sun.elevationDeg);
+    const warm = Math.max(0, 1 - el / 35);
+    this.sun.color.setRGB(1, 1 - 0.28 * warm, 1 - 0.55 * warm);
+    const lowSun = Math.min(1, el / 6);
+    this.sun.intensity = (0.3 + 2.3 * lowSun) * (1 - 0.75 * overcast);
+
+    // Image-based ambient from the sky.
+    this.renderEnvironment();
+    this.scene.environmentIntensity = 0.65 * (1 - 0.3 * overcast) + 0.15;
+
+    // Season palette.
+    applyPalette(this.terrainMaterial, PALETTES[seasonOf(date).name]);
+
+    if (dateChanged) {
+      this.terrain.setDate(date);
+      this.mask.texture.dispose();
+      this.mask = buildFeatureMask(date, this.quality.maskResolution);
+      const u = this.terrainMaterial.userData.uniforms;
+      u.uMask.value = this.mask.texture;
+      u.uMaskRect.value = this.mask.rect;
+      this.towns.setDate(date);
+      this.trees.setDate(date);
+      this.aerodromes.setDate(date);
+    }
+    this.trees.setSeason(seasonOf(date).name);
+    this.clouds.setWeather(weather, this.sunDirection, this.fogDisplay, overcast);
+    this.effects.setWind(weather.wind);
+    this.effects.setDate(date);
+    const lightK = Math.min(1, 0.35 + this.sun.intensity / 3);
+    this.effects.setFog(this.fogDisplay, fog.density, new Color(lightK, lightK * (1 - 0.1 * warm), lightK * (1 - 0.2 * warm)));
+  }
+
+  private renderEnvironment(): void {
+    const envScene = new Scene();
+    const u = this.sky.material.uniforms;
+    const prevHaze = (u.hazeColor.value as Color).clone();
+    // Below the horizon in the env map: a dim, linear ground colour.
+    (u.hazeColor.value as Color).setRGB(0.12, 0.13, 0.1).multiplyScalar(Math.max(0.15, this.sun.intensity / 3));
+    u.sunDisc.value = 0;
+    envScene.add(this.sky);
+    this.sky.position.set(0, 0, 0);
+    const prev = this.envTarget;
+    this.envTarget = this.pmrem.fromScene(envScene, 0, 1, 3000);
+    this.scene.environment = this.envTarget.texture as Texture;
+    prev?.dispose();
+    u.sunDisc.value = 1;
+    (u.hazeColor.value as Color).copy(prevHaze);
+    this.scene.add(this.sky);
+  }
+
+  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[]): void {
+    this.time += dt;
+    this.sideOfGround = (x, z) => world.sideOfFrontAt(x, z);
+    const cam = camera.getWorldPosition(new Vector3());
+    this.sky.position.copy(cam);
+    this.terrain.update(camera);
+    this.sea.update(dt, camera);
+    this.terrainMaterial.userData.uniforms.uTime.value = this.time;
+    // Shadow frustum follows the camera.
+    this.sun.position.copy(cam).addScaledVector(this.sunDirection, 2000);
+    this.sun.target.position.copy(cam);
+    this.sun.target.updateMatrixWorld();
+    this.towns.update(cam);
+    this.trees.update(cam);
+    this.rivers.update(cam);
+    this.roads.update(cam);
+    this.aerodromes.update(dt, this.weather);
+    this.clouds.update(dt, camera);
+    this.effects.update(dt, camera, world, bullets);
+    this.syncBalloons(world);
+    // In-cloud whiteout: thicken fog when the camera is inside a cloud.
+    const inside = this.clouds.densityAt(cam);
+    const fog = this.scene.fog as FogExp2;
+    const base = 2.0 / Math.max(2000, this.weather.visibilityM);
+    fog.density = base + inside * 0.012;
+    this.tmpColor.copy(this.fogDisplay).lerp(this.clouds.insideColor, Math.min(1, inside * 1.5));
+    fog.color.setRGB(this.tmpColor.r, this.tmpColor.g, this.tmpColor.b, SRGBColorSpace);
+  }
+
+  private syncBalloons(world: WorldQuery): void {
+    for (const b of world.balloons) {
+      const v = this.balloonVisuals.get(b.id);
+      if (v) syncBalloonVisual(v, b, this.time);
+    }
+  }
+
+  handleEvent(e: GameEvent): void {
+    this.effects.handleEvent(e);
+  }
+
+  render(camera: Camera): void {
+    const now = performance.now();
+    this.frameTimes.push(now - this.lastFrame);
+    if (this.frameTimes.length > 120) this.frameTimes.shift();
+    this.lastFrame = now;
+    if (camera instanceof PerspectiveCamera && (camera.far !== this.far || camera.near > 1)) {
+      // Keep clip planes sane for the world scale.
+      camera.far = this.far;
+      camera.updateProjectionMatrix();
+    }
+    this.renderer.render(this.scene, camera);
+  }
+
+  resize(width: number, height: number): void {
+    this.renderer.setSize(width, height, false);
+  }
+
+  createBalloonVisual(b: BalloonEntity): Object3D {
+    const v = createBalloonVisual(b);
+    this.balloonVisuals.set(b.id, v);
+    return v;
+  }
+
+  createGroundTargetVisual(type: GroundTargetType, side: Side): Object3D {
+    return createGroundTargetVisual(type, side);
+  }
+
+  /** Resolves when terrain around the camera has streamed in (for loading screens). */
+  whenReady(): Promise<void> {
+    return this.terrain.whenReady();
+  }
+
+  stats(): WorldRendererStats {
+    const avg = this.frameTimes.length ? this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length : 16.7;
+    const info = this.renderer.info.render;
+    return {
+      fps: 1000 / avg,
+      frameMs: avg,
+      drawCalls: info.calls,
+      triangles: info.triangles,
+      terrainChunks: this.terrain.drawnCount,
+      terrainPending: this.terrain.pendingCount,
+      particles: this.effects.activeCount,
+    };
+  }
+
+  /** Current mission date. */
+  get currentDate(): string {
+    return this.date;
+  }
+
+  dispose(): void {
+    this.terrain.dispose();
+    this.envTarget?.dispose();
+    this.pmrem.dispose();
+    this.mask.texture.dispose();
+    this.effects.dispose();
+    this.clouds.dispose();
+    this.renderer.dispose();
+  }
+}
+
+export function createWorldRenderer(canvas: HTMLCanvasElement, opts: WorldRendererOptions): WorldRendererImpl {
+  return new WorldRendererImpl(canvas, opts);
+}

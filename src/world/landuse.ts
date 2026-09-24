@@ -4,6 +4,7 @@
  * campaign (placing targets on sensible ground).
  */
 import { latLonToWorld } from '../core/geo';
+import { AERODROMES } from '../data/aerodromes';
 import { FORESTS, TOWNS, type Town } from '../data/geography';
 import { craterIntensityAt, signedDistanceToFront } from './frontline';
 import { pointInPolygon, type Pt } from './segmentIndex';
@@ -39,10 +40,25 @@ function smoothstep(e0: number, e1: number, x: number): number {
 }
 
 /** 0..1 built-up density (1 in a town centre). */
+const TOWN_CELL = 4000;
+const TOWN_BUCKETS = new Map<number, TownWorld[]>();
+for (const t of TOWNS_WORLD) {
+  const r = t.radius * 1.4;
+  for (let cx = Math.floor((t.x - r) / TOWN_CELL); cx <= Math.floor((t.x + r) / TOWN_CELL); cx++)
+    for (let cz = Math.floor((t.z - r) / TOWN_CELL); cz <= Math.floor((t.z + r) / TOWN_CELL); cz++) {
+      const k = (cx + 1000) * 4096 + (cz + 1000);
+      let b = TOWN_BUCKETS.get(k);
+      if (!b) TOWN_BUCKETS.set(k, (b = []));
+      b.push(t);
+    }
+}
+
 export function townDensityAt(x: number, z: number): number {
   let best = 0;
-  for (let i = 0; i < TOWNS_WORLD.length; i++) {
-    const t = TOWNS_WORLD[i];
+  const bucket = TOWN_BUCKETS.get((Math.floor(x / TOWN_CELL) + 1000) * 4096 + (Math.floor(z / TOWN_CELL) + 1000));
+  if (!bucket) return 0;
+  for (let i = 0; i < bucket.length; i++) {
+    const t = bucket[i];
     const dx = x - t.x;
     const dz = z - t.z;
     const r = t.radius;
@@ -75,7 +91,9 @@ export function forestDensityAt(x: number, z: number): number {
   let poly = 0;
   for (const f of FOREST_POLYS) {
     if (x < f.minX - 300 || x > f.maxX + 300 || z < f.minZ - 300 || z > f.maxZ + 300) continue;
-    if (pointInPolygon(x, z, f.pts)) {
+    const wx = x + 220 * valueNoise(x / 700, z / 700, 601);
+    const wz = z + 220 * valueNoise(x / 700, z / 700, 607);
+    if (pointInPolygon(wx, wz, f.pts)) {
       poly = 1;
       break;
     }
@@ -85,7 +103,14 @@ export function forestDensityAt(x: number, z: number): number {
   const woods = smoothstep(0.23, 0.3, n);
   // Fewer woods in the flat, intensively farmed Flanders plain and near towns.
   const town = townDensityAt(x, z);
-  return Math.max(poly, woods) * (1 - town);
+  // Aerodromes are open ground (every historical field, whatever the date).
+  let open = 1;
+  for (const a of AERODROMES) {
+    const dx = x - a.x, dz = z - a.z;
+    if (dx > 900 || dx < -900 || dz > 900 || dz < -900) continue;
+    open = Math.min(open, smoothstep(650, 900, Math.sqrt(dx * dx + dz * dz)));
+  }
+  return Math.max(poly, woods) * (1 - town) * open;
 }
 
 export interface LandWeights {
