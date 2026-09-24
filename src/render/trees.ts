@@ -22,7 +22,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { craterIntensityAt } from '../world/frontline';
-import { forestDensityAt, townDensityAt } from '../world/landuse';
+import { aerodromeClearance, forestDensityAt, townDensityAt } from '../world/landuse';
 import { roadNetwork } from '../world/roads';
 import { coastDistance, riverQuery, terrainHeightAt, valueNoise } from '../world/terrain';
 import type { QualityPreset } from './quality';
@@ -102,7 +102,7 @@ function poplar(detail: boolean): BufferGeometry {
 }
 
 function stump(): BufferGeometry {
-  const t = paint(new CylinderGeometry(0.12, 0.3, 1, 5).translate(0, 0.5, 0), new Color('#5b5248'));
+  const t = paint(new CylinderGeometry(0.07, 0.2, 1, 5).translate(0, 0.5, 0), new Color('#6e655a'));
   const b = paint(new CylinderGeometry(0.02, 0.07, 0.8, 3).rotateZ(0.7).translate(0.25, 0.75, 0), new Color('#5b5248'));
   return mergeGeometries([ni(t), ni(b)])!;
 }
@@ -148,6 +148,7 @@ export class TreeLayer {
   private date: string;
   private season: Season = 'summer';
   private lastPackPos = new Vector3(1e9, 0, 0);
+  private lastPackTime = 0;
   private dirty = true;
   private roadCells: Map<string, { ax: number; az: number; bx: number; bz: number }[]> | null = null;
   private readonly capacity: number;
@@ -250,7 +251,7 @@ export class TreeLayer {
           push(KIND_BROAD, x, z, 0.9 + 0.8 * hash(x, z, 3), hash(x, z, 6) * 6.28, c);
         } else if (hash(x, z, 11) < 0.006 * this.q.treeDensity && crater < 0.4) {
           // Lone field / hedgerow trees.
-          if (townDensityAt(x, z) > 0.4) continue;
+          if (townDensityAt(x, z) > 0.4 || aerodromeClearance(x, z) < 1) continue;
           if (coastDistance(x, z) < 200) continue;
           const c = leaf[Math.floor(hash(x, z, 7) * leaf.length)].clone().multiplyScalar(0.85 + 0.3 * hash(x, z, 8));
           push(KIND_BROAD, x, z, 0.8 + 0.7 * hash(x, z, 3), hash(x, z, 6) * 6.28, c);
@@ -324,7 +325,11 @@ export class TreeLayer {
       this.cells.set(`${i},${j}`, this.buildCell(i, j));
       this.dirty = true;
     }
-    if (this.dirty || cam.distanceTo(this.lastPackPos) > 120) this.pack(cam, effR);
+    const now = performance.now();
+    if ((this.dirty && now - this.lastPackTime > 300) || cam.distanceTo(this.lastPackPos) > 120) {
+      this.lastPackTime = now;
+      this.pack(cam, effR);
+    }
     // Evict far cells.
     if (this.cells.size > 1200) {
       for (const [k, c] of this.cells) if (Math.hypot(c.cx - cam.x, c.cz - cam.z) > R * 2) this.cells.delete(k);

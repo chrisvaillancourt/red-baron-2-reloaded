@@ -190,7 +190,7 @@ const FRAG_COLOR = /* glsl */ `
   float rowAA = clamp(1.0 - px * rowFreq * 2.0, 0.0, 1.0);
   if (!isPasture) fieldCol *= 1.0 - 0.08 * rowAA * (0.5 + 0.5 * sin(rowCoord * rowFreq * 6.2832));
   // Mottling (soil moisture / patchy growth).
-  fieldCol *= 0.9 + 0.2 * tfbm(p / 900.0) ;
+  fieldCol *= 0.9 + 0.2 * (tnoise(p / 900.0) * 0.65 + tnoise(p / 370.0) * 0.35);
   fieldCol *= 1.0 + (tnoise(p / 14.0) - 0.5) * 0.14 * clamp(1.0 - px / 6.0, 0.0, 1.0);
   fieldCol *= 1.0 + (tnoise(p / 1.7) - 0.5) * 0.16 * micro;
   vec3 col = fieldCol;
@@ -207,11 +207,13 @@ const FRAG_COLOR = /* glsl */ `
 
   // --- woods
   float fw = smoothstep(0.46, 0.56, forest + (tnoise(p / 40.0) - 0.5) * 0.12 + (tnoise(p / 260.0) - 0.5) * 0.35 * smoothstep(20.0, 120.0, px));
-  vec3 canopy = mix(uForestDark, uForest, smoothstep(0.3, 0.75, tfbm(p / 14.0 + 7.0)));
+  if (fw > 0.002) {
+  vec3 canopy = mix(uForestDark, uForest, smoothstep(0.3, 0.75, px < 30.0 ? tfbm(p / 14.0 + 7.0) : 0.5));
   canopy *= 0.8 + 0.4 * tnoise(p / 5.0) * clamp(1.0 - px / 4.0, 0.0, 1.0);
   // War-shattered woods become grey-brown stumps and mud.
   canopy = mix(canopy, mix(warBase, uDeadWood, 0.55), smoothstep(0.4, 0.75, crater));
   col = mix(col, canopy, fw);
+  }
 
   // --- towns: built-up ground (streets, yards, gardens)
   float tw = smoothstep(0.2, 0.55, town + (tnoise(p / 60.0) - 0.5) * 0.3);
@@ -222,32 +224,37 @@ const FRAG_COLOR = /* glsl */ `
   // --- war zone: neglected rear fields, churned ground, craters, trenches
   col = mix(col, mix(uPasture, uMud, 0.45) * (0.9 + 0.2 * tnoise(p / 50.0)), smoothstep(0.1, 0.4, crater) * 0.5);
   float churn = smoothstep(0.32, 0.8, crater);
+  if (churn > 0.002) {
   vec3 mud = warBase * (0.78 + 0.4 * tfbm(p / 22.0));
-  mud = mix(mud, uChalk * 0.95, (1.0 - flanders) * smoothstep(0.6, 0.85, tfbm(p / 55.0 + 3.0)) * 0.55);
+  mud = mix(mud, uChalk * 0.95, (1.0 - flanders) * smoothstep(0.6, 0.85, tnoise(p / 55.0 + 3.0) * 0.7 + tnoise(p / 21.0) * 0.3) * 0.55);
   col = mix(col, mud, churn);
+  }
   tBump = 0.0;
-  if (crater > 0.12) {
+  if (crater > 0.12 && px > 14.0) {
+    col *= 1.0 - 0.1 * crater;
+    tWater = max(tWater, 0.35 * churn * flanders);
+  } else if (crater > 0.12) {
     float df = clamp(1.0 - px / 2.2, 0.0, 1.0);
     float cd = smoothstep(0.18, 0.8, crater);
-    vec4 c1 = craters(p, 8.0, cd * 0.95, flanders);
-    vec4 c2 = craters(p + 311.0, 21.0, cd * 0.75, flanders);
+    vec4 c1 = px < 3.0 ? craters(p, 8.0, cd * 0.95, flanders) : vec4(0.0);
+    vec4 c2 = px < 7.0 ? craters(p + 311.0, 21.0, cd * 0.75, flanders) : vec4(0.0);
     vec4 c3 = craters(p + 77.0, 55.0, cd * 0.4, flanders);
     float bowl = max(max(c1.x, c2.x), c3.x);
     float rimL = max(max(c1.y, c2.y), c3.y);
     float wat = max(max(c1.z, c2.z * 0.8), c3.z * 0.6) * smoothstep(0.35, 0.7, crater);
     float cf = mix(0.15, 1.0, clamp(1.0 - px / 8.0, 0.0, 1.0));
-    col *= 1.0 - bowl * 0.22 * cf;
+    col *= 1.0 - bowl * (0.06 + 0.16 * churn) * cf;
     col = mix(col, mix(uChalk, warBase * 1.2, flanders), rimL * 0.18 * cf * churn);
     float wk = wat * clamp(1.0 - px / 4.0, 0.0, 1.0);
     col = mix(col, mix(uWater * 1.6, vec3(0.3, 0.32, 0.34), 0.55), wk * 0.9);
     tWater = max(tWater, wk * 0.8);
     // Average darkening where craters are sub-pixel.
     col *= 1.0 - 0.1 * crater * (1.0 - cf);
-    tBump += (c1.w + c2.w + c3.w) * df;
+    tBump += (c1.w + c2.w + c3.w) * df * (0.2 + 0.8 * churn);
     // Wet mud glints where craters are sub-pixel (Flanders).
     tWater = max(tWater, 0.35 * churn * flanders * (1.0 - cf));
   }
-  if (uTrenches > 0.5 && abs(vFront) < 1400.0) {
+  if (uTrenches > 0.5 && abs(vFront) < 1400.0 && px < 30.0) {
     float d = vFront;
     float along = vWPos.z * 0.92 + vWPos.x * 0.38;
     float zig = (triWave(along / 16.0) - 0.5) * 7.0;

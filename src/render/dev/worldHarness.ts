@@ -142,7 +142,8 @@ let nextId = 1;
 function spawnDemo() {
   const c = camera.position.clone();
   const fwd = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
-  const center = c.clone().addScaledVector(fwd, 400);
+  const s = Number(params.get("ds") ?? 1);
+  const center = c.clone().addScaledVector(fwd, 400 * s);
   // Two circling aircraft: one smoking, one on fire.
   for (let i = 0; i < 2; i++) {
     const ac = {
@@ -162,16 +163,16 @@ function spawnDemo() {
   // Balloons of both sides and ground targets.
   const types: GroundTargetType[] = ['aa-gun', 'truck', 'artillery', 'hangar', 'tent-hangar', 'supply-dump', 'trench-mg', 'train'];
   for (let i = 0; i < 2; i++) {
-    const bx = center.x + (i ? 250 : -250);
-    const bz = center.z - 300;
+    const bx = center.x + (i ? 250 : -250) * s;
+    const bz = center.z - 300 * s;
     const gy = terrainHeightAt(bx, bz);
-    const b: BalloonEntity = { id: nextId++, kind: 'balloon', side: i ? 'central' : 'allied', position: new Vector3(bx, gy + 400, bz), anchor: new Vector3(bx, gy, bz), health: 1, burning: false, destroyed: false, observerBailed: false };
+    const b: BalloonEntity = { id: nextId++, kind: 'balloon', side: i ? 'central' : 'allied', position: new Vector3(bx, gy + Math.max(60, 400 * s), bz), anchor: new Vector3(bx, gy, bz), health: 1, burning: false, destroyed: false, observerBailed: false };
     balloons.push(b);
     world.scene.add(world.createBalloonVisual(b));
   }
   types.forEach((t, i) => {
-    const gx = center.x - 280 + i * 80;
-    const gz = center.z + 150;
+    const gx = center.x + (-280 + i * 80) * Math.max(0.3, s);
+    const gz = center.z + 150 * s;
     const gy = terrainHeightAt(gx, gz);
     const o = world.createGroundTargetVisual(t, i % 2 ? 'central' : 'allied');
     o.position.set(gx, gy, gz);

@@ -290,8 +290,8 @@ function featureRelief(x: number, z: number): number {
 // ---------------------------------------------------------------------------
 // 6. Aerodromes.
 // ---------------------------------------------------------------------------
-const AERO_FLAT = 480;
-const AERO_BLEND = 1000;
+const AERO_FLAT = 580;
+const AERO_BLEND = 1100;
 let aeroLevels: { x: number; z: number; h: number }[] | null = null;
 
 function aerodromeLevels(): { x: number; z: number; h: number }[] {

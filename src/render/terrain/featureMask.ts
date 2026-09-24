@@ -3,7 +3,6 @@
  * G = roads, B = aerodrome grass. One texture covers the sector.
  */
 import { CanvasTexture, LinearFilter, LinearMipmapLinearFilter, Vector4 } from 'three';
-import { aerodromesActiveOn } from '../../data/aerodromes';
 import { roadNetwork } from '../../world/roads';
 import { riverPolylines } from '../../world/terrain';
 
@@ -15,7 +14,7 @@ export interface FeatureMask {
   resolution: number;
 }
 
-export function buildFeatureMask(date: string, resolution: number): FeatureMask {
+export function buildFeatureMask(_date: string, resolution: number): FeatureMask {
   const w = Math.ceil((MASK_RECT.x1 - MASK_RECT.x0) / resolution);
   const h = Math.ceil((MASK_RECT.z1 - MASK_RECT.z0) / resolution);
   const canvas = document.createElement('canvas');
@@ -46,21 +45,7 @@ export function buildFeatureMask(date: string, resolution: number): FeatureMask 
     r.points.forEach((p, i) => (i === 0 ? ctx.moveTo(X(p.x), Z(p.z)) : ctx.lineTo(X(p.x), Z(p.z))));
     ctx.stroke();
   }
-  // Aerodromes (blue): the mown landing ground.
-  ctx.fillStyle = 'rgb(0,0,255)';
-  for (const a of aerodromesActiveOn(date)) {
-    ctx.save();
-    ctx.translate(X(a.x), Z(a.z));
-    // Canvas y = world z (south); runway heading measured clockwise from north.
-    ctx.rotate((a.runwayHeadingDeg * Math.PI) / 180);
-    const L = a.runwayLength / resolution;
-    const W = 110 / resolution;
-    ctx.fillRect(-W / 2, -L / 2, W, L);
-    ctx.globalAlpha = 1;
-    ctx.fillRect(-(260 / resolution), -(360 / resolution), 520 / resolution, 720 / resolution);
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  }
+  // Aerodrome grass is a mesh decal (render/aerodromes.ts); B is unused.
   const tex = new CanvasTexture(canvas);
   tex.flipY = false;
   tex.generateMipmaps = true;

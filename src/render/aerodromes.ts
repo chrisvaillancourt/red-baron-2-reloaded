@@ -5,6 +5,9 @@
  */
 import {
   BoxGeometry,
+  CanvasTexture,
+  RepeatWrapping,
+  SRGBColorSpace,
   BufferGeometry,
   ConeGeometry,
   CylinderGeometry,
@@ -19,6 +22,27 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Weather } from '../core/types';
 import { aerodromesActiveOn, type AerodromeWorld } from '../data/aerodromes';
 import { terrainHeightAt } from '../world/terrain';
+
+/** Mown-grass stripes (tileable greyscale, tinted by material colour). */
+function mownTexture(): CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d")!;
+  for (let x = 0; x < 256; x++) {
+    const band = Math.floor(x / 32) % 2 === 0 ? 230 : 214;
+    for (let y = 0; y < 256; y += 4) {
+      const n = band + Math.round((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453 % 1) * 18);
+      ctx.fillStyle = `rgb(${n},${n},${n})`;
+      ctx.fillRect(x, y, 1, 4);
+    }
+  }
+  const t = new CanvasTexture(c);
+  t.wrapS = t.wrapT = RepeatWrapping;
+  t.repeat.set(560 / 64, 12);
+  t.colorSpace = SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
 
 /** Bessonneau hangar: wooden frame with a canvas roof of shallow arched profile. */
 function bessonneauGeometry(): BufferGeometry {
@@ -74,6 +98,7 @@ export class AerodromeLayer {
   private readonly tentMat = new MeshStandardMaterial({ color: 0xc4b894, roughness: 0.95 });
   private readonly whiteMat = new MeshStandardMaterial({ color: 0xe8e4d8, roughness: 0.9 });
   private readonly sockMat = new MeshStandardMaterial({ color: 0xe0dcd0, roughness: 0.8, side: DoubleSide });
+  private readonly grassMat = new MeshStandardMaterial({ map: mownTexture(), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, color: 0x6e8a44 });
   private readonly drumMat = new MeshStandardMaterial({ color: 0x3a3d33, roughness: 0.6, metalness: 0.3 });
   private readonly hangarGeo = bessonneauGeometry();
   private readonly hutGeo = hut();
@@ -131,6 +156,11 @@ export class AerodromeLayer {
       d.position.set(135 + (i % 3) * 0.7, 0.45, 60 + Math.floor(i / 3) * 0.7);
       g.add(d);
     }
+    // Mown landing ground (the field is flattened, so a flat decal sits on it).
+    const grass = new Mesh(new PlaneGeometry(560, a.runwayLength + 120).rotateX(-Math.PI / 2), this.grassMat);
+    grass.position.y = 0.05;
+    grass.receiveShadow = true;
+    g.add(grass);
     // Landing T at the downwind end of the strip (allied practice; harmless on German fields).
     const T = new Group();
     const bar = new Mesh(new PlaneGeometry(1.5, 12).rotateX(-Math.PI / 2), this.whiteMat);
@@ -154,6 +184,11 @@ export class AerodromeLayer {
     g.add(sock);
     this.socks.push(sock);
     return g;
+  }
+
+  /** Tint the mown grass to the season palette. */
+  setGrassColor(hex: string): void {
+    this.grassMat.color.set(hex).multiplyScalar(1.12);
   }
 
   update(dt: number, weather: Weather): void {

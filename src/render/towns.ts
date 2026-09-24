@@ -17,7 +17,7 @@ import {
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { craterIntensityAt } from '../world/frontline';
+import { craterIntensityAt, signedDistanceToFront } from '../world/frontline';
 import { forestDensityAt, TOWNS_WORLD, townDensityAt } from '../world/landuse';
 import { coastDistance, riverQuery, terrainHeightAt } from '../world/terrain';
 import type { QualityPreset } from './quality';
@@ -232,33 +232,74 @@ export class TownLayer {
     for (const town of TOWNS_WORLD) {
       if (town.x < x0 || town.x >= x0 + TILE || town.z < z0 || town.z >= z0 + TILE) continue;
       const r = rng(hashXY(town.x, town.z, 5));
-      const count = town.size === 'city' ? 520 : town.size === 'town' ? 170 : 34;
-      const streets = town.size === 'city' ? 12 : town.size === 'town' ? 8 : 4;
+      const big = town.size === 'city';
+      const scale = big ? 1.25 : 1;
+      const density = this.q.buildingDistance < 12_000 ? 0.45 : 1;
       const baseAng = r() * Math.PI;
-      const cr = craterIntensityAt(town.x, town.z, this.date);
-      churches.push({ x: town.x, z: town.z, y: terrainHeightAt(town.x, town.z), rot: baseAng, s: town.size === 'city' ? 1.8 : town.size === 'town' ? 1.25 : 0.9, ruined: cr > 0.5 });
-      for (let i = 0; i < count; i++) {
-        let x: number, z: number, rot: number;
-        if (town.size === 'city' && r() < 0.55) {
-          // Dense core: rough grid
-          const gx = Math.round((r() - 0.5) * town.radius * 1.1 / 22) * 22;
-          const gz = Math.round((r() - 0.5) * town.radius * 1.1 / 22) * 22;
-          const c = Math.cos(baseAng), s = Math.sin(baseAng);
-          x = town.x + gx * c - gz * s;
-          z = town.z + gx * s + gz * c;
-          rot = baseAng + (r() < 0.5 ? 0 : Math.PI / 2);
-        } else {
-          const street = Math.floor(r() * streets);
-          const a = baseAng + (street / streets) * Math.PI * 2 + (r() - 0.5) * 0.25;
-          const dist = 25 + Math.sqrt(r()) * town.radius * (0.7 + 0.5 * r());
-          const side = r() < 0.5 ? -1 : 1;
-          const off = side * (9 + r() * 5);
-          x = town.x + Math.cos(a) * dist - Math.sin(a) * off;
-          z = town.z + Math.sin(a) * dist + Math.cos(a) * off;
-          rot = -a + Math.PI / 2;
+      const cr = this.ruinChance(town.x, town.z);
+      churches.push({ x: town.x, z: town.z, y: terrainHeightAt(town.x, town.z), rot: baseAng, s: big ? 1.8 : town.size === 'town' ? 1.25 : 0.9, ruined: cr > 0.55 });
+      const R = town.radius;
+      // Houses line both sides of each street, closely spaced near the centre.
+      const lineStreet = (ax: number, az: number, bx: number, bz: number) => {
+        const len = Math.hypot(bx - ax, bz - az);
+        const dx = (bx - ax) / len, dz = (bz - az) / len;
+        const rot = Math.atan2(dx, dz);
+        for (let s = 0; s < len; s += 9 + r() * 4) {
+          const cx = ax + dx * s, cz = az + dz * s;
+          const dc = Math.hypot(cx - town.x, cz - town.z);
+          if (dc < 35 || dc > R * 1.05) continue;
+          const keep = (1 - Math.pow(dc / R, 2.2)) * density;
+          for (const side of [-1, 1]) {
+            if (r() > keep) continue;
+            const off = side * (8 + r() * 3);
+            houses.push(this.makeHouse(cx - dz * off, cz + dx * off, rot, r, scale));
+          }
         }
-        if (Math.hypot(x - town.x, z - town.z) < 30) continue; // church square
-        houses.push(this.makeHouse(x, z, rot, r, town.size === 'city' ? 1.3 : 1));
+      };
+      const streets = big ? 14 : town.size === "town" ? 9 : 4;
+      const radA: number[] = [];
+      const radB: number[] = [];
+      for (let k = 0; k < streets; k++) {
+        const a = baseAng + (k / streets) * Math.PI * 2 + (r() - 0.5) * 0.3;
+        const bend = (r() - 0.5) * 0.4;
+        radA.push(a);
+        radB.push(bend);
+        const mid = R * 0.5;
+        const mx = town.x + Math.cos(a) * mid, mz = town.z + Math.sin(a) * mid;
+        const ex = town.x + Math.cos(a + bend) * R, ez = town.z + Math.sin(a + bend) * R;
+        lineStreet(town.x, town.z, mx, mz);
+        lineStreet(mx, mz, ex, ez);
+      }
+      if (town.size !== 'village') {
+        // Irregular cross streets linking neighbouring radials.
+        const radialPt = (k: number, d: number) => {
+          const a = radA[k] + (d > R * 0.5 ? radB[k] * ((d - R * 0.5) / (R * 0.5)) : 0);
+          return [town.x + Math.cos(a) * d, town.z + Math.sin(a) * d];
+        };
+        const cross = big ? 4 : 2;
+        for (let k = 0; k < streets; k++)
+          for (let c = 0; c < cross; c++) {
+            if (r() < 0.3) continue;
+            const d1 = R * (0.18 + 0.62 * r());
+            const d2 = d1 * (0.75 + 0.5 * r());
+            const [ax, az] = radialPt(k, d1);
+            const [bx, bz] = radialPt((k + 1) % streets, Math.min(R, d2));
+            lineStreet(ax, az, bx, bz);
+          }
+      }
+      if (town.size !== "village") {
+        // Dense old town: a grid of blocks around the Grand-Place.
+        const c = Math.cos(baseAng), s = Math.sin(baseAng);
+        const half = R * (big ? 0.28 : 0.24);
+        for (let gx = -half; gx <= half; gx += 11)
+          for (let gz = -half; gz <= half; gz += 26) {
+            if (Math.abs(gx) < 45 && Math.abs(gz) < 45) continue;
+            if (r() > 0.8 * density) continue;
+            for (const side of [-6.5, 6.5]) {
+              const lx = gx, lz = gz + side;
+              houses.push(this.makeHouse(town.x + lx * c - lz * s, town.z + lx * s + lz * c, baseAng, r, 1.3));
+            }
+          }
       }
     }
 
@@ -359,12 +400,19 @@ export class TownLayer {
     this.group.add(t.group);
   }
 
+  /** Probability a building here lies in ruins: shelled within artillery range of the line, or fought over before. */
+  private ruinChance(x: number, z: number): number {
+    const cr = craterIntensityAt(x, z, this.date);
+    const d = Math.abs(signedDistanceToFront(x, z, this.date));
+    const shelled = (1 - Math.min(1, Math.max(0, (d - 1500) / 7500))) ** 1.5 * 0.85;
+    return Math.min(0.97, Math.max(cr * 1.4 - 0.15, shelled));
+  }
+
   private makeHouse(x: number, z: number, rot: number, r: () => number, scale: number, farm = false): Building {
     const w = (6 + r() * 5) * scale * (farm ? 1.3 : 1);
     const d = (8 + r() * 7) * scale * (farm ? 1.6 : 1);
     const h = (farm ? 4 + r() * 2 : 5 + r() * 4.5) * (scale > 1.2 ? 1.25 : 1);
-    const cr = craterIntensityAt(x, z, this.date);
-    const ruined = cr > 0.42 && r() < Math.min(1, (cr - 0.3) * 1.8);
+    const ruined = r() < this.ruinChance(x, z);
     return {
       x,
       z,

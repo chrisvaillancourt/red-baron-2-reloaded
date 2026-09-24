@@ -55,6 +55,7 @@ export interface WorldRendererStats {
   terrainChunks: number;
   terrainPending: number;
   particles: number;
+  cpu: Record<string, number>;
 }
 
 function supportsClipControl(): boolean {
@@ -92,6 +93,8 @@ export class WorldRendererImpl implements WorldRenderer {
   private readonly rivers: RiverRibbons;
   private readonly roads: RoadRibbons;
   private readonly tmpColor = new Color();
+  /** Smoothed CPU ms per subsystem update (diagnostics). */
+  readonly timings: Record<string, number> = {};
   readonly effects: EffectsSystem;
   private readonly pmrem: PMREMGenerator;
   private envTarget: WebGLRenderTarget | null = null;
@@ -229,6 +232,7 @@ export class WorldRendererImpl implements WorldRenderer {
 
     // Season palette.
     applyPalette(this.terrainMaterial, PALETTES[seasonOf(date).name]);
+    this.aerodromes.setGrassColor(PALETTES[seasonOf(date).name].pasture);
 
     if (dateChanged) {
       this.terrain.setDate(date);
@@ -272,20 +276,25 @@ export class WorldRendererImpl implements WorldRenderer {
     this.sideOfGround = (x, z) => world.sideOfFrontAt(x, z);
     const cam = camera.getWorldPosition(new Vector3());
     this.sky.position.copy(cam);
-    this.terrain.update(camera);
+    const T = (k: string, f: () => void) => {
+      const t0 = performance.now();
+      f();
+      this.timings[k] = (this.timings[k] ?? 0) * 0.9 + (performance.now() - t0) * 0.1;
+    };
+    T("terrain", () => this.terrain.update(camera));
     this.sea.update(dt, camera);
     this.terrainMaterial.userData.uniforms.uTime.value = this.time;
     // Shadow frustum follows the camera.
     this.sun.position.copy(cam).addScaledVector(this.sunDirection, 2000);
     this.sun.target.position.copy(cam);
     this.sun.target.updateMatrixWorld();
-    this.towns.update(cam);
-    this.trees.update(cam);
-    this.rivers.update(cam);
-    this.roads.update(cam);
+    T("towns", () => this.towns.update(cam));
+    T("trees", () => this.trees.update(cam));
+    T("rivers", () => this.rivers.update(cam));
+    T("roads", () => this.roads.update(cam));
     this.aerodromes.update(dt, this.weather);
-    this.clouds.update(dt, camera);
-    this.effects.update(dt, camera, world, bullets);
+    T("clouds", () => this.clouds.update(dt, camera));
+    T("effects", () => this.effects.update(dt, camera, world, bullets));
     this.syncBalloons(world);
     // In-cloud whiteout: thicken fog when the camera is inside a cloud.
     const inside = this.clouds.densityAt(cam);
@@ -317,7 +326,9 @@ export class WorldRendererImpl implements WorldRenderer {
       camera.far = this.far;
       camera.updateProjectionMatrix();
     }
+    const t0 = performance.now();
     this.renderer.render(this.scene, camera);
+    this.timings.render = (this.timings.render ?? 0) * 0.9 + (performance.now() - t0) * 0.1;
   }
 
   resize(width: number, height: number): void {
@@ -350,6 +361,7 @@ export class WorldRendererImpl implements WorldRenderer {
       terrainChunks: this.terrain.drawnCount,
       terrainPending: this.terrain.pendingCount,
       particles: this.effects.activeCount,
+      cpu: Object.fromEntries(Object.entries(this.timings).map(([k, v]) => [k, Math.round(v * 100) / 100])),
     };
   }
 

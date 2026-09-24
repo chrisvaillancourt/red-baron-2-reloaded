@@ -145,7 +145,8 @@ export class TerrainSystem {
   private covered(n: Node, memo: Map<Node, boolean>): boolean {
     let r = memo.get(n);
     if (r !== undefined) return r;
-    if (this.wantsSplit(n)) r = this.children(n).every((c) => this.covered(c, memo));
+    if (this.distanceTo(n) > this.opts.farDistance) r = true;
+    else if (this.wantsSplit(n)) r = this.children(n).every((c) => this.covered(c, memo));
     else r = n.mesh !== null;
     memo.set(n, r);
     return r;
@@ -161,13 +162,21 @@ export class TerrainSystem {
         for (const k of kids) this.draw(k, memo, out);
         return;
       }
-      // Children not ready: draw this node in their place; keep them fresh.
-      for (const k of kids) k.lastUsed = this.frame;
+      // Children not ready: draw this node in their place, but keep requesting
+      // the whole desired subtree so it eventually becomes drawable.
+      for (const k of kids) this.prefetch(k);
       out.push(n);
       return;
     }
     this.request(n);
     if (n.mesh) out.push(n);
+  }
+
+  private prefetch(n: Node): void {
+    if (this.distanceTo(n) > this.opts.farDistance) return;
+    n.lastUsed = this.frame;
+    this.request(n);
+    if (this.wantsSplit(n)) for (const k of this.children(n)) this.prefetch(k);
   }
 
   update(camera: Camera): void {

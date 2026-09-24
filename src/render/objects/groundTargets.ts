@@ -126,8 +126,7 @@ function hangar(side: Side): Group {
   g.add(box(2, 6, 24, wallMat, -11, 0, 0));
   g.add(box(2, 6, 24, wallMat, 11, 0, 0));
   const roof = new Mesh(new CylinderGeometry(12.5, 12.5, 26, 16, 1, true, -Math.PI / 2, Math.PI), side === 'central' ? mats.red : mats.canvasDark);
-  roof.rotation.x = Math.PI / 2;
-  roof.rotation.z = Math.PI / 2;
+  roof.rotation.x = -Math.PI / 2;
   roof.scale.set(1, 1, 0.4);
   roof.position.y = 6;
   roof.castShadow = true;
@@ -138,8 +137,7 @@ function hangar(side: Side): Group {
 function tentHangar(): Group {
   const g = new Group();
   const roof = new Mesh(new CylinderGeometry(10, 10, 22, 14, 1, true, -Math.PI / 2, Math.PI), mats.canvas);
-  roof.rotation.x = Math.PI / 2;
-  roof.rotation.z = Math.PI / 2;
+  roof.rotation.x = -Math.PI / 2;
   roof.scale.set(1, 1, 0.75);
   roof.position.y = 2.5;
   roof.castShadow = true;

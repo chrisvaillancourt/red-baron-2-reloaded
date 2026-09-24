@@ -87,6 +87,17 @@ export function nearestTown(x: number, z: number, filter?: (t: TownWorld) => boo
 }
 
 /** 0..1 woodland density (date-independent; see craterIntensityAt for war damage). */
+/** 0 on and around any historical aerodrome (open ground), 1 elsewhere. */
+export function aerodromeClearance(x: number, z: number): number {
+  let open = 1;
+  for (const a of AERODROMES) {
+    const dx = x - a.x, dz = z - a.z;
+    if (dx > 900 || dx < -900 || dz > 900 || dz < -900) continue;
+    open = Math.min(open, smoothstep(650, 900, Math.sqrt(dx * dx + dz * dz)));
+  }
+  return open;
+}
+
 export function forestDensityAt(x: number, z: number): number {
   let poly = 0;
   for (const f of FOREST_POLYS) {
@@ -103,14 +114,7 @@ export function forestDensityAt(x: number, z: number): number {
   const woods = smoothstep(0.23, 0.3, n);
   // Fewer woods in the flat, intensively farmed Flanders plain and near towns.
   const town = townDensityAt(x, z);
-  // Aerodromes are open ground (every historical field, whatever the date).
-  let open = 1;
-  for (const a of AERODROMES) {
-    const dx = x - a.x, dz = z - a.z;
-    if (dx > 900 || dx < -900 || dz > 900 || dz < -900) continue;
-    open = Math.min(open, smoothstep(650, 900, Math.sqrt(dx * dx + dz * dz)));
-  }
-  return Math.max(poly, woods) * (1 - town) * open;
+  return Math.max(poly, woods) * (1 - town) * aerodromeClearance(x, z);
 }
 
 export interface LandWeights {
