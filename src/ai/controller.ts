@@ -194,6 +194,7 @@ export class AIPilot implements AIController {
     steer.aggression = 1;
     steer.lowLevel = false;
     steer.minSpeed = undefined;
+    steer.maxPerformance = false;
     steer.speed = Infinity;
     this.computeSteer(self, world, dt, steer);
     this.avoidCollisions(self, world, steer);
@@ -297,7 +298,17 @@ export class AIPilot implements AIController {
     }
     // Target fixation: novices sometimes ignore what's behind them while attacking.
     if (this.phase === 'engage' && this.now >= this.fixatedUntil && this.rng() < p.fixation * 0.05) this.fixatedUntil = this.now + 2.5;
-    const fixated = this.now < this.fixatedUntil && this.now - this.hitAt > 1.5;
+    let fixated = this.now < this.fixatedUntil && this.now - this.hitAt > 1.5;
+    // Experienced pilots press home a good attack unless the threat is right on them.
+    if (!fixated && this.phase === 'engage' && this.targetId != null && attacker && attacker.id !== this.targetId && this.now - this.hitAt > 1.5) {
+      const tgt = world.getEntity(this.targetId);
+      if (tgt && tgt.kind === 'aircraft') {
+        _rel.copy(tgt.state.position).sub(self.state.position);
+        const onTarget = _rel.length() < 350 && angleBetween(forwardOf(self.state.orientation, _tmp), _rel) < 20 * DEG;
+        const attDist = attacker.state.position.distanceTo(self.state.position);
+        if (onTarget && attDist > lerpN(250, 450, 1 - p.t)) fixated = true;
+      }
+    }
 
     if (maxThreat >= p.defensiveThreshold && !fixated) {
       if (this.threatSince < 0) this.threatSince = this.now;
@@ -634,7 +645,8 @@ export class AIPilot implements AIController {
         steer.dir.copy(behind);
         steer.aim = false;
       }
-      if (r < 220 && closure > 12) steer.speed = Math.max(tSpeed, this.traits.stallSpeed * 1.5);
+      // Range hold on the six: close to ~110 m and stay there rather than overshooting.
+      if (r < 450 && angleOff < 70 * DEG) steer.speed = Math.max(tSpeed + clamp((r - 110) * 0.2, -15, 40), this.traits.stallSpeed * 1.45);
       // Rear gunner caution: approach two-seaters from below.
       if (tgt.spec.geometry.crew === 2 && r > 250 && p.t > 0.5) steer.dir.y -= 0.06;
     } else {
@@ -929,7 +941,7 @@ export class AIPilot implements AIController {
       leadSolution(s.position, s.velocity, e.state.position, e.state.velocity, e === cur ? this.targetAcc : null, mv, this.leadScale, this.lead);
       const err = angleBetween(f, this.lead.dir) + Math.abs(gauss(this.rng)) * p.aimNoiseRad * 0.5;
       const range = e === cur ? p.fireRange : p.fireRange * 0.7;
-      if (r < range && err < size + p.fireConeRad) {
+      if ((r < range && err < size + p.fireConeRad) || (r < range * 1.6 && err < size + p.fireConeRad * 0.3)) {
         want = true;
         break;
       }
@@ -1006,6 +1018,10 @@ export class AIPilot implements AIController {
 }
 
 const ZERO = new Vector3();
+
+function lerpN(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
 
 function gauss(rng: () => number): number {
   const u = Math.max(rng(), 1e-9);

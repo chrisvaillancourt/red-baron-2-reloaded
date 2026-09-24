@@ -39,6 +39,8 @@ export interface SteerCommand {
   lowLevel?: boolean;
   /** Speed below which climbs are flattened to protect energy (default 1.4 x stall). */
   minSpeed?: number;
+  /** Max-performance turn: allow over-banking (trading height for turn) instead of a level-turn cap. */
+  maxPerformance?: boolean;
 }
 
 export interface AutopilotGains {
@@ -53,6 +55,8 @@ export interface AutopilotGains {
   aimYawK: number;
   speedKp: number;
   speedKi: number;
+  /** Gain on the desired-direction rotation rate (1 = full feed-forward). */
+  losFeedForward: number;
 }
 
 export function defaultGains(rollRate: number, pitchRate: number): AutopilotGains {
@@ -70,6 +74,7 @@ export function defaultGains(rollRate: number, pitchRate: number): AutopilotGain
     aimYawK: 3.5,
     speedKp: 0.06,
     speedKi: 0.04,
+    losFeedForward: 1.0,
   };
 }
 
@@ -84,6 +89,7 @@ const _a = new Vector3();
 const _g = new Vector3();
 const _p = new Vector3();
 const _vb = new Vector3();
+const _ff = new Vector3();
 const _qInv = new Quaternion();
 
 export class Autopilot {
@@ -96,6 +102,8 @@ export class Autopilot {
   private gI = 0;
   private thrI = 0;
   private prevTheta = 0;
+  private prevD = new Vector3();
+  private hasPrevD = false;
   private prevRollErr = 0;
   private rollSign = 1;
   private prevHeading = 0;
@@ -167,7 +175,9 @@ export class Autopilot {
     if (d.lengthSq() < 1e-9) d.copy(vhat);
     d.normalize();
     const minAgl = cmd.minAgl ?? this.defaultMinAgl;
-    const ground = this.groundCheck(ac, world, minAgl, cmd.lowLevel === true);
+    // Emergency pull-ups may exceed the comfortable structural cap: the ground is certain death.
+    const nPull = Math.min(Math.max(maxG, 4), nAvail * 0.9 * this.availScale);
+    const ground = this.groundCheck(ac, world, minAgl, cmd.lowLevel === true, nPull);
     this.groundEmergency = ground.emergency;
     // Energy floor: don't ask for a climb the aircraft can't sustain.
     const vs = this.traits.stallSpeed;
@@ -181,6 +191,9 @@ export class Autopilot {
       d.normalize();
     }
     if (ground.climb > 0 && d.y < ground.climb) {
+      // Strong terrain warnings also wash out lateral demands so the wings come level.
+      const w = clamp((ground.climb - 0.2) / 0.4, 0, 1);
+      if (w > 0) d.lerp(_p.set(vhat.x, 0, vhat.z).normalize(), w);
       d.y = ground.climb;
       d.normalize();
     }
@@ -201,7 +214,7 @@ export class Autopilot {
       c.throttle = 1;
     } else if (ground.emergency) {
       rollErr = -bank;
-      nDes = Math.min(maxG, nAvail * 0.9);
+      nDes = Math.abs(bank) > 1.2 ? 0.8 : nPull;
     } else {
       const ref = cmd.aim ? _ref.copy(f) : _ref.copy(vhat);
       const theta = angleBetween(ref, d);
@@ -222,7 +235,18 @@ export class Autopilot {
       const b = perp.dot(gComp);
       const disc = b * b - (gComp.lengthSq() - nLim * nLim);
       const aLatMax = disc > 0 ? Math.max(0, -b + Math.sqrt(disc)) : 0;
-      const a = _a.copy(perp).multiplyScalar(Math.min(omega * V, Math.max(aLatMax, 0.3 * G)));
+      const a = _a.copy(perp).multiplyScalar(omega * V);
+      // Feed-forward the rotation of the desired direction (line-of-sight rate), so a
+      // turning target is tracked without the steady-state lag of a pure P loop.
+      if (this.hasPrevD && this.prevD.angleTo(d) < 0.25) {
+        const dd = _ff.copy(d).sub(this.prevD).divideScalar(Math.max(dt, 1e-3));
+        dd.addScaledVector(ref, -dd.dot(ref));
+        a.addScaledVector(dd, V * k.losFeedForward);
+      }
+      // Trading height for turn is only sensible with height to spare.
+      const sinkOk = cmd.maxPerformance && s.heightAboveGround > minAgl * 3;
+      const aLatCap = sinkOk ? omegaMax * V : Math.max(aLatMax, 0.3 * G);
+      if (a.length() > aLatCap) a.setLength(aLatCap);
       a.add(gComp);
       const ax = a.dot(r);
       const ay = a.dot(u);
@@ -250,10 +274,12 @@ export class Autopilot {
     const stallAoa = this.traits.stallAoa;
     if (s.aoa > stallAoa * 0.85) nDes = Math.min(nDes, s.gLoad * 0.92);
     if (s.aoa > stallAoa) nDes = Math.min(nDes, 0.5);
-    nDes = Math.min(nDes, maxG, nAvail * 0.92 * this.availScale);
-    if (V > this.traits.maxSafeDiveSpeed) nDes = Math.min(nDes, 3);
+    nDes = Math.min(nDes, ground.emergency ? nPull : maxG, nAvail * 0.92 * this.availScale);
+    if (V > this.traits.maxSafeDiveSpeed && !ground.emergency) nDes = Math.min(nDes, 3);
     nDes = Math.max(nDes, -1.5);
     this.lastNDes = nDes;
+    this.prevD.copy(d);
+    this.hasPrevD = true;
 
     // ---- roll -----------------------------------------------------------
     const dRoll = wrapPi(rollErr - this.prevRollErr) / Math.max(dt, 1e-3);
@@ -298,32 +324,47 @@ export class Autopilot {
   }
 
   /**
-   * Look ahead along the velocity vector. Returns a minimum climb component
-   * for the desired direction, and an emergency flag for an immediate pull-up.
+   * Terrain protection. Returns a minimum climb component for the desired
+   * direction, and an emergency flag for an immediate wings-level pull-up.
+   *
+   * The emergency test uses a dive-recovery model: altitude lost pulling out
+   * of the current dive at the g we can use, plus roll-out/reaction time,
+   * compared against height over the highest terrain just ahead.
    */
-  private groundCheck(ac: AircraftEntity, world: WorldQuery, minAgl: number, lowLevel: boolean): { climb: number; emergency: boolean } {
+  private groundCheck(ac: AircraftEntity, world: WorldQuery, minAgl: number, lowLevel: boolean, nPull: number): { climb: number; emergency: boolean } {
     const s = ac.state;
     if (s.onGround) return { climb: 0, emergency: false };
     const margin = lowLevel ? Math.min(minAgl, 25) : minAgl;
-    const hNow = s.position.y - world.groundHeightAt(s.position.x, s.position.z);
+    const V = Math.max(1, s.velocity.length());
     let worst = Infinity;
-    let worstT = 0;
+    let groundAhead = world.groundHeightAt(s.position.x, s.position.z);
     for (const t of [0.5, 1, 1.5, 2, 3, 4, 5, 6]) {
       _p.copy(s.position).addScaledVector(s.velocity, t);
-      const clearance = _p.y - world.groundHeightAt(_p.x, _p.z);
-      const need = margin * Math.min(1, 0.4 + t / 5);
-      const deficit = need - clearance;
-      if (deficit > 0 && clearance < worst) {
-        worst = clearance;
-        worstT = t;
+      const gh = world.groundHeightAt(_p.x, _p.z);
+      if (t <= 3) {
+        // Terrain under the horizontal track (rising ground ahead).
+        const hx = s.position.x + s.velocity.x * t;
+        const hz = s.position.z + s.velocity.z * t;
+        groundAhead = Math.max(groundAhead, world.groundHeightAt(hx, hz));
       }
+      const clearance = _p.y - gh;
+      const need = margin * Math.min(1, 0.4 + t / 5);
+      if (need - clearance > 0 && clearance < worst) worst = clearance;
     }
-    const descending = s.velocity.y < -1;
-    // Emergency: predicted to be within a few metres of the ground within ~2.5 s.
-    const emergency = worst < Math.max(8, margin * 0.25) && worstT <= 2.5 && descending;
+    const hEff = s.position.y - groundAhead;
+    const sinDive = clamp(-s.velocity.y / V, -1, 1);
+    let loss = 0;
+    if (sinDive > 0) {
+      const n = Math.max(1.5, nPull);
+      const radius = (V * V) / ((n - 1) * G);
+      const cosDive = Math.sqrt(1 - sinDive * sinDive);
+      // Roll-out + reaction time (~0.9 s) at the current sink rate.
+      loss = radius * (1 - cosDive) + -s.velocity.y * 0.9;
+    }
+    const emergency = sinDive > 0.03 && hEff < loss + margin * 0.3;
     let climb = 0;
-    if (worst < Infinity) climb = clamp(0.1 + (margin - worst) / Math.max(margin, 1) * 0.5, 0.1, 0.6);
-    else if (hNow < margin) climb = clamp(0.25 * (1 - hNow / margin), 0, 0.25);
+    if (worst < Infinity) climb = clamp(0.1 + ((margin - worst) / Math.max(margin, 1)) * 0.5, 0.1, 0.6);
+    else if (hEff < margin) climb = clamp(0.25 * (1 - hEff / margin), 0, 0.25);
     return { climb, emergency };
   }
 }

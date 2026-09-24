@@ -73,6 +73,7 @@ export function maneuverSteer(m: Maneuver, self: AircraftEntity, attacker: Aircr
   out.aim = false;
   out.aggression = 1.5;
   out.maxG = undefined;
+  out.maxPerformance = m.kind === 'break' || m.kind === 'spiral' || m.kind === 'split-s';
   switch (m.kind) {
     case 'break':
       out.dir.copy(rh).multiplyScalar(m.side).addScaledVector(fh, 0.15).add(new Vector3(0, -0.08, 0));
@@ -98,8 +99,8 @@ export function maneuverSteer(m: Maneuver, self: AircraftEntity, attacker: Aircr
         m.side = m.side === 1 ? -1 : 1;
         m.nextReverse = now + 0.9 + 0.8 * rng();
       }
-      out.dir.copy(rh).multiplyScalar(m.side * 0.6).addScaledVector(fh, 0.8).add(new Vector3(0, (rng() - 0.5) * 0.3, 0));
-      out.aggression = 1.2;
+      out.dir.copy(rh).multiplyScalar(m.side).addScaledVector(fh, 0.45).add(new Vector3(0, (rng() - 0.5) * 0.3, 0));
+      out.aggression = 1.5;
       break;
     case 'extend': {
       const away = attacker ? _rel.copy(self.state.position).sub(attacker.state.position).setY(0).normalize() : fh.clone();

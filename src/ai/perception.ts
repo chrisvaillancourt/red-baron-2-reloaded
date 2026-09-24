@@ -14,6 +14,7 @@ export function isAlive(ac: AircraftEntity): boolean {
 
 const _rel = new Vector3();
 const _f = new Vector3();
+const _f2 = new Vector3();
 
 export class Perception {
   /** Enemy id -> last time seen. */
@@ -28,6 +29,8 @@ export class Perception {
     const p = this.profile;
     this.nextSweep = world.time + p.perceptionInterval * (0.75 + 0.5 * rng());
     const fwd = forwardOf(self.state.orientation, _f);
+    // Good pilots periodically twist round to check their tail.
+    const checkSix = rng() < p.t * 0.35;
     for (const e of world.aircraft) {
       if (e.side === self.side || !isAlive(e)) continue;
       _rel.copy(e.state.position).sub(self.state.position);
@@ -35,7 +38,7 @@ export class Perception {
       if (r > p.spotRange) continue;
       // Blind cone behind the tail (and a bit below).
       const behind = angleBetween(_rel, fwd.clone().negate().add(new Vector3(0, -0.3, 0)));
-      if (behind < p.rearBlindCone && r > p.blindSpotRange) continue;
+      if (behind < p.rearBlindCone && r > p.blindSpotRange && !checkSix) continue;
       this.contacts.set(e.id, world.time);
     }
     for (const [id, t] of this.contacts) {
@@ -69,8 +72,14 @@ export function threatLevel(self: AircraftEntity, e: AircraftEntity): number {
   const nose = angleBetween(ef, _rel);
   const hasForwardGuns = e.spec.guns.some((g) => g.mount !== 'flexible');
   if (!hasForwardGuns) return 0;
-  let t = clamp(1 - r / 1200, 0, 1) * clamp(1 - nose / (35 * DEG), 0, 1);
+  let t = clamp(1 - (r - 150) / 850, 0, 1) * clamp(1 - nose / (35 * DEG), 0, 1);
   if (r < 300 && nose < 60 * DEG) t = Math.max(t, 0.7);
+  // Aspect: an enemy on our tail is a threat; one ahead of us is a head-on pass
+  // (or our own target), not a reason to break.
+  const myFwd = forwardOf(self.state.orientation, _f2);
+  const toEnemy = _rel.negate();
+  const off = angleBetween(myFwd, toEnemy);
+  t *= clamp((off - 60 * DEG) / (60 * DEG), 0.15, 1);
   // Enemy two-seaters' rear gunners threaten us when we sit behind them (handled by caution in attack code).
   return t;
 }
