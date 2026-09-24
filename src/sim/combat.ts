@@ -134,15 +134,15 @@ const CONVERGENCE = 150;
 const RECENT_HIT_S = 30;
 
 const ZONE_DAMAGE: Record<DamageZone, number> = {
-  engine: 0.07,
-  fuelTank: 0.06,
+  engine: 0.1,
+  fuelTank: 0.09,
   pilot: 0.34,
   gunner: 0.34,
-  leftWing: 0.018,
-  rightWing: 0.018,
-  tail: 0.03,
-  fuselage: 0.012,
-  controls: 0.05,
+  leftWing: 0.035,
+  rightWing: 0.035,
+  tail: 0.06,
+  fuselage: 0.025,
+  controls: 0.08,
   guns: 0.08,
 };
 
