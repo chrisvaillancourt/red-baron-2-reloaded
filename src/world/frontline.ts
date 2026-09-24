@@ -233,7 +233,10 @@ const CR_W = Math.ceil(170_000 / CR_CELL);
 const CR_H = Math.ceil(200_000 / CR_CELL);
 const BAND = 3500;
 
-const craterCache = new Map<number, Float32Array>();
+/** Per date: [intensity grid, freshness grid]. */
+const craterCache = new Map<number, [Float32Array, Float32Array]>();
+/** Days for battle scars to "age" by a factor e (weeds and grass reclaim old battlefields). */
+const SCAR_AGE_DAYS = 200;
 
 function intensityAtDay(day: number): number {
   let i = 0;
@@ -262,7 +265,7 @@ function dayToIso(day: number): string {
   return new Date(day * 86_400_000).toISOString().slice(0, 10);
 }
 
-function splatLine(grid: Float32Array, pts: Pt[], intensity: number): void {
+function splatLine(grid: Float32Array, fresh: Float32Array, pts: Pt[], intensity: number, recency: number): void {
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i], b = pts[i + 1];
     const minX = Math.max(0, Math.floor((Math.min(a.x, b.x) - BAND - CR_X0) / CR_CELL));
@@ -283,19 +286,33 @@ function splatLine(grid: Float32Array, pts: Pt[], intensity: number): void {
         const v = bandProfile(d) * intensity;
         const k = gz * CR_W + gx;
         if (v > grid[k]) grid[k] = v;
+        const fv = v * recency;
+        if (fv > fresh[k]) fresh[k] = fv;
       }
     }
   }
 }
 
-function craterGrid(day: number): Float32Array {
+function craterGrids(day: number): [Float32Array, Float32Array] {
   let g = craterCache.get(day);
   if (g) return g;
-  g = new Float32Array(CR_W * CR_H);
-  for (const d of historyDays(day)) splatLine(g, frontLineAt(dayToIso(d)).points, intensityAtDay(d));
+  g = [new Float32Array(CR_W * CR_H), new Float32Array(CR_W * CR_H)];
+  for (const d of historyDays(day)) splatLine(g[0], g[1], frontLineAt(dayToIso(d)).points, intensityAtDay(d), Math.exp(-(day - d) / SCAR_AGE_DAYS));
   if (craterCache.size > 3) craterCache.delete(craterCache.keys().next().value!);
   craterCache.set(day, g);
   return g;
+}
+
+function sampleGrid(g: Float32Array, x: number, z: number): number {
+  const fx = (x - CR_X0) / CR_CELL;
+  const fz = (z - CR_Z0) / CR_CELL;
+  const ix = Math.floor(fx), iz = Math.floor(fz);
+  if (ix < 0 || iz < 0 || ix >= CR_W - 1 || iz >= CR_H - 1) return 0;
+  const tx = fx - ix, tz = fz - iz;
+  const k = iz * CR_W + ix;
+  const a = g[k] + (g[k + 1] - g[k]) * tx;
+  const b = g[k + CR_W] + (g[k + CR_W + 1] - g[k + CR_W]) * tx;
+  return Math.min(1, a + (b - a) * tz);
 }
 
 /**
@@ -308,16 +325,19 @@ function craterGrid(day: number): Float32Array {
 export function craterIntensityAt(x: number, z: number, date: string): number {
   const day = dayNumber(date);
   if (day < KEY_DAYS[0]) return 0;
-  const g = craterGrid(Math.min(day, KEY_DAYS[KEY_DAYS.length - 1]));
-  const fx = (x - CR_X0) / CR_CELL;
-  const fz = (z - CR_Z0) / CR_CELL;
-  const ix = Math.floor(fx), iz = Math.floor(fz);
-  if (ix < 0 || iz < 0 || ix >= CR_W - 1 || iz >= CR_H - 1) return 0;
-  const tx = fx - ix, tz = fz - iz;
-  const k = iz * CR_W + ix;
-  const a = g[k] + (g[k + 1] - g[k]) * tx;
-  const b = g[k + CR_W] + (g[k + CR_W + 1] - g[k + CR_W]) * tx;
-  return Math.min(1, a + (b - a) * tz);
+  return sampleGrid(craterGrids(Math.min(day, KEY_DAYS[KEY_DAYS.length - 1]))[0], x, z);
+}
+
+/**
+ * 0..1 how recently the ground at (x, z) was fought over, weighted like
+ * craterIntensityAt: 1 = the current line's churned mud, decaying with a
+ * ~200-day time constant as weeds and grass reclaim abandoned battlefields
+ * (the 1916 Somme is a green-brown cratered wasteland by late 1917).
+ */
+export function battleFreshnessAt(x: number, z: number, date: string): number {
+  const day = dayNumber(date);
+  if (day < KEY_DAYS[0]) return 0;
+  return sampleGrid(craterGrids(Math.min(day, KEY_DAYS[KEY_DAYS.length - 1]))[1], x, z);
 }
 
 function bandProfile(dist: number): number {

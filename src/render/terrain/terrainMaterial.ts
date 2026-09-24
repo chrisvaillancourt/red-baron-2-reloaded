@@ -26,37 +26,39 @@ export interface TerrainPalette {
 export const PALETTES: Record<'winter' | 'spring' | 'summer' | 'autumn', TerrainPalette> = {
   spring: {
     fields: ['#6b8a40', '#78944a', '#6a5a42', '#8b7d58', '#587636', '#8f8c54'],
-    pasture: '#6e8f44', forest: '#3d5a2c', forestDark: '#2b4221', hedge: '#34502a', townGround: '#77705f',
-    mud: '#5c4c3b', chalk: '#ab9f89', road: '#a79d86', water: '#1b2a2e', sand: '#c9bc9b', deadWood: '#5d554a',
+    pasture: '#6e8f44', forest: '#46633a', forestDark: '#35502b', hedge: '#34502a', townGround: '#77705f',
+    mud: '#5c4c3b', chalk: '#ab9f89', road: '#a79d86', water: '#26393d', sand: '#c9bc9b', deadWood: '#5d554a',
   },
   summer: {
     fields: ['#a8935a', '#b5a472', '#5f7639', '#786448', '#4c632d', '#98905c'],
-    pasture: '#66823f', forest: '#33482a', forestDark: '#243620', hedge: '#2e4526', townGround: '#7c7463',
-    mud: '#5f4e3b', chalk: '#b1a58d', road: '#b1a78e', water: '#1a292c', sand: '#cfc2a0', deadWood: '#62594c',
+    pasture: '#66823f', forest: '#3e5631', forestDark: '#2f4527', hedge: '#2e4526', townGround: '#7c7463',
+    mud: '#5f4e3b', chalk: '#b1a58d', road: '#b1a78e', water: '#25383c', sand: '#cfc2a0', deadWood: '#62594c',
   },
   autumn: {
     fields: ['#a2906a', '#6c5539', '#6f8044', '#586d33', '#86754f', '#968358'],
-    pasture: '#6c7f41', forest: '#58502c', forestDark: '#3b3922', hedge: '#484828', townGround: '#76705f',
-    mud: '#584732', chalk: '#aa9e87', road: '#a79d86', water: '#1a272a', sand: '#c7b998', deadWood: '#5a5246',
+    pasture: '#6c7f41', forest: '#5f5834', forestDark: '#47452b', hedge: '#484828', townGround: '#76705f',
+    mud: '#584732', chalk: '#aa9e87', road: '#a79d86', water: '#24363a', sand: '#c7b998', deadWood: '#5a5246',
   },
   winter: {
     fields: ['#5c4a35', '#667248', '#78705a', '#86826f', '#5b6d3e', '#665741'],
-    pasture: '#657146', forest: '#4a4638', forestDark: '#35332a', hedge: '#44432f', townGround: '#726d66',
-    mud: '#4e4031', chalk: '#a39884', road: '#9f9884', water: '#1a2528', sand: '#bfb498', deadWood: '#534c43',
+    pasture: '#657146', forest: '#524e40', forestDark: '#3f3c32', hedge: '#44432f', townGround: '#726d66',
+    mud: '#4e4031', chalk: '#a39884', road: '#9f9884', water: '#233437', sand: '#bfb498', deadWood: '#534c43',
   },
 };
 
 const VERT_PARS = /* glsl */ `
 attribute vec4 aLand;
-attribute float aFront;
+attribute vec2 aFront;
 varying vec4 vLand;
 varying float vFront;
+varying float vFresh;
 varying vec3 vWPos;
 `;
 
 const FRAG_PARS = /* glsl */ `
 varying vec4 vLand;
 varying float vFront;
+varying float vFresh;
 varying vec3 vWPos;
 uniform sampler2D uMask;
 uniform vec4 uMaskRect; // x0, z0, 1/width, 1/depth
@@ -141,7 +143,7 @@ const FRAG_COLOR = /* glsl */ `
   float beach = vLand.w;
   float lat = 50.3 - vWPos.z / 111200.0;
   float flanders = smoothstep(50.52, 50.64, lat);
-  vec3 warBase = mix(mix(uMud, uChalk, 0.5) * vec3(1.04, 1.0, 0.94), mix(uMud, uChalk, 0.3) * 1.12, flanders);
+  vec3 warBase = mix(mix(uMud, uChalk, 0.38) * vec3(1.07, 1.0, 0.9), mix(uMud, uChalk, 0.26) * vec3(1.12, 1.08, 1.0), flanders);
   float micro = uDetail * clamp(1.0 - px / 1.2, 0.0, 1.0);
 
   // --- furlongs (districts): one orientation and strip width each
@@ -221,17 +223,35 @@ const FRAG_COLOR = /* glsl */ `
   townCol *= 0.9 + 0.2 * tnoise(p / 7.0);
   col = mix(col, townCol, tw);
 
-  // --- war zone: neglected rear fields, churned ground, craters, trenches
-  col = mix(col, mix(uPasture, uMud, 0.45) * (0.9 + 0.2 * tnoise(p / 50.0)), smoothstep(0.1, 0.4, crater) * 0.5);
-  float churn = smoothstep(0.32, 0.8, crater);
-  if (churn > 0.002) {
-  vec3 mud = warBase * (0.78 + 0.4 * tfbm(p / 22.0));
-  mud = mix(mud, uChalk * 0.95, (1.0 - flanders) * smoothstep(0.6, 0.85, tnoise(p / 55.0 + 3.0) * 0.7 + tnoise(p / 21.0) * 0.3) * 0.55);
-  col = mix(col, mud, churn);
+  // --- war zone: neglected rear fields, churned ground, craters, trenches.
+  // vFresh: 1 = ground fought over now (raw mud); decays as weeds and grass
+  // reclaim abandoned battlefields, which stay pocked with overgrown craters.
+  float fresh = clamp(vFresh / max(crater, 0.05), 0.0, 1.0);
+  // Large-scale mottling (km scale) so the war zone never reads as flat paving from altitude.
+  float mot = tnoise(p / 1500.0 + 4.0) * 0.55 + tnoise(p / 480.0 + 9.0) * 0.3 + tnoise(p / 160.0) * 0.15;
+  col = mix(col, mix(uPasture, uMud, 0.45) * (0.9 + 0.2 * tnoise(p / 50.0)), smoothstep(0.1, 0.4, crater) * 0.45 * mix(0.6, 1.0, fresh));
+  float churnRaw = smoothstep(0.34, 0.85, crater + (mot - 0.5) * 0.18);
+  float churn = churnRaw * smoothstep(0.08, 0.5, fresh);
+  if (churnRaw > 0.002) {
+  // Fine grain fades out before it can alias into "gravel" at altitude.
+  float grain = mix(tfbm(p / 22.0), 0.5, smoothstep(3.0, 9.0, px));
+  vec3 mud = warBase * (0.76 + 0.22 * mot + 0.26 * grain);
+  // Upcast chalk (Artois/Somme) in streaks and splashes; standing water and dark wet mud in Flanders.
+  float chalkN = tnoise(p / 55.0 + 3.0) * 0.5 + tnoise(p / 260.0 + 1.7) * 0.5;
+  mud = mix(mud, uChalk * (0.92 + 0.1 * grain), (1.0 - flanders) * smoothstep(0.58, 0.82, chalkN) * 0.6);
+  mud = mix(mud, warBase * 0.62, flanders * smoothstep(0.55, 0.8, tnoise(p / 140.0 + 5.0)) * 0.4);
+  // Regrowth: coarse grass, thistle and poppies over old shell-holes.
+  vec3 weeds = mix(uPasture * 0.85, uMud * 1.3, 0.48 + 0.3 * tnoise(p / 90.0 + 2.0)) * (0.84 + 0.26 * mot);
+  weeds = mix(weeds, uChalk * 0.9, (1.0 - flanders) * smoothstep(0.66, 0.86, chalkN) * 0.35);
+  col = mix(col, mix(weeds, mud, smoothstep(0.1, 0.6, fresh)), churnRaw);
   }
   tBump = 0.0;
   if (crater > 0.12 && px > 14.0) {
-    col *= 1.0 - 0.1 * crater;
+    // Far: big craters and shell-hole clusters still texture the ground.
+    float cd = smoothstep(0.18, 0.8, crater);
+    vec4 c3 = px < 45.0 ? craters(p + 77.0, 55.0, cd * 0.4, flanders) : vec4(0.0);
+    float cluster = smoothstep(0.45, 0.8, tnoise(p / 110.0 + 13.0)) * churnRaw;
+    col *= 1.0 - 0.07 * crater - c3.x * 0.16 * churnRaw - cluster * 0.08;
     tWater = max(tWater, 0.35 * churn * flanders);
   } else if (crater > 0.12) {
     float df = clamp(1.0 - px / 2.2, 0.0, 1.0);
@@ -243,7 +263,7 @@ const FRAG_COLOR = /* glsl */ `
     float rimL = max(max(c1.y, c2.y), c3.y);
     float wat = max(max(c1.z, c2.z * 0.8), c3.z * 0.6) * smoothstep(0.35, 0.7, crater);
     float cf = mix(0.15, 1.0, clamp(1.0 - px / 8.0, 0.0, 1.0));
-    col *= 1.0 - bowl * (0.06 + 0.16 * churn) * cf;
+    col *= 1.0 - bowl * (0.06 + 0.16 * max(churn, churnRaw * 0.6)) * cf;
     col = mix(col, mix(uChalk, warBase * 1.2, flanders), rimL * 0.18 * cf * churn);
     float wk = wat * clamp(1.0 - px / 4.0, 0.0, 1.0);
     col = mix(col, mix(uWater * 1.6, vec3(0.3, 0.32, 0.34), 0.55), wk * 0.9);
@@ -306,9 +326,10 @@ const FRAG_COLOR = /* glsl */ `
   float aero = smoothstep(0.3, 0.7, m.b);
   vec3 mown = uPasture * (1.06 + 0.07 * sin(dot(p, vec2(0.34, 0.94)) * 0.25) * clamp(1.0 - px / 3.0, 0.0, 1.0));
   col = mix(col, mown, aero);
-  float riverMask = m.r * smoothstep(0.9, 3.5, px); // ribbons draw rivers near the camera
-  float wat = smoothstep(0.42, 0.58, riverMask);
-  col = mix(col, col * 0.75, smoothstep(0.2, 0.42, riverMask) * (1.0 - wat));
+  // R is water *coverage* (see featureMask.ts): blend, don't threshold. Ribbons draw
+  // rivers at true width near the camera, so the mask fades in with distance.
+  float wat = clamp(m.r, 0.0, 1.0) * smoothstep(0.9, 3.5, px);
+  col = mix(col, col * 0.8, smoothstep(0.0, 0.3, wat) * 0.5); // damp banks and reeds
   col = mix(col, uWater, wat);
   tWater = max(tWater, wat);
 
@@ -345,7 +366,7 @@ export function createTerrainMaterial(mask: Texture, maskRect: Vector4, detail =
     shader.vertexShader = VERT_PARS + shader.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
-      vLand = aLand; vFront = aFront;
+      vLand = aLand; vFront = aFront.x; vFresh = aFront.y;
       vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
     );
     shader.fragmentShader = FRAG_PARS + shader.fragmentShader
@@ -384,7 +405,7 @@ export function createTerrainMaterial(mask: Texture, maskRect: Vector4, detail =
         }`,
       );
   };
-  mat.customProgramCacheKey = () => 'rb2-terrain-v2';
+  mat.customProgramCacheKey = () => 'rb2-terrain-v3';
   return mat;
 }
 

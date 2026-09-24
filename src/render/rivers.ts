@@ -7,7 +7,8 @@ import { BufferGeometry, Float32BufferAttribute, Group, Mesh, MeshStandardMateri
 import { riverPolylines } from '../world/terrain';
 
 const PIECE = 1500; // metres of river per mesh
-const SHOW_DIST = 5000;
+/** 3D distance within which the terrain LOD is fine enough to resolve the valley floor under the ribbon. */
+const SHOW_DIST = 2600;
 
 interface Piece {
   mesh: Mesh;
@@ -20,7 +21,7 @@ export class RiverRibbons {
   readonly group = new Group();
   private readonly pieces: Piece[] = [];
   private readonly material = new MeshStandardMaterial({
-    color: 0x1b2a2e,
+    color: 0x28393d,
     roughness: 0.06,
     metalness: 0,
     polygonOffset: true,
@@ -30,6 +31,17 @@ export class RiverRibbons {
 
   constructor() {
     this.group.name = 'rivers';
+    // Lift the water with distance (≈3 mm per metre, < 2 px on screen) so coarser
+    // terrain LOD triangles between valley-floor vertices can't bite chunks out of it.
+    this.material.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace(
+        '#include <project_vertex>',
+        `vec4 rbW = modelMatrix * vec4(transformed, 1.0);
+        transformed.y += min(10.0, distance(rbW.xyz, cameraPosition) * 0.003);
+        #include <project_vertex>`,
+      );
+    };
+    this.material.customProgramCacheKey = () => 'rb2-river-v1';
     for (const r of riverPolylines()) {
       const pts = r.points;
       // Arc-length split into pieces.
@@ -82,10 +94,10 @@ export class RiverRibbons {
   }
 
   update(cam: Vector3): void {
-    const agl = cam.y;
     for (const p of this.pieces) {
-      const d = Math.hypot(p.cx - cam.x, p.cz - cam.z) - p.radius;
-      p.mesh.visible = d < SHOW_DIST && agl < 3500;
+      // Beyond this the terrain mask draws the water; coarse terrain LOD would bead the ribbon.
+      const d = Math.hypot(p.cx - cam.x, p.cz - cam.z, cam.y) - p.radius;
+      p.mesh.visible = d < SHOW_DIST;
     }
   }
 }

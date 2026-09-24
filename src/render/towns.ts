@@ -145,8 +145,8 @@ interface Building {
   ruined: boolean;
 }
 
-const WALLS = ['#8a4a36', '#94553c', '#7c4432', '#d6cfbf', '#c9c0ac', '#9a948a', '#b39a6c'].map((c) => new Color(c));
-const ROOFS = ['#8e3b2a', '#7d3525', '#4a4c52', '#5a5c62', '#6a3a2e', '#94503a'].map((c) => new Color(c));
+const WALLS = ['#834736', '#8c513c', '#774233', '#b5ad9e', '#a9a08e', '#918b82', '#a38e68'].map((c) => new Color(c));
+const ROOFS = ['#823a2b', '#733426', '#4a4c52', '#56585e', '#663a2f', '#86492f'].map((c) => new Color(c));
 const RUIN = new Color('#5f5850');
 
 interface Tile {
