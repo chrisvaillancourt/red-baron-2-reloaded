@@ -98,13 +98,19 @@ export class EffectsSystem {
   }
 
   flak(p: Vector3, german: boolean): void {
-    const base: [number, number, number] = german ? [0.07, 0.065, 0.06] : [0.74, 0.73, 0.7];
-    this.flash({ x: p.x, y: p.y, z: p.z, life: 0.12, size0: 3, size1: 7, color: [1, 0.6, 0.25], alpha0: 1, alpha1: 0 });
-    for (let i = 0; i < 7; i++) {
+    const base: [number, number, number] = german ? [0.07, 0.065, 0.06] : [0.64, 0.63, 0.6];
+    this.flash({ x: p.x, y: p.y, z: p.z, life: 0.1, size0: 2.5, size1: 8, color: [1, 0.62, 0.28], alpha0: 1, alpha1: 0 });
+    this.flash({ x: p.x, y: p.y, z: p.z, life: 0.04, size0: 6, size1: 9, color: [1, 0.85, 0.6], alpha0: 0.8, alpha1: 0 });
+    // A dense core blossoming into a ragged, lumpy cloud that drifts and thins for half a minute.
+    const k = german ? 1 : 0.9;
+    this.puff({ x: p.x, y: p.y, z: p.z, life: 26 + Math.random() * 8, size0: 2.5, size1: 13, color: base.map((c) => c * 0.85) as [number, number, number], alpha0: 0.95 * k, alpha1: 0, drag: 1, windFollow: 1, lift: 0.04 });
+    for (let i = 0; i < 11; i++) {
+      const dx = rnd(1), dy = rnd(0.8), dz = rnd(1);
       this.puff({
-        x: p.x + rnd(2.5), y: p.y + rnd(2.5), z: p.z + rnd(2.5), vx: rnd(4), vy: rnd(3), vz: rnd(4),
-        life: 22 + Math.random() * 10, size0: 3 + Math.random() * 2, size1: 11 + Math.random() * 5,
-        color: base, alpha0: german ? 0.95 : 0.85, alpha1: 0, drag: 0.8, windFollow: 1, lift: 0.05,
+        x: p.x + dx * 3, y: p.y + dy * 3, z: p.z + dz * 3, vx: dx * 7, vy: dy * 5, vz: dz * 7,
+        life: 18 + Math.random() * 16, size0: 1.5 + Math.random() * 2, size1: 8 + Math.random() * 8,
+        color: base.map((c) => c * (0.9 + Math.random() * 0.2)) as [number, number, number],
+        alpha0: (0.5 + Math.random() * 0.3) * k, alpha1: 0, drag: 1.3, windFollow: 1, lift: 0.05, spin: rnd(0.3),
       });
     }
   }
@@ -218,8 +224,10 @@ export class EffectsSystem {
         const back = acc / Math.max(1e-3, moved);
         const x = p.x - v.x * dt * back, y = p.y - v.y * dt * back, z = p.z - v.z * dt * back;
         if (d.onFire) {
-          this.flash({ x: x + rnd(0.4), y: y + rnd(0.4), z: z + rnd(0.4), vx: v.x * 0.05, vy: 1, vz: v.z * 0.05, life: 0.35 + Math.random() * 0.3, size0: 1.3, size1: 2.4, color: [1, 0.42 + Math.random() * 0.15, 0.08], alpha0: 0.6, alpha1: 0, drag: 3 });
-          this.puff({ x: x + rnd(0.8), y: y + rnd(0.8), z: z + rnd(0.8), vx: rnd(1.2), vy: 0.8, vz: rnd(1.2), life: 7 + Math.random() * 5, size0: 1.4, size1: 12 + Math.random() * 6, color: [0.11, 0.1, 0.09], alpha0: 0.6, alpha1: 0, drag: 0.6, windFollow: 1, lift: 0.6 });
+          // Streaming flame: a hot core plus longer, redder licks trailing behind.
+          this.flash({ x: x + rnd(0.3), y: y + rnd(0.3), z: z + rnd(0.3), vx: v.x * 0.1, vy: 1, vz: v.z * 0.1, life: 0.25 + Math.random() * 0.2, size0: 1.2, size1: 2.2, color: [1, 0.72, 0.3], alpha0: 0.85, alpha1: 0, drag: 3 });
+          this.flash({ x: x + rnd(0.6), y: y + rnd(0.6), z: z + rnd(0.6), vx: v.x * 0.05, vy: 1.5, vz: v.z * 0.05, life: 0.5 + Math.random() * 0.45, size0: 1.8, size1: 3.6, color: [1, 0.36 + Math.random() * 0.14, 0.06], alpha0: 0.65, alpha1: 0, drag: 2.5 });
+          this.puff({ x: x + rnd(1.2), y: y + rnd(1.2), z: z + rnd(1.2), vx: rnd(2), vy: 0.8, vz: rnd(2), life: 8 + Math.random() * 7, size0: 1.6, size1: 11 + Math.random() * 10, color: [0.1, 0.09, 0.085], alpha0: 0.55 + Math.random() * 0.2, alpha1: 0, drag: 0.6, windFollow: 1, lift: 0.7, spin: rnd(0.4) });
         } else {
           const grey = d.engineDead ? 0.35 : 0.5;
           this.puff({ x: x + rnd(0.5), y: y + rnd(0.5), z: z + rnd(0.5), vx: rnd(0.8), vy: 0.3, vz: rnd(0.8), life: 4 + Math.random() * 4, size0: 0.9, size1: 7 + Math.random() * 3, color: [grey, grey * 0.97, grey * 0.93], alpha0: d.engineDead ? 0.7 : 0.45, alpha1: 0, drag: 0.6, windFollow: 1, lift: 0.3 });

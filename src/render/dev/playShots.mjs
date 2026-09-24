@@ -48,6 +48,15 @@ const SCENARIOS = {
     shots: [6, 25],
     cams: ['formation', 'fight-wide'],
   },
+  // Forced damage: set enemies smoking / on fire and flame a balloon to judge effects.
+  fx: {
+    opts: { playerAircraft: 'sopwith_camel', enemyAircraft: 'albatros_dv', enemyCount: 3, wingmen: 1, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 1200, startPosition: 'advantage', timeOfDay: 'afternoon', cloudCover: 0.3, type: 'dogfight', date: '1917-06-10' },
+    actions: [
+      { t: 4, code: `const w = __rb2.session.world, p = __rb2.session.player; const en = w.aircraft.filter(a => a.side !== p.side); en[0].damage.onFire = true; en[0].damage.lastAttackerId = p.id; en[1].damage.smoking = true; en[1].damage.zones.engine = 0.7;` },
+    ],
+    shots: [6, 9, 13, 18, 26, 40],
+    cams: ['victim', 'fight-wide'],
+  },
   big: {
     opts: { playerAircraft: 'sopwith_camel', enemyAircraft: 'fokker_dvii', enemyCount: 8, wingmen: 3, enemySkill: 'veteran', wingmanSkill: 'veteran', altitudeM: 1500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.45, type: 'dogfight', date: '1918-08-08' },
     shots: [10, 30, 50, 70],
@@ -159,7 +168,13 @@ for (const [name, sc] of Object.entries(SCENARIOS)) {
       }
     };
   });
+  const pending = [...(sc.actions ?? [])];
   for (const t of sc.shots) {
+    while (pending.length && pending[0].t <= t) {
+      const a = pending.shift();
+      await page.waitForFunction((t) => (window.__rb2?.session?.time ?? 0) >= t, a.t, { timeout: 180_000 }).catch(() => {});
+      await page.evaluate(a.code);
+    }
     await page.waitForFunction((t) => (window.__rb2?.session?.time ?? 0) >= t || !window.__rb2?.session, t, { timeout: 180_000 }).catch(() => {});
     if (!(await page.evaluate(() => !!window.__rb2?.session))) break;
     for (const cam of sc.cams) {

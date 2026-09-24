@@ -238,7 +238,9 @@ const FRAG_COLOR = /* glsl */ `
   vec3 mud = warBase * (0.76 + 0.22 * mot + 0.26 * grain);
   // Upcast chalk (Artois/Somme) in streaks and splashes; standing water and dark wet mud in Flanders.
   float chalkN = tnoise(p / 55.0 + 3.0) * 0.5 + tnoise(p / 260.0 + 1.7) * 0.5;
-  mud = mix(mud, uChalk * (0.92 + 0.1 * grain), (1.0 - flanders) * smoothstep(0.58, 0.82, chalkN) * 0.6);
+  // Chalk spoil is thickest along the trench systems; elsewhere only faint patches.
+  float nearLine = 0.35 + 0.65 * (1.0 - smoothstep(500.0, 2200.0, abs(vFront)));
+  mud = mix(mud, uChalk * (0.92 + 0.1 * grain), (1.0 - flanders) * smoothstep(0.6, 0.85, chalkN) * 0.45 * nearLine);
   mud = mix(mud, warBase * 0.62, flanders * smoothstep(0.55, 0.8, tnoise(p / 140.0 + 5.0)) * 0.4);
   // Regrowth: coarse grass, thistle and poppies over old shell-holes.
   vec3 weeds = mix(uPasture * 0.85, uMud * 1.3, 0.48 + 0.3 * tnoise(p / 90.0 + 2.0)) * (0.84 + 0.26 * mot);
