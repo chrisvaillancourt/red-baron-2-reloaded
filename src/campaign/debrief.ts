@@ -133,7 +133,9 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
   // ------------------------------------------------------------ mission outcome & CO remarks
   if (fate !== 'killed' && fate !== 'captured') {
     narrative.unshift(
-      result.missionSuccess
+      result.aborted
+        ? rng.pick(['You broke off and came home before the job was done. The CO wants a written explanation.', 'The patrol was abandoned. There will be questions from Wing.'])
+        : result.missionSuccess
         ? rng.pick(['The CO was pleased with the day\'s work.', 'A good show, the CO said - the mission was carried out as ordered.', 'Headquarters has signalled its satisfaction with the patrol.'])
         : rng.pick(['The mission was not accomplished. The CO said little, which was worse than a dressing-down.', 'The objective was not achieved; we shall have to go again.', 'A bad day. The squadron failed in its task.']),
     );

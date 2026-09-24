@@ -510,6 +510,8 @@ export interface MissionResult {
   hits: number;
   /** Squadron-mates' victories for the squadron record. */
   wingmanClaims: { pilotName: string; count: number }[];
+  /** The player abandoned the mission from the pause menu (not a safe "end flight"). Always a failure. */
+  aborted?: boolean;
 }
 
 // ---------------------------------------------------------------------------
