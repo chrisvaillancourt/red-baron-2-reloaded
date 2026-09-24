@@ -194,6 +194,26 @@ $('boom').addEventListener('click', () => {
   world.handleEvent({ type: 'ground-destroyed', targetId: 0, killerId: null, position: p });
 });
 if (params.get('demo') === '1') setTimeout(spawnDemo, 50);
+if (params.get('fx') === 'flak') {
+  // A barrage of archie ahead: German (black) over central ground, British (white) over allied.
+  const fire = () => {
+    const f = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    for (let i = 0; i < 4; i++) {
+      const p = camera.position.clone().addScaledVector(f, 220 + Math.random() * 260).add(new Vector3((Math.random() - 0.5) * 240, (Math.random() - 0.3) * 80, (Math.random() - 0.5) * 120));
+      world.handleEvent({ type: 'flak-burst', position: p });
+    }
+  };
+  for (let k = 0; k < 6; k++) setTimeout(fire, k * 700);
+}
+if (params.get('fx') === 'boom') {
+  const f = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
+  const p = camera.position.clone().addScaledVector(f, 350);
+  p.y = terrainHeightAt(p.x, p.z) + 0.5;
+  setTimeout(() => world.handleEvent({ type: 'ground-destroyed', targetId: 0, killerId: null, position: p }), 3000);
+  const q = p.clone().add(new Vector3(60, 0, 40));
+  q.y = terrainHeightAt(q.x, q.z) + 0.5;
+  setTimeout(() => world.handleEvent({ type: 'aircraft-destroyed', victimId: 0, killerId: null, outcome: 'crashed', position: q }), 800);
+}
 
 const worldQuery: WorldQuery = {
   get time() {

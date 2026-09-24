@@ -98,7 +98,7 @@ export class EffectsSystem {
   }
 
   flak(p: Vector3, german: boolean): void {
-    const base: [number, number, number] = german ? [0.07, 0.065, 0.06] : [0.86, 0.85, 0.82];
+    const base: [number, number, number] = german ? [0.07, 0.065, 0.06] : [0.74, 0.73, 0.7];
     this.flash({ x: p.x, y: p.y, z: p.z, life: 0.12, size0: 3, size1: 7, color: [1, 0.6, 0.25], alpha0: 1, alpha1: 0 });
     for (let i = 0; i < 7; i++) {
       this.puff({
@@ -110,11 +110,11 @@ export class EffectsSystem {
   }
 
   explosion(p: Vector3, size: number, onGround: boolean): void {
-    this.flash({ x: p.x, y: p.y, z: p.z, life: 0.25, size0: size * 2, size1: size * 5, color: [1, 0.75, 0.35], alpha0: 1, alpha1: 0 });
+    this.flash({ x: p.x, y: p.y + size * 0.5, z: p.z, life: 0.3, size0: size * 3, size1: size * 7, color: [1, 0.62, 0.28], alpha0: 0.8, alpha1: 0 });
     for (let i = 0; i < 14; i++) {
       this.flash({
         x: p.x, y: p.y, z: p.z, vx: rnd(size * 4), vy: rnd(size * 3) + size * 2, vz: rnd(size * 4),
-        life: 0.6 + Math.random() * 0.6, size0: size * 1.2, size1: size * 2.6, color: [1, 0.45 + Math.random() * 0.2, 0.12], alpha0: 0.9, alpha1: 0, drag: 2.5, lift: 3,
+        life: 0.6 + Math.random() * 0.6, size0: size * 1.2, size1: size * 2.6, color: [0.95, 0.38 + Math.random() * 0.18, 0.08], alpha0: 0.55, alpha1: 0, drag: 2.5, lift: 3,
       });
     }
     for (let i = 0; i < 10; i++) {
@@ -218,7 +218,7 @@ export class EffectsSystem {
         const back = acc / Math.max(1e-3, moved);
         const x = p.x - v.x * dt * back, y = p.y - v.y * dt * back, z = p.z - v.z * dt * back;
         if (d.onFire) {
-          this.flash({ x: x + rnd(0.4), y: y + rnd(0.4), z: z + rnd(0.4), vx: v.x * 0.05, vy: 1, vz: v.z * 0.05, life: 0.35 + Math.random() * 0.3, size0: 1.3, size1: 2.4, color: [1, 0.5 + Math.random() * 0.2, 0.15], alpha0: 0.95, alpha1: 0, drag: 3 });
+          this.flash({ x: x + rnd(0.4), y: y + rnd(0.4), z: z + rnd(0.4), vx: v.x * 0.05, vy: 1, vz: v.z * 0.05, life: 0.35 + Math.random() * 0.3, size0: 1.3, size1: 2.4, color: [1, 0.42 + Math.random() * 0.15, 0.08], alpha0: 0.6, alpha1: 0, drag: 3 });
           this.puff({ x: x + rnd(0.8), y: y + rnd(0.8), z: z + rnd(0.8), vx: rnd(1.2), vy: 0.8, vz: rnd(1.2), life: 7 + Math.random() * 5, size0: 1.4, size1: 12 + Math.random() * 6, color: [0.11, 0.1, 0.09], alpha0: 0.6, alpha1: 0, drag: 0.6, windFollow: 1, lift: 0.6 });
         } else {
           const grey = d.engineDead ? 0.35 : 0.5;
@@ -244,8 +244,8 @@ export class EffectsSystem {
         continue;
       }
       const k = 1 - f.t / f.life;
-      if (Math.random() < dt * 25 * k) this.flash({ x: f.x + rnd(f.size * 0.6), y: f.y + 0.5, z: f.z + rnd(f.size * 0.6), vy: 2.5, life: 0.5 + Math.random() * 0.4, size0: f.size * 0.6, size1: f.size * 1.1, color: [1, 0.5, 0.15], alpha0: 0.9 * k, alpha1: 0, drag: 2 });
-      if (Math.random() < dt * 6) this.puff({ x: f.x, y: f.y + 1, z: f.z, vy: 3 + f.size, vx: rnd(0.5), vz: rnd(0.5), life: 16, size0: f.size, size1: f.size * 7, color: [0.1, 0.09, 0.08], alpha0: 0.7 * k + 0.1, alpha1: 0, drag: 0.35, windFollow: 1, lift: 0.4 });
+      if (Math.random() < dt * 30 * k) this.flash({ x: f.x + rnd(f.size * 0.7), y: f.y + 0.5 + Math.random() * f.size * 0.5, z: f.z + rnd(f.size * 0.7), vy: 2 + f.size * 0.6, life: 0.6 + Math.random() * 0.5, size0: f.size * 1.1, size1: f.size * 1.8, color: [1, 0.33 + Math.random() * 0.12, 0.05], alpha0: 0.28 * k + 0.06, alpha1: 0, drag: 2 });
+      if (Math.random() < dt * 9) this.puff({ x: f.x + rnd(f.size * 0.3), y: f.y + f.size, z: f.z + rnd(f.size * 0.3), vy: 4 + f.size * 1.2, vx: rnd(0.6), vz: rnd(0.6), life: 22, size0: f.size * 0.9, size1: f.size * 9, color: [0.16, 0.15, 0.14], alpha0: 0.55 * k + 0.1, alpha1: 0, drag: 0.25, windFollow: 1, lift: 0.3 });
     }
     // Forget aircraft that left the world.
     if (this.lastPos.size > world.aircraft.length + 8) {

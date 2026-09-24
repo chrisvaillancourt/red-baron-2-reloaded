@@ -22,6 +22,13 @@ const SHOTS = [
   { name: 'arras-town', q: 'town=Arras&alt=350&pitch=-14&date=1916-03-01&tod=morning&cover=0.3&back=1800' },
   { name: 'arras-close', q: 'town=Arras&alt=120&pitch=-12&date=1916-03-01&tod=morning&cover=0.3&back=500' },
   { name: 'ypres-ruins', q: 'town=Ypres&alt=250&pitch=-16&date=1917-08-01&tod=midday&cover=0.3&back=1400' },
+  { name: 'dawn-800', q: 'town=Amiens&alt=800&pitch=-4&yaw=80&date=1917-07-01&tod=dawn&cover=0.35&back=0' },
+  { name: 'overcast-500', q: 'town=Lille&alt=500&pitch=-8&date=1917-10-10&tod=afternoon&cover=0.9&base=900&vis=12000&back=3000' },
+  { name: 'winter-600', q: 'town=Albert&alt=600&pitch=-10&date=1917-01-15&tod=midday&cover=0.5&back=2500' },
+  { name: 'fx-close', q: 'town=Bapaume&alt=300&pitch=0&date=1917-05-01&tod=afternoon&cover=0.3&demo=1&ds=0.3&back=2500' },
+  { name: 'flak-central', q: 'town=Cambrai&alt=1500&pitch=4&date=1917-06-01&tod=afternoon&cover=0.3&fx=flak&back=2000' },
+  { name: 'flak-allied', q: 'town=Doullens&alt=1500&pitch=4&date=1917-06-01&tod=morning&cover=0.3&base=2600&fx=flak&back=2000' },
+  { name: 'boom', q: 'town=Bapaume&alt=80&pitch=-2&date=1917-05-01&tod=afternoon&cover=0.3&fx=boom&back=2500' },
   { name: 'demo-fx', q: 'town=Bapaume&alt=250&pitch=-8&date=1917-05-01&tod=morning&cover=0.3&demo=1&back=2500' },
 ];
 

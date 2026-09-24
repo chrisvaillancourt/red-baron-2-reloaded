@@ -149,6 +149,7 @@ export class TreeLayer {
   private season: Season = 'summer';
   private lastPackPos = new Vector3(1e9, 0, 0);
   private lastPackTime = 0;
+  private agl = 0;
   private dirty = true;
   private roadCells: Map<string, { ax: number; az: number; bx: number; bz: number }[]> | null = null;
   private readonly capacity: number;
@@ -309,6 +310,7 @@ export class TreeLayer {
     const cx = Math.floor(cam.x / CELL), cz = Math.floor(cam.z / CELL);
     const rc = Math.ceil(R / CELL);
     const heightFade = cam.y - terrainHeightAt(cam.x, cam.z);
+    this.agl = heightFade;
     // At high altitude individual trees are sub-pixel: shrink the radius.
     const effR = heightFade > 2500 ? R * 0.5 : R;
     for (let i = -rc; i <= rc; i++)
@@ -344,7 +346,7 @@ export class TreeLayer {
     const farArr = this.farMesh.instanceMatrix.array as Float32Array;
     const farCol = this.farMesh.instanceColor;
     for (const c of this.cells.values()) {
-      const d = Math.hypot(c.cx - cam.x, c.cz - cam.z);
+      const d = Math.hypot(c.cx - cam.x, c.cz - cam.z, Math.max(0, this.agl - 50));
       if (d > R + CELL) continue;
       const near = d < NEAR_DIST;
       for (let k = 0; k < KINDS; k++) {
