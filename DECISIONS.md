@@ -90,7 +90,7 @@ module.
 rebuild. No original Dynamix/Sierra assets, code, or trademarks-as-branding
 beyond the title homage.
 
-## D-XXX — Audio: pre-rendered synthesis + WebAudio graph, not AudioWorklets
+## D-009 — Audio: pre-rendered synthesis + WebAudio graph, not AudioWorklets
 **Context.** D-003 rules out sample files; engine sounds must track rpm for
 up to seven aircraft at once without glitching.
 **Decision.** Sounds are synthesised in pure TypeScript into buffers at
