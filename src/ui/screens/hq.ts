@@ -6,7 +6,7 @@ import type { ScreenFactory } from '../context';
 import { artBackground, h, svg } from '../dom';
 import { formatDate, formatDateShort, resolveUnits } from '../format';
 import { aceDisplay, medalDisplay, NATION_INFO, rankDisplay } from '../catalog';
-import { medalSvg, pilotPortrait, ribbonBar, squadronBadge } from '../insignia';
+import { aircraftProfile, medalSvg, pilotPortrait, ribbonBar, squadronBadge } from '../insignia';
 import { folderTabs, screenShell, stamp, statBox, withHints } from '../components';
 import { aircraftCard, specSheet } from '../aircraftCards';
 import { FATE_LABEL, MISSION_TYPE_LABEL, TIME_LABEL, weatherSummary } from '../labels';
@@ -304,6 +304,12 @@ function squadronPanel(sq: SquadronInfo, date: string): HTMLElement {
         h('div', null, 'Formed: ', formatDate(sq.formed)),
         sq.notableAces.length ? h('div', null, 'Notable pilots: ', sq.notableAces.map((id) => aceDisplay(id)?.name ?? id).join(', ')) : null,
       ),
+      (() => {
+        const eq = (sq.equipment.find((e) => e.from <= date && date <= e.to) ?? sq.equipment[sq.equipment.length - 1])?.aircraft[0];
+        return eq
+          ? h('div', { class: 'livery-profile' }, svg(aircraftProfile(AIRCRAFT[eq], { livery: sq.livery, width: 520 })), h('div', { class: 'cap' }, `${AIRCRAFT[eq].name} in ${sq.shortName} markings`))
+          : null;
+      })(),
       h('h3', { class: 'panel-h', style: 'margin-top:1em;font-size:1em' }, 'Equipment history'),
       h(
         'table',

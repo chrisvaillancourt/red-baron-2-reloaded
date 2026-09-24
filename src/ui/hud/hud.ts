@@ -69,7 +69,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
     if (d % 30 === 0) {
       const n = ((d % 360) + 360) % 360;
       const card = n === 0 ? 'N' : n === 90 ? 'E' : n === 180 ? 'S' : n === 270 ? 'W' : null;
-      strip.append(h('div', { class: `lbl ${card ? 'card' : ''}`, style: `left:${x}em` }, card ?? String(n / 10).padStart(2, '0')));
+      strip.append(h('div', { class: `lbl ${card ? 'card' : ''}`, style: `left:${x}em` }, h('span', null, card ?? String(n / 10).padStart(2, '0'))));
     }
   }
   tape.append(strip);
@@ -106,13 +106,13 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   function buildCluster(maxRpm: number): void {
     const metric = units.system === 'metric';
     gAsi = metric
-      ? dial({ label: 'Speed', unit: 'km/h', max: 250, numerals: [0, 50, 100, 150, 200, 250], minorStep: 10 })
-      : dial({ label: 'Air speed', unit: 'm.p.h.', max: 160, numerals: [0, 40, 80, 120, 160], minorStep: 10 });
+      ? dial({ label: 'Speed', unit: 'km/h', max: 250, numerals: [50, 100, 150, 200, 250], minorStep: 10 })
+      : dial({ label: 'Air speed', unit: 'm.p.h.', max: 160, numerals: [40, 80, 120, 160], minorStep: 10 });
     gAlt = metric
       ? dial({ label: 'Höhe', unit: 'km', max: 7000, numerals: [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000], fmt: (v) => String(v / 1000), minorStep: 250 })
-      : dial({ label: 'Altitude', unit: '× 1000 ft', max: 20000, numerals: [0, 4000, 8000, 12000, 16000, 20000], fmt: (v) => String(v / 1000), minorStep: 1000 });
+      : dial({ label: 'Altitude', unit: '× 1000 ft', max: 20000, numerals: [0, 5000, 10000, 15000, 20000], fmt: (v) => String(v / 1000), minorStep: 1000 });
     rpmMax = Math.ceil((maxRpm * 1.2) / 200) * 200;
-    const step = rpmMax > 1800 ? 400 : 200;
+    const step = rpmMax > 1000 ? 400 : 200;
     const nums: number[] = [];
     for (let v = 0; v <= rpmMax; v += step) nums.push(v);
     gRpm = dial({ label: 'R.P.M.', unit: '× 100', max: rpmMax, numerals: nums, fmt: (v) => String(v / 100), minorStep: 100, redline: maxRpm * 1.05 });

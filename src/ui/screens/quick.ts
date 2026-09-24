@@ -130,6 +130,8 @@ export const quickScreen: ScreenFactory = (ctx) => {
     playerSpec,
   );
 
+  const acePick = h('div', { class: 'ace-pick' });
+
   // --- Mission column
   const altVal = h('span', { class: 'typed' });
   const paintAlt = () => (altVal.textContent = formatAltitude(o.altitudeM, units().system));
@@ -200,13 +202,13 @@ export const quickScreen: ScreenFactory = (ctx) => {
       h('div', { class: 'row', style: 'justify-content:space-between' }, h('span', { class: 'field-label' }, 'Cloud'), cloudVal),
       rangeInput({ min: 0, max: 1, step: 0.05, value: o.cloudCover, label: 'Cloud cover', onInput: (v) => ((o.cloudCover = v), paintCloud(), save()) }),
     ),
+    h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Face a famous ace (leads the enemy flight)'), acePick),
   );
 
   // --- Enemy column
   const enemyHead = h('h3');
   const enemySelHost = h('div', { class: 'field' });
   const enemySpec = h('div');
-  const acePick = h('div', { class: 'ace-pick' });
   function rebuildEnemySelect(): void {
     const mySide = sideOf(AIRCRAFT[o.playerAircraft]);
     const foes = AIRCRAFT_LIST.filter((s) => sideOf(s) !== mySide);
@@ -244,7 +246,6 @@ export const quickScreen: ScreenFactory = (ctx) => {
     enemySelHost,
     h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Number of enemies'), countSeg(o.enemyCount, 8, 1, (n) => (o.enemyCount = n))),
     h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Enemy skill'), skillSeg(o.enemySkill, (s) => (o.enemySkill = s))),
-    h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Face a famous ace (leads the enemy flight)'), acePick),
     enemySpec,
   );
 

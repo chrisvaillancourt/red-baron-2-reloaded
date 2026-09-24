@@ -18,6 +18,9 @@ const MASTHEAD: Record<Nation, string> = {
   usa: 'The Doughboy Courier',
 };
 
+const PRICE: Record<Nation, string> = { britain: 'One Penny', germany: '10 Pfennig', france: '10 Centimes', usa: 'Two Cents' };
+const TELEGRAPH: Record<Nation, string> = { britain: 'Post Office Telegraphs', germany: 'Reichstelegraph', france: 'Télégramme officiel', usa: 'Telegram' };
+
 const MINISTRY: Record<Nation, string> = {
   britain: 'War Office, London',
   germany: 'Kriegsministerium, Berlin',
@@ -31,6 +34,18 @@ const EPITAPH: Record<Nation, [string, string]> = {
   france: ['Mort pour la France.', 'Died for France'],
   usa: ['Take up our quarrel with the foe: to you from failing hands we throw the torch; be yours to hold it high.', 'John McCrae, 1915'],
 };
+
+function newspaperBody(report: DebriefReport): string {
+  const conf = report.claims.filter((c) => c.confirmed);
+  const balloons = conf.filter((c) => c.victimAircraftId === 'balloon').length;
+  const planes = conf.length - balloons;
+  const parts: string[] = [];
+  if (planes) parts.push(`${planes === 1 ? 'an enemy machine' : `${planes} enemy machines`}`);
+  if (balloons) parts.push(`${balloons === 1 ? 'an observation balloon' : `${balloons} observation balloons`}`);
+  const what = parts.length ? `destroyed ${parts.join(' and ')}` : 'fought a sharp engagement';
+  const ace = conf.find((c) => c.victimAceId);
+  return `Witnesses on the ground report that the patrol ${what} in the course of the action${ace ? `, among them the machine of a celebrated enemy ace` : ''}. ${report.missionSuccess ? 'Headquarters describes the operation as a complete success.' : 'The fighting was costly, but the spirit of the squadron is unbroken.'}`;
+}
 
 function victimName(c: VictoryClaim): string {
   if (c.victimAircraftId === 'balloon') return 'Observation balloon';
@@ -78,7 +93,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
         return h(
           'div',
           { class: 'telegram' },
-          h('div', { class: 't-head' }, h('span', null, 'Post Office Telegraph'), h('span', null, formatDate(mission.date))),
+          h('div', { class: 't-head' }, h('span', null, TELEGRAPH[nation]), h('span', null, formatDate(mission.date))),
           h('div', { class: 't-body' }, h('span', { class: 'strip' }, line), h('br'), h('br'), h('span', { class: 'strip' }, `— ${MINISTRY[nation].toUpperCase()}`)),
         );
       },
@@ -153,13 +168,13 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
           'div',
           { class: 'newspaper' },
           h('div', { class: 'masthead' }, MASTHEAD[nation]),
-          h('div', { class: 'dateline' }, h('span', null, formatDate(mission.date)), h('span', null, 'Special War Edition'), h('span', null, 'One Penny')),
+          h('div', { class: 'dateline' }, h('span', null, formatDate(mission.date)), h('span', null, 'Special War Edition'), h('span', null, PRICE[nation])),
           h('div', { class: 'headline' }, report.newspaperHeadline!),
           h(
             'div',
             { class: 'cols' },
             h('p', null, `From our correspondent at the front. — ${name}${squadron ? ` of ${squadron.name}` : ''} was in action again this week in the skies above the lines.`),
-            ...report.narrative.slice(0, 2).map((t) => h('p', null, t)),
+            h('p', null, newspaperBody(report)),
             h('p', null, `The ${NATION_INFO[nation].service} continues to hold the upper hand, and the public may take heart from the daring of these young men of the air.`),
           ),
           h('div', { style: 'text-align:right;margin-top:1em' }, continueBtn()),
@@ -179,7 +194,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
           { class: 'ceremony' },
           h('div', { class: 'c-kicker' }, 'By order of the General Staff'),
           h('h2', null, 'Promotion'),
-          svg(pilotPortrait(nation, 140)),
+          h('div', { class: 'photo' }, svg(pilotPortrait(nation, 140))),
           h('div', { class: 'rank-insignia' }, h('span', { class: 'from' }, rankDisplay(fromRankId).title), '→', h('span', null, rankDisplay(toRankId).title)),
           h('p', { class: 'typed', style: 'max-width:30em' }, `${pilot ? `${pilot.firstName} ${pilot.lastName}` : 'You'} is promoted to the rank of ${rankDisplay(toRankId).title}, with effect from ${formatDate(mission.date)}.`),
           continueBtn(true),

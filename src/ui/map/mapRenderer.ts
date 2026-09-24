@@ -704,7 +704,7 @@ function drawCompass(ctx: CanvasRenderingContext2D, x: number, y: number, r: num
 
 function drawScale(ctx: CanvasRenderingContext2D, W: number, H: number, u: number, scale: number, units: UnitSystem): void {
   const unitM = units === 'metric' ? 1000 : 1609.344;
-  const target = 150 * u;
+  const target = 210 * u;
   const candidates = [1, 2, 5, 10, 20];
   let n = candidates[0];
   for (const c of candidates) if (c * unitM * scale <= target) n = c;

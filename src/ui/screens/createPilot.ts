@@ -154,7 +154,6 @@ export const createPilotScreen: ScreenFactory = (ctx) => {
         nationWrap,
       ),
       h('div', { class: 'field full' }, h('span', { class: 'field-label' }, 'Report to the front on'), dateReadout, slider, periodCard),
-      h('div', { class: 'field full' }, h('span', { class: 'field-label' }, 'Difficulty'), diffWrap),
     ),
   );
 
@@ -199,6 +198,7 @@ export const createPilotScreen: ScreenFactory = (ctx) => {
     h('h2', { class: 'form-title' }, 'Squadron'),
     h('hr', { class: 'rule double' }),
     sqList,
+    h('div', { class: 'field', style: 'margin-top:1.2em' }, h('span', { class: 'field-label' }, 'Difficulty'), diffWrap),
   );
 
   const warn = h('span', { class: 'warn' });

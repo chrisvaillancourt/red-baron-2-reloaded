@@ -57,7 +57,7 @@ export interface DialOptions {
 
 export function dial(o: DialOptions): Gauge {
   const svg = face(!!o.small);
-  const sweep = o.sweep ?? 300;
+  const sweep = o.sweep ?? 280;
   const a0 = -sweep / 2;
   const ang = (v: number) => a0 + (Math.max(0, Math.min(o.max, v)) / o.max) * sweep;
   const ticks = el('g', { stroke: '#e9dcc0' }, svg);
@@ -76,13 +76,13 @@ export function dial(o: DialOptions): Gauge {
   }
   for (const n of o.numerals) {
     const a = (ang(n) * Math.PI) / 180;
-    const t = el('text', { x: 50 + Math.sin(a) * 26, y: 50 - Math.cos(a) * 26 + 3.5, 'text-anchor': 'middle', fill: '#f3e7c8', 'font-size': o.small ? 11 : 10, 'font-family': 'Georgia, serif' }, svg);
+    const t = el('text', { x: 50 + Math.sin(a) * 25, y: 50 - Math.cos(a) * 25 + 4.2, 'text-anchor': 'middle', fill: '#f3e7c8', 'font-size': o.small ? 14 : (o.fmt ? o.fmt(n) : String(n)).length >= 3 ? 9.5 : 12, 'font-family': 'Georgia, serif', 'font-weight': 600 }, svg);
     t.textContent = o.fmt ? o.fmt(n) : String(n);
   }
-  const lbl = el('text', { x: 50, y: 70, 'text-anchor': 'middle', fill: '#c9b58a', 'font-size': 7, 'font-family': 'Georgia, serif', 'letter-spacing': 1 }, svg);
+  const lbl = el('text', { x: 50, y: o.small ? 70 : 63, 'text-anchor': 'middle', fill: '#c9b58a', 'font-size': 6, 'font-family': 'Georgia, serif', 'letter-spacing': 0.8 }, svg);
   lbl.textContent = o.label.toUpperCase();
   if (o.unit) {
-    const u = el('text', { x: 50, y: 78, 'text-anchor': 'middle', fill: '#8f7f60', 'font-size': 5.5, 'font-family': 'Georgia, serif' }, svg);
+    const u = el('text', { x: 50, y: 70, 'text-anchor': 'middle', fill: '#8f7f60', 'font-size': 5, 'font-family': 'Georgia, serif' }, svg);
     u.textContent = o.unit;
   }
   const needle = el('g', { class: 'needle' }, svg);
@@ -115,18 +115,10 @@ export function compass(small = false): Gauge {
     [90, 'E'],
     [180, 'S'],
     [270, 'W'],
-    [30, '3'],
-    [60, '6'],
-    [120, '12'],
-    [150, '15'],
-    [210, '21'],
-    [240, '24'],
-    [300, '30'],
-    [330, '33'],
   ];
   for (const [d, s] of letters) {
     const a = (d * Math.PI) / 180;
-    const t = el('text', { x: 50 + Math.sin(a) * 26, y: 50 - Math.cos(a) * 26 + 3.5, 'text-anchor': 'middle', fill: d === 0 ? '#ff7a5a' : '#f3e7c8', 'font-size': s.length === 1 ? 11 : 7, 'font-family': 'Georgia, serif', transform: `rotate(${d} ${50 + Math.sin(a) * 26} ${50 - Math.cos(a) * 26})` }, card);
+    const t = el('text', { x: 50 + Math.sin(a) * 26, y: 50 - Math.cos(a) * 26 + 3.5, 'text-anchor': 'middle', fill: d === 0 ? '#ff7a5a' : '#f3e7c8', 'font-size': 14, 'font-weight': 600, 'font-family': 'Georgia, serif', transform: `rotate(${d} ${50 + Math.sin(a) * 26} ${50 - Math.cos(a) * 26})` }, card);
     t.textContent = s;
   }
   el('path', { d: 'M50,5 L53,13 L47,13 Z', fill: '#e8b04a', stroke: '#1a120a', 'stroke-width': 0.6 }, svg);

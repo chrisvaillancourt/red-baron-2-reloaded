@@ -4,7 +4,7 @@
  *  - Arrow keys / D-pad / left stick: spatial focus movement.
  *  - Enter / Space / A: activate focused control (native for buttons).
  *  - Escape / Backspace / B: back.
- *  - Q / E / LB / RB: previous / next tab (dispatched as `rb-tab` events).
+ *  - [ / ] / PageUp / PageDown / LB / RB: previous / next tab.
  *
  * Disabled while a flight is running (the game owns input then).
  */
@@ -98,6 +98,16 @@ export function createNav(opts: NavOptions): Nav {
     if (next) {
       next.focus();
       next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      return;
+    }
+    // Nothing further that way: scroll the nearest scrollable ancestor instead.
+    const dy = dir === 'down' ? 1 : dir === 'up' ? -1 : 0;
+    if (!dy) return;
+    for (let el: HTMLElement | null = cur; el && el !== scope.parentElement; el = el.parentElement) {
+      if (el.scrollHeight > el.clientHeight + 4 && getComputedStyle(el).overflowY !== 'visible') {
+        el.scrollBy({ top: dy * el.clientHeight * 0.35, behavior: 'smooth' });
+        return;
+      }
     }
   }
 
@@ -205,7 +215,9 @@ export function createNav(opts: NavOptions): Nav {
     focusFirst(scope = opts.scope()) {
       if (!scope) return;
       const auto = scope.querySelector<HTMLElement>('[data-autofocus]');
-      const target = auto && visible(auto) ? auto : focusables(scope)[0];
+      const all = focusables(scope);
+      // Prefer content over the header's Back button.
+      const target = auto && visible(auto) ? auto : (all.find((e) => !e.closest('.rb-header')) ?? all[0]);
       target?.focus({ preventScroll: true });
     },
     dispose() {
