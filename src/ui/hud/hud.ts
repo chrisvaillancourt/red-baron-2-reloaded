@@ -229,23 +229,33 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   let mapHost: HTMLElement | null = null;
   let mapCanvas: HTMLCanvasElement | null = null;
 
+  // While a card is open the HUD owns the keyboard (capture phase, so the
+  // game's own key handlers never see Escape/Enter/arrows meant for the menu).
+  let cardKeys: ((e: KeyboardEvent) => void) | null = null;
   function openCard(card: HTMLElement, onEscape: () => void): void {
     closeCard();
     backdrop = h('div', { class: 'hud-menu-backdrop' }, card);
-    backdrop.addEventListener('keydown', (e) => {
+    cardKeys = (e: KeyboardEvent) => {
       const btns = [...card.querySelectorAll<HTMLButtonElement>('button')];
       const i = btns.indexOf(document.activeElement as HTMLButtonElement);
       if (e.key === 'Escape') onEscape();
       else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') btns[(i + 1) % btns.length]?.focus();
       else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') btns[(i - 1 + btns.length) % btns.length]?.focus();
-      else return;
+      else if (e.key === 'Enter' || e.key === ' ') (i >= 0 ? btns[i] : btns.find((b) => b.classList.contains('primary')) ?? btns[0])?.click();
+      else if (e.key !== 'Tab') {
+        e.stopPropagation();
+        return;
+      } else return;
       e.preventDefault();
       e.stopPropagation();
-    });
+    };
+    window.addEventListener('keydown', cardKeys, true);
     root.append(backdrop);
-    requestAnimationFrame(() => card.querySelector<HTMLButtonElement>('button.primary, button')?.focus());
+    card.querySelector<HTMLButtonElement>('button.primary, button')?.focus();
   }
   function closeCard(): void {
+    if (cardKeys) window.removeEventListener('keydown', cardKeys, true);
+    cardKeys = null;
     backdrop?.remove();
     backdrop = null;
   }

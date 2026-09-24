@@ -89,3 +89,22 @@ module.
 **Decision.** Working title *Red Baron II: Reloaded*, a non-commercial fan
 rebuild. No original Dynamix/Sierra assets, code, or trademarks-as-branding
 beyond the title homage.
+
+## D-XXX — UI: framework-free DOM, generated period art (UI agent)
+**Decision.** Menus and HUD are plain DOM + CSS with tiny helpers (`src/ui/dom.ts`), a
+stack router and spatial keyboard/gamepad focus navigation. Visual identity is aged paper,
+typewriter text, rubber stamps and brass plaques, all from CSS gradients and inline SVG
+noise; insignia, medals/ribbons, squadron badges, pilot portraits and aircraft side
+profiles (from `AircraftSpec.geometry`) are generated SVG. System font stacks only.
+**Consequences.** No font or image downloads; screens work before Blender art exists.
+
+## D-XXX — UI display catalog decoupled from campaign data (UI agent)
+**Decision.** The UI names/draws ranks, medals and aces from its own catalog keyed by
+expected ids (`src/ui/catalog.ts`), falling back to prettified ids for unknown ones.
+The integrator may call `setUiCatalog()` to feed campaign data in.
+**Consequences.** UI and campaign could be built in parallel; any id mismatch degrades to
+a readable label and a generic medal rather than breaking a screen.
+
+## D-XXX — Units follow the pilot's service (UI agent)
+**Decision.** `units: 'auto'` shows mph and feet for British and American pilots and
+km/h and metres for German and French pilots, as their instruments read.
