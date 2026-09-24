@@ -30,6 +30,13 @@ async function currentScreen(page: Page): Promise<string | null | undefined> {
   return page.evaluate(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen'));
 }
 
+/** First take-off on a fresh profile shows the Flying School primer; acknowledge it. */
+async function passFlyingSchool(page: Page): Promise<void> {
+  const ok = page.locator('.rb-modal:has-text("Flying School") button:has-text("Understood")');
+  await expect(ok).toBeVisible({ timeout: 5_000 });
+  await ok.click();
+}
+
 async function waitForFlight(page: Page, seconds: number): Promise<void> {
   await page.waitForSelector('.rb-hud', { timeout: 30_000 });
   await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 30_000 });
@@ -54,6 +61,7 @@ test('quick mission from the Quick Mission screen', async ({ page }) => {
   await page.click('text=To the briefing');
   await expectScreen(page, 'briefing');
   await page.click('button:has-text("Take off")');
+  await passFlyingSchool(page);
 
   await waitForFlight(page, 15);
   // The menu layer is hidden while flying.
@@ -99,6 +107,7 @@ test('career: enlist in Jasta 11, fly, debrief, persist', async ({ page }) => {
   await expectScreen(page, 'briefing');
   await page.screenshot({ path: 'test-results/career-briefing.png' });
   await page.click('button:has-text("Take off")');
+  await passFlyingSchool(page);
   await waitForFlight(page, 10);
   await page.screenshot({ path: 'test-results/career-hud.png' });
 

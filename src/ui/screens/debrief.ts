@@ -9,7 +9,7 @@ import { medalSvg, pilotPortrait } from '../insignia';
 import { screenShell, stamp, statBox, withHints } from '../components';
 import { FATE_LABEL, MISSION_TYPE_LABEL } from '../labels';
 
-type Page = { kind: string; render: () => HTMLElement; music?: 'victory' | 'defeat' | 'medal' };
+type Page = { kind: string; render: () => HTMLElement; music?: 'victory' | 'defeat' | 'medal' | 'briefing' };
 
 const MASTHEAD: Record<Nation, string> = {
   britain: 'The Morning Gazette',
@@ -103,7 +103,8 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
   // 2. Combat report.
   pages.push({
     kind: 'report',
-    music: success && fate !== 'killed' ? 'victory' : undefined,
+    // Victory fanfare for a good day; otherwise the sober briefing theme (killed/captured keep the telegram's lament).
+    music: success && fate !== 'killed' ? 'victory' : fate === 'killed' || fate === 'captured' ? undefined : 'briefing',
     render: () => {
       const claims = report?.claims ?? result.claims.map((c) => ({ ...c, confirmed: false }));
       const acc = result.roundsFired > 0 ? result.hits / result.roundsFired : 0;
@@ -240,6 +241,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
   }
 
   let index = 0;
+  const typing: number[] = [];
   const stage = h('div', { class: 'debrief' });
   const glow = h('div', { class: 'glow-rays' });
 
@@ -253,12 +255,20 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
   }
 
   function show(): void {
+    typing.splice(0).forEach((id) => clearTimeout(id));
     const page = pages[index];
     setChildren(stage, page.render());
     glow.hidden = !(page.kind === 'promotion' || page.kind === 'medal');
     if (page.music) ctx.services.audio.playMusic(page.music);
     if (page.kind === 'report' || page.kind === 'medal') ctx.services.audio.playUi('stamp');
-    if (page.kind === 'telegram') ctx.services.audio.playUi('typewriter');
+    if (page.kind === 'telegram') {
+      // A short burst of teleprinter strikes while the strips "arrive".
+      let t = 0;
+      for (let i = 0; i < 12; i++) {
+        t += 70 + Math.random() * 60 + (i % 5 === 4 ? 140 : 0);
+        typing.push(window.setTimeout(() => ctx.services.audio.playUi('typewriter'), t));
+      }
+    }
     // Telegram and newspaper have no in-page button: add one below.
     if (page.kind === 'telegram') stage.append(h('div', { style: 'margin-top:1.4em' }, continueBtn(true)));
     requestAnimationFrame(() => (stage.querySelector('[data-autofocus]') as HTMLElement | null)?.focus());
@@ -286,6 +296,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
       next();
       return true;
     },
+    dispose: () => typing.splice(0).forEach((id) => clearTimeout(id)),
   };
 
   function medalPage(m: MedalAward, n: Nation): Page {

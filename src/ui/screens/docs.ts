@@ -2,6 +2,7 @@ import type { ScreenFactory } from '../context';
 import { artBackground, h } from '../dom';
 import { ACTION_GROUPS, ACTIONS, codeLabel } from '../bindings';
 import { screenShell, withHints } from '../components';
+import { showFlyingSchool } from '../flyingSchool';
 
 const BG = artBackground('art/briefing-desk.jpg', 'radial-gradient(ellipse at 50% 30%, #4a3421, #150e08 80%)');
 
@@ -22,7 +23,7 @@ export const controlsScreen: ScreenFactory = (ctx) => {
     'article',
     { class: 'doc-paper paper' },
     h('h2', null, 'Notes for pilots'),
-    h('p', { class: 'typed muted' }, 'Current key assignments. Change them under Options → Keys.'),
+    h('p', { class: 'typed muted' }, 'Current key assignments. Change them under Options → Keys. ', h('button', { class: 'btn small', onClick: () => void showFlyingSchool(ctx) }, 'Flying School primer')),
     ...ACTION_GROUPS.flatMap((g) => [
       h('h3', null, g),
       h(

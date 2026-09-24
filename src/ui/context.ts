@@ -38,10 +38,15 @@ export interface Router {
 
 export interface ConfirmOptions {
   title: string;
-  body: string;
+  /** Plain text (typed paragraph) or rich content. */
+  body: string | HTMLElement;
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  /** Information card: a single acknowledge button, no cancel. */
+  infoOnly?: boolean;
+  /** Extra class on the modal paper (e.g. 'wide'). */
+  className?: string;
 }
 
 export interface UiContext {

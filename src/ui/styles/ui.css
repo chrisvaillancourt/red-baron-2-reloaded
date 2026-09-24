@@ -717,6 +717,66 @@ select.input option {
   padding: 2em 2.2em 1.6em;
   animation: rb-screen-in 0.3s both;
 }
+.rb-modal [hidden] {
+  display: none !important;
+}
+.rb-modal.wide {
+  width: min(56em, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+}
+.flying-school .fs-intro {
+  margin: 0 0 1em;
+  color: var(--ink-soft);
+}
+.flying-school .fs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22em, 1fr));
+  gap: 0.9em 2em;
+}
+.fs-lesson {
+  display: grid;
+  grid-template-columns: 2.2em 1fr;
+  gap: 0.7em;
+  align-items: start;
+}
+.fs-lesson .fs-n {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2em;
+  color: var(--stamp);
+  text-align: center;
+  border: 2px solid var(--stamp);
+  border-radius: 50%;
+  width: 1.9em;
+  height: 1.9em;
+  line-height: 1.75em;
+}
+.fs-lesson h3 {
+  margin: 0 0 0.2em;
+  font-family: var(--font-display);
+  font-size: 1.05em;
+}
+.fs-lesson p {
+  margin: 0 0 0.35em;
+  font-size: 0.86em;
+  line-height: 1.45;
+}
+.fs-keys {
+  font-family: var(--font-type);
+  font-size: 0.78em;
+  color: var(--ink-soft);
+}
+.fs-keys kbd,
+.flying-school kbd {
+  font-family: var(--font-type);
+  border: 1px solid var(--ink);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 0 0.4em;
+  background: rgba(255, 252, 240, 0.6);
+  color: var(--ink);
+}
 .rb-modal h2 {
   margin: 0 0 0.5em;
   font-family: var(--font-display);
@@ -1717,6 +1777,12 @@ select.input option {
   }
   .report-body {
     grid-template-columns: 1.05fr 1fr;
+  }
+  .report:not(:has(.report-side)) {
+    width: min(50em, 94%);
+  }
+  .report:not(:has(.report-side)) .report-body {
+    grid-template-columns: 1fr;
   }
   .report-side .field-label {
     margin-top: 0;

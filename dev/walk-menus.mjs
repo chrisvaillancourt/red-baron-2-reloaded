@@ -160,6 +160,47 @@ for (const fate of ['wounded', 'captured', 'killed']) {
   await snap(`fate-${fate}-after`);
 }
 
+// First take-off: Flying School card, then a short real flight and the quick-mission debrief.
+if (want('school')) {
+  await page.evaluate(() => localStorage.removeItem('rb2r.flyingSchool.seen.v1'));
+  await show('quick');
+  await page.click('text=To the briefing');
+  await page.waitForFunction(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen') === 'briefing');
+  await snap('school-briefing');
+  await page.click('button:has-text("Take off")');
+  await page.waitForSelector('.rb-modal:has-text("Flying School")');
+  await snap('school-card');
+  await page.click('.rb-modal button:has-text("Understood")');
+  await page.waitForFunction(() => (window.__rb2?.session?.time ?? 0) > 4, undefined, { timeout: 90_000 });
+  await snap('school-flight');
+  await page.evaluate(() => window.__rb2.session.abandon());
+  await page.waitForFunction(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen') === 'debrief', undefined, { timeout: 30_000 });
+  await snap('school-debrief');
+}
+
+// Music cue per screen (reads the engine's current cue; no ears required).
+if (want('music')) {
+  const cue = () => page.evaluate(() => window.__rb2.services.audio.currentMusic);
+  await page.mouse.click(5, 5); // user gesture: unlock audio
+  const seenCues = [];
+  for (const id of ['title', 'roster', 'quick', 'options', 'aces']) {
+    await show(id);
+    seenCues.push(`${id}=${await cue()}`);
+  }
+  const pid = await page.evaluate(() => {
+    const camp = window.__rb2.services.campaign;
+    const p = camp.createPilot({ firstName: 'Music', lastName: 'Check', nation: 'france', startDate: '1917-05-01', difficulty: 'pilot' });
+    camp.savePilot(p);
+    return p.id;
+  });
+  await show('hq', { pilotId: pid });
+  seenCues.push(`hq=${await cue()}`);
+  await page.click('text=Proceed to briefing');
+  await page.waitForTimeout(500);
+  seenCues.push(`briefing=${await cue()}`);
+  console.log('music cues:', seenCues.join(' '));
+}
+
 if (want('roster2')) {
   await show('roster');
   await snap('roster2-filled');

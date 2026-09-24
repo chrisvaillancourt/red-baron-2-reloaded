@@ -21,6 +21,21 @@ import { EngineVoice, LoopVoice } from './voices';
 export const MAX_ENGINE_VOICES = 6;
 const ENGINE_HEAR_RANGE = 3500;
 const MAX_ONE_SHOTS = 64;
+
+/**
+ * Per-sound UI levels, set from offline measurements (dev/measure-ui-audio.mjs) so
+ * every UI sound peaks roughly 8-12 dB under the menu music's peaks: at unity the
+ * 0.45 s confirm and 0.35 s back sounds peaked ~2 dB *above* the music and grew
+ * tiresome on every button press.
+ */
+const UI_GAIN: Record<'click' | 'hover' | 'confirm' | 'back' | 'typewriter' | 'stamp', number> = {
+  click: 1,
+  hover: 0.45,
+  confirm: 0.4,
+  back: 0.45,
+  typewriter: 0.85,
+  stamp: 0.9,
+};
 const WHIZZ_RADIUS = 12;
 
 /** The concrete engine exposes a few extras beyond the shared contract. */
@@ -138,8 +153,8 @@ export class WebAudioEngine implements ReloadedAudioEngine {
   }
 
   playUi(sound: 'click' | 'hover' | 'confirm' | 'back' | 'typewriter' | 'stamp'): void {
-    const rate = sound === 'typewriter' ? 0.9 + Math.random() * 0.25 : 1;
-    this.oneShot(`ui:${sound}`, { bus: this.uiBus, rate, gain: sound === 'hover' ? 0.5 : 1 });
+    const rate = sound === 'typewriter' ? 0.9 + Math.random() * 0.25 : sound === 'click' || sound === 'hover' ? 0.96 + Math.random() * 0.08 : 1;
+    this.oneShot(`ui:${sound}`, { bus: this.uiBus, rate, gain: UI_GAIN[sound] });
   }
 
   warmUp(): void {

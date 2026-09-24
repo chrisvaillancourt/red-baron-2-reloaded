@@ -8,6 +8,7 @@ import { createMapCanvas, missionMapView } from '../map/mapRenderer';
 import { screenShell, stamp, withHints } from '../components';
 import { MISSION_TYPE_LABEL, SKILL_LABEL, TIME_LABEL, weatherSummary, windFrom } from '../labels';
 import { rankDisplay } from '../catalog';
+import { maybeShowFlyingSchool } from '../flyingSchool';
 
 export const briefingScreen: ScreenFactory = (ctx, params) => {
   const mission = params.mission as MissionDefinition;
@@ -59,6 +60,7 @@ export const briefingScreen: ScreenFactory = (ctx, params) => {
       'data-autofocus': '',
       onClick: async () => {
         takeOff.disabled = true;
+        await maybeShowFlyingSchool(ctx);
         const result = await ctx.fly(mission);
         takeOff.disabled = false;
         if (!result) return;
