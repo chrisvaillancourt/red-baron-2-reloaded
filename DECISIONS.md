@@ -334,3 +334,33 @@ emission) instead of a world volume, and the world shader fades to a haze colour
 **Decision.** QA scripts launch Playwright with `channel: 'chrome'` (override with `PW_CHANNEL`)
 rather than downloading browsers. Tests that need Node built-ins declare minimal ambient types
 locally (`src/render/aircraft/node-shim.d.ts`) instead of adding `@types/node`.
+
+## D-XXX — Menu screens are composed around the key art (polish-menus)
+**Context.** The Blender key art arrived after the menus were designed against CSS
+fallbacks. The title's centred-right menu covered the art's hero, the red Dr.I, and at
+1280×720 the combat report overflowed and scrolled its header out of view.
+**Decision.** The title uses a left column (logo, tagline, menu) over a left-hand scrim,
+which leaves the right two-thirds of the art untouched. The debrief combat report is two
+columns on landscape screens: claims, stats and objectives on the left, the CO's remarks
+on the right. Ceremony and memorial pages get a soft dark pool behind their text.
+`dev/walk-menus.mjs` screenshots every screen with real campaign data, for regression
+checks.
+**Consequences.** Future key art should keep its subject out of the left ~35% of the
+frame, or the title layout needs revisiting.
+
+## D-XXX — First-run Flying School card instead of an interactive tutorial (polish-menus)
+**Context.** RB2 shipped a manual; a modern player expects in-game onboarding, but a
+scripted tutorial mission would cut across the game, sim and AI layers.
+**Decision.** The first take-off on a browser, while tutorial hints are on, shows a
+one-page primer built from the live key bindings. It covers mouse-aim, throttle and blip
+switch, guns and jams, padlock, views, and coming home. It can be reopened from the
+Flying Manual. The in-flight HUD hint line does the rest.
+**Consequences.** It is cheap and always matches the rebinding. Automated flows must
+acknowledge the card on a fresh profile (the e2e tests do).
+
+## D-XXX — UI sound levels are measured, not guessed (polish-menus)
+**Decision.** `dev/measure-ui-audio.mjs` renders every UI sound and music cue through the
+real engine into an OfflineAudioContext. The per-sound gains (`UI_GAIN`) keep UI sounds
+8–12 dB below the menu music's peaks. At unity gain, confirm and back peaked about 2 dB
+above the music on every button press.
+**Consequences.** Re-run the script after changing a UI sound's synthesis.

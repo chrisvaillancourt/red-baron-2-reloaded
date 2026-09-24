@@ -1,3 +1,4 @@
+import { composeLivery } from '../../data/liveries';
 import type { QuickMissionOptions } from '../../core/campaignTypes';
 import type { AircraftId, AircraftSpec, SkillLevel } from '../../core/types';
 import { AIRCRAFT, AIRCRAFT_LIST } from '../../data/aircraft';
@@ -87,7 +88,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
   const renderPlayer = () => {
     const s = AIRCRAFT[o.playerAircraft];
     setChildren(playerHead, svg(nationalInsignia(insigniaFor(s.nation, s.introduced), 28)), 'Your flight');
-    setChildren(playerSpec, specSheet(s, units()));
+    setChildren(playerSpec, specSheet(s, units(), composeLivery({ aircraftId: s.id, nation: s.nation, date: s.introduced })));
   };
   const playerSel = aircraftSelect(flyable, o.playerAircraft, (id) => {
     const wasSide = sideOf(AIRCRAFT[o.playerAircraft]);
@@ -222,7 +223,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
   function renderEnemy(): void {
     const s = AIRCRAFT[o.enemyAircraft];
     setChildren(enemyHead, svg(nationalInsignia(insigniaFor(s.nation, s.introduced), 28)), 'The enemy');
-    setChildren(enemySpec, specSheet(s, units()));
+    setChildren(enemySpec, specSheet(s, units(), composeLivery({ aircraftId: s.id, nation: s.nation, date: s.introduced, aceId: o.enemyAceId })));
     const enemyGerman = s.nation === 'germany';
     const aces = getUiCatalog().aces.filter((a) => (a.nation === 'germany') === enemyGerman);
     setChildren(

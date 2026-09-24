@@ -576,7 +576,8 @@ function drawRoute(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u: num
       ctx.font = `${10 * u}px "Courier New", monospace`;
       ctx.textAlign = 'left';
       const alt = view.units === 'metric' ? `${Math.round(w.altitude / 100) * 100} m` : `${Math.round((w.altitude * 3.28084) / 500) * 500} ft`;
-      const text = `${label} · ${alt}`;
+      // The landing waypoint sits on the (already labelled) home field: just say "Land".
+      const text = w.action === 'land' ? 'Land' : `${label} · ${alt}`;
       const tw = ctx.measureText(text).width;
       // Flip the tag to the left of the circle when it would run off the sheet.
       const left = x + r + tw + 12 * u > ctx.canvas.width - 16 * u;
