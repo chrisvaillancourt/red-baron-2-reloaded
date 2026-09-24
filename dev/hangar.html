@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hangar — Red Baron II: Reloaded (dev)</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font: 13px Georgia, serif; }
+      #ui { position: fixed; top: 8px; left: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+            background: rgba(30, 25, 18, 0.72); color: #efe6cf; padding: 8px 10px; border-radius: 4px; max-width: 96vw; }
+      #ui select, #ui button { font: inherit; }
+    </style>
+  </head>
+  <body>
+    <div id="ui"></div>
+    <script type="module" src="/src/render/aircraft/dev/hangar.ts"></script>
+  </body>
+</html>

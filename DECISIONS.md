@@ -310,3 +310,35 @@ session only needs to set `landed-*` outcomes; `phase === 'landed'` or
 ## D-031 — Flak colour by ground side (render)
 **Decision.** `flak-burst` events carry no side; the effects system colours bursts by the side holding the ground beneath (black German "archie" over central ground, white-grey British/French over allied ground).
 **Consequences.** Historically plausible with no contract change; a burst fired across the lines would be mis-coloured (rare).
+||||||| 956f402
+## D-032 — Aircraft model pipeline: one parametric generator, runtime-painted liveries
+**Context.** 23 types are needed, each in many squadron and personal colours, and they must stay
+in sync with `src/data/aircraft.ts`.
+**Decision.** `tools/blender/aircraft_gen.py` builds every type from `AircraftGeometry` plus small
+per-type detail tables (tips, spinners, radiators, axle wings, bay counts, Camel hump...). Models
+are ~5–7k triangles, ~250 KB GLB, untextured; all fabric/ply/cowling surfaces use six `Livery_*`
+materials whose UVs follow a fixed canvas atlas. The UV metres-per-atlas metadata travels as glTF
+extras on the root node, so the runtime painter (`src/render/aircraft/livery.ts`) draws round
+insignia without knowing the generator's internals. Full contract in `docs/models.md`.
+**Consequences.** Any livery (squadron colours, Richthofen red, lozenge, streaked camouflage,
+markings) costs no files. Changing geometry is `export-aircraft-json` + `build_models.py`; the
+Vitest contract test catches frame/naming regressions. Detail is "good mid-poly", not hero-model.
+
+## D-033 — Visual muzzles and eye points come from the model, ballistics from the spec
+**Decision.** `Muzzle_<i>`, `EyePoint` and `Contact_*` nodes are placed by the generator so they
+sit on the visible geometry; `GunMount.position` stays authoritative for the sim's bullet origin.
+The two differ by at most a few tens of centimetres (the generator clamps muzzles behind the
+propeller disc and onto the cowling).
+
+## D-034 — Key art: Cycles with a physical sky at low strength
+**Decision.** Menu art is rendered with Cycles (Metal) using the MULTIPLE_SCATTERING sky at
+background strength ≈0.07 (the physical sun is otherwise ~4 stops too hot) and the Khronos PBR
+Neutral view transform for outdoor scenes (AgX Punchy washes saturated reds to orange at golden
+hour). Distance haze on the ground is faked in the terrain shader (camera-distance mix + small
+emission) instead of a world volume, and the world shader fades to a haze colour below the horizon.
+
+## D-035 — Browser QA uses the installed Chrome channel
+**Context.** `@playwright/test` 1.63 wants Chromium revision 1243; only 1234 is cached locally.
+**Decision.** QA scripts launch Playwright with `channel: 'chrome'` (override with `PW_CHANNEL`)
+rather than downloading browsers. Tests that need Node built-ins declare minimal ambient types
+locally (`src/render/aircraft/node-shim.d.ts`) instead of adding `@types/node`.
