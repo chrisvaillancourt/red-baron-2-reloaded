@@ -127,7 +127,7 @@ export class FlightSession {
     loading.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#efe6cf;font:18px Georgia,serif';
     this.root.appendChild(loading);
     this.canvas = document.createElement('canvas');
-    this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
+    this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;outline:none';
     this.canvas.tabIndex = 0;
     this.root.appendChild(this.canvas);
 

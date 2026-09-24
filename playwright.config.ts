@@ -18,7 +18,8 @@ export default defineConfig({
   // Uses the installed Google Chrome (no browser download needed); override with PW_CHANNEL=chromium.
   projects: [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: process.env.PW_CHANNEL ?? 'chrome', viewport: { width: 1280, height: 720 } } }],
   webServer: {
-    command: `pnpm exec vite --port ${PORT} --strictPort`,
+    // Call the vite shim directly: `pnpm exec` does not forward SIGTERM, which hangs teardown.
+    command: `./node_modules/.bin/vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
