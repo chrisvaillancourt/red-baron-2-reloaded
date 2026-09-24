@@ -12,8 +12,13 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1280, height: 720 },
-    // SwiftShader WebGL in headless Chromium.
-    launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+    // Hardware GL via ANGLE/Metal (the real renderer is far too heavy for SwiftShader).
+    // Set E2E_SWIFTSHADER=1 on machines without a GPU.
+    launchOptions: {
+      args: process.env.E2E_SWIFTSHADER
+        ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
+        : ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'],
+    },
   },
   // Uses the installed Google Chrome (no browser download needed); override with PW_CHANNEL=chromium.
   projects: [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: process.env.PW_CHANNEL ?? 'chrome', viewport: { width: 1280, height: 720 } } }],

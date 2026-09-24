@@ -189,7 +189,7 @@ export class FlightSession {
     }
 
     // Camera, input, overlays.
-    this.rig = new CameraRig(settings.fov, 1);
+    this.rig = new CameraRig(settings.fov, 1, this.renderer.near, this.renderer.far);
     this.input = new InputManager(this.canvas, () => this.settings.controls);
     this.input.attach();
     const player = this.world.player;
@@ -205,6 +205,8 @@ export class FlightSession {
     );
     window.addEventListener('resize', this.onResize);
     this.resize();
+    await this.warmUpTerrain(loading);
+    if (this.finished) return;
     loading.remove();
     this.canvas.focus();
 
@@ -290,12 +292,37 @@ export class FlightSession {
     });
   }
 
+  /** Stream terrain around the start position behind the loading screen (max ~12 s). */
+  private async warmUpTerrain(loading: HTMLElement): Promise<void> {
+    if (!this.renderer.whenReady) return;
+    loading.textContent = 'Surveying the lines…';
+    loading.style.zIndex = '2';
+    const focus = this.world.player ?? this.world.allAircraft()[0];
+    const cam = this.rig.camera;
+    if (focus) {
+      cam.position.copy(focus.state.position);
+      cam.quaternion.copy(focus.state.orientation);
+    }
+    let ready = false;
+    void this.renderer.whenReady().then(() => (ready = true));
+    const deadline = performance.now() + 12000;
+    while (!ready && !this.finished && performance.now() < deadline) {
+      this.renderer.update(0, cam, this.world, []);
+      this.renderer.render(cam);
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+  }
+
   private onEvent(e: GameEvent): void {
     this.renderer.handleEvent(e);
     this.audio.handleEvent(e, this.rig.camera.position);
     const player = this.world.player;
     if (e.type === 'radio') this.hud.showMessage(e.text, { from: e.from || undefined, kind: e.from ? 'radio' : 'info' });
     else if (e.type === 'bullet-hit' && player && e.targetId === player.id) this.hud.setDamageFlash(0.35);
+    else if (e.type === 'ground-destroyed') {
+      const o = this.entityObjects.get(e.targetId);
+      if (o) this.renderer.setGroundTargetDestroyed?.(o);
+    }
     else if (e.type === 'objective-complete') this.hud.showMessage('Objective complete.', { kind: 'objective' });
     else if (player && e.type === 'aircraft-destroyed' && e.killerId === player.id && e.victimId !== player.id) {
       const v = this.world.getEntity(e.victimId);

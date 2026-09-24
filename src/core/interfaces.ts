@@ -130,6 +130,13 @@ export interface AIController {
 export interface WorldRenderer {
   readonly scene: Scene;
   readonly renderer: WebGLRenderer;
+  /** Recommended camera clip planes (optional; defaults 0.2 / 60000). */
+  readonly near?: number;
+  readonly far?: number;
+  /** Resolves once terrain around the last update() camera has streamed in (optional). */
+  whenReady?(): Promise<void>;
+  /** Swap a ground-target visual to its wrecked state (optional). */
+  setGroundTargetDestroyed?(obj: Object3D): void;
   /** Configure sky/sun/fog/clouds for date & weather. */
   setEnvironment(date: string, timeOfDay: TimeOfDay, weather: Weather): void;
   /** Stream terrain tiles and update effects around the camera. */

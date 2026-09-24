@@ -74,8 +74,8 @@ export class CameraRig {
     this.freeLookActive = false;
   }
 
-  constructor(fovDeg: number, aspect: number) {
-    this.camera = new PerspectiveCamera(fovDeg, aspect, 0.2, 60000);
+  constructor(fovDeg: number, aspect: number, near = 0.2, far = 60000) {
+    this.camera = new PerspectiveCamera(fovDeg, aspect, near, far);
   }
 
   setFov(fovDeg: number): void {

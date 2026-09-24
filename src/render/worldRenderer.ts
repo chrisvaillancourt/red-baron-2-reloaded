@@ -30,7 +30,7 @@ import { CloudLayer } from './clouds';
 import { EffectsSystem } from './effects/effectsSystem';
 import { hourForTimeOfDay, seasonOf, sunPosition, turbidityFor } from './environment';
 import { createBalloonVisual, syncBalloonVisual } from './objects/balloon';
-import { createGroundTargetVisual } from './objects/groundTargets';
+import { createGroundTargetVisual, setGroundTargetDestroyed } from './objects/groundTargets';
 import { QUALITY, type QualityPreset } from './quality';
 import { RiverRibbons } from './rivers';
 import { RoadRibbons } from './roadRibbons';
@@ -346,6 +346,10 @@ export class WorldRendererImpl implements WorldRenderer {
   }
 
   /** Resolves when terrain around the camera has streamed in (for loading screens). */
+  setGroundTargetDestroyed(obj: Object3D): void {
+    setGroundTargetDestroyed(obj);
+  }
+
   whenReady(): Promise<void> {
     return this.terrain.whenReady();
   }

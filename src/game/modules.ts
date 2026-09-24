@@ -7,12 +7,12 @@ import { createAIController } from '../ai';
 import { createAudioEngine } from '../audio';
 import { createCampaignService } from '../campaign';
 import { createHud, createUi } from '../ui';
+import { createWorldRenderer } from '../render/worldRenderer';
 import { createCombatSystem, createFlightEnvironment, setGunnerTarget, sim } from '../sim';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
 import type { GameModules } from './moduleTypes';
 import { stubCreateAircraftVisual, stubPreloadAircraftModels } from './stubs/aircraftVisual';
-import { stubCreateWorldRenderer } from './stubs/renderer';
 
 export const modules: GameModules = {
   // src/sim
@@ -21,7 +21,7 @@ export const modules: GameModules = {
   createCombatSystem: (bus, getRealism) => createCombatSystem(bus, getRealism),
   setGunnerTarget,
   // src/render
-  createWorldRenderer: stubCreateWorldRenderer,
+  createWorldRenderer: (canvas, opts) => createWorldRenderer(canvas, opts),
   // src/render/aircraft
   createAircraftVisual: stubCreateAircraftVisual,
   preloadAircraftModels: stubPreloadAircraftModels,
