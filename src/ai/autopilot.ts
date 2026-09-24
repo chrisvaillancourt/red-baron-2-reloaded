@@ -338,7 +338,10 @@ export class Autopilot {
     const V = Math.max(1, s.velocity.length());
     let worst = Infinity;
     let groundAhead = world.groundHeightAt(s.position.x, s.position.z);
-    for (const t of [0.5, 1, 1.5, 2, 3, 4, 5, 6]) {
+    // Strafing/landing deliberately point at the ground: only look a short way ahead.
+    const horizon = lowLevel ? 2.5 : 6;
+    for (const t of [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6]) {
+      if (t > horizon) break;
       _p.copy(s.position).addScaledVector(s.velocity, t);
       const gh = world.groundHeightAt(_p.x, _p.z);
       if (t <= 3) {

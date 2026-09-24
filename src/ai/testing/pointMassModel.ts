@@ -66,11 +66,23 @@ const _a = new Vector3();
 const _q = new Quaternion();
 const _vn = new Vector3();
 
+/** Deliberate model variations, to check the AI is robust to a flight model it wasn't tuned on. */
+export interface ModelVariant {
+  /** Load factor per unit of positive stick (default 4). */
+  pitchGain?: number;
+  /** Stick offset needed for 1 g (a trim error the AI must integrate out). */
+  pitchTrim?: number;
+  /** Roll rate multiplier (default 1). */
+  rollGain?: number;
+  /** Roll response lag rate, 1/s (default 6). */
+  rollLag?: number;
+}
+
 export class PointMassModel {
   private rollRate = 0;
   readonly p: PointMassParams;
 
-  constructor(spec: AircraftSpec) {
+  constructor(spec: AircraftSpec, private readonly variant: ModelVariant = {}) {
     this.p = paramsFor(spec);
   }
 
@@ -103,14 +115,16 @@ export class PointMassModel {
     const dyn = 0.5 * rho * V * V;
 
     // Roll
-    const targetRoll = clamp(c.roll, -1, 1) * p.maxRollRate * clamp(dyn / 800, 0.2, 1);
-    this.rollRate += (targetRoll - this.rollRate) * Math.min(1, dt * 6);
+    const vr = this.variant;
+    const targetRoll = clamp(c.roll, -1, 1) * p.maxRollRate * (vr.rollGain ?? 1) * clamp(dyn / 800, 0.2, 1);
+    this.rollRate += (targetRoll - this.rollRate) * Math.min(1, dt * (vr.rollLag ?? 6));
     _q.setFromAxisAngle(f, this.rollRate * dt);
     q.premultiply(_q);
 
     // Load factor
     const nAvail = (dyn * p.wingArea * p.clMax) / (p.mass * G);
-    let n = 1 + clamp(c.pitch, -1, 1) * (c.pitch > 0 ? 4 : 2.5);
+    const stick = clamp(c.pitch - (vr.pitchTrim ?? 0), -1, 1);
+    let n = 1 + stick * (stick > 0 ? (vr.pitchGain ?? 4) : 2.5);
     s.stalled = false;
     if (n > nAvail) {
       s.stalled = true;

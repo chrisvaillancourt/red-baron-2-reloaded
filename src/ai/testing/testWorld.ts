@@ -18,7 +18,7 @@ import type {
 } from '../../core/types';
 import { getAircraft } from '../../data/aircraft';
 import { DEFAULT_SETTINGS } from '../../core/settings';
-import { PointMassModel, isaDensity } from './pointMassModel';
+import { PointMassModel, isaDensity, type ModelVariant } from './pointMassModel';
 
 export const TEST_REALISM: RealismSettings = { ...DEFAULT_SETTINGS.realism };
 
@@ -143,14 +143,18 @@ export interface ScenarioHooks {
   onStep?: (t: number) => boolean | void;
   /** Controllers for scripted (non-AI) aircraft: write controls. */
   scripted?: Map<number, (ac: AircraftEntity, dt: number) => void>;
+  /** Flight-model variation applied to every aircraft. */
+  variant?: ModelVariant;
+  /** AI update interval in physics steps (default 4 = 30 Hz). */
+  aiEvery?: number;
 }
 
 /** Run AI at 30 Hz and point-mass physics at 120 Hz for `seconds`. */
 export function runScenario(world: TestWorld, controllers: Map<number, AIController>, seconds: number, hooks: ScenarioHooks = {}): void {
   const models = new Map<number, PointMassModel>();
-  for (const ac of world.aircraft) models.set(ac.id, new PointMassModel(ac.spec));
+  for (const ac of world.aircraft) models.set(ac.id, new PointMassModel(ac.spec, hooks.variant));
   const dt = 1 / 120;
-  const aiEvery = 4;
+  const aiEvery = hooks.aiEvery ?? 4;
   let step = 0;
   while (world.time < seconds) {
     if (step % aiEvery === 0) {
