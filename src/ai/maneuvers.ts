@@ -5,7 +5,7 @@
  */
 import { Vector3 } from 'three';
 import type { AircraftEntity } from '../core/types';
-import { dirFromHeading, forwardOf, headingOf, rightOf } from './math';
+import { dirFromHeading, forwardOf, headingOf } from './math';
 import type { SkillProfile } from './skill';
 import type { AircraftTraits } from './traits';
 import type { SteerCommand } from './autopilot';
@@ -37,7 +37,7 @@ export function chooseDefensive(
   rng: () => number,
 ): Maneuver {
   const f = forwardOf(self.state.orientation, _f);
-  const r = rightOf(self.state.orientation, _r);
+  const r = _r.set(-f.z, 0, f.x).normalize();
   let side: 1 | -1 = rng() < 0.5 ? 1 : -1;
   if (attacker) {
     _rel.copy(attacker.state.position).sub(self.state.position);
@@ -62,12 +62,13 @@ export function chooseDefensive(
 
 /** Fill `out` with the steering for the manoeuvre at time `now`. */
 export function maneuverSteer(m: Maneuver, self: AircraftEntity, attacker: AircraftEntity | undefined, now: number, rng: () => number, out: SteerCommand): void {
-  const f = forwardOf(self.state.orientation, _f);
-  const r = rightOf(self.state.orientation, _r);
-  const fh = new Vector3(f.x, 0, f.z);
+  const v = self.state.velocity;
+  const fh = new Vector3(v.x, 0, v.z);
+  if (fh.lengthSq() < 1) forwardOf(self.state.orientation, fh).setY(0);
   if (fh.lengthSq() < 1e-6) fh.set(0, 0, -1);
   fh.normalize();
-  const rh = new Vector3(r.x, 0, r.z).normalize();
+  // Right of the horizontal track (not of the wing, which flips past 90 deg of bank).
+  const rh = new Vector3(-fh.z, 0, fh.x);
   out.speed = Infinity;
   out.aim = false;
   out.aggression = 1.5;

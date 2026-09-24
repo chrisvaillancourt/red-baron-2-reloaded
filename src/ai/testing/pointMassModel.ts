@@ -80,6 +80,19 @@ export class PointMassModel {
     const p = this.p;
     if (ac.outcome) return;
     const q = s.orientation;
+    if (s.onGround) {
+      // Rollout: friction + drag, no lift-off modelled.
+      const v = s.velocity.length();
+      const decel = 1.2 + (0.5 * isaDensity(s.position.y) * v * v * p.wingArea * p.cd0 * 3) / p.mass;
+      const nv = Math.max(0, v - decel * dt);
+      s.velocity.setY(0).setLength(nv);
+      s.position.addScaledVector(s.velocity, dt);
+      s.position.y = env.groundHeightAt(s.position.x, s.position.z);
+      s.airspeed = nv;
+      s.heightAboveGround = 0;
+      s.gLoad = 1;
+      return;
+    }
     const f = _f.set(0, 0, -1).applyQuaternion(q);
     let V = s.velocity.length();
     if (V < 1) {
@@ -143,7 +156,16 @@ export class PointMassModel {
     if (s.heightAboveGround <= 0) {
       s.position.y = gh;
       s.onGround = true;
-      ac.outcome = 'crashed';
+      const bank = Math.atan2(-new Vector3(1, 0, 0).applyQuaternion(q).y, u.y);
+      const gentle = s.velocity.y > -3.5 && Math.abs(bank) < 20 * (Math.PI / 180) && V < 45;
+      if (gentle) {
+        s.velocity.y = 0;
+        // Level the attitude on the wheels.
+        const h = Math.atan2(s.velocity.x, -s.velocity.z);
+        q.setFromAxisAngle(new Vector3(0, 1, 0), -h);
+      } else {
+        ac.outcome = 'crashed';
+      }
     }
   }
 }

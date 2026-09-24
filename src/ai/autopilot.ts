@@ -100,6 +100,9 @@ export class Autopilot {
   private rollSign = 1;
   private prevHeading = 0;
   private first = true;
+  /** Learned fraction of the estimated available g actually usable before stalling. */
+  availScale = 1;
+  private wasStalled = false;
 
   constructor(
     private readonly traits: AircraftTraits,
@@ -212,8 +215,14 @@ export class Autopilot {
       const omegaMax = (maxG * G) / V;
       const aggr = cmd.aggression ?? 1;
       const omega = clamp(k.turnKp * aggr * theta + k.turnKd * Math.min(0, dTheta), 0, omegaMax);
-      const a = _a.copy(perp).multiplyScalar(omega * V);
       const gComp = _g.copy(WORLD_UP).addScaledVector(ref, -WORLD_UP.dot(ref)).multiplyScalar(G);
+      // Don't ask for more turn than the wing can give on top of carrying our weight,
+      // otherwise the bank overshoots and the nose drops in every turn.
+      const nLim = Math.min(maxG, nAvail * 0.92 * this.availScale) * G;
+      const b = perp.dot(gComp);
+      const disc = b * b - (gComp.lengthSq() - nLim * nLim);
+      const aLatMax = disc > 0 ? Math.max(0, -b + Math.sqrt(disc)) : 0;
+      const a = _a.copy(perp).multiplyScalar(Math.min(omega * V, Math.max(aLatMax, 0.3 * G)));
       a.add(gComp);
       const ax = a.dot(r);
       const ay = a.dot(u);
@@ -241,7 +250,7 @@ export class Autopilot {
     const stallAoa = this.traits.stallAoa;
     if (s.aoa > stallAoa * 0.85) nDes = Math.min(nDes, s.gLoad * 0.92);
     if (s.aoa > stallAoa) nDes = Math.min(nDes, 0.5);
-    nDes = Math.min(nDes, maxG, nAvail * 0.92);
+    nDes = Math.min(nDes, maxG, nAvail * 0.92 * this.availScale);
     if (V > this.traits.maxSafeDiveSpeed) nDes = Math.min(nDes, 3);
     nDes = Math.max(nDes, -1.5);
     this.lastNDes = nDes;
@@ -256,7 +265,13 @@ export class Autopilot {
     const ff = k.gFeedForward * (nDes - 1);
     let pitch = ff + k.gKp * gErr + this.gI;
     const saturated = (pitch > 1 && gErr > 0) || (pitch < -1 && gErr < 0);
-    if (!saturated) this.gI = clamp(this.gI + k.gKi * gErr * dt, -0.6, 0.6);
+    const nearStall = s.stalled || s.aoa > stallAoa * 0.8;
+    if (nearStall) this.gI = Math.min(this.gI, 0) - 0.5 * dt;
+    else if (!saturated) this.gI = clamp(this.gI + k.gKi * gErr * dt, -0.6, 0.6);
+    // Adapt to the real stall boundary: each fresh stall trims the usable g.
+    if (s.stalled && !this.wasStalled) this.availScale = Math.max(0.55, this.availScale * 0.92);
+    else if (!s.stalled) this.availScale = Math.min(1, this.availScale + 0.01 * dt);
+    this.wasStalled = s.stalled;
     pitch = ff + k.gKp * gErr + this.gI;
     c.pitch = clamp(pitch, -1, 1);
 

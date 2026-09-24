@@ -847,9 +847,10 @@ export class AIPilot implements AIController {
       return;
     }
     // Flare: level off just above the grass and let the speed bleed away.
+    // Hold a shallow sink with a whisker of power, then cut it for the touchdown.
     steer.dir.copy(plan.dir);
-    steer.dir.y = agl > 3 ? -0.04 : -0.01;
-    steer.speed = 0;
+    steer.dir.y = clamp(-0.004 - agl * 0.004, -0.04, -0.004);
+    steer.speed = agl > 1.5 ? vs * 1.15 : 0;
     steer.minSpeed = 0;
     steer.minAgl = 0;
   }
