@@ -6,3 +6,4 @@ playwright-report/
 *.blend1
 tools/blender/out/
 .vite/
+__pycache__/

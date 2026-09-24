@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_LIST } from '../../data/aircraft';
 import { controlSurfaceAngles, insigniaSlots, metaFromUserData, roundelRings, rudderStripes } from './meta';
 import { headingDeg } from './gauges';
+import { buildFallbackModel } from './fallbackModel';
 import { Quaternion } from 'three';
 
 const MODELS = fileURLToPath(new URL('../../../public/models/', import.meta.url));
@@ -94,5 +95,17 @@ describe('livery & animation helpers', () => {
     expect(headingDeg(new Quaternion())).toBeCloseTo(0, 5);
     const east = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), -Math.PI / 2);
     expect(headingDeg(east)).toBeCloseTo(90, 3);
+  });
+});
+
+describe('procedural fallback model', () => {
+  it('provides the same named nodes as the GLBs', () => {
+    for (const spec of AIRCRAFT_LIST) {
+      const root = buildFallbackModel(spec);
+      for (const n of ['Exterior', 'Propeller', 'Elevator', 'Rudder', 'Aileron_L', 'Aileron_R', 'Pilot', 'Cockpit', 'EyePoint', 'Contact_Skid', 'Fuselage'])
+        expect(root.getObjectByName(n), `${spec.id}:${n}`).toBeTruthy();
+      for (let i = 0; i < spec.guns.length; i++) expect(root.getObjectByName(`Muzzle_${i}`)).toBeTruthy();
+      expect(root.userData.uv_span_ref).toBe(spec.geometry.span);
+    }
   });
 });
