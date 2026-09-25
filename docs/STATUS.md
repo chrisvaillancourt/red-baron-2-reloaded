@@ -35,12 +35,23 @@ module docs are in `docs/*.md`.
 - The Fokker E.III is hard to hold on target in turning fights. Review its
   pitch authority.
 
-**Do — visuals**
-- Produce the showcase set `docs/screenshots/game-*.png` (dogfight, balloon
-  flaming, strafing, dawn patrol, above the clouds).
-- Critique low-altitude trenches and wire in real flights, and measure
-  16-aircraft and 'low'-preset frame budgets.
-- Move the crater grid (~0.5 s per date, main thread) into a worker.
+**Visuals — done (wave 4)**
+- Showcase set `docs/screenshots/game-*.png` (7 shots) is in the README gallery.
+  Regenerate with `Q=ultra node src/render/dev/playShots.mjs <out> <port> sc-dogfight sc-balloon sc-trench sc-dawn sc-clouds sc-burning sc-aero`.
+- Low-level pass: craters are ragged and shallower, with murky water only in
+  fresh ground. Communication trenches are continuous. The mown aerodrome
+  grass no longer aliases.
+- Frame budgets were measured with 16 aircraft (see `docs/world.md`): 'low' ≈ 2 ms
+  p50, 'high' ≈ 3.5 ms, 'ultra' ≈ 4 ms uncapped, and a locked 60 fps with vsync.
+- The crater grid is built in a worker at load, and `whenReady` waits for it.
+
+**Defer — visuals**
+- Dusk and dawn light is correct but muted: low sun lights the ground weakly.
+  Revisit if players want more golden-hour drama.
+- Openfield strips read busy from 700–1500 m. Consider lowering the
+  per-field contrast at distance if playtesters notice.
+- Fire trails on burning aircraft run long (40–60 m of flame). Shorten them if
+  it reads as arcade.
 
 **Do — menus**
 - At 720p the Quick Mission side panels and the enlistment difficulty picker

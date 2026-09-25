@@ -107,6 +107,8 @@ vec4 tvoronoi(vec2 x) {
 // Crater field at a given cell size: (bowl darkness, rim, water, height m). Height is continuous.
 vec4 craters(vec2 p, float cell, float density, float flanders) {
   vec2 q = p / cell;
+  // Warp so bowls are ragged, not compass-drawn circles.
+  q += (vec2(tnoise(q * 2.3 + 1.7), tnoise(q * 2.3 + 8.1)) - 0.5) * 0.28;
   vec2 n = floor(q); vec2 f = fract(q);
   float bowl = 0.0, rim = 0.0, wat = 0.0, h = 0.0;
   for (int j = -1; j <= 1; j++)
@@ -123,8 +125,9 @@ vec4 craters(vec2 p, float cell, float density, float flanders) {
       float rv = exp(-pow((d - 1.0) / 0.24, 2.0));
       rim = max(rim, rv);
       float hh = (d < 1.0 ? -(1.0 - d * d) : 0.0) + 0.28 * rv;
-      h += hh * r * cell * 0.45;
-      if (th12(id + 5.3) < 0.15 + 0.5 * flanders && d < 0.62) wat = 1.0;
+      // Depth ~0.3x radius for shell holes; big bowls stay comparatively shallow.
+      h += hh * r * cell * (cell > 30.0 ? 0.16 : 0.3);
+      if (th12(id + 5.3) < 0.08 + 0.42 * flanders && d < 0.55) wat = max(wat, 1.0 - smoothstep(0.35, 0.55, d));
     }
   }
   return vec4(bowl, rim, wat, h);
@@ -143,7 +146,7 @@ const FRAG_COLOR = /* glsl */ `
   float beach = vLand.w;
   float lat = 50.3 - vWPos.z / 111200.0;
   float flanders = smoothstep(50.52, 50.64, lat);
-  vec3 warBase = mix(mix(uMud, uChalk, 0.38) * vec3(1.07, 1.0, 0.9), mix(uMud, uChalk, 0.26) * vec3(1.12, 1.08, 1.0), flanders);
+  vec3 warBase = mix(mix(uMud, uChalk, 0.32) * vec3(1.05, 1.0, 0.92), mix(uMud, uChalk, 0.26) * vec3(1.12, 1.08, 1.0), flanders);
   float micro = uDetail * clamp(1.0 - px / 1.2, 0.0, 1.0);
 
   // --- furlongs (districts): one orientation and strip width each
@@ -190,9 +193,12 @@ const FRAG_COLOR = /* glsl */ `
   // Crop rows / furrows (fade out when sub-pixel).
   float rowFreq = 1.0 / (2.2 + 1.5 * fract(fid * 7.0));
   float rowAA = clamp(1.0 - px * rowFreq * 2.0, 0.0, 1.0);
-  if (!isPasture) fieldCol *= 1.0 - 0.08 * rowAA * (0.5 + 0.5 * sin(rowCoord * rowFreq * 6.2832));
+  float rowWave = 0.5 + 0.5 * sin(rowCoord * rowFreq * 6.2832);
+  if (!isPasture) fieldCol *= 1.0 - 0.13 * rowAA * rowWave;
   // Mottling (soil moisture / patchy growth).
   fieldCol *= 0.9 + 0.2 * (tnoise(p / 900.0) * 0.65 + tnoise(p / 370.0) * 0.35);
+  // Patchy growth / damp hollows within a field (reads at strafing height).
+  fieldCol *= 1.0 + (tnoise(p / 45.0 + fid * 13.0) - 0.5) * 0.18 * clamp(1.0 - px / 40.0, 0.0, 1.0);
   fieldCol *= 1.0 + (tnoise(p / 14.0) - 0.5) * 0.14 * clamp(1.0 - px / 6.0, 0.0, 1.0);
   fieldCol *= 1.0 + (tnoise(p / 1.7) - 0.5) * 0.16 * micro;
   vec3 col = fieldCol;
@@ -241,7 +247,10 @@ const FRAG_COLOR = /* glsl */ `
   // Chalk spoil is thickest along the trench systems; elsewhere only faint patches.
   float nearLine = 0.35 + 0.65 * (1.0 - smoothstep(500.0, 2200.0, abs(vFront)));
   mud = mix(mud, uChalk * (0.92 + 0.1 * grain), (1.0 - flanders) * smoothstep(0.6, 0.85, chalkN) * 0.45 * nearLine);
-  mud = mix(mud, warBase * 0.62, flanders * smoothstep(0.55, 0.8, tnoise(p / 140.0 + 5.0)) * 0.4);
+  mud = mix(mud, warBase * 0.62, (0.3 + 0.7 * flanders) * smoothstep(0.55, 0.8, tnoise(p / 140.0 + 5.0)) * 0.4);
+  // Mid-scale wet/dry mottling and scattered debris (timber, wire, kit) close up.
+  mud *= 0.9 + 0.2 * tnoise(p / 28.0 + 6.0) * clamp(1.0 - px / 5.0, 0.0, 1.0);
+  mud *= 1.0 - 0.35 * step(0.955, th12(floor(p / 1.4))) * micro;
   // Regrowth: coarse grass, thistle and poppies over old shell-holes.
   vec3 weeds = mix(uPasture * 0.85, uMud * 1.3, 0.48 + 0.3 * tnoise(p / 90.0 + 2.0)) * (0.84 + 0.26 * mot);
   weeds = mix(weeds, uChalk * 0.9, (1.0 - flanders) * smoothstep(0.66, 0.86, chalkN) * 0.35);
@@ -263,16 +272,18 @@ const FRAG_COLOR = /* glsl */ `
     vec4 c3 = craters(p + 77.0, 55.0, cd * 0.4, flanders);
     float bowl = max(max(c1.x, c2.x), c3.x);
     float rimL = max(max(c1.y, c2.y), c3.y);
-    float wat = max(max(c1.z, c2.z * 0.8), c3.z * 0.6) * smoothstep(0.35, 0.7, crater);
+    // Standing water only in freshly churned ground; regrown shell-holes drain and grass over.
+    float wat = max(max(c1.z, c2.z * 0.8), c3.z * 0.6) * smoothstep(0.35, 0.7, crater) * smoothstep(0.2, 0.7, fresh);
     float cf = mix(0.15, 1.0, clamp(1.0 - px / 8.0, 0.0, 1.0));
     col *= 1.0 - bowl * (0.06 + 0.16 * max(churn, churnRaw * 0.6)) * cf;
     col = mix(col, mix(uChalk, warBase * 1.2, flanders), rimL * 0.18 * cf * churn);
     float wk = wat * clamp(1.0 - px / 4.0, 0.0, 1.0);
-    col = mix(col, mix(uWater * 1.6, vec3(0.3, 0.32, 0.34), 0.55), wk * 0.9);
-    tWater = max(tWater, wk * 0.8);
+    // Murky shell-hole water: silty brown-grey, reflective but not a mirror.
+    col = mix(col, mix(warBase * 0.42, uWater * 1.25, 0.4), wk * 0.92);
+    tWater = max(tWater, wk * 0.55);
     // Average darkening where craters are sub-pixel.
     col *= 1.0 - 0.1 * crater * (1.0 - cf);
-    tBump += (c1.w + c2.w + c3.w) * df * (0.2 + 0.8 * churn);
+    tBump += (c1.w + c2.w + c3.w) * df * (0.1 + 0.9 * churn);
     // Wet mud glints where craters are sub-pixel (Flanders).
     tWater = max(tWater, 0.35 * churn * flanders * (1.0 - cf));
   }
@@ -296,9 +307,9 @@ const FRAG_COLOR = /* glsl */ `
     }
     // Communication trenches zig-zagging back from the line.
     float ct = abs(fract(along / 380.0 + tnoise(vec2(d / 200.0, 3.0)) * 0.08) - 0.5) * 380.0;
-    ct += (triWave(d / 14.0) - 0.5) * 5.0;
+    ct += (triWave(d / 22.0) - 0.5) * 3.0;
     float inComm = step(115.0, abs(d)) * step(abs(d), 660.0);
-    tr = max(tr, (1.0 - smoothstep(1.1 - trAA, 1.1 + trAA, ct)) * inComm);
+    tr = max(tr, (1.0 - smoothstep(1.35 - trAA, 1.35 + trAA, ct)) * inComm);
     spoil = max(spoil, (1.0 - smoothstep(2.8 - trAA, 4.2 + trAA, ct)) * inComm);
     // Barbed-wire belts ahead of each fire trench.
     float wire = 0.0;

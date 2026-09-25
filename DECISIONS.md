@@ -431,3 +431,15 @@ him even when someone other than the player brought him down.
 **Context.** In real flights, building one forested tree cell (~20–45 ms) or one city tile (~100–220 ms) on the main thread caused visible stutters at low altitude.
 **Decision.** Placement moved to pure modules (`src/render/treeCells.ts`, `townTiles.ts`) run by `treeWorker.ts`/`townWorker.ts`, the same pattern as terrain chunks. The worker returns packed instance matrices and colours, and results for a stale date or season are dropped. If `Worker` is unavailable, placement falls back to the main thread. `whenReady()` also waits for nearby tree cells and town tiles.
 **Consequences.** No hitches over 25 ms in in-game strafing and dogfight runs (previously 180–230 ms spikes).
+
+## D-XXX — Crater grids built in a worker and handed to the main thread (visuals wave 4)
+**Context.** The dated crater/freshness history grid (~0.5 s to build) was built lazily on
+first query. The terrain workers built their own copies, but on the main thread the first
+query came from the effects system classifying a bullet impact, i.e. mid-combat.
+**Decision.** `frontline.ts` exposes `craterGridsForDate` / `installCraterGrids` /
+`hasCraterGrids`. The renderer's `CraterGridLoader` builds a date's grids in a dedicated
+worker whenever it is given a date and installs them on the main thread; `whenReady()` waits
+for them behind the loading screen. In Node (tests, autoplayer) there is no worker and the
+lazy build still applies.
+**Consequences.** No main-thread grid build during flight. Costs ~4 MB of transfer per date,
+which is negligible.

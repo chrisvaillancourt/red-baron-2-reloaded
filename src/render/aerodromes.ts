@@ -28,14 +28,24 @@ function mownTexture(): CanvasTexture {
   const c = document.createElement("canvas");
   c.width = c.height = 256;
   const ctx = c.getContext("2d")!;
-  for (let x = 0; x < 256; x++) {
-    const band = Math.floor(x / 32) % 2 === 0 ? 230 : 214;
-    for (let y = 0; y < 256; y += 4) {
-      const n = band + Math.round((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453 % 1) * 18);
-      ctx.fillStyle = `rgb(${n},${n},${n})`;
-      ctx.fillRect(x, y, 1, 4);
+  // Alternating mower bands with fine grass noise. A seeded LCG (not a sine hash,
+  // whose diagonal structure aliased into chevrons at grazing angles), then a
+  // slight blur so the texture mips cleanly.
+  let s = 1234567;
+  const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
+  const img = ctx.createImageData(256, 256);
+  for (let y = 0; y < 256; y++)
+    for (let x = 0; x < 256; x++) {
+      const band = Math.floor(x / 32) % 2 === 0 ? 228 : 214;
+      const n = band + Math.round((rnd() - 0.5) * 16);
+      const k = (y * 256 + x) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = n;
+      img.data[k + 3] = 255;
     }
-  }
+  ctx.putImageData(img, 0, 0);
+  ctx.filter = 'blur(0.8px)';
+  ctx.drawImage(c, 0, 0);
+  ctx.filter = 'none';
   const t = new CanvasTexture(c);
   t.wrapS = t.wrapT = RepeatWrapping;
   t.repeat.set(560 / 64, 12);

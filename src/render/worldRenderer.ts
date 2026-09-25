@@ -30,6 +30,7 @@ import { CloudLayer } from './clouds';
 import { EffectsSystem } from './effects/effectsSystem';
 import { hourForTimeOfDay, seasonOf, sunPosition, turbidityFor } from './environment';
 import { balloonBurnState, createBalloonVisual, syncBalloonVisual } from './objects/balloon';
+import { CraterGridLoader } from './terrain/craterGridLoader';
 import { createGroundTargetVisual, setGroundTargetDestroyed } from './objects/groundTargets';
 import { QUALITY, type QualityPreset } from './quality';
 import { RiverRibbons } from './rivers';
@@ -114,6 +115,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.quality = QUALITY[opts.quality];
     this.far = this.quality.farPlane;
     this.date = opts.date;
+    this.craterGrids.ensure(this.date);
     const reversed = supportsClipControl();
     this.renderer = new WebGLRenderer({
       canvas,
@@ -238,6 +240,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.aerodromes.setGrassColor(PALETTES[seasonOf(date).name].pasture);
 
     if (dateChanged) {
+      this.craterGrids.ensure(date);
       this.terrain.setDate(date);
       this.mask.texture.dispose();
       this.mask = buildFeatureMask(date, this.quality.maskResolution);
@@ -284,7 +287,9 @@ export class WorldRendererImpl implements WorldRenderer {
     const T = (k: string, f: () => void) => {
       const t0 = performance.now();
       f();
-      this.timings[k] = (this.timings[k] ?? 0) * 0.9 + (performance.now() - t0) * 0.1;
+      const ms = performance.now() - t0;
+      this.lastCpu[k] = ms;
+      this.timings[k] = (this.timings[k] ?? 0) * 0.9 + ms * 0.1;
     };
     T("terrain", () => this.terrain.update(camera));
     this.sea.update(dt, camera);
@@ -336,6 +341,9 @@ export class WorldRendererImpl implements WorldRenderer {
   }
 
   /** Dev/QA: called with the game camera just before rendering (screenshot rigs). */
+  private readonly craterGrids = new CraterGridLoader();
+  /** Raw CPU ms per subsystem for the most recent frame (hitch diagnosis). */
+  readonly lastCpu: Record<string, number> = {};
   debugCameraHook: ((camera: Camera) => void) | null = null;
 
   render(camera: Camera): void {
@@ -351,7 +359,8 @@ export class WorldRendererImpl implements WorldRenderer {
     }
     const t0 = performance.now();
     this.renderer.render(this.scene, camera);
-    this.timings.render = (this.timings.render ?? 0) * 0.9 + (performance.now() - t0) * 0.1;
+    this.lastCpu.render = performance.now() - t0;
+    this.timings.render = (this.timings.render ?? 0) * 0.9 + this.lastCpu.render * 0.1;
   }
 
   resize(width: number, height: number): void {
@@ -376,6 +385,7 @@ export class WorldRendererImpl implements WorldRenderer {
   /** Resolves once terrain, near trees and town tiles around the camera have streamed in (loading screens keep calling update()). */
   async whenReady(): Promise<void> {
     await this.terrain.whenReady();
+    await this.craterGrids.whenReady();
     await new Promise<void>((resolve) => {
       const t0 = performance.now();
       const check = () => {
@@ -408,6 +418,7 @@ export class WorldRendererImpl implements WorldRenderer {
   }
 
   dispose(): void {
+    this.craterGrids.dispose();
     this.terrain.dispose();
     this.trees.dispose();
     this.towns.dispose();
