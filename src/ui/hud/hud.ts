@@ -180,9 +180,11 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   const alert = h('div', { class: 'hud-alert hidden' });
   const hint = h('div', { class: 'hud-hint hidden' });
   const gFx = h('div', { class: 'hud-g' });
+  // Sun glare: washes out an aircraft close to the sun, as it did for real pilots.
+  const sunGlare = h('div', { class: 'hud-sunglare hidden' });
   const flash = h('div', { class: 'hud-flash' });
 
-  root.append(gFx, flash, reticle, aimMarker, noseMarker, leadMarker, wpMarker, wpEdge, targetMarker, targetEdge, threats, tape, tapeOverlay, headingBox, padlockEl, alert, messages, status, damageWrap, gunsWrap, cluster, readout, hint);
+  root.append(sunGlare, gFx, flash, reticle, aimMarker, noseMarker, leadMarker, wpMarker, wpEdge, targetMarker, targetEdge, threats, tape, tapeOverlay, headingBox, padlockEl, alert, messages, status, damageWrap, gunsWrap, cluster, readout, hint);
 
   // ------------------------------------------------------ helpers
   function place(marker: HTMLElement, p: HudScreenPoint | null | undefined, edge?: HTMLElement): void {
@@ -310,6 +312,14 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
 
     update(v: HudView) {
       unitsFor(v);
+      const sg = v.sunGlare;
+      toggleClass(sunGlare, 'hidden', !sg);
+      if (sg) {
+        const d = 2 * sg.radius * H;
+        sunGlare.style.width = sunGlare.style.height = `${d.toFixed(0)}px`;
+        sunGlare.style.transform = `translate(${(sg.x * W - d / 2).toFixed(1)}px, ${(sg.y * H - d / 2).toFixed(1)}px)`;
+        sunGlare.style.opacity = (0.92 * sg.strength).toFixed(3);
+      }
       toggleClass(root, 'in-cockpit', v.view === 'cockpit' || v.view === 'padlock');
       const hdg = headingDegrees(v.heading);
       strip.style.transform = `translateX(${(13 - (((hdg % 360) + 360) % 360 + 360) * K_TAPE).toFixed(2)}em)`;

@@ -188,7 +188,7 @@ export class AIPilot implements AIController {
     this.opts = opts;
     this.traits = traitsFor(ac.spec);
     this.profile = makeSkillProfile(skillValue(opts.skill, opts.role, opts.realism));
-    this.perception = new Perception(this.profile);
+    this.perception = new Perception(this.profile, ac);
     this.rng = makeRng(opts.seed ?? ac.id * 7919 + 13);
     this.autopilot = new Autopilot(
       this.traits,
@@ -341,8 +341,8 @@ export class AIPilot implements AIController {
       this.hitAt = this.now;
       const att = self.damage.lastAttackerId;
       if (att != null) {
-        this.perception.notice(att, this.now);
         const e = world.getEntity(att);
+        this.perception.notice(att, this.now, e?.kind === 'aircraft' ? e : undefined);
         if (e && e.kind === 'aircraft') this.threatId = att;
       }
     }
@@ -535,7 +535,7 @@ export class AIPilot implements AIController {
     if (this.order === 'attack-my-target' && this.orderTargetId != null) {
       const e = world.getEntity(this.orderTargetId);
       if (e && e.kind === 'aircraft' && isAlive(e)) {
-        this.perception.notice(e.id, this.now);
+        this.perception.notice(e.id, this.now, e);
         return e;
       }
       this.order = 'engage-at-will';

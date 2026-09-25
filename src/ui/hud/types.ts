@@ -136,6 +136,12 @@ export interface HudView {
   mouseAim?: { aim: HudScreenPoint; nose: HudScreenPoint } | null;
   padlock: { active: boolean; name?: string; lost?: boolean };
   threats: HudThreat[];
+  /**
+   * The sun on screen (x, y as screen fractions from the top-left; radius of the
+   * 15° glare cone in screen heights) and its glare strength 0..1. Drawn as a
+   * wash-out that hides an aircraft close to the sun. Absent: no glare.
+   */
+  sunGlare?: { x: number; y: number; radius: number; strength: number };
   wingmen: HudWingman[];
   waypoint: HudWaypoint | null;
   /** Where the fixed guns converge on screen (optional). */
