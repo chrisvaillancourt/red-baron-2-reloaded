@@ -40,6 +40,28 @@ export interface DirectorOptions {
   /** Delay (s) between the player's flight ending and the mission ending. */
   crashEndDelay?: number;
   landedEndDelay?: number;
+  /**
+   * Called once when the flight's job is settled (escort charges home or lost, intercept
+   * targets down or escaped, balloons lost) and no enemy is near: SimCore orders the
+   * player's flight home.
+   */
+  onRecall?: () => void;
+}
+
+/** Horizontal distance (m) from the patrol line that still counts as "on station". */
+export const PATROL_STATION_RADIUS_M = 3000;
+/** Hits by the player's flight on enemy aircraft that count as having engaged them. */
+export const ENGAGED_HITS = 5;
+/** An enemy target further than this from the player, over its own lines, has escaped. */
+export const ESCAPE_RANGE_M = 15000;
+/** Objective kinds whose settlement sends the flight home (patrols just fly their route). */
+const RECALL_KINDS: ReadonlySet<MissionObjective['kind']> = new Set(['protect-flight', 'destroy-aircraft', 'protect-balloons']);
+const RECALL_SAFE_RANGE_M = 4000;
+
+/** Live per-mission progress that some objectives need (patrol station time, engagement). */
+export interface ObjectiveProgress {
+  stationTime: ReadonlyMap<string, number>;
+  engaged: boolean;
 }
 
 export function clockPosition(from: AircraftEntity, target: Vector3): { clock: number; elevation: 'high' | 'low' | 'level' } {
@@ -62,6 +84,17 @@ export function clockPosition(from: AircraftEntity, target: Vector3): { clock: n
 export class MissionDirector {
   readonly claims: VictoryClaim[] = [];
   readonly completedObjectives = new Set<string>();
+  readonly failedObjectives = new Set<string>();
+  /** Seconds the player has spent on station per patrol-area objective. */
+  readonly stationTime = new Map<string, number>();
+  /** Hits scored by the player's flight on enemy aircraft. */
+  flightHits = 0;
+  private flightKills = 0;
+  /** Target flights of protect-flight objectives seen over enemy ground (they've been out). */
+  private crossedLines = new Set<string>();
+  private settled = false;
+  private recalled = false;
+  private readonly onRecall?: () => void;
   roundsFired = 0;
   hits = 0;
   ended = false;
@@ -87,6 +120,7 @@ export class MissionDirector {
   ) {
     this.crashEndDelay = opts.crashEndDelay ?? 5;
     this.landedEndDelay = opts.landedEndDelay ?? 3;
+    this.onRecall = opts.onRecall;
     const player = world.player;
     this.unsub.push(
       bus.on('gun-fired', (e) => {
@@ -94,6 +128,11 @@ export class MissionDirector {
       }),
       bus.on('bullet-hit', (e) => {
         if (player && e.shooterId === player.id) this.hits++;
+        if (player) {
+          const shooter = world.getEntity(e.shooterId);
+          const target = world.getEntity(e.targetId);
+          if (shooter?.kind === 'aircraft' && shooter.flightId === player.flightId && target?.kind === 'aircraft' && target.side !== player.side) this.flightHits++;
+        }
         let set = this.attackers.get(e.targetId);
         if (!set) this.attackers.set(e.targetId, (set = new Set()));
         set.add(e.shooterId);
@@ -138,6 +177,7 @@ export class MissionDirector {
       this.radio(victim.callsign, `${victim.callsign} is going down!`);
     }
     if (!killer || killer.kind !== 'aircraft' || killer.side === victim.side) return;
+    if (player && killer.flightId === player.flightId) this.flightKills++;
 
     if (player && killer.id === player.id) {
       const shooters = this.attackers.get(victimId) ?? new Set<number>();
@@ -276,16 +316,33 @@ export class MissionDirector {
       }
     }
 
-    // Objectives that can complete during flight.
+    // Objectives that can complete (or become impossible) during flight.
+    const progress = this.progress();
     for (const obj of w.mission.objectives) {
-      if (this.completedObjectives.has(obj.id)) continue;
-      if (isDeferredObjective(obj)) continue;
-      if (evaluateObjective(obj, w, false)) {
+      if (this.completedObjectives.has(obj.id) || this.failedObjectives.has(obj.id)) continue;
+      if (obj.kind === 'patrol-area' && player && player.outcome === null) {
+        if (distanceToPatrolLine(obj, w, player.state.position) <= PATROL_STATION_RADIUS_M) this.stationTime.set(obj.id, (this.stationTime.get(obj.id) ?? 0) + dt);
+      }
+      if (obj.kind === 'protect-flight') {
+        for (const fid of obj.targetIds) {
+          if (this.crossedLines.has(fid)) continue;
+          if ((w.flightMembers.get(fid) ?? []).some((a) => a.outcome === null && w.aircraft.includes(a) && w.sideOfFrontAt(a.state.position.x, a.state.position.z) !== a.side)) this.crossedLines.add(fid);
+        }
+      }
+      if (objectiveFailed(obj, w)) {
+        this.failedObjectives.add(obj.id);
+        this.bus.emit({ type: 'objective-failed', objectiveId: obj.id });
+        this.radio('', `Objective failed: ${obj.description}`);
+      } else if (
+        (!isDeferredObjective(obj) && evaluateObjective(obj, w, false, undefined, progress)) ||
+        (obj.kind === 'protect-flight' && this.chargesHome(obj))
+      ) {
         this.completedObjectives.add(obj.id);
         this.bus.emit({ type: 'objective-complete', objectiveId: obj.id });
         this.radio('', `Objective complete: ${obj.description}`);
       }
     }
+    this.checkSettled();
 
     // End conditions.
     if (player && player.outcome !== null && this.endCountdown === null) {
@@ -298,6 +355,47 @@ export class MissionDirector {
       this.endCountdown -= dt;
       if (this.endCountdown <= 0) this.ended = true;
     }
+  }
+
+  progress(): ObjectiveProgress {
+    return { stationTime: this.stationTime, engaged: this.flightHits >= ENGAGED_HITS || this.flightKills > 0 };
+  }
+
+  /** Escort charges have been out over the lines and every survivor is back over ours (or down safely). */
+  private chargesHome(o: MissionObjective): boolean {
+    if (!o.targetIds.every((fid) => this.crossedLines.has(fid))) return false;
+    let alive = 0;
+    for (const fid of o.targetIds) {
+      for (const a of this.world.flightMembers.get(fid) ?? []) {
+        if (isLost(a)) continue;
+        alive++;
+        if (a.outcome === 'landed-friendly' || a.outcome === 'disengaged') continue;
+        if (this.world.sideOfFrontAt(a.state.position.x, a.state.position.z) !== a.side) return false;
+      }
+    }
+    return alive >= o.count;
+  }
+
+  /**
+   * Once every primary objective is decided, tell the player; when the flight's job was tied to
+   * other aircraft or balloons (escort, intercept, balloon defence) and no enemy is near, send
+   * the flight home.
+   */
+  private checkSettled(): void {
+    const primary = this.world.mission.objectives.filter((o) => o.primary);
+    if (!primary.length) return;
+    const player = this.world.player;
+    if (!player || player.outcome !== null) return;
+    if (!this.settled) {
+      if (!primary.every((o) => this.completedObjectives.has(o.id) || this.failedObjectives.has(o.id))) return;
+      this.settled = true;
+      const failed = primary.some((o) => this.failedObjectives.has(o.id));
+      this.radio('', failed ? 'The mission has failed. Return to base.' : 'All objectives complete. Return to base.');
+    }
+    if (this.recalled || !primary.some((o) => RECALL_KINDS.has(o.kind))) return;
+    if (this.nearestEnemyDistance() < RECALL_SAFE_RANGE_M) return;
+    this.recalled = true;
+    this.onRecall?.();
   }
 
   playerFate(): PilotFate {
@@ -340,9 +438,12 @@ export class MissionDirector {
   buildResult(): MissionResult {
     const w = this.world;
     const player = w.player;
+    const fate = player ? this.playerFate() : undefined;
+    const progress = this.progress();
     const objectives = w.mission.objectives.map((o) => ({
       id: o.id,
-      completed: this.completedObjectives.has(o.id) || evaluateObjective(o, w, true, player ? this.playerFate() : undefined),
+      completed:
+        this.completedObjectives.has(o.id) || (!this.failedObjectives.has(o.id) && evaluateObjective(o, w, true, fate, progress)),
     }));
     const primary = w.mission.objectives.filter((o) => o.primary);
     const missionSuccess = !this.aborted && primary.every((o) => objectives.find((x) => x.id === o.id)!.completed);
@@ -386,8 +487,90 @@ export function isDeferredObjective(o: MissionObjective): boolean {
   return o.kind === 'protect-flight' || o.kind === 'protect-balloons' || o.kind === 'survive';
 }
 
-export function evaluateObjective(o: MissionObjective, w: SessionWorld, final: boolean, playerFate?: PilotFate): boolean {
+/**
+ * Resolve a waypoint reference: the campaign convention "<flightId>:<waypointIndex>"
+ * (docs/campaign.md), or a bare index / waypoint label on the player's own flight.
+ */
+export function resolveWaypointRef(key: string, w: SessionWorld): { x: number; z: number } | undefined {
+  const p = w.player;
+  const sep = key.lastIndexOf(':');
+  const flight = w.getFlight(sep > 0 ? key.slice(0, sep) : (p?.flightId ?? ''));
+  if (!flight) return undefined;
+  const ref = sep > 0 ? key.slice(sep + 1) : key;
+  const idx = ref !== '' && Number.isFinite(Number(ref)) ? Number(ref) : flight.waypoints.findIndex((wp) => wp.label === ref);
+  return flight.waypoints[idx];
+}
+
+/** Horizontal distance from `pos` to a patrol-area objective's line (or point). Infinity if unresolvable. */
+export function distanceToPatrolLine(o: MissionObjective, w: SessionWorld, pos: Vector3): number {
+  const pts = o.targetIds.map((k) => resolveWaypointRef(k, w)).filter((p): p is { x: number; z: number } => !!p);
+  if (!pts.length) return Infinity;
+  if (pts.length === 1) return Math.hypot(pos.x - pts[0].x, pos.z - pts[0].z);
+  let best = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const abx = b.x - a.x;
+    const abz = b.z - a.z;
+    const len2 = abx * abx + abz * abz;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((pos.x - a.x) * abx + (pos.z - a.z) * abz) / len2)) : 0;
+    best = Math.min(best, Math.hypot(pos.x - (a.x + abx * t), pos.z - (a.z + abz * t)));
+  }
+  return best;
+}
+
+/** An enemy target aircraft that got clean away: landed, gone, or far off over its own lines. */
+function hasEscaped(a: AircraftEntity, w: SessionWorld): boolean {
+  if (a.outcome === 'landed-friendly' || a.outcome === 'disengaged') return true;
+  if (a.outcome !== null || !w.aircraft.includes(a)) return false; // lost, or not yet spawned
+  const p = w.player;
+  if (!p) return false;
+  const pos = a.state.position;
+  return w.sideOfFrontAt(pos.x, pos.z) === a.side && pos.distanceTo(p.state.position) > ESCAPE_RANGE_M;
+}
+
+/** True once an objective can no longer be achieved. */
+export function objectiveFailed(o: MissionObjective, w: SessionWorld): boolean {
   switch (o.kind) {
+    case 'protect-flight': {
+      let alive = 0;
+      for (const fid of o.targetIds) for (const a of w.flightMembers.get(fid) ?? []) if (!isLost(a)) alive++;
+      return alive < o.count;
+    }
+    case 'protect-balloons': {
+      let alive = 0;
+      for (const mid of o.targetIds) {
+        const e = w.getEntity(w.missionIdToEntity.get(mid) ?? -1);
+        if (e?.kind === 'balloon' && !e.destroyed) alive++;
+      }
+      return alive < o.count;
+    }
+    case 'destroy-aircraft': {
+      let lost = 0;
+      let open = 0;
+      for (const fid of o.targetIds) {
+        for (const a of w.flightMembers.get(fid) ?? []) {
+          if (isLost(a)) lost++;
+          else if (!hasEscaped(a, w)) open++;
+        }
+      }
+      return lost + open < o.count;
+    }
+    default:
+      return false;
+  }
+}
+
+export function evaluateObjective(
+  o: MissionObjective,
+  w: SessionWorld,
+  final: boolean,
+  playerFate?: PilotFate,
+  progress?: ObjectiveProgress,
+): boolean {
+  switch (o.kind) {
+    case 'patrol-area':
+      return (progress?.stationTime.get(o.id) ?? 0) >= o.count || !!progress?.engaged;
     case 'destroy-aircraft': {
       let n = 0;
       for (const fid of o.targetIds) for (const a of w.flightMembers.get(fid) ?? []) if (isLost(a)) n++;
@@ -423,15 +606,7 @@ export function evaluateObjective(o: MissionObjective, w: SessionWorld, final: b
     case 'reach-waypoint': {
       const p = w.player;
       if (!p) return false;
-      // Campaign convention: "<flightId>:<waypointIndex>" (docs/campaign.md); also accept a
-      // bare index or a waypoint label on the player's own flight.
-      const key = o.targetIds[0] ?? '';
-      const sep = key.lastIndexOf(':');
-      const flight = w.getFlight(sep > 0 ? key.slice(0, sep) : p.flightId);
-      if (!flight) return false;
-      const ref = sep > 0 ? key.slice(sep + 1) : key;
-      const idx = ref !== '' && Number.isFinite(Number(ref)) ? Number(ref) : flight.waypoints.findIndex((wp) => wp.label === ref);
-      const wp = flight.waypoints[idx];
+      const wp = resolveWaypointRef(o.targetIds[0] ?? '', w);
       if (!wp) return false;
       return Math.hypot(p.state.position.x - wp.x, p.state.position.z - wp.z) < 1500;
     }

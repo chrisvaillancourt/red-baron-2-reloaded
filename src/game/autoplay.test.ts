@@ -27,4 +27,28 @@ describe('autoplayer', () => {
       expect(rep.result.objectives.length).toBe(m.objectives.length);
     }
   }, 60_000);
+
+  it('a passive recruit flying straight and level survives the first minute of most missions', () => {
+    const campaign = createCampaignService(memoryStorage());
+    const starts = [
+      ['germany', '1916-10-01'],
+      ['britain', '1917-04-05'],
+      ['france', '1917-08-01'],
+      ['usa', '1918-07-01'],
+    ] as const;
+    let flown = 0;
+    let survived = 0;
+    for (const [nation, date] of starts) {
+      const p = campaign.createPilot({ firstName: 'New', lastName: 'Boy', nation, startDate: date, difficulty: 'recruit' });
+      p.rngSeed = 99;
+      for (let i = 0; i < 4; i++) {
+        const m = campaign.generateMission(p);
+        p.missionsFlown++;
+        const rep = runAutoplay(m, { maxTime: 60, passivePlayer: true });
+        flown++;
+        if (rep.result.playerOutcome === 'in-flight' && rep.result.playerFate !== 'killed') survived++;
+      }
+    }
+    expect(survived / flown).toBeGreaterThanOrEqual(0.9);
+  }, 60_000);
 });

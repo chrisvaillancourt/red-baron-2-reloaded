@@ -357,6 +357,7 @@ export class FlightSession {
       if (o) this.renderer.setGroundTargetDestroyed?.(o);
     }
     else if (e.type === 'objective-complete') this.hud.showMessage('Objective complete.', { kind: 'objective' });
+    else if (e.type === 'objective-failed') this.hud.showMessage('Objective failed.', { kind: 'warning' });
     else if (player && e.type === 'aircraft-destroyed' && e.killerId === player.id && e.victimId !== player.id) {
       const v = this.world.getEntity(e.victimId);
       this.hud.showMessage(`${v && v.kind === 'aircraft' ? v.spec.name : 'Enemy'} going down!`, { kind: 'victory' });

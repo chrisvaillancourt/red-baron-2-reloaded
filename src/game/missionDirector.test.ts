@@ -11,7 +11,7 @@ import { stubBuildQuickMission } from './stubs/campaign';
 import { stubCreateFlightEnvironment, stubSim } from './stubs/sim';
 import { buildWorld } from './world';
 
-function setup(mutate?: (m: MissionDefinition) => void) {
+function setup(mutate?: (m: MissionDefinition) => void, onRecall?: () => void) {
   const mission = stubBuildQuickMission({
     playerAircraft: 'sopwith_camel',
     enemyAircraft: 'albatros_dv',
@@ -32,7 +32,7 @@ function setup(mutate?: (m: MissionDefinition) => void) {
   const world = buildWorld({ mission, modules: { sim: stubSim, sideOfFrontAt }, env, realism: DEFAULT_SETTINGS.realism });
   const bus = createEventBus();
   const radio: string[] = [];
-  const director = new MissionDirector(world, bus, (_f, t) => radio.push(t), { crashEndDelay: 1, landedEndDelay: 0.5 });
+  const director = new MissionDirector(world, bus, (_f, t) => radio.push(t), { crashEndDelay: 1, landedEndDelay: 0.5, onRecall });
   const player = world.player!;
   const wingman = world.flightMembers.get('player')![1];
   const enemies = world.flightMembers.get('enemy')!;
@@ -198,6 +198,88 @@ describe('MissionDirector', () => {
     t.wingman.outcome = 'shot-down';
     expect(t.director.buildResult().objectives.find((o) => o.id === 'prot')!.completed).toBe(false);
     expect(t.director.buildResult().friendlyLosses).toHaveLength(1);
+  });
+
+  it('patrol-area completes after enough time on station, not before', () => {
+    const t = setup((m) => {
+      const f = m.flights.find((x) => x.role === 'player-flight')!;
+      f.waypoints = [
+        { x: 0, z: 0, altitude: 1500, action: 'fly' },
+        { x: 0, z: -10000, altitude: 1500, action: 'patrol', duration: 120 },
+        { x: 0, z: -20000, altitude: 1500, action: 'patrol', duration: 120 },
+      ];
+      m.objectives = [{ id: 'pat', kind: 'patrol-area', description: 'Hold the line', targetIds: [`${f.id}:1`, `${f.id}:2`], count: 150, primary: true }];
+    });
+    t.player.state.position.set(8000, 1500, -15000); // 8 km off the line: not on station
+    for (let i = 0; i < 200; i++) t.director.update(1);
+    expect(t.director.completedObjectives.has('pat')).toBe(false);
+    t.player.state.position.set(2000, 1500, -15000); // within 3 km of the line
+    for (let i = 0; i < 149; i++) t.director.update(1);
+    expect(t.director.completedObjectives.has('pat')).toBe(false);
+    t.director.update(1.5);
+    expect(t.director.completedObjectives.has('pat')).toBe(true);
+    expect(t.director.buildResult().missionSuccess).toBe(true);
+  });
+
+  it('patrol-area also completes once the flight engages the enemy', () => {
+    const t = setup((m) => {
+      const f = m.flights.find((x) => x.role === 'player-flight')!;
+      m.objectives = [{ id: 'pat', kind: 'patrol-area', description: 'Hold the line', targetIds: [`${f.id}:0`], count: 600, primary: true }];
+    });
+    const e = t.enemies[0];
+    for (let i = 0; i < 4; i++) t.bus.emit({ type: 'bullet-hit', targetId: e.id, shooterId: t.wingman.id, position: e.state.position.clone(), zone: 'fuselage' });
+    t.director.update(0.01);
+    expect(t.director.completedObjectives.has('pat')).toBe(false);
+    t.bus.emit({ type: 'bullet-hit', targetId: e.id, shooterId: t.player.id, position: e.state.position.clone(), zone: 'fuselage' });
+    t.director.update(0.01);
+    expect(t.director.completedObjectives.has('pat')).toBe(true);
+  });
+
+  it('fails an escort as soon as too few charges survive, and recalls the flight', () => {
+    let recalled = 0;
+    const t = setup((m) => {
+      m.objectives = [{ id: 'esc', kind: 'protect-flight', description: 'Bring them home', targetIds: ['enemy'], count: 1, primary: true }];
+    }, () => recalled++);
+    const failed: string[] = [];
+    t.bus.on('objective-failed', (e) => failed.push(e.objectiveId));
+    t.enemies[0].outcome = 'shot-down';
+    t.director.update(0.1);
+    expect(failed).toEqual([]);
+    t.enemies[1].outcome = 'shot-down';
+    t.director.update(0.1);
+    expect(failed).toEqual(['esc']);
+    expect(t.radio.some((r) => r.startsWith('Objective failed'))).toBe(true);
+    expect(recalled).toBe(1);
+    t.director.update(0.1);
+    expect(recalled).toBe(1);
+    expect(t.director.buildResult()).toMatchObject({ missionSuccess: false });
+  });
+
+  it('completes an escort early once the charges have been out and are back over our lines', () => {
+    let recalled = 0;
+    const t = setup((m) => {
+      m.objectives = [{ id: 'esc', kind: 'protect-flight', description: 'Bring them home', targetIds: ['player'], count: 2, primary: true }];
+    }, () => recalled++);
+    const mates = [t.player, t.wingman];
+    for (const a of mates) a.state.position.set(20000, 1500, 0); // over the German side
+    t.director.update(0.1);
+    expect(t.director.completedObjectives.has('esc')).toBe(false);
+    for (const a of mates) a.state.position.set(-20000, 1500, 0); // back over ours
+    for (const e of t.enemies) e.state.position.set(60000, 1500, 0);
+    t.director.update(0.1);
+    expect(t.director.completedObjectives.has('esc')).toBe(true);
+    expect(recalled).toBe(1);
+  });
+
+  it('fails an intercept when the targets escape over their own lines', () => {
+    const t = setup((m) => {
+      m.objectives = [{ id: 'int', kind: 'destroy-aircraft', description: 'Stop them', targetIds: ['enemy'], count: 1, primary: true }];
+    });
+    t.player.state.position.set(-20000, 1500, 0);
+    for (const e of t.enemies) e.state.position.set(10000, 1500, 0); // 30 km away, German side
+    t.director.update(0.1);
+    expect(t.director.failedObjectives.has('int')).toBe(true);
+    expect(t.director.buildResult().objectives[0].completed).toBe(false);
   });
 
   it('calls out enemies by clock position', () => {

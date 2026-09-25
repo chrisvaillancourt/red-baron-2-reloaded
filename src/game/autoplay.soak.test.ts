@@ -7,8 +7,8 @@
  */
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { createCampaignService, memoryStorage } from '../campaign';
-import type { QuickMissionOptions } from '../core/campaignTypes';
+import { buildQuickMission, createCampaignService, memoryStorage } from '../campaign';
+import type { CareerDifficulty, QuickMissionOptions } from '../core/campaignTypes';
 import type { MissionDefinition, Nation } from '../core/types';
 import { runAutoplay, type AutoplayReport } from './autoplay';
 
@@ -16,6 +16,10 @@ const MODES = (process.env.AUTOPLAY ?? '').split(',').filter(Boolean);
 const PER_PILOT = Number(process.env.AUTOPLAY_MISSIONS ?? 5);
 const OUT = process.env.AUTOPLAY_OUT;
 const MAX_TIME = Number(process.env.AUTOPLAY_MAXTIME ?? 2400);
+/** Seeded repetitions of each quick-mission setup (quick missions are otherwise random). */
+const QUICK_REPS = Number(process.env.AUTOPLAY_QUICK_REPS ?? 1);
+/** Career difficulty for the career survey (recruit | pilot | ace). */
+const DIFFICULTY = (process.env.AUTOPLAY_DIFFICULTY ?? 'pilot') as CareerDifficulty;
 
 function log(line: string) {
   if (OUT) appendFileSync(OUT, line + '\n');
@@ -45,6 +49,7 @@ function describeRow(r: Row): string {
     `EL ${x.enemyLosses} FL ${x.friendlyLosses}`,
     `bal ${x.balloonsDestroyed} gnd ${x.groundDestroyed}`,
     `obj ${obj}${x.result.missionSuccess ? ' OK' : ' --'}`,
+    x.playerLossCause ? `LOSS ${x.playerLossCause}` : '',
     x.badSpawns.length ? `BADSPAWN ${x.badSpawns.join(';')}` : '',
     x.misplaced.length ? `MISPLACED ${x.misplaced.join(';')}` : '',
     x.acesPresent.length ? `aces ${x.acesPresent.join(',')}${x.acesDowned.length ? ` downed ${x.acesDowned.join(',')}` : ''}` : '',
@@ -75,6 +80,15 @@ function summarise(rows: Row[]): void {
       ].join(' | '),
     );
   }
+  const causes = new Map<string, number>();
+  for (const r of rows) {
+    // Group enemy/flak losses by source only; keep the AI phase for self-inflicted ones.
+    const c = r.rep.playerLossCause?.replace(/^(enemy-fire|flak\/ground)\(.*\)$/, '$1') ?? null;
+    if (c) causes.set(c, (causes.get(c) ?? 0) + 1);
+  }
+  log(`LOSS CAUSES (${rows.length} missions): ${[...causes].sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`).join(' | ') || 'none'}`);
+  const claims = rows.reduce((s, r) => s + r.rep.result.claims.length, 0);
+  log(`CLAIMS per mission ${(claims / Math.max(1, rows.length)).toFixed(2)}`);
 }
 
 const CAREERS: { nation: Nation; dates: string[] }[] = [
@@ -94,7 +108,7 @@ describe.skipIf(!MODES.includes('career'))('autoplay: careers', () => {
       let seed = 1;
       for (const { nation, dates } of CAREERS) {
         for (const startDate of dates) {
-          const p = campaign.createPilot({ firstName: 'Auto', lastName: `Pilot${seed}`, nation, startDate, difficulty: 'pilot' });
+          const p = campaign.createPilot({ firstName: 'Auto', lastName: `Pilot${seed}`, nation, startDate, difficulty: DIFFICULTY });
           p.rngSeed = seed++ * 7777;
           for (let i = 0; i < PER_PILOT; i++) {
             if (p.status !== 'active' && p.status !== 'hospital') break;
@@ -136,15 +150,17 @@ describe.skipIf(!MODES.includes('quick'))('autoplay: quick missions', () => {
   it(
     'flies every quick-mission type',
     () => {
-      const campaign = createCampaignService(memoryStorage());
+      if (OUT) writeFileSync(OUT, `# autoplay quick run ${new Date().toISOString()} reps=${QUICK_REPS}\n`);
       const rows: Row[] = [];
-      for (const q of QUICK) {
-        const m: MissionDefinition = campaign.buildQuickMission(q);
-        const rep = runAutoplay(m, { maxTime: MAX_TIME });
-        const row: Row = { label: `quick ${q.label}`, type: `q-${q.type}`, rep };
-        rows.push(row);
-        log(describeRow(row));
-        expect(rep.badSpawns).toEqual([]);
+      for (let rep = 0; rep < QUICK_REPS; rep++) {
+        for (const q of QUICK) {
+          const m: MissionDefinition = buildQuickMission(q, 1000 + rep * 97 + QUICK.indexOf(q));
+          const r = runAutoplay(m, { maxTime: MAX_TIME });
+          const row: Row = { label: `quick ${q.label} #${rep}`, type: `q-${q.type}`, rep: r };
+          rows.push(row);
+          log(describeRow(row));
+          expect(r.badSpawns).toEqual([]);
+        }
       }
       summarise(rows);
     },

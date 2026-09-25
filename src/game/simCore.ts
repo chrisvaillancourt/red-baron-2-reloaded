@@ -47,7 +47,15 @@ export class SimCore {
     const env = modules.createFlightEnvironment(createHeightCache(modules.terrainHeightAt), mission.weather);
     this.world = buildWorld({ mission, modules, env, realism });
     this.combat = modules.createCombatSystem(this.bus, getRealism);
-    this.director = new MissionDirector(this.world, this.bus, (from, text) => this.bus.emit({ type: 'radio', from, text }));
+    this.director = new MissionDirector(this.world, this.bus, (from, text) => this.bus.emit({ type: 'radio', from, text }), {
+      // Job settled (escort home or lost, intercept done): the flight goes home. An AI-flown
+      // player (autoplayer) is ordered home too; a human is told so over the radio.
+      onRecall: () => {
+        this.orderWingmen('return-home');
+        const p = this.world.player;
+        if (p) this.ai.get(p.id)?.command('return-home');
+      },
+    });
 
     // AI controllers for every non-player aircraft, including pending spawns.
     for (const [flightId, members] of this.world.flightMembers) {

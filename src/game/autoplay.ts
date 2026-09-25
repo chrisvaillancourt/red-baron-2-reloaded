@@ -9,7 +9,7 @@ import { Vector3 } from 'three';
 import { createAIController } from '../ai';
 import type { GameEvent, MissionDefinition, MissionResult, RealismSettings } from '../core/types';
 import { DEFAULT_SETTINGS } from '../core/settings';
-import { createCombatSystem, createFlightEnvironment, setGunnerTarget, sim } from '../sim';
+import { bankAngle, createCombatSystem, createFlightEnvironment, pitchAngle, setGunnerTarget, sim } from '../sim';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
 import { SIM_HZ, SimCore, type SimCoreModules } from './simCore';
@@ -42,6 +42,11 @@ export interface AutoplayOptions {
   contactRange?: number;
   /** End the flight (N) once the player AI is heading home and it is safe (default true). */
   endFlightWhenSafe?: boolean;
+  /**
+   * A passive player instead of the AI: holds wings level and the nose on the horizon at 85%
+   * throttle and never fights (the "does a newcomer survive the first minute?" check).
+   */
+  passivePlayer?: boolean;
 }
 
 export interface AutoplayReport {
@@ -70,6 +75,11 @@ export interface AutoplayReport {
   /** Ace ids of aircraft present / shot down. */
   acesPresent: string[];
   acesDowned: string[];
+  /**
+   * What took the player out (null: survived intact): `collision-<with>`,
+   * `enemy-fire(<outcome>)`, `flak/ground(<outcome>)` or `self(<outcome>, <ai phase>)`.
+   */
+  playerLossCause: string | null;
   events: Partial<Record<GameEvent['type'], number>>;
 }
 
@@ -77,7 +87,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   const realism = opts.realism ?? DEFAULT_SETTINGS.realism;
   const maxTime = opts.maxTime ?? 2400;
   const contactRange = opts.contactRange ?? 3000;
-  const core = new SimCore(headlessModules, mission, () => realism, { aiPlayer: true });
+  const core = new SimCore(headlessModules, mission, () => realism, { aiPlayer: !opts.passivePlayer });
   const { world, director, bus } = core;
   const player = world.player;
 
@@ -87,7 +97,25 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   let balloonsDestroyed = 0;
   let groundDestroyed = 0;
   const acesDowned = new Set<string>();
+  let lastBulletHit = -Infinity;
+  let lastSplinter = -Infinity;
+  let collisionWith: string | null = null;
+  let playerLossCause: string | null = null;
+  let lastDamageSum = 0;
   bus.onAny((e) => {
+    if (player && e.type === 'bullet-hit' && e.targetId === player.id) lastBulletHit = world.time;
+    if (player && e.type === 'collision' && (e.aId === player.id || e.bId === player.id) && collisionWith === null) {
+      const other = world.getEntity(e.aId === player.id ? e.bId : e.aId);
+      collisionWith = !other
+        ? 'unknown'
+        : other.kind !== 'aircraft'
+          ? other.kind
+          : other.side !== player.side
+            ? 'enemy'
+            : other.flightId === player.flightId
+              ? 'wingman'
+              : 'friendly';
+    }
     events[e.type] = (events[e.type] ?? 0) + 1;
     if (e.type === 'gun-fired' && player && e.shooterId === player.id && firstPlayerShot === null) firstPlayerShot = world.time;
     if (e.type === 'aircraft-destroyed') {
@@ -123,7 +151,36 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   let endedFlight = false;
   let stepN = 0;
   while (!director.ended) {
+    if (opts.passivePlayer && player && player.outcome === null) {
+      const c = player.controls;
+      const s = player.state;
+      c.throttle = 0.85;
+      c.roll = Math.max(-1, Math.min(1, -bankAngle(s.orientation) * 2 + s.angularVelocity.z * 0.3));
+      c.pitch = Math.max(-1, Math.min(1, -pitchAngle(s.orientation) * 3 + 0.05));
+      c.yaw = 0;
+      c.fireGuns = false;
+    }
     core.step(h);
+    if (player && playerLossCause === null) {
+      // Damage that arrives without a bullet hit is flak or ground fire.
+      let sum = 0;
+      for (const v of Object.values(player.damage.zones)) sum += v;
+      if (sum > lastDamageSum + 1e-9 && lastBulletHit < world.time - 0.02) lastSplinter = world.time;
+      lastDamageSum = sum;
+      const o = player.outcome;
+      if (o !== null && o !== 'landed-friendly' && o !== 'disengaged') {
+        const phase = (core.ai.get(player.id) as { phase?: string } | undefined)?.phase ?? '?';
+        const recent = (t: number) => world.time - t < 25;
+        playerLossCause =
+          o === 'collided'
+            ? `collision-${collisionWith ?? '?'}`
+            : recent(lastBulletHit) && (!recent(lastSplinter) || lastBulletHit >= lastSplinter)
+              ? `enemy-fire(${o})`
+              : recent(lastSplinter)
+                ? `flak/ground(${o})`
+                : `self(${o}, ${phase})`;
+      }
+    }
     if (player && player.outcome === null && ++stepN % 30 === 0) {
       if (firstContact === null && nearestEnemy(core, player.state.position) < contactRange) firstContact = world.time;
       // Like a human player: once heading home with the job done, end the flight when it's safe.
@@ -157,6 +214,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
     misplaced,
     acesPresent: [...new Set(acesPresent)],
     acesDowned: [...acesDowned],
+    playerLossCause,
     events,
   };
 }

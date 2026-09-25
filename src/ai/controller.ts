@@ -138,6 +138,8 @@ export class AIPilot implements AIController {
   private gunnerTarget: number | null = null;
   private attackStage: AttackStage = 'approach';
   private attackStageUntil = 0;
+  /** +1 / -1: which way a balloon pull-out breaks. */
+  private pulloutSide = 1;
   private attackObjId: number | null = null;
   private attackPhaseStarted = -1;
   private leadScale = 1;
@@ -470,9 +472,16 @@ export class AIPilot implements AIController {
       this.order = 'engage-at-will';
     }
     if (known.length === 0) return null;
-    // Balloon/ground-attack flights only fight when attacked (handled by defence).
+    // Balloon/ground-attack flights ignore distant scouts, but break off a low-level run to fight
+    // any that close in: strafing with a scout on your tail is how balloon-busters died.
     if ((task === 'balloon-attack' || task === 'ground-attack') && this.phase !== 'engage') {
-      const close = known.find((e) => e.state.position.distanceTo(self.state.position) < 500 && isAttacking(e, self, 600));
+      // Committed to a run and nearly there: press it home unless someone is right on us.
+      const committed = this.attackStage === 'run' && (this.phase === 'attack-balloon' || this.phase === 'attack-ground');
+      const close = known.find((e) => {
+        const r = e.state.position.distanceTo(self.state.position);
+        if (committed) return r < 500 && isAttacking(e, self, 600);
+        return (e.spec.role === 'fighter' && r < 1500) || (r < 1000 && isAttacking(e, self, 1000));
+      });
       if (!close) return null;
     }
 
@@ -838,25 +847,59 @@ export class AIPilot implements AIController {
     const setupAlt = balloon ? tp.y + 350 : gy + 320;
     const diveStart = balloon ? 1500 : 1300;
     steer.speed = Infinity;
-    steer.maxG = 3.5;
+    // Never pull harder than the wing can give at this speed (80% of the accelerated-stall
+    // load, (V/Vs)^2): a strafer that stalls in the turn-in is a sitting duck.
+    const gAvail = 0.8 * (s.airspeed / Math.max(1, this.traits.stallSpeed)) ** 2;
+    const gCap = clamp(gAvail, 1.3, 4.5);
+    steer.maxG = Math.min(3.5, gCap);
     if (this.attackStage === 'pullout') {
       if (this.now < this.attackStageUntil) {
-        const away = _tmp2.set(-_rel.x, 0, -_rel.z).normalize();
-        steer.dir.copy(away).add(new Vector3(0, 0.45, 0));
+        if (balloon) {
+          // Break sideways and up past the envelope (turning back into it is what kills).
+          const side = this.pulloutSide;
+          // A level-ish break keeps the speed: a steep zoom at 4 g stalls and leaves the
+          // aircraft hanging helpless over the balloon's guns.
+          const perp = _tmp2.set(-_rel.z * side, 0, _rel.x * side).normalize();
+          steer.dir.copy(perp).add(new Vector3(0, 0.15, 0));
+          steer.maxG = Math.min(3.8, gCap);
+          steer.minSpeed = this.traits.stallSpeed * 1.4;
+        } else {
+          // Climbing turn away, but not so steep that the aircraft hangs stalled over the guns.
+          const side = this.pulloutSide;
+          const away = _tmp2.set(-_rel.x, 0, -_rel.z).normalize();
+          const perp = new Vector3(-_rel.z * side, 0, _rel.x * side).normalize();
+          steer.dir.copy(away).add(perp).normalize().add(new Vector3(0, 0.25, 0));
+          steer.maxG = Math.min(3.5, gCap);
+          steer.minSpeed = this.traits.stallSpeed * 1.4;
+        }
         steer.lowLevel = true;
         return true;
       }
       this.attackStage = 'approach';
     }
     if (this.attackStage === 'approach') {
+      // Re-position for the next run without bleeding off speed: a low, slow strafer is the
+      // easiest kill there is. Climb only as steeply as the airspeed margin allows.
+      steer.minSpeed = this.traits.stallSpeed * 1.5;
+      // Low-level terrain rules, as in the run: the normal ground margin (90-160 m) would force
+      // a steep climb out of every pull-out and stall the aircraft.
+      steer.lowLevel = true;
+      steer.minAgl = 50;
+      const margin = clamp((s.airspeed - this.traits.stallSpeed * 1.4) / (this.traits.stallSpeed * 0.6), 0, 1);
+      const maxClimb = 0.02 + 0.16 * margin;
       if (horiz < diveStart * 0.8) {
         // Too close to start a run: open the distance.
         const away = _tmp2.set(-_rel.x, 0, -_rel.z).normalize();
         steer.dir.copy(away);
-        steer.dir.y = clamp((setupAlt - s.position.y) / 400, -0.3, 0.3);
+        steer.dir.y = clamp((setupAlt - s.position.y) / 400, -0.3, maxClimb);
         return true;
       }
       steer.dir.copy(toPointSteer(self, tp.x, setupAlt, tp.z));
+      // Reverse back onto the target with a banked turn, not a loop: asked to fly straight
+      // behind itself, the autopilot pulls through the vertical and stalls at the top.
+      limitTurnDemand(self, steer.dir, 40 * DEG);
+      const h = Math.hypot(steer.dir.x, steer.dir.z);
+      if (h > 1e-6 && steer.dir.y > maxClimb * h) steer.dir.y = maxClimb * h;
       const facing = angleBetween(forwardOf(s.orientation, _tmp), _tmp2.set(_rel.x, 0, _rel.z));
       if (horiz < diveStart && facing < 25 * DEG) this.attackStage = 'run';
       return true;
@@ -868,9 +911,14 @@ export class AIPilot implements AIController {
     steer.lowLevel = true;
     steer.minAgl = 30;
     const agl = s.position.y - world.groundHeightAt(s.position.x, s.position.z);
-    if (r < (balloon ? 90 : 140) || agl < 45 || _rel.dot(forwardOf(s.orientation, _tmp)) < 0) {
+    // Break off with room to turn: at 60 m/s and 4 g the turn radius is ~90 m and a sideways
+    // break clears the envelope within ~60 m, so a balloon run ends at ~160 m.
+    if (r < (balloon ? 160 : 140) || agl < 45 || _rel.dot(forwardOf(s.orientation, _tmp)) < 0) {
       this.attackStage = 'pullout';
-      this.attackStageUntil = this.now + 5;
+      this.attackStageUntil = this.now + (balloon ? 5 : 5);
+      // Pull out toward whichever side the nose already points, so the turn starts at once.
+      const rgt = rightOf(s.orientation, _tmp);
+      this.pulloutSide = rgt.x * _rel.x + rgt.z * _rel.z > 0 ? -1 : 1;
     }
     return true;
   }
@@ -1030,6 +1078,23 @@ export class AIPilot implements AIController {
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
     }
+    // Balloon envelopes (static): look further ahead, they are big and don't dodge.
+    for (const b of world.balloons) {
+      if (b.destroyed) continue;
+      const rel = _tmp2.copy(b.position).sub(s.position);
+      const r = rel.length();
+      if (r > 300) continue;
+      const vv = s.velocity.lengthSq();
+      const tcpa = vv > 1e-3 ? clamp(rel.dot(s.velocity) / vv, 0, 4) : 0;
+      const cpa = rel.clone().addScaledVector(s.velocity, -tcpa);
+      const dcpa = cpa.length();
+      const radius = 45;
+      if (dcpa >= radius) continue;
+      const w = 1.5 * (1 - dcpa / radius) * (1 - tcpa / 4.2);
+      if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).negate();
+      avoid.addScaledVector(cpa.normalize(), -w);
+      wsum += w;
+    }
     if (wsum > 0.05) {
       steer.dir.normalize().addScaledVector(avoid.normalize(), clamp(wsum * 3, 0, 3)).normalize();
       steer.aim = false;
@@ -1096,7 +1161,7 @@ export class AIPilot implements AIController {
         const r = o.position.distanceTo(s.position);
         leadSolution(s.position, s.velocity, o.position, ZERO, null, mv, 1, this.lead);
         const size = angularRadius(o.kind === 'balloon' ? 9 : 4, r);
-        if (r < (o.kind === 'balloon' ? 350 : 450) && angleBetween(f, this.lead.dir) < size + p.fireConeRad) want = true;
+        if (r < (o.kind === 'balloon' ? 480 : 450) && angleBetween(f, this.lead.dir) < size + p.fireConeRad) want = true;
       }
     }
     if (want && !this.lineOfFireClear(self, world, f)) want = false;
@@ -1156,6 +1221,23 @@ export class AIPilot implements AIController {
 }
 
 const ZERO = new Vector3();
+
+/**
+ * Cap how far off the current horizontal heading `dir` may point (keeping its climb gradient),
+ * so a big reversal is flown as a banked turn toward the target side instead of a pull-through.
+ */
+function limitTurnDemand(self: AircraftEntity, dir: Vector3, maxAngle: number): void {
+  const f = forwardOf(self.state.orientation, _tmp2);
+  const fh = Math.atan2(f.x, -f.z);
+  const h = Math.hypot(dir.x, dir.z);
+  if (h < 1e-6) return;
+  const dh = Math.atan2(dir.x, -dir.z);
+  const d = wrapPi(dh - fh);
+  if (Math.abs(d) <= maxAngle) return;
+  const nh = fh + Math.sign(d) * maxAngle;
+  const grad = dir.y / h;
+  dir.set(Math.sin(nh), grad, -Math.cos(nh));
+}
 
 function lerpN(a: number, b: number, t: number): number {
   return a + (b - a) * t;

@@ -73,6 +73,17 @@ their leader is doing).
    approach (approach point, 5° final, flare, rollout). With no route and no
    home field (quick combat), a flight loiters where it started.
 
+   Attack runs, tuned with the autoplayer (see DECISIONS.md "Low-level attack runs keep
+   their energy"):
+   - **Balloons:** fire from 480 m and break sideways at 160 m in a near-level turn. Every
+     AI steers clear of balloon envelopes.
+   - **Re-attacks:** the approach for the next run uses low-level terrain rules, caps its
+     climb by the airspeed margin and its g at 80% of the accelerated-stall load, and
+     reverses onto the target in banked turns of at most 40° heading demand.
+   - **Scouts:** attackers fight scouts within 1.5 km unless already committed to a close
+     run. A tried "run home when outnumbered low" rule made things worse (fleeing with a
+     scout on your tail is deadlier than turning with him), so it was dropped.
+
 Skill is continuous (`skill.ts`): novice → ace changes spotting, reaction
 delay, aim noise, lead error, fire range and cone, burst discipline, g
 tolerance, target fixation and check-six frequency.

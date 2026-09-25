@@ -83,6 +83,14 @@ The session builds the UI's `HudView` directly (no adapter layer):
   below. "Abandon mission" always works: over enemy lines he is captured;
   over our own it is `landed-elsewhere` with `MissionResult.aborted` set, which
   always fails the mission (and gets its own CO remark in the debrief).
+- **Objectives** are checked every tick. Each one can complete early, fail
+  early (`objective-failed` event plus a radio call and HUD warning), or be
+  judged only at the end (`survive`, `protect-balloons` success). The rules
+  for each kind are in docs/campaign.md. When every primary objective is
+  decided, the radio says so. If the job was tied to other aircraft or
+  balloons (escort, intercept, balloon defence) and no enemy is within 4 km,
+  the director's `onRecall` hook fires. `SimCore` then orders the player's
+  wingmen home, and the player too when the player is AI-flown.
 - `MissionResult.acesDown` lists every historical ace lost in the fight
   (either side, whoever brought him down); the campaign retires killed and
   captured ones from the career.
@@ -174,8 +182,20 @@ balloons/targets on the wrong side of the front, aces present/downed, and an
 event histogram. Headless it runs ~200x real time (the height cache is what
 makes that possible: the analytic terrain costs ~20 us a call).
 
-- `src/game/autoplay.test.ts` (in `pnpm test`): two career patrols must reach
-  contact inside 330 s and end cleanly.
+- `playerLossCause` classifies what took the player out:
+  - `collision-<wingman|friendly|enemy|balloon>`;
+  - `enemy-fire(<outcome>)` for bullets within the last 25 s;
+  - `flak/ground(<outcome>)` for damage without a bullet hit;
+  - `self(<outcome>, <AI phase>)` for everything else.
+
+  The soak summary prints a histogram of these causes and the claims per
+  mission.
+- `passivePlayer: true` replaces the AI player with one that holds wings
+  level and the nose on the horizon and never fights.
+- `src/game/autoplay.test.ts` (in `pnpm test`):
+  - two career patrols must reach contact inside 330 s and end cleanly;
+  - a passive recruit must survive the first 60 s of at least 90% of 16
+    missions.
 - `src/game/autoplay.soak.test.ts` (skipped unless `AUTOPLAY` is set):
 
   ```sh
@@ -186,7 +206,9 @@ makes that possible: the analytic terrain costs ~20 us a call).
   `career` flies `AUTOPLAY_MISSIONS` consecutive missions for 20 pilots (all
   four nations, dates 1915-08..1918-10), applying each result through the
   campaign (promotions, medals, wounds, fates) and logging a debrief line;
-  `quick` flies every quick-mission type. The output ends with a per-type
+  `quick` flies every quick-mission type. `AUTOPLAY_QUICK_REPS=N` repeats each
+  quick setup with N fixed seeds, and `AUTOPLAY_DIFFICULTY=recruit|pilot|ace`
+  sets the career difficulty. The output ends with a per-type
   table: contact %, median contact time, success %, kills per mission,
   returned/killed/captured/wounded %, timeouts. ~110 missions take ~10 min.
   Note the AI player is a `veteran`; its death rate is an upper bound on a

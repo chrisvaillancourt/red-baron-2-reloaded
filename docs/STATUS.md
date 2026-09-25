@@ -15,17 +15,43 @@ module docs are in `docs/*.md`.
 
 ## Next steps (disposition for each item)
 
-**Do — gameplay balance (highest value)**
-- Quick ground-attack and balloon-attack missions are too deadly: tune the
-  trench ground-fire kill chance (`src/sim/combat.ts`) and the AI's pull-up
-  after a strafing run (`src/ai/controller.ts`). Re-run
-  `AUTOPLAY=quick AUTOPLAY_MISSIONS=5` to confirm.
-- Patrol success depends on reaching waypoint 2, which fights often
-  prevent. Make the patrol objective count time on station or enemies engaged.
-- Escorts whose charges are all shot down loiter until the time limit. End
-  the escort (fail) and send the flight home.
-- Contact still takes ~3.5 min of sim time. Consider starting career flights
-  closer to the lines.
+**Gameplay balance — wave 4 (BALANCE) status**
+
+Done (DECISIONS "Patrols are judged on time on station…", "Contact within
+about two minutes…", "Low-level attack runs keep their energy…", "Rear gunners
+are less accurate"):
+- **Patrols:** `patrol-area` objective, met by time on station or by engaging
+  the enemy. Patrol success is 100% (was 48%).
+- **Early outcomes:**
+  - Escorts fail as soon as too few charges are left.
+  - Intercepts fail when their targets escape.
+  - Escorts complete once the charges are home.
+  - When the job is settled and no enemy is near, the flight is recalled home.
+- **Contact:** career contact median is about 2 min (was 3.5–7).
+- **Attack runs:**
+  - Balloon runs no longer fly into the envelope or stall in the pull-out.
+  - Strafing re-attacks keep their energy.
+  - Defenders scramble from low altitude instead of waiting above.
+- **Two-seater gunners:** less accurate, which fixed intercepts.
+- **Autoplayer:**
+  - Reports a cause for every player loss.
+  - Seeded quick repetitions (`AUTOPLAY_QUICK_REPS`) and `AUTOPLAY_DIFFICULTY`.
+  - A passive-recruit regression test.
+
+Remaining:
+- **Do:** defended quick ground attacks now succeed (100%), but the
+  autoplayer still dies in about 88% of them. The defending scouts arrive after
+  the strafing and win the low-level fight that follows (the player's flight is
+  slow and low). Look at the AI's low-altitude defensive manoeuvres and energy in
+  turning fights; the dogfight AI also spends 2–11% of engage time in stall
+  recovery. A "run home when outnumbered low" rule was tried and made things
+  worse.
+- **Do:** career patrol deaths vary from 25% to 50% by run for the veteran
+  autoplayer, often with the player killed early by the pilot-hit roll.
+  Consider softening the per-round pilot-kill chance (`src/sim/combat.ts`
+  pilot case) or enemy focus on flight leaders.
+- **Defer:** quick dogfight survey setups (D.VII against two veteran SPADs)
+  are hard by construction; not a bug.
 
 **Do — flight and HUD**
 - The HUD centre is crowded at mission start (waypoint, aim marker and target

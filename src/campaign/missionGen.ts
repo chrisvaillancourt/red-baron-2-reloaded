@@ -7,6 +7,7 @@
  *   destroy-balloons / protect-balloons -> MissionBalloon ids
  *   destroy-ground -> MissionGroundTarget ids
  *   reach-waypoint -> "<flightId>:<waypointIndex>"
+ *   patrol-area -> ["<flightId>:<wpA>", "<flightId>:<wpB>"], count = seconds on station
  */
 import type { CareerDifficulty, CareerPilot, SquadronInfo } from '../core/campaignTypes';
 import type {
@@ -107,6 +108,11 @@ export function newCtx(seed: number, date: string, side: Side, nation: Nation, d
     intel: { squadrons: [], aces: [] },
   };
 }
+
+/** Time on station that satisfies a patrol (the flight's two patrol legs orbit 2 x 120 s). */
+export const PATROL_STATION_S = 150;
+/** Air-start distance behind the lines for career missions (~1 min of flying). */
+export const START_BEHIND_LINES_M = 3500;
 
 const ENEMY_SKILL: Record<CareerDifficulty, readonly (readonly [SkillLevel, number])[]> = {
   recruit: [['novice', 6], ['regular', 3.5], ['veteran', 0.5]],
@@ -472,9 +478,12 @@ const TITLES: Record<MissionType, Record<Side, string>> = {
 function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPoint, playerFlightId: string): Plan {
   const { rng, date, side, enemySide } = ctx;
   const alt = patrolAltitude(ctx, s.aircraftId);
-  const toFront = dist(s.home, fp);
-  const start = pointOnSide(fp, side, Math.max(2000, Math.min(5000, toFront * 0.5)), date);
-  const ingress = pointOnSide(fp, side, 1500, date, rng.range(-2000, 2000));
+  // Pacing (DECISIONS: contact within ~1.5-3 min): the flight starts in the air a short
+  // ferry behind the lines, lined up with where it crosses them, rather than far back and
+  // off to one side. The full ferry from the aerodrome is the startOnGround option.
+  const ingressLat = rng.range(-2000, 2000);
+  const start = pointOnSide(fp, side, START_BEHIND_LINES_M, date, ingressLat);
+  const ingress = pointOnSide(fp, side, 1500, date, ingressLat);
   const home: Waypoint = wp(s.home, terrainHeightAt(s.home.x, s.home.z) + 300, 'land', { label: s.home.name });
   const eAlt = () => Math.max(800, alt + rng.range(-600, 700));
   const title = (where: XZ) => `${TITLES[type][side]} ${describeLocation(where)}`;
@@ -484,13 +493,15 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
     case 'free-hunt': {
       const deep = type === 'free-hunt';
       const patrolSide = side === 'allied' || deep ? enemySide : side;
-      const d = deep ? rng.range(4000, 10000) : patrolSide === enemySide ? rng.range(2000, 6000) : rng.range(1000, 3000);
-      const p1 = pointOnSide(fp, patrolSide, d, date, -6000);
-      const p2 = pointOnSide(fp, patrolSide, d, date, 6000);
+      const d = deep ? rng.range(3000, 7000) : patrolSide === enemySide ? rng.range(1500, 4000) : rng.range(1000, 2500);
+      // An 8 km patrol line whose near end is where the flight crosses the lines.
+      const dirLat = rng.chance(0.5) ? 1 : -1;
+      const p1 = pointOnSide(fp, patrolSide, d, date, ingressLat - dirLat * 1500);
+      const p2 = pointOnSide(fp, patrolSide, d, date, ingressLat + dirLat * 6500);
       const wps = deep
         ? [wp(ingress, alt, 'fly', { label: 'Cross the lines' }), wp(p1, alt, 'patrol', { duration: 300, label: 'Hunting ground' }), wp(ingress, alt, 'fly', { label: 'Recross the lines' }), home]
         : [wp(ingress, alt, 'fly', { label: 'The lines' }), wp(p1, alt, 'patrol', { duration: 120, label: 'Patrol line (north)' }), wp(p2, alt, 'patrol', { duration: 120, label: 'Patrol line (south)' }), home];
-      const enemyStart = pointOnSide(fp, enemySide, 7000, date, rng.range(-5000, 5000));
+      const enemyStart = pointOnSide(fp, enemySide, 6000, date, ingressLat + rng.range(-4000, 4000));
       const e1 = fighterFlight(ctx, {
         side: enemySide, role: 'enemy', near: fp, count: enemyCount(ctx, 3), start: enemyStart, altitude: eAlt(),
         waypoints: [wp(p1, eAlt(), 'patrol', { duration: 400 }), wp(p2, eAlt(), 'patrol', { duration: 200 }), wp(enemyStart, eAlt(), 'fly')],
@@ -509,22 +520,22 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
       if (deep) {
         addObjective(ctx, { kind: 'destroy-aircraft', description: 'Bring down at least one enemy machine.', targetIds: targets, count: 1, primary: true });
       } else {
-        addObjective(ctx, { kind: 'reach-waypoint', description: 'Fly the full patrol line.', targetIds: [`${playerFlightId}:2`], count: 1, primary: true });
+        addObjective(ctx, { kind: 'patrol-area', description: `Hold the patrol line for ${Math.round(PATROL_STATION_S / 60)} minutes, or engage the enemy there.`, targetIds: [`${playerFlightId}:1`, `${playerFlightId}:2`], count: PATROL_STATION_S, primary: true });
         addObjective(ctx, { kind: 'destroy-aircraft', description: 'Engage any enemy machines encountered.', targetIds: targets, count: 1, primary: false });
       }
       const where = describeLocation(p1);
       const orders = deep
         ? `You have a free hand today. Cross the lines ${describeLocation(ingress)} at ${fmtAlt(ctx, alt)} and hunt ${where}. Pick your fights: height and the sun are your friends.`
         : side === 'allied'
-          ? `Carry out an offensive patrol ${where}, between ${fmtAlt(ctx, alt - 300)} and ${fmtAlt(ctx, alt + 300)}, keeping well east of the lines. Engage all hostile machines met with.`
-          : `Fly a barrier patrol along our side of the lines ${where} at ${fmtAlt(ctx, alt)}. No enemy machine is to cross into our sector unmolested.`;
+          ? `Carry out an offensive patrol ${where}, between ${fmtAlt(ctx, alt - 300)} and ${fmtAlt(ctx, alt + 300)}, keeping well east of the lines. Hold the patrol line for at least ${Math.round(PATROL_STATION_S / 60)} minutes and engage all hostile machines met with.`
+          : `Fly a barrier patrol along our side of the lines ${where} at ${fmtAlt(ctx, alt)}. Hold the line for at least ${Math.round(PATROL_STATION_S / 60)} minutes: no enemy machine is to cross into our sector unmolested.`;
       return { type, title: title(p1), orders, playerWaypoints: wps, playerStart: start, playerAltitude: alt, playerTask: 'fighter-sweep' };
     }
 
     case 'escort': {
-      const target = pointOnSide(fp, enemySide, rng.range(5000, 10000), date, rng.range(-5000, 5000));
-      const rendezvous = pointOnSide(fp, side, 5000, date, rng.range(-3000, 3000));
-      const egress = pointOnSide(fp, side, 2500, date, rng.range(-3000, 3000));
+      const target = pointOnSide(fp, enemySide, rng.range(3500, 7000), date, ingressLat + rng.range(-3000, 3000));
+      const rendezvous = pointOnSide(fp, side, 3000, date, ingressLat);
+      const egress = pointOnSide(fp, side, 2500, date, ingressLat + rng.range(-3000, 3000));
       const bomb = yearOf(date) >= 1917 && rng.chance(0.4);
       const theirBase = nearestAerodrome(ctx, side, rendezvous, s.home.id) ?? s.home;
       const ts = twoSeaterFlight(ctx, {
@@ -533,7 +544,7 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
         task: bomb ? 'bomb' : 'recon',
       });
       const start2 = ensureSide(ctx, add(rendezvous, { x: -(target.x - rendezvous.x) / Math.max(1, dist(target, rendezvous)), z: -(target.z - rendezvous.z) / Math.max(1, dist(target, rendezvous)) }, 1500), side, fp);
-      const enemyStart = pointOnSide(fp, enemySide, 8000, date, rng.range(-6000, 6000));
+      const enemyStart = pointOnSide(fp, enemySide, 7000, date, ingressLat + rng.range(-5000, 5000));
       fighterFlight(ctx, {
         side: enemySide, role: 'enemy', near: target, count: enemyCount(ctx, 3), start: enemyStart, altitude: eAlt(),
         waypoints: [wp(target, eAlt(), 'patrol', { duration: 300 }), wp(enemyStart, eAlt(), 'fly')], task: 'defend', spawnDelay: meetDelay(ctx, [start2, rendezvous], target, enemyStart, 0, [-90, -10]),
@@ -552,32 +563,36 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
     }
 
     case 'intercept': {
-      const eStart = pointOnSide(fp, enemySide, 8000, date, rng.range(-8000, 8000));
-      const tgt = pointOnSide(fp, side, rng.range(4000, 8000), date, rng.range(-6000, 6000));
+      const tgtDepth = rng.range(2500, 5000);
+      const tgtLat = ingressLat + rng.range(-3000, 3000);
+      const eStart = pointOnSide(fp, enemySide, 3500, date, tgtLat + rng.range(-5000, 5000));
+      const tgt = pointOnSide(fp, side, tgtDepth, date, tgtLat);
       const eBack = pointOnSide(fp, enemySide, 6000, date, rng.range(-6000, 6000));
+      // Scrambled to meet them: start between the aerodrome and their objective.
+      const iStart = pointOnSide(fp, side, tgtDepth + 3000, date, tgtLat);
       const a = eAlt();
-      const ts = twoSeaterFlight(ctx, { side: enemySide, role: 'enemy', count: rng.int(1, 3), start: eStart, altitude: a, waypoints: [wp(tgt, a, 'patrol', { duration: 150, label: 'Enemy objective' }), wp(eBack, a, 'fly')], task: 'recon', spawnDelay: meetDelay(ctx, [start, ingress], tgt, eStart, 0, [-100, -30]) });
+      const ts = twoSeaterFlight(ctx, { side: enemySide, role: 'enemy', count: rng.int(1, 3), start: eStart, altitude: a, waypoints: [wp(tgt, a, 'patrol', { duration: 150, label: 'Enemy objective' }), wp(eBack, a, 'fly')], task: 'recon', spawnDelay: meetDelay(ctx, [iStart], tgt, eStart, 0, [-100, -30]) });
       const escortChance = yearOf(date) <= 1916 ? 0.3 : yearOf(date) === 1917 ? 0.5 : 0.6;
       if (rng.chance(escortChance)) {
         fighterFlight(ctx, { side: enemySide, role: 'enemy', near: tgt, count: enemyCount(ctx, 2), start: add(eStart, { x: 0, z: 1 }, 600), altitude: a + 400, waypoints: [wp(tgt, a + 400, 'patrol', { duration: 150 }), wp(eBack, a + 400, 'fly')], task: 'escort', escortFlightId: ts.id, spawnDelay: ts.spawnDelay });
       }
       addObjective(ctx, { kind: 'destroy-aircraft', description: `Destroy the enemy ${AIRCRAFT[ts.aircraftId].shortName} two-seater${ts.members.length > 1 ? 's' : ''}.`, targetIds: [ts.id], count: 1, primary: true });
       const orders = `Our observers report enemy two-seaters ranging for their artillery ${describeLocation(tgt)}. Climb to ${fmtAlt(ctx, a)}, find them, and bring them down before they can take their photographs home.`;
-      return { type, title: title(tgt), orders, playerStart: start, playerAltitude: alt, playerTask: 'fighter-sweep', playerWaypoints: [wp(ingress, alt, 'fly', { label: 'Climb to height' }), wp(tgt, a, 'patrol', { duration: 240, label: 'Interception area' }), home] };
+      return { type, title: title(tgt), orders, playerStart: iStart, playerAltitude: alt, playerTask: 'fighter-sweep', playerWaypoints: [wp(tgt, a, 'patrol', { duration: 240, label: 'Interception area' }), home] };
     }
 
     case 'balloon-attack': {
       const n = rng.int(2, 3);
-      const d = rng.range(4000, 8000);
-      const lat0 = rng.range(-3000, 3000);
+      const d = rng.range(3000, 5500);
+      const lat0 = ingressLat + rng.range(-2000, 2000);
       const balloons = Array.from({ length: n }, (_, i) => addBalloon(ctx, enemySide, pointOnSide(fp, enemySide, d + rng.range(-800, 800), date, lat0 + (i - (n - 1) / 2) * rng.range(1500, 3000))));
       for (const b of balloons) {
         for (let k = 0; k < 2; k++) addGround(ctx, 'aa-gun', enemySide, ensureSide(ctx, jitter(ctx, b, 350), enemySide, fp));
       }
       const c = centroid(balloons);
       if (rng.chance(0.6)) {
-        const ds = pointOnSide(fp, enemySide, d + 4000, date, lat0);
-        fighterFlight(ctx, { side: enemySide, role: 'enemy', near: c, count: enemyCount(ctx, 2), start: ds, altitude: 1800, waypoints: [wp(c, 1800, 'patrol', { duration: 600, label: 'Balloon line' })], task: 'defend', spawnDelay: meetDelay(ctx, [start, ingress], c, ds, 0, [-30, 40]) });
+        const ds = pointOnSide(fp, enemySide, d + 3000, date, lat0);
+        fighterFlight(ctx, { side: enemySide, role: 'enemy', near: c, count: enemyCount(ctx, 2), start: ds, altitude: terrainHeightAt(ds.x, ds.z) + 500, waypoints: [wp(c, terrainHeightAt(c.x, c.z) + 1200, 'patrol', { duration: 600, label: 'Balloon line' })], task: 'defend', spawnDelay: meetDelay(ctx, [start, ingress], c, ds, 40, [0, 40]) }); // scrambled as the attack goes in
       }
       const ids = balloons.map((b) => b.id);
       addObjective(ctx, { kind: 'destroy-balloons', description: 'Flame at least one enemy observation balloon.', targetIds: ids, count: 1, primary: true });
@@ -591,17 +606,17 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
 
     case 'balloon-defense': {
       const n = rng.int(2, 3);
-      const d = rng.range(4000, 7000);
-      const lat0 = rng.range(-3000, 3000);
+      const d = rng.range(2500, 4500);
+      const lat0 = ingressLat + rng.range(-2000, 2000);
       const balloons = Array.from({ length: n }, (_, i) => addBalloon(ctx, side, pointOnSide(fp, side, d + rng.range(-800, 800), date, lat0 + (i - (n - 1) / 2) * rng.range(1500, 3000))));
       for (const b of balloons) addGround(ctx, 'aa-gun', side, ensureSide(ctx, jitter(ctx, b, 350), side, fp));
       const c = centroid(balloons);
       const ids = balloons.map((b) => b.id);
-      const es = pointOnSide(fp, enemySide, 8000, date, rng.range(-6000, 6000));
+      const es = pointOnSide(fp, enemySide, 4500, date, lat0 + rng.range(-4000, 4000));
       const e1 = fighterFlight(ctx, { side: enemySide, role: 'enemy', near: c, count: enemyCount(ctx, 2), start: es, altitude: 2000, waypoints: [wp(c, 1200, 'attack-balloon', { targetIds: ids }), wp(es, 1500, 'fly')], task: 'balloon-attack', spawnDelay: meetDelay(ctx, [start], c, es, 40, [0, 60]), aceChance: 0.25 });
       const targets = [e1.id];
       if (rng.chance(0.35)) {
-        const es2 = pointOnSide(fp, enemySide, 9000, date, rng.range(-6000, 6000));
+        const es2 = pointOnSide(fp, enemySide, 7000, date, rng.range(-6000, 6000));
         targets.push(fighterFlight(ctx, { side: enemySide, role: 'enemy', near: c, count: enemyCount(ctx, 2), start: es2, altitude: eAlt(), waypoints: [wp(c, eAlt(), 'patrol', { duration: 300 }), wp(es2, eAlt(), 'fly')], task: 'fighter-sweep', spawnDelay: meetDelay(ctx, [start], c, es2, 150) }).id);
       }
       addObjective(ctx, { kind: 'protect-balloons', description: `Keep at least ${Math.max(1, n - 1)} of our ${n} balloons aloft.`, targetIds: ids, count: Math.max(1, n - 1), primary: true });
@@ -631,7 +646,7 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
 
     case 'ground-attack':
     default: {
-      const lat = rng.range(-4000, 4000);
+      const lat = ingressLat + rng.range(-2000, 2000);
       const ids: string[] = [];
       for (let i = 0; i < 2; i++) ids.push(addGround(ctx, 'trench-mg', enemySide, pointOnSide(fp, enemySide, rng.range(500, 1200), date, lat + rng.range(-600, 600))).id);
       for (let i = 0; i < rng.int(2, 3); i++) ids.push(addGround(ctx, 'artillery', enemySide, pointOnSide(fp, enemySide, rng.range(2500, 4000), date, lat + i * 120)).id);
@@ -641,8 +656,8 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
       addGround(ctx, 'aa-gun', enemySide, pointOnSide(fp, enemySide, 2000, date, lat + 800));
       const c = centroid(ctx.groundTargets.filter((g) => ids.includes(g.id)));
       if (rng.chance(0.5)) {
-        const es = pointOnSide(fp, enemySide, 9000, date, lat);
-        fighterFlight(ctx, { side: enemySide, role: 'enemy', near: c, count: enemyCount(ctx, 2), start: es, altitude: eAlt(), waypoints: [wp(c, eAlt(), 'patrol', { duration: 400 }), wp(es, eAlt(), 'fly')], task: 'fighter-sweep', spawnDelay: meetDelay(ctx, [start, ingress], c, es, 60, [0, 90]) });
+        const es = pointOnSide(fp, enemySide, 6000, date, lat);
+        fighterFlight(ctx, { side: enemySide, role: 'enemy', near: c, count: enemyCount(ctx, 2), start: es, altitude: terrainHeightAt(es.x, es.z) + 500, waypoints: [wp(c, terrainHeightAt(c.x, c.z) + 500, 'patrol', { duration: 400 }), wp(es, eAlt(), 'fly')], task: 'fighter-sweep', spawnDelay: meetDelay(ctx, [start, ingress], c, es, 120, [0, 60]) });
       }
       addObjective(ctx, { kind: 'destroy-ground', description: `Destroy at least ${Math.ceil(ids.length / 3)} targets: machine-gun posts, batteries and transport.`, targetIds: ids, count: Math.ceil(ids.length / 3), primary: true });
       addObjective(ctx, { kind: 'destroy-ground', description: 'Destroy every target.', targetIds: ids, count: ids.length, primary: false });
