@@ -422,17 +422,34 @@ function paintCowling(liv: Livery): HTMLCanvasElement {
   return c;
 }
 
+/**
+ * LRU of painted liveries. Bounded: every squadron mate carries a personal
+ * marking, so a long career meets hundreds of distinct liveries, each five
+ * canvases of native memory. Evicted entries are only dropped from the map, not
+ * disposed: a live aircraft may still be wearing them, and the flight's GPU
+ * sweep (src/render/releaseGpu.ts) frees their GPU copies when it ends.
+ */
 const cache = new Map<string, LiveryTextures>();
+export const LIVERY_CACHE_MAX = 48;
 
 export function liveryKey(spec: AircraftSpec, liv: Livery): string {
   return `${spec.id}|${JSON.stringify(liv)}`;
+}
+
+export function liveryCacheSize(): number {
+  return cache.size;
 }
 
 /** Paint (or fetch cached) livery textures for an aircraft type + livery. */
 export function getLiveryTextures(spec: AircraftSpec, liv: Livery, meta: AircraftMeta, date = '1917-06-01'): LiveryTextures {
   const key = liveryKey(spec, liv);
   const hit = cache.get(key);
-  if (hit) return hit;
+  if (hit) {
+    cache.delete(key); // refresh recency
+    cache.set(key, hit);
+    return hit;
+  }
+  while (cache.size >= LIVERY_CACHE_MAX) cache.delete(cache.keys().next().value!);
   const seed = hashString(key);
   const t: LiveryTextures = {
     fuselage: tex(paintFuselage(spec, liv, meta, seed)),

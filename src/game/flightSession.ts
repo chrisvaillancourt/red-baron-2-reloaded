@@ -661,13 +661,18 @@ export class FlightSession {
     this.input?.detach();
     this.audio.stopFlight();
     this.director?.dispose();
+    // Renderer first, while aircraft visuals are still in its scene: its dispose sweeps
+    // every geometry/material/texture in the scene, including shared model caches, so
+    // none of them keeps this flight's WebGL context alive (src/render/releaseGpu.ts).
+    this.renderer?.dispose();
     this.visuals.forEach((v) => {
       v.object.removeFromParent();
       v.dispose();
     });
     this.visuals.clear();
+    this.entityObjects.clear();
+    this.interp = new RenderInterpolator();
     this.hud?.dispose();
-    this.renderer?.dispose();
     this.root?.remove();
     if (window.__rb2) window.__rb2.session = null;
   }
