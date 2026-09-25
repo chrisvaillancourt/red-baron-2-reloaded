@@ -12,6 +12,7 @@ import { aerodromesActiveOn, getAerodrome } from '../../data/aerodromes';
 import { COASTLINE, FORESTS, RIVERS, TOWNS } from '../../data/geography';
 import { frontLineAt } from '../../world/frontline';
 import type { UnitSystem } from '../format';
+import { placeLabel, type Rect } from './labels';
 
 export interface MapMarker {
   kind: 'aircraft' | 'balloon' | 'ground';
@@ -571,22 +572,34 @@ function drawRoute(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u: num
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(i + 1), x, y + 0.5 * u);
+  });
+  // Tags after every circle, so no circle covers a tag, placed clear of the
+  // circles and of each other (waypoints often bunch up at the lines).
+  const taken: Rect[] = route.map((w, i) => {
+    const r = (view.activeWaypoint === i ? 11 : 9) * u;
+    return { x: P.sx(w.x) - r, y: P.sy(w.z) - r, w: 2 * r, h: 2 * r };
+  });
+  const sheet: Rect = { x: 16 * u, y: 16 * u, w: ctx.canvas.width - 32 * u, h: ctx.canvas.height - 32 * u };
+  route.forEach((w, i) => {
     const label = w.label ?? actionLabel(w.action);
-    if (label) {
-      ctx.font = `${10 * u}px "Courier New", monospace`;
-      ctx.textAlign = 'left';
-      const alt = view.units === 'metric' ? `${Math.round(w.altitude / 100) * 100} m` : `${Math.round((w.altitude * 3.28084) / 500) * 500} ft`;
-      // The landing waypoint sits on the (already labelled) home field: just say "Land".
-      const text = w.action === 'land' ? 'Land' : `${label} · ${alt}`;
-      const tw = ctx.measureText(text).width;
-      // Flip the tag to the left of the circle when it would run off the sheet.
-      const left = x + r + tw + 12 * u > ctx.canvas.width - 16 * u;
-      const bx = left ? x - r - 9 * u - tw : x + r + 3 * u;
-      ctx.fillStyle = 'rgba(255,250,235,0.85)';
-      ctx.fillRect(bx, y - 7 * u, tw + 6 * u, 14 * u);
-      ctx.fillStyle = '#1d1813';
-      ctx.fillText(text, bx + 3 * u, y);
-    }
+    if (!label) return;
+    const x = P.sx(w.x);
+    const y = P.sy(w.z);
+    const r = (view.activeWaypoint === i ? 11 : 9) * u;
+    ctx.font = `${10 * u}px "Courier New", monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const alt = view.units === 'metric' ? `${Math.round(w.altitude / 100) * 100} m` : `${Math.round((w.altitude * 3.28084) / 500) * 500} ft`;
+    // The landing waypoint sits on the (already labelled) home field: just say "Land".
+    const text = w.action === 'land' ? 'Land' : `${label} · ${alt}`;
+    const tw = ctx.measureText(text).width + 6 * u;
+    const own = taken[i];
+    const box = placeLabel(x, y, r, tw, 14 * u, 3 * u, taken.filter((t) => t !== own), sheet);
+    taken.push(box);
+    ctx.fillStyle = 'rgba(255,250,235,0.85)';
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.fillStyle = '#1d1813';
+    ctx.fillText(text, box.x + 3 * u, box.y + box.h / 2);
   });
   ctx.restore();
 }

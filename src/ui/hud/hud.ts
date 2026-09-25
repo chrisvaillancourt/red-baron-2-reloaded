@@ -13,6 +13,8 @@ import { altitudeValue, formatClock, formatDistance, headingDegrees, resolveUnit
 import { codeLabel } from '../bindings';
 import { drawMap, type MapView } from '../map/mapRenderer';
 import { compass, dial, type Gauge } from './gauges';
+import { declutter, visibleThreats } from './declutter';
+import { onPadChange } from '../gamepad';
 import type { EndFlightPromptOptions, Hud, HudDamage, HudGun, HudMessageOptions, HudScreenPoint, HudView, PauseCallbacks } from './types';
 
 const K_TAPE = 0.3; // em per degree on the heading tape
@@ -74,6 +76,10 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   }
   tape.append(strip);
   const headingBox = h('div', { class: 'hud-heading' }, '000°');
+  // Waypoint caret on the heading tape (an unmasked overlay with the tape's geometry).
+  const wpTapeDist = h('div', { class: 'd' });
+  const wpTape = h('div', { class: 'hud-wp-tape hidden' }, wpTapeDist);
+  const tapeOverlay = h('div', { class: 'hud-tape-overlay' }, wpTape);
 
   // ------------------------------------------------------ readout strip
   const ro_spd = h('span', { class: 'v' });
@@ -176,7 +182,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   const gFx = h('div', { class: 'hud-g' });
   const flash = h('div', { class: 'hud-flash' });
 
-  root.append(gFx, flash, reticle, aimMarker, noseMarker, leadMarker, wpMarker, wpEdge, targetMarker, targetEdge, threats, tape, headingBox, padlockEl, alert, messages, status, damageWrap, gunsWrap, cluster, readout, hint);
+  root.append(gFx, flash, reticle, aimMarker, noseMarker, leadMarker, wpMarker, wpEdge, targetMarker, targetEdge, threats, tape, tapeOverlay, headingBox, padlockEl, alert, messages, status, damageWrap, gunsWrap, cluster, readout, hint);
 
   // ------------------------------------------------------ helpers
   function place(marker: HTMLElement, p: HudScreenPoint | null | undefined, edge?: HTMLElement): void {
@@ -199,6 +205,24 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
         edge.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${a.toFixed(3)}rad)`;
       } else if (edge) toggleClass(edge, 'hidden', true);
     }
+  }
+
+  /** Waypoint caret on the tape; pinned to the tape's end when outside its ±40° span. */
+  function placeTapeCaret(bearing: number | undefined, hdg: number, text: string): void {
+    if (bearing === undefined) {
+      toggleClass(wpTape, 'hidden', true);
+      return;
+    }
+    toggleClass(wpTape, 'hidden', false);
+    let rel = ((bearing * 180) / Math.PI - hdg) % 360;
+    if (rel > 180) rel -= 360;
+    if (rel < -180) rel += 360;
+    const pinned = Math.abs(rel) > 40;
+    const shown = Math.max(-40, Math.min(40, rel));
+    wpTape.style.transform = `translateX(${(13 + shown * K_TAPE).toFixed(2)}em)`;
+    toggleClass(wpTape, 'pin-left', pinned && rel < 0);
+    toggleClass(wpTape, 'pin-right', pinned && rel > 0);
+    setText(wpTapeDist, text);
   }
 
   function renderDamage(d: HudDamage): void {
@@ -273,6 +297,10 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   }
 
   let flashTimer = 0;
+  const unsubPad = onPadChange((name, connected) => {
+    if (!settings.controls.gamepadEnabled) return;
+    showMessage(connected ? `${name} connected.` : `${name} disconnected — back to keyboard and mouse.`, { kind: connected ? 'info' : 'warning', duration: 4 });
+  });
 
   const hud: Hud = {
     element: root,
@@ -340,11 +368,24 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
         setChildren(wingmenEl, ...v.wingmen.map((w) => h('div', { class: `w ${w.status}` }, w.name)));
       }
 
-      // Target box
       const labels = settings.realism.targetLabels;
       const t = v.target;
+      const combat = (!!t && !t.friendly && t.kind === 'aircraft') || v.threats.some((x) => x.danger);
+      const dc = declutter({
+        w: W,
+        h: H,
+        target: t && labels ? t.screen : null,
+        waypoint: v.waypoint?.screen ?? null,
+        aim: v.mouseAim?.aim ?? null,
+        nose: v.mouseAim?.nose ?? null,
+        reticle: v.gunReticle && v.view !== 'cockpit' ? v.gunReticle : null,
+        combat,
+      });
+
+      // Target box
       if (t && labels) {
         toggleClass(box, 'friendly', t.friendly);
+        toggleClass(box, 'info-left', dc.targetInfoLeft);
         toggleClass(box, 'padlocked', v.padlock.active && !v.padlock.lost);
         const info = `${t.name}\u0001${t.type}\u0001${formatDistance(t.range, units.system)}\u0001${Math.round(speedValue(t.closure, units.speed))}\u0001${t.isAce ? 1 : 0}`;
         if (boxInfo.dataset.k !== info) {
@@ -369,16 +410,26 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
       if (v.waypoint) {
         const lbl = wpMarker.querySelector('.hud-wp-label') as HTMLElement;
         setText(lbl, `${v.waypoint.index + 1}/${v.waypoint.total} ${v.waypoint.label} · ${formatDistance(v.waypoint.distance, units.system)}`);
-        place(wpMarker, v.waypoint.screen, wpEdge);
-      } else place(wpMarker, null, wpEdge);
+        toggleClass(lbl, 'hidden', !dc.waypointLabel);
+        const op = String(dc.waypointOpacity);
+        if (wpMarker.style.opacity !== op) wpMarker.style.opacity = op;
+        const edgeOp = dc.waypointOpacity > 0 ? op : '0.35';
+        if (wpEdge.style.opacity !== edgeOp) wpEdge.style.opacity = edgeOp;
+        place(wpMarker, dc.waypointOpacity > 0 ? v.waypoint.screen : null, wpEdge);
+        placeTapeCaret(v.waypoint.bearing, hdg, `${v.waypoint.index + 1} ${v.waypoint.label} · ${formatDistance(v.waypoint.distance, units.system)}`);
+      } else {
+        place(wpMarker, null, wpEdge);
+        placeTapeCaret(undefined, hdg, '');
+      }
 
-      place(reticle, v.gunReticle && v.view !== 'cockpit' ? v.gunReticle : null);
+      place(reticle, dc.showReticle ? v.gunReticle : null);
       place(aimMarker, v.mouseAim?.aim ?? null);
-      place(noseMarker, v.mouseAim?.nose ?? null);
+      toggleClass(aimMarker.firstElementChild!, 'aligned', dc.aimAligned);
+      place(noseMarker, dc.showNose ? (v.mouseAim?.nose ?? null) : null);
 
       // Threat ring
       const ring = Math.min(W, H) * 0.2;
-      const thr = labels ? v.threats : v.threats.filter((x) => x.danger);
+      const thr = labels ? visibleThreats(v.threats) : v.threats.filter((x) => x.danger);
       while (threats.children.length < thr.length) threats.append(h('div', { class: 'hud-threat' }));
       while (threats.children.length > thr.length) threats.lastElementChild!.remove();
       thr.forEach((x, i) => {
@@ -497,6 +548,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
 
     dispose() {
       ro.disconnect();
+      unsubPad();
       closeCard();
       root.remove();
     },

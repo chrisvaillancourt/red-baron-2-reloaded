@@ -140,7 +140,7 @@ function threats(i: HudBuildInput): HudThreat[] {
     const rel = tmp.copy(a.state.position).sub(player.state.position).normalize();
     const behind = rel.dot(back) > 0.5;
     const closing = -tmp2.copy(a.state.velocity).sub(player.state.velocity).dot(rel) > 5;
-    out.push({ angle, distance: d, danger: behind && closing && d < 800 });
+    out.push({ angle, distance: d, danger: behind && closing && d < 800, onScreen: s.onScreen });
   }
   return out;
 }
@@ -201,6 +201,7 @@ export function buildHudView(i: HudBuildInput): HudView {
       total: flight.waypoints.length,
       label,
       distance: Math.hypot(wp.x - s.position.x, wp.z - s.position.z),
+      bearing: Math.atan2(wp.x - s.position.x, -(wp.z - s.position.z)),
       screen: toScreen(camera, pos),
     };
   }

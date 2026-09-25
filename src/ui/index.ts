@@ -20,6 +20,7 @@ import { quickScreen } from './screens/quick';
 import { optionsScreen } from './screens/options';
 import { controlsScreen, creditsScreen } from './screens/docs';
 import { acesScreen } from './screens/aces';
+import { onPadChange } from './gamepad';
 
 export { createHud } from './hud/hud';
 export type {
@@ -267,9 +268,14 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     dispose() {
       screen?.dispose?.();
       nav.dispose();
+      unsubPad();
       layer.remove();
     },
   };
+  const unsubPad = onPadChange((name, connected) => {
+    if (!services.getSettings().controls.gamepadEnabled) return;
+    toast(connected ? `${name} connected — ready to fly.` : `${name} disconnected.`);
+  });
   // Dev-only QA hook: lets Playwright scripts jump to screens with real data.
   if (import.meta.env?.DEV) (window as unknown as { __rb2ui?: UiController }).__rb2ui = controller;
   return controller;

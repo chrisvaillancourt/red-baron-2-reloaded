@@ -2410,3 +2410,159 @@ select.input option {
   font-size: 0.75em;
   color: var(--ink-soft);
 }
+
+/* ============================================ fit 1280×720 and 1366×768
+ * Long lists scroll inside their own box; the controls around them (the
+ * difficulty picker, the side-panel spec sheets) must fit without scrolling. */
+.enlist .paper.tilt-r {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.enlist .paper.tilt-r .squadron-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.2em 0.4em 0.2em 0.1em;
+}
+.enlist .paper.tilt-r > .field {
+  flex: none;
+}
+.quick .paper > .field:has(.ace-pick) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.quick .ace-pick {
+  flex: 1;
+  min-height: 4.5em;
+  max-height: none;
+}
+@media (max-height: 820px) {
+  .enlist .paper {
+    padding: 1.1em 1.6em;
+  }
+  .form-grid {
+    gap: 0.55em 1.2em;
+    margin-top: 0.6em;
+  }
+  .nations .choice {
+    padding: 0.45em 0.4em;
+    gap: 0.2em;
+  }
+  .nations .choice .insignia {
+    width: 2.1em;
+    height: 2.1em;
+  }
+  .period-card {
+    padding: 0.5em 0.8em;
+  }
+  .period-card p {
+    font-size: 0.84em;
+  }
+  .enlist .paper.tilt-r > .field {
+    margin-top: 0.7em !important;
+  }
+  .difficulty .choice {
+    padding: 0.45em 0.6em;
+  }
+  .quick .paper {
+    padding: 1em 1.25em;
+    gap: 0.45em;
+  }
+  .quick .spec-sheet {
+    margin-top: 0.2em;
+  }
+  .quick .spec-sheet .profile-big {
+    padding: 0.1em 0;
+    margin-bottom: 0.35em;
+  }
+  .quick .spec-sheet .profile-big svg {
+    max-height: 4.6em;
+  }
+  .quick .spec-bars {
+    gap: 0.1em 0.6em;
+    font-size: 0.76em;
+  }
+  .quick .spec-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 0.35em;
+  }
+  .quick .spec-sheet > .typed.muted {
+    display: none;
+  }
+}
+@media (max-height: 820px) {
+  .brief-paper {
+    padding: 1.1em 1.4em;
+    gap: 0.4em;
+  }
+  .brief-paper h2 {
+    font-size: 1.35em;
+  }
+  .brief-facts {
+    gap: 0.3em;
+  }
+  .brief-facts .f {
+    padding: 0.2em 0.5em;
+  }
+  .objectives li {
+    padding: 0.15em 0;
+  }
+}
+@media (max-height: 820px) {
+  .ac-card {
+    grid-template-columns: 5.6em 1fr;
+    padding-top: 0.35em;
+    padding-bottom: 0.35em;
+  }
+  .ac-card .ac-profile {
+    width: 5.6em;
+  }
+}
+
+/* Gamepad button glyphs (Flying School, controls reference) */
+.pad-glyph {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0.05em 0.45em;
+  margin: 0 0.12em;
+  border-radius: 0.8em;
+  border: 1px solid var(--ink-soft);
+  background: rgba(42, 33, 24, 0.08);
+  font-family: var(--font-type);
+  font-size: 0.78em;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.5;
+  vertical-align: 0.05em;
+}
+.pad-glyph.face {
+  width: 1.55em;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  color: #fff;
+  border-color: rgba(0, 0, 0, 0.35);
+}
+.pad-glyph.face.a {
+  background: #3f8a3a;
+}
+.pad-glyph.face.b {
+  background: #b33a2e;
+}
+.pad-glyph.face.x {
+  background: #2f63a8;
+}
+.pad-glyph.face.y {
+  background: #c9a227;
+  color: #2a2118;
+}
+.fs-pad {
+  margin-top: 0.3em;
+  opacity: 0.9;
+}

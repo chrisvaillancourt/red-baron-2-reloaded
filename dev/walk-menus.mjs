@@ -27,7 +27,21 @@ const want = (name) => !only || name.startsWith(only);
 const snap = async (name) => {
   await page.waitForTimeout(450);
   await page.screenshot({ path: `${out}/${name}-${tag}.png` });
-  console.log('shot', name);
+  // Report anything that needs scrolling at this viewport (the page itself, or
+  // any panel whose content overflows its box).
+  const overflow = await page.evaluate(() => {
+    const out = [];
+    const doc = document.scrollingElement;
+    if (doc && doc.scrollHeight > doc.clientHeight + 2) out.push(`page +${doc.scrollHeight - doc.clientHeight}px`);
+    const scr = document.querySelector('.rb-screen:not(.leaving)');
+    for (const el of scr ? scr.querySelectorAll('*') : []) {
+      const cs = getComputedStyle(el);
+      if (!/(auto|scroll)/.test(cs.overflowY)) continue;
+      if (el.scrollHeight > el.clientHeight + 2 && el.clientHeight > 0) out.push(`${el.className || el.tagName} +${el.scrollHeight - el.clientHeight}px`);
+    }
+    return out;
+  });
+  console.log('shot', name, overflow.length ? `OVERFLOW ${overflow.join('; ')}` : '');
 };
 const screen = () => page.evaluate(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen'));
 const show = async (id, params = {}) => {

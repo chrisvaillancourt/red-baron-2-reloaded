@@ -96,14 +96,50 @@
   border: 0.3em solid transparent;
   border-bottom-color: var(--hud-ink);
 }
+/* Waypoint caret riding on the heading tape (overlay shares the tape's box, unmasked). */
+.hud-tape-overlay {
+  position: absolute;
+  top: 1.1em;
+  left: 50%;
+  width: 26em;
+  height: 2.4em;
+  margin-left: -13em;
+  pointer-events: none;
+}
 .hud-wp-tape {
   position: absolute;
-  top: 1.35em;
+  left: 0;
+  top: -0.5em;
   width: 0;
   height: 0;
-  border: 0.35em solid transparent;
+  margin-left: -0.4em;
+  border: 0.4em solid transparent;
   border-top-color: var(--hud-amber);
+  filter: drop-shadow(0 0 2px #000);
   will-change: transform;
+}
+.hud-wp-tape .d {
+  position: absolute;
+  left: 0.7em;
+  top: -1.05em;
+  white-space: nowrap;
+  font-size: 0.74em;
+  color: var(--hud-amber);
+}
+.hud-wp-tape.pin-left,
+.hud-wp-tape.pin-right {
+  border-top-color: transparent;
+}
+.hud-wp-tape.pin-left {
+  border-right-color: var(--hud-amber);
+  margin-left: -0.8em;
+}
+.hud-wp-tape.pin-right {
+  border-left-color: var(--hud-amber);
+}
+.hud-wp-tape.pin-left .d {
+  left: auto;
+  right: 0.9em;
 }
 
 /* --------------------------------------------------- readout strip */
@@ -450,6 +486,17 @@
   font-size: 0.78em;
   line-height: 1.3;
 }
+.hud-box.info-left .info {
+  left: auto;
+  right: calc(100% + 0.5em);
+  text-align: right;
+}
+.hud-wp-label.hidden {
+  display: none;
+}
+.hud-marker {
+  transition: opacity 0.25s;
+}
 .hud-box .info .nm {
   color: var(--c);
 }
@@ -771,6 +818,14 @@
   border-radius: 50%;
   filter: drop-shadow(0 0 1px #000);
 }
+/* Aim ring on the nose/gun line: one amber "on target" mark instead of two. */
+.hud-aim.aligned {
+  border-color: var(--hud-amber, #ffcf6a);
+  width: 1.3em;
+  height: 1.3em;
+  margin: -0.65em 0 0 -0.65em;
+}
+/* Hollow on purpose: your own tracers converge in its middle. */
 .hud-nose {
   position: absolute;
   width: 1em;

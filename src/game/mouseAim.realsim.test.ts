@@ -28,7 +28,18 @@ interface Result {
 function duel(player: AircraftId, enemy: AircraftId, level: FlightModelLevel, seconds = 120, seed = 1): Result {
   const w = new SimWorld({ realism: { ...STANDARD_REALISM, flightModel: level, invulnerable: true }, seed, ground: () => 60 });
   const p = w.addAircraft({ aircraftId: player, side: 'allied', x: 0, z: 0, alt: 1800, heading: 0, controller: 'player' });
-  const e = w.addAircraft({ aircraftId: enemy, side: 'central', x: 150, z: -700, alt: 1850, heading: Math.PI * 0.9, skill: 'regular' });
+  // Seed 1 is the canonical merge; later seeds vary the start geometry (the sim
+  // and AI are otherwise deterministic, so seeds alone would repeat one fight).
+  const j = seed - 1;
+  const e = w.addAircraft({
+    aircraftId: enemy,
+    side: 'central',
+    x: 150 + ((j * 137) % 400) - (j ? 200 : 0),
+    z: -700 - ((j * 211) % 300),
+    alt: 1850 + ((j * 53) % 160) - (j ? 80 : 0),
+    heading: Math.PI * 0.9 + (j ? (((j * 0.37) % 0.6) - 0.3) : 0),
+    skill: 'regular',
+  });
   w.addAI(e, 'regular');
   const st = createMouseAimState();
   const aim = new Vector3(0, 0, -1).applyQuaternion(p.state.orientation);
@@ -74,8 +85,11 @@ function duel(player: AircraftId, enemy: AircraftId, level: FlightModelLevel, se
 }
 
 const ASSIST = !(globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.MOUSEAIM_LEGACY;
-const SOAK = !!(globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.MOUSEAIM_SOAK;
-const TYPES: [AircraftId, AircraftId][] = SOAK
+const ENV = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
+const SOAK = !!ENV.MOUSEAIM_SOAK;
+/** MOUSEAIM_PAIRS=fokker_eiii:airco_dh2,... narrows a soak run to chosen matchups. */
+const PAIRS = ENV.MOUSEAIM_PAIRS?.split(',').map((p) => p.split(':') as [AircraftId, AircraftId]);
+const TYPES: [AircraftId, AircraftId][] = PAIRS ?? (SOAK
   ? [
       ['sopwith_camel', 'albatros_dv'],
       ['se5a', 'albatros_dv'],
@@ -91,7 +105,7 @@ const TYPES: [AircraftId, AircraftId][] = SOAK
   : [
       ['sopwith_camel', 'albatros_dv'],
       ['fokker_dri', 'sopwith_camel'],
-    ];
+    ]);
 
 const ROWS: string[] = [];
 afterAll(async () => {
@@ -104,8 +118,21 @@ describe('mouse-aim on the real sim', () => {
   for (const [a, b] of TYPES) {
     for (const level of (SOAK ? ['relaxed', 'standard', 'authentic'] : ['standard']) as FlightModelLevel[]) {
       it(`${a} vs ${b} (${level}) tracks without departing`, () => {
-        const r = duel(a, b, level, SOAK ? 150 : 90);
-        if (SOAK) ROWS.push(`${a.padEnd(16)} ${level.padEnd(9)} inRange ${r.inRange.toFixed(0)}s on3 ${(r.onTarget3 * 100).toFixed(0)}% on6 ${(r.onTarget6 * 100).toFixed(0)}% stall ${r.stalledS.toFixed(1)}s maxG ${r.maxG.toFixed(1)} kill ${r.kills} broke ${r.broke} crash ${r.crashed}`);
+        // MOUSEAIM_SEEDS=n averages n seeded duels per row (single duels are noisy).
+        const seeds = Math.max(1, Number(ENV.MOUSEAIM_SEEDS ?? 1));
+        const runs = Array.from({ length: seeds }, (_, s) => duel(a, b, level, SOAK ? 150 : 90, s + 1));
+        const avg = (f: (x: Result) => number) => runs.reduce((t, x) => t + f(x), 0) / runs.length;
+        const r: Result = {
+          onTarget3: avg((x) => x.onTarget3),
+          onTarget6: avg((x) => x.onTarget6),
+          inRange: avg((x) => x.inRange),
+          stalledS: Math.max(...runs.map((x) => x.stalledS)),
+          maxG: Math.max(...runs.map((x) => x.maxG)),
+          broke: runs.some((x) => x.broke),
+          crashed: runs.some((x) => x.crashed),
+          kills: runs.reduce((t, x) => t + x.kills, 0),
+        };
+        if (SOAK) ROWS.push(`${a.padEnd(16)} vs ${b.padEnd(14)} ${level.padEnd(9)} inRange ${r.inRange.toFixed(0)}s on3 ${(r.onTarget3 * 100).toFixed(0)}% on6 ${(r.onTarget6 * 100).toFixed(0)}% stall ${r.stalledS.toFixed(1)}s maxG ${r.maxG.toFixed(1)} kills ${r.kills}/${seeds} broke ${r.broke} crash ${r.crashed}`);
         expect(r.broke).toBe(false);
         expect(r.crashed).toBe(false);
         expect(r.stalledS).toBeLessThan(6);
