@@ -6,6 +6,7 @@
 import type { UiContext } from './context';
 import { h } from './dom';
 import { codeLabel } from './bindings';
+import { connectedPad, padGlyph } from './gamepad';
 
 const SEEN_KEY = 'rb2r.flyingSchool.seen.v1';
 
@@ -51,8 +52,24 @@ export function showFlyingSchool(ctx: UiContext): Promise<boolean> {
     });
   const mouseAim = s.controls.mouseMode === 'mouse-aim';
 
+  // With a controller plugged in, each lesson also shows its gamepad buttons
+  // (mapping: readGamepad in src/game/input.ts).
+  const pad = s.controls.gamepadEnabled && !!connectedPad();
+  const PAD: Record<string, (Node | string)[]> = {
+    I: [padGlyph('LS'), ' fly · ', padGlyph('LB'), padGlyph('RB'), ' rudder · ', padGlyph('RS'), ' look'],
+    II: [padGlyph('D-pad ↑↓'), ' throttle · ', padGlyph('LT'), ' blip'],
+    III: [padGlyph('RT'), ' fire · ', padGlyph('A'), ' clear jam'],
+    IV: [padGlyph('Y'), ' padlock · ', padGlyph('X'), ' next target · ', padGlyph('R3'), ' nearest'],
+    V: [padGlyph('L3'), ' cockpit · ', padGlyph('B'), ' chase'],
+    VI: [padGlyph('Back'), ' map · ', padGlyph('Start'), ' pause · ', padGlyph('D-pad ←→'), ' time'],
+  };
   const lesson = (n: string, title: string, text: Node | string, ...k: (Node | string)[]) =>
-    h('div', { class: 'fs-lesson' }, h('div', { class: 'fs-n' }, n), h('div', null, h('h3', null, title), h('p', null, text), k.length ? h('div', { class: 'fs-keys' }, ...k) : null));
+    h(
+      'div',
+      { class: 'fs-lesson' },
+      h('div', { class: 'fs-n' }, n),
+      h('div', null, h('h3', null, title), h('p', null, text), k.length ? h('div', { class: 'fs-keys' }, ...k) : null, pad && PAD[n] ? h('div', { class: 'fs-keys fs-pad' }, ...PAD[n]) : null),
+    );
 
   const body = h(
     'div',

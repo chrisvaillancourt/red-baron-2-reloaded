@@ -162,6 +162,66 @@ export function mouseAimAssist(
   c.blip = saved.blip;
 }
 
+/** Minimal slice of the Gamepad API the mapping reads (lets tests pass a virtual pad). */
+export interface PadLike {
+  axes: readonly number[];
+  buttons: readonly { pressed: boolean; value: number }[];
+}
+
+export interface PadFrame {
+  roll: number;
+  pitch: number;
+  yaw: number;
+  lookYaw: number;
+  lookPitch: number;
+  fire: boolean;
+  blip: boolean;
+  clearJam: boolean;
+  throttleDelta: number;
+  commands: EdgeAction[];
+  /** Button states to pass back as `prev` next frame (edge detection). */
+  pressed: boolean[];
+}
+
+/**
+ * Standard-mapping gamepad → flight controls. Left stick flies (back = nose
+ * up), right stick looks, bumpers are rudder, RT fires, LT is the blip
+ * switch, D-pad up/down is throttle, A hammers a jammed gun, X/Y/R3 cycle
+ * target / padlock / padlock nearest, B/L3 chase/cockpit view, Back = map,
+ * Start = pause, D-pad left/right = time compression off/on. Keep the
+ * Flying School card (src/ui/flyingSchool.ts) in step with this table.
+ */
+export function readGamepad(pad: PadLike, prev: readonly boolean[], cs: ControlSettings, dt: number): PadFrame {
+  const dz = cs.gamepadDeadzone;
+  const b = (i: number) => !!pad.buttons[i]?.pressed;
+  const edge = (i: number) => b(i) && !prev[i];
+  const lx = applyDeadzone(pad.axes[2] ?? 0, dz);
+  const ly = applyDeadzone(pad.axes[3] ?? 0, dz);
+  const commands: EdgeAction[] = [];
+  if (edge(2)) commands.push('nextTarget');
+  if (edge(3)) commands.push('viewPadlock');
+  if (edge(11)) commands.push('padlockNearest');
+  if (edge(1)) commands.push('viewChase');
+  if (edge(10)) commands.push('viewCockpit');
+  if (edge(8)) commands.push('map');
+  if (edge(9)) commands.push('pause');
+  if (edge(14)) commands.push('timeNormal');
+  if (edge(15)) commands.push('timeCompress');
+  return {
+    roll: expo(applyDeadzone(pad.axes[0] ?? 0, dz)),
+    pitch: expo(applyDeadzone(pad.axes[1] ?? 0, dz)) * (cs.invertPitch ? -1 : 1),
+    yaw: (b(5) ? 1 : 0) - (b(4) ? 1 : 0),
+    lookYaw: -lx * 2.5 * dt,
+    lookPitch: -ly * 2.0 * dt,
+    fire: b(7) || (pad.buttons[7]?.value ?? 0) > 0.4,
+    blip: b(6) || (pad.buttons[6]?.value ?? 0) > 0.4,
+    clearJam: edge(0),
+    throttleDelta: ((b(12) ? 1 : 0) - (b(13) ? 1 : 0)) * THROTTLE_RATE * dt,
+    commands,
+    pressed: pad.buttons.map((x) => x.pressed),
+  };
+}
+
 const _inv = new Quaternion();
 const _local = new Vector3();
 const _up = new Vector3();
@@ -390,31 +450,18 @@ export class InputManager {
     if (cs.gamepadEnabled && typeof navigator !== 'undefined' && navigator.getGamepads) {
       const pad = [...navigator.getGamepads()].find((p) => p && p.connected);
       if (pad) {
-        const dz = cs.gamepadDeadzone;
-        padRoll = expo(applyDeadzone(pad.axes[0] ?? 0, dz));
-        padPitch = expo(applyDeadzone(pad.axes[1] ?? 0, dz)) * (cs.invertPitch ? -1 : 1);
-        const lx = applyDeadzone(pad.axes[2] ?? 0, dz);
-        const ly = applyDeadzone(pad.axes[3] ?? 0, dz);
-        lookDelta.yaw -= lx * 2.5 * dt;
-        lookDelta.pitch -= ly * 2.0 * dt;
-        const b = (i: number) => !!pad.buttons[i]?.pressed;
-        const edge = (i: number) => b(i) && !this.prevPadButtons[i];
-        if (b(4)) padYaw -= 1;
-        if (b(5)) padYaw += 1;
-        if (b(7) || (pad.buttons[7]?.value ?? 0) > 0.4) fire = true;
-        if (b(6) || (pad.buttons[6]?.value ?? 0) > 0.4) blip = true;
-        if (b(12)) this.throttle += THROTTLE_RATE * dt;
-        if (b(13)) this.throttle -= THROTTLE_RATE * dt;
-        if (edge(0)) clearJam = true;
-        if (edge(2)) commands.push('nextTarget');
-        if (edge(3)) commands.push('viewPadlock');
-        if (edge(11)) commands.push('padlockNearest');
-        if (edge(1)) commands.push('viewChase');
-        if (edge(10)) commands.push('viewCockpit');
-        if (edge(8)) commands.push('map');
-        if (edge(9)) commands.push('pause');
-        if (edge(14) || edge(15)) commands.push(edge(14) ? 'timeNormal' : 'timeCompress');
-        this.prevPadButtons = pad.buttons.map((x) => x.pressed);
+        const g = readGamepad(pad, this.prevPadButtons, cs, dt);
+        padRoll = g.roll;
+        padPitch = g.pitch;
+        padYaw = g.yaw;
+        lookDelta.yaw += g.lookYaw;
+        lookDelta.pitch += g.lookPitch;
+        fire ||= g.fire;
+        blip ||= g.blip;
+        clearJam ||= g.clearJam;
+        this.throttle += g.throttleDelta;
+        commands.push(...g.commands);
+        this.prevPadButtons = g.pressed;
       }
     }
     this.throttle = clamp(this.throttle, 0, 1);

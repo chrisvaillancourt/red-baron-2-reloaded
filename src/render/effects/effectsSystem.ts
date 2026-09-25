@@ -245,7 +245,7 @@ export class EffectsSystem {
   // --- per-frame ---------------------------------------------------------------
 
   update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[]): void {
-    this.tracers.update(bullets);
+    this.tracers.update(bullets, camera, dt);
     // Smoke/fire trails from damaged aircraft (emitted by distance travelled).
     for (const ac of world.aircraft) {
       const d = ac.damage;

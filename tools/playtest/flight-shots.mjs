@@ -82,7 +82,10 @@ for (const v of views) {
 }
 const state = await page.evaluate(() => {
   const p = window.__rb2.session.player;
-  return p && { alt: Math.round(p.state.altitude), ias: Math.round(p.state.airspeed * 3.6), rpm: Math.round(p.state.engineRpm), g: +p.state.gLoad.toFixed(2), outcome: p.outcome };
+  const others = window.__rb2.session.world.aircraft
+    .filter((a) => a !== p)
+    .map((a) => `${a.side === p?.side ? 'F' : 'E'}${Math.round(a.state.position.distanceTo(p.state.position))}m@${Math.round(a.state.altitude)}`);
+  return p && { alt: Math.round(p.state.altitude), ias: Math.round(p.state.airspeed * 3.6), rpm: Math.round(p.state.engineRpm), g: +p.state.gLoad.toFixed(2), outcome: p.outcome, others };
 });
 console.log(JSON.stringify({ aircraft, state, errors: errors.slice(0, 5) }));
 await browser.close();

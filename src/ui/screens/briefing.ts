@@ -104,10 +104,11 @@ export const briefingScreen: ScreenFactory = (ctx, params) => {
       fact('Home field', home?.name ?? '—'),
       fact('Flight', `${members.length} machine${members.length === 1 ? '' : 's'}`),
     ),
+    // Orders first: the objectives must be readable without scrolling the dossier.
+    h('div', { class: 'field-label', style: 'margin-top:.5em' }, 'Objectives'),
+    h('ul', { class: 'objectives' }, ...mission.objectives.map((o) => h('li', { class: o.primary ? 'primary' : '' }, o.description + (o.primary ? '' : ' (secondary)')))),
     h('hr', { class: 'rule' }),
     h('div', { class: 'brief-text' }, ...mission.briefing.split(/\n\s*\n/).map((para) => h('p', null, para.trim()))),
-    h('div', { class: 'field-label' }, 'Objectives'),
-    h('ul', { class: 'objectives' }, ...mission.objectives.map((o) => h('li', { class: o.primary ? 'primary' : '' }, o.description + (o.primary ? '' : ' (secondary)')))),
     h('div', { class: 'field-label', style: 'margin-top:.4em' }, 'Your flight'),
     h(
       'div',

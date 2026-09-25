@@ -53,13 +53,30 @@ Remaining:
 - **Defer:** quick dogfight survey setups (D.VII against two veteran SPADs)
   are hard by construction; not a bug.
 
-**Do — flight and HUD**
-- The HUD centre is crowded at mission start (waypoint, aim marker and target
-  box overlap).
-- The player's own tracers read as dots from the cockpit. Consider a
-  short-streak shader.
-- The Fokker E.III is hard to hold on target in turning fights. Review its
-  pitch authority.
+**Done (wave 4) — flight and HUD**
+- HUD centre declutter (`src/ui/hud/declutter.ts`; DECISIONS "HUD declutter by priority"): the waypoint fades
+  in combat and hides under the target box, and its name and distance ride
+  the heading tape. The aim ring merges with the nose/reticle when aligned.
+  Threat triangles skip enemies already on screen.
+- Tracers (DECISIONS "Tracer streaks use eye persistence") are streaks with eye persistence re-projected through the
+  camera: rounds smear into a hosepipe as you turn. There are screen-space
+  caps for rounds flying straight away, and premultiplied blending keeps them
+  visible against bright cloud.
+- Fokker E.III (DECISIONS "Fokker E.III handling left as is"): three candidate fixes were measured on a multi-start
+  benchmark (`MOUSEAIM_SEEDS`/`MOUSEAIM_PAIRS`) and none beat the current
+  handling. The data is unchanged. It is flyable (vs Nieuport 11 at standard:
+  5/6 kills, 56% on target) and loses turning fights to the D.H.2, as it
+  historically did.
+
+**Do — flight and HUD (remaining)**
+- Mouse-aim roll dithers on slow-rolling types (E.III bank ±20° while the aim
+  error is 3–7°). The fix belongs in the aim mode of `src/ai/autopilot.ts`:
+  bank demand for small errors is about 30° for a 5° error. An
+  instructor-side rudder blend was tried and made things worse (see the E.III decision).
+- The instructor's `caution` presets pass the AI's skill value as
+  `diveCaution`, which *lowers* the stall margin (relaxed gets the ace's 1.0°).
+  Split the stall margin from the dive governor in the autopilot, then
+  retune `INSTRUCTOR`.
 
 **Do — visuals**
 - Produce the showcase set `docs/screenshots/game-*.png` (dogfight, balloon
@@ -68,9 +85,21 @@ Remaining:
   16-aircraft and 'low'-preset frame budgets.
 - Move the crater grid (~0.5 s per date, main thread) into a worker.
 
-**Do — menus**
-- At 720p the Quick Mission side panels and the enlistment difficulty picker
-  need scrolling. Tighten the layout.
+**Done (wave 4) — menus**
+- At 1280×720 and 1366×768 the Quick Mission and enlistment screens now fit.
+  The squadron and ace lists scroll inside their own boxes, and the
+  difficulty picker is pinned. The HQ machine cards fit too.
+- Briefing objectives now come before the dossier text, and briefing-map
+  waypoint tags avoid each other and the circles (`src/ui/map/labels.ts`).
+- `dev/walk-menus.mjs` now reports every scrolling panel per screen
+  (`OVERFLOW …`). The remaining overflows are long lists and documents that
+  scroll within their own panel by design: aces, key bindings, the controls
+  reference, the logbook, standings, and the briefing text.
+- Gamepad: the mapping is a pure function (`readGamepad`) with virtual-pad
+  tests (`src/game/gamepad.test.ts`). A controller connect/disconnect toast
+  shows in menus and in flight, and the Flying School card shows gamepad
+  button glyphs when a pad is connected. It is still untested on a physical
+  device (see Defer).
 
 **Defer**
 - Gamepad support is implemented but untested on a real device. Test when one

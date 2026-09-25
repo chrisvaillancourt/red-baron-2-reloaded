@@ -475,3 +475,17 @@ him even when someone other than the player brought him down.
 - Error grows with the gunner's own aircraft's turn rate and with the target's crossing rate.
 
 **Consequences.** A scout on a steady six still gets punished (the regression tests pass), but a manoeuvring attacker takes 1–5 gunner hits per sortie instead of 30+.
+## D-051 — HUD declutter by priority, waypoint on the heading tape (hud-flight)
+**Context.** At every mission start and in every fight, the waypoint diamond and its label, the mouse-aim ring, the nose cross, the gun reticle, the target box and threat triangles piled up at screen centre.
+**Decision.** A pure rule set (`src/ui/hud/declutter.ts`) with priority target box > aim ring > reticle > nose > waypoint. The waypoint fades to 35% in combat, disappears under a target box, and drops its label near the aim cluster. Its number, name and distance ride a caret on the heading tape instead (pinned to the tape end beyond ±40°). The aim ring and nose cross (or reticle) merge into one hollow amber ring when aligned. It is hollow because your own tracers converge in its middle. The threat ring only shows enemies that are off-screen or dangerous. The target text flips left when the box is right of centre.
+**Consequences.** One mark at centre when on target. Waypoint guidance is never lost, because the tape carries it. `HudThreat.onScreen` and `HudWaypoint.bearing` are new optional HUD fields.
+
+## D-052 — Tracer streaks use eye persistence through the camera (hud-flight)
+**Context.** From the shooter's cockpit, rounds converge on the aim point, so even a long world-space streak projects to one or two pixels. Tracers read as faint dots and vanished against bright cloud.
+**Decision.** Each tracer's tail is where the round was seen about 0.09 s ago, re-projected through the current camera (`camNow · camThen⁻¹`, from a short pose history). Turning therefore smears rounds into a hosepipe curve, as the eye sees it. The tail is clamped to the distance flown, so young rounds trail back to the muzzle. Screen-space end caps give rounds flying straight away a minimum length. Blending is premultiplied "over" with an emissive lift, not additive, so the orange shows against bright sky. Camera cuts (>25 m or >26° in a frame) clear the history.
+**Consequences.** In a turning fight, tracers from the cockpit measure 22–42 px long (previously 0–2 px). In level flight they are small glowing points, which is physically honest.
+
+## D-053 — Fokker E.III handling left as is; benchmark made multi-start (hud-flight)
+**Context.** Wave 3 reported the E.III at 1–5% on target against a D.H.2. `MOUSEAIM_SEEDS` averaged identical runs, because the sim and AI are deterministic, so single fights were being read as trends.
+**Decision.** Seeds above 1 now vary the start geometry. `MOUSEAIM_PAIRS` narrows a soak to chosen matchups. Three changes were measured over 6 starts each and rejected: an instructor-side rudder fine-aim blend (E.III vs N.11 dropped from 5/6 kills to 1/6, and wing failures appeared), roll 0.55 / pitch 0.85 (no gain, time on target fell), and lower instructor `caution` (noise-level changes). The E.III data is unchanged.
+**Consequences.** The E.III wins against a Nieuport 11 (5/6 kills at standard) and loses the turning fight to the D.H.2 (1–2 of 6), which is how the Fokker Scourge ended. The real remaining defect, roll dithering on slow rollers, belongs in the autopilot's aim mode (docs/STATUS.md).

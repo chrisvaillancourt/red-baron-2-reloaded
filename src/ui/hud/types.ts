@@ -81,6 +81,8 @@ export interface HudThreat {
   distance: number;
   /** Behind/above and closing fast: drawn larger and pulsing. */
   danger: boolean;
+  /** The threat is inside the view (already visible as a dot/box), so the ring can skip it. */
+  onScreen?: boolean;
 }
 
 export type WingmanStatus = 'ok' | 'engaged' | 'damaged' | 'rtb' | 'down' | 'landed';
@@ -98,6 +100,8 @@ export interface HudWaypoint {
   label: string;
   distance: number;
   screen: HudScreenPoint;
+  /** World bearing to the waypoint, radians clockwise from north (for the heading-tape caret). */
+  bearing?: number;
 }
 
 export interface HudView {
