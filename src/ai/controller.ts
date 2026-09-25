@@ -24,7 +24,7 @@ import { getAerodrome } from '../data/aerodromes';
 import { Autopilot, type SteerCommand } from './autopilot';
 import { angularRadius, leadSolution, type LeadSolution } from './gunnery';
 import { angleBetween, clamp, DEG, forwardOf, headingOf, makeRng, upOf, rightOf, wrapPi } from './math';
-import { chooseDefensive, maneuverSteer, type Maneuver } from './maneuvers';
+import { chooseDefensive, LOW_AGL, maneuverSteer, type Maneuver } from './maneuvers';
 import {
   formationOffset,
   formationSteer,
@@ -84,6 +84,11 @@ export interface AIStats {
   gunsSolutionTime: number;
   firingTime: number;
   defendTime: number;
+  /** Seconds in engage/extend (fighting), and of those, seconds in stall recovery. */
+  engageTime: number;
+  engageRecoverTime: number;
+  /** Seconds actually stalled (state.stalled), any phase. */
+  stalledTime: number;
 }
 
 /** Controllers by entity, so wingmen can see what their leader is doing. */
@@ -103,7 +108,7 @@ export class AIPilot implements AIController {
   readonly entityId: number;
   debugState = 'init';
   phase: AIPhase = 'mission';
-  readonly stats: AIStats = { gunsSolutionTime: 0, firingTime: 0, defendTime: 0 };
+  readonly stats: AIStats = { gunsSolutionTime: 0, firingTime: 0, defendTime: 0, engageTime: 0, engageRecoverTime: 0, stalledTime: 0 };
   readonly traits: AircraftTraits;
   readonly profile: SkillProfile;
   readonly autopilot: Autopilot;
@@ -237,6 +242,11 @@ export class AIPilot implements AIController {
     this.weapons(self, world, dt);
     this.gunner(self, world);
     if (this.phase === 'defend') this.stats.defendTime += dt;
+    if (this.phase === 'engage' || this.phase === 'extend') {
+      this.stats.engageTime += dt;
+      if (this.autopilot.recovering) this.stats.engageRecoverTime += dt;
+    }
+    if (self.state.stalled) this.stats.stalledTime += dt;
     this.debugState = `${this.phase}${this.targetId != null ? ` #${this.targetId}` : ''}${this.maneuver ? ` ${this.maneuver.kind}` : ''}${this.autopilot.recovering ? ' recover' : ''}${this.autopilot.groundEmergency ? ' pull-up' : ''}`;
   }
 
@@ -414,7 +424,7 @@ export class AIPilot implements AIController {
             return;
           }
           const agl = self.state.heightAboveGround;
-          this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng);
+          this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined);
           if (this.phase !== 'rtb') this.phase = 'defend';
           this.threatId = attacker?.id ?? null;
         }

@@ -32,6 +32,15 @@ export function routeFlight(id: string, side: 'allied' | 'central', aircraftId: 
   };
 }
 
+export interface CombatStats {
+  solution: number;
+  firing: number;
+  defend: number;
+  engage: number;
+  engageRecover: number;
+  stalled: number;
+}
+
 export interface CombatRunResult {
   world: SimWorld;
   A: AircraftEntity[];
@@ -53,8 +62,8 @@ export interface CombatRunResult {
   selfCrashes: number;
   collisions: number;
   /** Summed AI stats per side (s): guns solution, firing, defending; and first shot time. */
-  statsA: { solution: number; firing: number; defend: number };
-  statsB: { solution: number; firing: number; defend: number };
+  statsA: CombatStats;
+  statsB: CombatStats;
   firstShot: number | null;
   outcomes: Record<string, number>;
 }
@@ -163,14 +172,103 @@ export function historyTap(rows: string[], label: string): (w: SimWorld) => void
   };
 }
 
-function sumStats(world: SimWorld, list: AircraftEntity[]): { solution: number; firing: number; defend: number } {
-  const out = { solution: 0, firing: 0, defend: 0 };
+function sumStats(world: SimWorld, list: AircraftEntity[]): CombatStats {
+  const out: CombatStats = { solution: 0, firing: 0, defend: 0, engage: 0, engageRecover: 0, stalled: 0 };
   for (const ac of list) {
     const st = world.controllers.get(ac.id)?.stats;
     if (!st) continue;
     out.solution += st.gunsSolutionTime;
     out.firing += st.firingTime;
     out.defend += st.defendTime;
+    out.engage += st.engageTime;
+    out.engageRecover += st.engageRecoverTime;
+    out.stalled += st.stalledTime;
   }
   return out;
+}
+
+export interface LowLevelRunOpts {
+  a: AircraftId;
+  sa: SkillLevel;
+  b: AircraftId;
+  sb: SkillLevel;
+  n: [number, number];
+  seed: number;
+  seconds?: number;
+  /** Height of the low flight (side A) above ground, m. */
+  agl?: number;
+  /** 'bounce': B dives on A from above and behind; 'level': head-on, both low. */
+  kind?: 'bounce' | 'level';
+  tap?: (w: SimWorld) => void;
+}
+
+export interface LowLevelRunResult {
+  aLost: number;
+  bLost: number;
+  /** Losses from flying into the ground with no attacker credited. */
+  selfCrashes: number;
+  /** Losses that were ground impacts of a flyable aircraft (any credit): the low-level killer. */
+  groundImpacts: number;
+  statsA: CombatStats;
+  statsB: CombatStats;
+  endTime: number;
+  outcomes: Record<string, number>;
+}
+
+/**
+ * Low-level fight (the defended ground-attack case): side A flies level at `agl`
+ * over flat ground heading north; side B either bounces it from 450 m above and
+ * 1.4 km behind ('bounce') or meets it head-on at the same height ('level').
+ */
+export function lowLevelRun(o: LowLevelRunOpts): LowLevelRunResult {
+  const [nA, nB] = o.n;
+  const agl = o.agl ?? 150;
+  const ground = 60;
+  const world = new SimWorld({ frontX: 1e9, seed: o.seed, ground: () => ground });
+  const rng = mulberry(o.seed);
+  const A: AircraftEntity[] = [];
+  const B: AircraftEntity[] = [];
+  for (let i = 0; i < nA; i++)
+    A.push(world.addAircraft({ aircraftId: o.a, side: 'allied', x: (i - nA / 2) * 80 + rng() * 60, z: i * 50, alt: ground + agl + rng() * 30, heading: 0, flightId: 'A', skill: o.sa }));
+  const bounce = (o.kind ?? 'bounce') === 'bounce';
+  for (let i = 0; i < nB; i++)
+    B.push(
+      world.addAircraft({
+        aircraftId: o.b,
+        side: 'central',
+        x: (i - nB / 2) * 80 + rng() * 120,
+        z: bounce ? 1400 + i * 60 + rng() * 200 : -2500 - i * 60 - rng() * 200,
+        alt: ground + (bounce ? agl + 450 : agl) + rng() * 60,
+        heading: bounce ? 0 : Math.PI,
+        flightId: 'B',
+        skill: o.sb,
+      }),
+    );
+  for (const ac of A) world.addAI(ac, o.sa, { seed: o.seed * 100 + ac.id });
+  for (const ac of B) world.addAI(ac, o.sb, { seed: o.seed * 100 + ac.id });
+  const lostInAir = new Set<number>();
+  runSim(world, o.seconds ?? 300, {
+    onStep: () => {
+      o.tap?.(world);
+      // Remember who was already out of control before reaching the ground.
+      for (const ac of world.aircraft) if (ac.damage.structuralFailure || ac.damage.pilotKilled || ac.damage.onFire) lostInAir.add(ac.id);
+      return A.every((x) => x.outcome) || B.every((x) => x.outcome);
+    },
+  });
+  const outcomes: Record<string, number> = {};
+  for (const ac of world.aircraft) {
+    const key = `${A.includes(ac) ? 'A' : 'B'}:${ac.outcome ?? 'alive'}`;
+    outcomes[key] = (outcomes[key] ?? 0) + 1;
+  }
+  const lost = (x: AircraftEntity) => x.outcome !== null && x.outcome !== 'landed-friendly';
+  return {
+    aLost: A.filter(lost).length,
+    bLost: B.filter(lost).length,
+    selfCrashes: world.aircraft.filter((x) => x.outcome === 'crashed' && x.damage.lastAttackerId === null).length,
+    groundImpacts: world.aircraft.filter((x) => (x.outcome === 'crashed' || x.outcome === 'shot-down') && !lostInAir.has(x.id) && x.state.heightAboveGround < 5).length,
+    statsA: sumStats(world, A),
+    statsB: sumStats(world, B),
+    endTime: world.time,
+    outcomes,
+  };
 }

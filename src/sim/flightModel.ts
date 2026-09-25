@@ -152,6 +152,30 @@ export function orientationFrom(heading: number, pitch: number, bank = 0, out = 
   return out.copy(qy).multiply(qx).multiply(qz);
 }
 
+/** Propeller slipstream dynamic pressure over the tail, Pa. */
+function slipstreamQ(co: FlightCoefficients, thrust: number): number {
+  return Math.min(2500, (thrust / co.propDiscArea) * 0.6);
+}
+
+/**
+ * Tail dynamic pressure over free-stream dynamic pressure, (q + qSlip) / q, for the
+ * aircraft's current power and speed. The pitch law settles where the *tail* angle of
+ * attack (alpha * q / (q + qSlip)) meets the commanded AoA, so under power at low speed
+ * the wing settles above the stick's commanded AoA by this ratio. A controller
+ * inverting the pitch law (stickForAlpha) divides its desired wing AoA by it.
+ */
+export function tailPressureRatio(ac: AircraftEntity, env: FlightEnvironment): number {
+  const co = getCoefficients(ac.spec);
+  const s = ac.state;
+  const V = Math.max(1, s.airspeed);
+  const qd = 0.5 * env.airDensityAt(s.position.y) * V * V;
+  const z = ac.damage.zones;
+  const engineAlive = !ac.damage.engineDead && z.engine < 1;
+  const power = powerAtAltitude(co, s.position.y) * getSimInternal(ac).powerFrac * (1 - 0.75 * z.engine);
+  const thrust = engineAlive ? propThrust(co, power, V * Math.cos(s.aoa)) : 0;
+  return (qd + slipstreamQ(co, thrust)) / Math.max(qd, 1);
+}
+
 /** Map a desired angle of attack to the stick position that commands it (inverse of the pitch law). */
 export function stickForAlpha(co: FlightCoefficients, alpha: number): number {
   if (alpha >= co.alphaTrim) return clamp((alpha - co.alphaTrim) / (co.alphaCmdMax - co.alphaTrim), 0, 1);
@@ -326,7 +350,7 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   const vDamp = Math.max(V, 6);
 
   // Slipstream over the tail gives pitch/yaw authority on the ground.
-  const qSlip = Math.min(2500, (thrust / co.propDiscArea) * 0.6);
+  const qSlip = slipstreamQ(co, thrust);
   const qTail = qd + qSlip;
   const alphaTail = qTail > 1 ? (qd * alpha) / qTail : 0;
 
