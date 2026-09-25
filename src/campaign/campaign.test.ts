@@ -47,7 +47,7 @@ function validateMission(m: MissionDefinition, strictService: boolean) {
   expect(m.objectives.some((o) => o.primary)).toBe(true);
   for (const o of m.objectives) {
     for (const t of o.targetIds) {
-      if (o.kind === 'reach-waypoint') {
+      if (o.kind === 'reach-waypoint' || o.kind === 'patrol-area') {
         const [fid, idx] = t.split(':');
         const f = m.flights.find((x) => x.id === fid);
         expect(f && f.waypoints[Number(idx)]).toBeTruthy();

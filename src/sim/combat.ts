@@ -148,8 +148,10 @@ const ZONE_DAMAGE: Record<DamageZone, number> = {
 
 const HIT_PRIORITY: DamageZone[] = ['pilot', 'engine', 'fuelTank', 'gunner', 'controls', 'guns', 'tail', 'leftWing', 'rightWing', 'fuselage'];
 
-const GUNNER_ERROR: Record<SkillLevel, number> = { novice: 0.035, regular: 0.022, veteran: 0.014, ace: 0.009 };
-const GUNNER_RANGE: Record<SkillLevel, number> = { novice: 300, regular: 350, veteran: 400, ace: 450 };
+// Flexible guns on a pitching, weaving two-seater: coarser than a pilot's fixed guns
+// (DECISIONS.md "Rear gunners are less accurate").
+const GUNNER_ERROR: Record<SkillLevel, number> = { novice: 0.045, regular: 0.03, veteran: 0.021, ace: 0.015 };
+const GUNNER_RANGE: Record<SkillLevel, number> = { novice: 275, regular: 325, veteran: 375, ace: 425 };
 
 export interface CombatOptions {
   rng?: Rng;
@@ -479,7 +481,10 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       m.gunnerPause = 0.8 + rng() * 1.4;
       return;
     }
-    const err = GUNNER_ERROR[ac.skill] * (1 + (ac.damage.pilotWounded ? 0.5 : 0));
+    // Harder to hold on target when our own machine is manoeuvring or the target is crossing fast.
+    const ownRate = ac.state.angularVelocity.length();
+    const crossRate = tmpB.copy(relVel).addScaledVector(rel, -relVel.dot(rel) / Math.max(1, dist * dist)).length() / Math.max(1, dist);
+    const err = GUNNER_ERROR[ac.skill] * (1 + (ac.damage.pilotWounded ? 0.5 : 0)) * (1 + ownRate + 3 * crossRate);
     const spec = GUNS[ac.spec.guns[idx].type];
     tryFire(ac, idx, direction, err, spec.rpmFree);
   }

@@ -443,6 +443,12 @@ export type ObjectiveKind =
   | 'protect-balloons'
   | 'destroy-ground'
   | 'reach-waypoint'
+  /**
+   * Hold a patrol line: targetIds = ["<flightId>:<wpA>", "<flightId>:<wpB>"] (the line's ends,
+   * or one waypoint for a patrol point); count = seconds on station within ~3 km. Also
+   * satisfied as soon as the player's flight engages enemy aircraft there.
+   */
+  | 'patrol-area'
   | 'survive';
 
 export interface MissionObjective {
@@ -541,6 +547,8 @@ export type GameEvent =
   | { type: 'flak-burst'; position: Vector3 }
   | { type: 'collision'; aId: number; bId: number; position: Vector3 }
   | { type: 'objective-complete'; objectiveId: string }
+  /** An objective can no longer be achieved (escort charges lost, targets escaped...). */
+  | { type: 'objective-failed'; objectiveId: string }
   | { type: 'radio'; from: string; text: string }
   | { type: 'mission-end'; result: MissionResult };
 

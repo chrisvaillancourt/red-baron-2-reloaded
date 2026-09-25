@@ -34,12 +34,21 @@ their aces appear with a probability scaled by the historical event's
 intensity. Aces the career has killed/captured (`pilot.alteredAces`) never
 reappear.
 
-Default start: airborne 2–5 km short of the lines at patrol altitude.
+Default start: airborne `START_BEHIND_LINES_M` (3.5 km) behind the lines at
+patrol altitude, lined up laterally with the point where the flight crosses
+them (intercepts start 3 km behind the interception area instead). The long
+ferry from the aerodrome is the `startOnGround` option.
 
-**Pacing and odds** (tuned with the autoplayer, docs/game.md). Enemy flights
-get a `meetDelay` spawn delay so they reach the player's first patrol point,
-escort target, interception area or balloon line about when he does (first
-contact typically 3–4 sim minutes in, ~30 s real time at x8). The player's
+**Pacing and odds** (tuned with the autoplayer, docs/game.md). Patrol lines
+are 8 km long with the near end at the crossing point, targets sit 2.5–7 km
+from the lines, and enemy flights start 3.5–7 km out with a `meetDelay` spawn
+delay so they reach the player's first patrol point, escort target,
+interception area or balloon line about when he does. First contact is
+typically 1.5–2.5 sim minutes in. Balloon- and ground-attack defenders take
+off low (~500 m above ground) rather than waiting above the targets.
+Balloon defenders arrive ~40 s after the attackers; ground-attack defenders
+arrive ~2 min after them, which leaves time for two or three strafing passes.
+The player's
 flight size is rolled before planning (`ctx.playerFlightSize`) and
 `enemyCount` never exceeds it by more than one (two on 'ace' difficulty).
 Generic enemy skill is mostly novice/regular on 'pilot'; named aces lead a
@@ -54,6 +63,15 @@ flight with probability ~0.22 × event intensity (×0.5 recruit, ×1.3 ace).
 | destroy-balloons, protect-balloons | `MissionBalloon.id` (protect: count must survive) |
 | destroy-ground | `MissionGroundTarget.id` |
 | reach-waypoint | `"<flightId>:<waypointIndex>"` |
+| patrol-area | `["<flightId>:<wpA>", "<flightId>:<wpB>"]`, the patrol line's ends (one entry = a patrol point); `count` = seconds on station within 3 km (`PATROL_STATION_S` = 150) |
+
+Patrols use `patrol-area` as the primary objective: hold the line for
+`count` seconds **or** engage the enemy (5 hits or a kill by the player's
+flight). The director fails objectives as soon as they can't be met: an
+escort with too few charges left, an intercept whose targets are down or got
+away (> 15 km, over their own lines), too few friendly balloons. An escort
+completes early once its charges have crossed the lines and every survivor is
+back over ours.
 
 Flight ids: `player-1` for the player's flight, then `enemy-N` / `friendly-N`.
 Waypoint `altitude` is metres ASL; balloon `altitude` is metres above ground.

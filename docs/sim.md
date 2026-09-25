@@ -110,9 +110,10 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   and flak credit nobody. Outcomes: `pilot-killed`, `shot-down`, `crashed`, `ditched`, `collided`.
   Combat never reports `landed-*` / `disengaged` outcomes; the flight session sets those.
 * **Rear gunners** fire automatically on two-seaters: they pick the nearest enemy within range
-  (novice 300 m … ace 450 m), lead with relative velocity, respect the field of fire (not forward
+  (novice 275 m … ace 425 m), lead with relative velocity, respect the field of fire (not forward
   through the propeller, not down through the fuselage, not through the tail), fire in bursts with
-  skill-scaled aim error. Override with `setGunnerTarget(ac, id)`; `null` restores auto.
+  skill-scaled aim error (regular 0.03 rad) that grows with their own turn rate and the target's
+  crossing rate. Override with `setGunnerTarget(ac, id)`; `null` restores auto.
   `aimFlexibleGun(ac, mountIndex, point)` returns the direction and whether it is in arc.
 * **Archie.** Aircraft above 500 m AGL over enemy ground draw bursts: every 4–7 s within ~5 km of
   the front, 10–18 s deeper, 1.5–3 s near an enemy balloon (and more accurate), faster near live

@@ -130,9 +130,11 @@ test('career balloon attack: balloons on the enemy side, flies at x8 without err
   await boot(page);
   const info = await page.evaluate(() => {
     const s = window.__rb2!.services!;
-    const p = s.campaign.createPilot({ firstName: 'Test', lastName: 'Balloonbuster', nation: 'britain', startDate: '1917-09-15', difficulty: 'pilot' });
+    // A scout squadron and a fixed seed: a random two-seater squadron rarely flies balloon attacks.
+    const p = s.campaign.createPilot({ firstName: 'Test', lastName: 'Balloonbuster', nation: 'britain', startDate: '1917-09-15', squadronId: 'rfc56', difficulty: 'pilot' });
+    p.rngSeed = 1917;
     let m = s.campaign.generateMission(p);
-    for (let i = 0; i < 60 && m.type !== 'balloon-attack'; i++) {
+    for (let i = 0; i < 200 && m.type !== 'balloon-attack'; i++) {
       p.missionsFlown++;
       m = s.campaign.generateMission(p);
     }
