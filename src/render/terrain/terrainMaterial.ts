@@ -26,22 +26,22 @@ export interface TerrainPalette {
 export const PALETTES: Record<'winter' | 'spring' | 'summer' | 'autumn', TerrainPalette> = {
   spring: {
     fields: ['#6b8a40', '#78944a', '#6a5a42', '#8b7d58', '#587636', '#8f8c54'],
-    pasture: '#6e8f44', forest: '#52703f', forestDark: '#405b33', hedge: '#34502a', townGround: '#77705f',
+    pasture: '#6e8f44', forest: '#58793f', forestDark: '#46633a', hedge: '#34502a', townGround: '#77705f',
     mud: '#5c4c3b', chalk: '#ab9f89', road: '#a79d86', water: '#26393d', sand: '#c9bc9b', deadWood: '#5d554a',
   },
   summer: {
     fields: ['#a8935a', '#b5a472', '#5f7639', '#786448', '#4c632d', '#98905c'],
-    pasture: '#66823f', forest: '#4b6739', forestDark: '#3a522f', hedge: '#2e4526', townGround: '#7c7463',
+    pasture: '#66823f', forest: '#51703b', forestDark: '#405c31', hedge: '#2e4526', townGround: '#7c7463',
     mud: '#5f4e3b', chalk: '#b1a58d', road: '#b1a78e', water: '#25383c', sand: '#cfc2a0', deadWood: '#62594c',
   },
   autumn: {
     fields: ['#a2906a', '#6c5539', '#6f8044', '#586d33', '#86754f', '#968358'],
-    pasture: '#6c7f41', forest: '#6a6139', forestDark: '#534f31', hedge: '#484828', townGround: '#76705f',
+    pasture: '#6c7f41', forest: '#6f6a3c', forestDark: '#585634', hedge: '#484828', townGround: '#76705f',
     mud: '#584732', chalk: '#aa9e87', road: '#a79d86', water: '#24363a', sand: '#c7b998', deadWood: '#5a5246',
   },
   winter: {
     fields: ['#5c4a35', '#667248', '#78705a', '#86826f', '#5b6d3e', '#665741'],
-    pasture: '#657146', forest: '#524e40', forestDark: '#3f3c32', hedge: '#44432f', townGround: '#726d66',
+    pasture: '#657146', forest: '#686250', forestDark: '#524e41', hedge: '#44432f', townGround: '#726d66',
     mud: '#4e4031', chalk: '#a39884', road: '#9f9884', water: '#233437', sand: '#bfb498', deadWood: '#534c43',
   },
 };
@@ -90,6 +90,16 @@ float tfbm(vec2 p) {
   for (int i = 0; i < 4; i++) { s += a * tnoise(p); p = p * 2.03 + 17.1; a *= 0.5; }
   return s;
 }
+// Blob noise for thresholded patches: octaves rotated against each other so
+// smoothstep() of it gives ragged blobs, not the lattice-aligned squares a
+// single value-noise octave produces.
+float tblob(vec2 p) {
+  const mat2 R = mat2(0.8, -0.6, 0.6, 0.8);
+  vec2 q = R * p;
+  float n = tnoise(q) * 0.65 + tnoise(R * q * 2.13 + 5.3) * 0.35;
+  // Re-stretch: summed octaves have less spread than a single one.
+  return 0.5 + (n - 0.5) * 1.3;
+}
 // Voronoi: x = F1, y = F2 (distances), z = cell hash, w = second hash
 vec4 tvoronoi(vec2 x) {
   vec2 n = floor(x); vec2 f = fract(x);
@@ -133,6 +143,26 @@ vec4 craters(vec2 p, float cell, float density, float flanders) {
   return vec4(bowl, rim, wat, h);
 }
 float triWave(float x) { return abs(fract(x) - 0.5) * 2.0; }
+// Box-filtered coverage of the band |x| < h for a pixel footprint w (metres).
+// Energy-conserving: as w grows past 2h the band gets fainter, never wider,
+// so thin features thin out with distance instead of smearing into ribbons.
+float bandCov(float dd, float h, float w) {
+  return (clamp(dd + h, -0.5 * w, 0.5 * w) - clamp(dd - h, -0.5 * w, 0.5 * w)) / w;
+}
+// Distance to a crenellated trench trace around v = 0: fire bays alternating
+// at v = +-a, joined by traverses every half period P.
+float crenelDist(float u, float v, float P, float a) {
+  float fu = mod(u, P);
+  float hp = 0.5 * P;
+  float dBay = abs(v - (fu < hp ? a : -a));
+  float du = min(min(fu, P - fu), abs(fu - hp));
+  float dTrav = length(vec2(du, max(abs(v) - a, 0.0)));
+  return min(dBay, dTrav);
+}
+// Coverage of the ring h0 < |x| < h1 (spoil banks either side of a trench).
+float ringCov(float dd, float h0, float h1, float w) {
+  return bandCov(dd, h1, w) - bandCov(dd, h0, w);
+}
 `;
 
 const FRAG_COLOR = /* glsl */ `
@@ -216,8 +246,19 @@ const FRAG_COLOR = /* glsl */ `
   // --- woods
   float fw = smoothstep(0.46, 0.56, forest + (tnoise(p / 40.0) - 0.5) * 0.12 + (tnoise(p / 260.0) - 0.5) * 0.35 * smoothstep(20.0, 120.0, px));
   if (fw > 0.002) {
-  vec3 canopy = mix(uForestDark, uForest, smoothstep(0.3, 0.75, px < 30.0 ? tfbm(p / 14.0 + 7.0) : 0.5));
-  canopy *= 0.8 + 0.4 * tnoise(p / 5.0) * clamp(1.0 - px / 4.0, 0.0, 1.0);
+  // Canopy tone varies at every scale that survives the pixel footprint, so a
+  // wood seen from altitude is mottled mid-green, never a flat ink blot:
+  // stands (~200 m), clumps (~15 m, fading to their mean) and lit crowns.
+  float stand = tnoise(p / 230.0 + 3.0) * 0.6 + tnoise(p / 75.0 + 11.0) * 0.4;
+  float clump = mix(px < 40.0 ? tfbm(p / 14.0 + 7.0) : 0.5, 0.5, smoothstep(8.0, 40.0, px));
+  vec3 canopy = mix(uForestDark, uForest, clamp(0.5 + (clump - 0.5) * 1.6 + (stand - 0.5) * 0.9, 0.0, 1.0));
+  canopy *= 0.84 + 0.32 * stand;
+  // Individual crowns: lit tops, shadowed gaps; mean ~1 so distance keeps the tone.
+  float crownK = clamp(1.0 - px / 3.0, 0.0, 1.0);
+  if (crownK > 0.0) {
+    vec4 cv = tvoronoi(p / 5.5 + 21.0);
+    canopy *= mix(1.0, 0.7 + 0.55 * (1.0 - smoothstep(0.15, 0.8, cv.x)), crownK);
+  }
   // War-shattered woods become grey-brown stumps and mud.
   canopy = mix(canopy, mix(warBase, uDeadWood, 0.55), smoothstep(0.4, 0.75, crater));
   col = mix(col, canopy, fw);
@@ -243,11 +284,11 @@ const FRAG_COLOR = /* glsl */ `
   float grain = mix(tfbm(p / 22.0), 0.5, smoothstep(3.0, 9.0, px));
   vec3 mud = warBase * (0.76 + 0.22 * mot + 0.26 * grain);
   // Upcast chalk (Artois/Somme) in streaks and splashes; standing water and dark wet mud in Flanders.
-  float chalkN = tnoise(p / 55.0 + 3.0) * 0.5 + tnoise(p / 260.0 + 1.7) * 0.5;
+  float chalkN = tblob(p / 55.0 + 3.0) * 0.5 + tnoise(p / 260.0 + 1.7) * 0.5;
   // Chalk spoil is thickest along the trench systems; elsewhere only faint patches.
   float nearLine = 0.35 + 0.65 * (1.0 - smoothstep(500.0, 2200.0, abs(vFront)));
   mud = mix(mud, uChalk * (0.92 + 0.1 * grain), (1.0 - flanders) * smoothstep(0.6, 0.85, chalkN) * 0.45 * nearLine);
-  mud = mix(mud, warBase * 0.62, (0.3 + 0.7 * flanders) * smoothstep(0.55, 0.8, tnoise(p / 140.0 + 5.0)) * 0.4);
+  mud = mix(mud, warBase * 0.62, (0.3 + 0.7 * flanders) * smoothstep(0.55, 0.8, tblob(p / 140.0 + 5.0)) * 0.3);
   // Mid-scale wet/dry mottling and scattered debris (timber, wire, kit) close up.
   mud *= 0.9 + 0.2 * tnoise(p / 28.0 + 6.0) * clamp(1.0 - px / 5.0, 0.0, 1.0);
   mud *= 1.0 - 0.35 * step(0.955, th12(floor(p / 1.4))) * micro;
@@ -287,46 +328,97 @@ const FRAG_COLOR = /* glsl */ `
     // Wet mud glints where craters are sub-pixel (Flanders).
     tWater = max(tWater, 0.35 * churn * flanders * (1.0 - cf));
   }
-  if (uTrenches > 0.5 && abs(vFront) < 1400.0 && px < 30.0) {
+  if (uTrenches > 0.5 && abs(vFront) < 1400.0 && px < 40.0) {
+    // Read like a period reconnaissance photograph: thin dark cuts edged by
+    // pale spoil, drawn with box-filtered coverage (bandCov) so they thin with
+    // distance rather than widening into ink. See DECISIONS "Trenches drawn
+    // as energy-conserving lines".
     float d = vFront;
     float along = vWPos.z * 0.92 + vWPos.x * 0.38;
-    float zig = (triWave(along / 16.0) - 0.5) * 7.0;
+    // Filter footprint across the line; a touch wider than px keeps it stable.
+    float w = max(px * 0.8, 0.25);
+    // Fire and support trenches are crenellated (bays and traverses); the
+    // reserve line zig-zags. Once a bay is only a few pixels long the pattern
+    // averages out: fade it and widen the cut by the path-length ratio so its
+    // ink is conserved.
+    float zk = 1.0 - smoothstep(1.5, 3.5, px);
+    float zig = (triWave(along / 16.0) - 0.5) * 7.0 * zk;
     float tr = 0.0;
     float spoil = 0.0;
-    float trAA = max(px * 0.6, 0.35);
     // Fire, support and reserve trenches on each side.
     for (int s = 0; s < 2; s++) {
       float sg = s == 0 ? 1.0 : -1.0;
       for (int k = 0; k < 3; k++) {
         float off = k == 0 ? 110.0 : (k == 1 ? 290.0 : 640.0);
         float wob = (tnoise(vec2(along / 120.0, float(k + s * 3))) - 0.5) * 30.0;
-        float dd = abs(d - sg * (off + wob) + zig * (k == 2 ? 0.6 : 1.0));
-        tr = max(tr, 1.0 - smoothstep(1.3 - trAA, 1.3 + trAA, dd));
-        spoil = max(spoil, 1.0 - smoothstep(3.2 - trAA, 4.8 + trAA, dd));
+        float v = d - sg * (off + wob);
+        // Nothing of this trench reaches further than ~11 m plus the filter.
+        if (abs(v) > 11.0 + w) continue;
+        float dd, lenK;
+        if (k < 2) {
+          float P = k == 0 ? 14.0 : 11.0;
+          // Irregular bays: warp the run so bays and traverses vary in length, as dug.
+          float u = along + float(s * 5 + k) * 3.7;
+          if (zk > 0.0) u += (tnoise(vec2(u / 17.0, float(k * 7 + s))) - 0.5) * 6.0 + (tnoise(vec2(u / 53.0, float(k * 7 + s) + 3.0)) - 0.5) * 8.0;
+          float a = (k == 0 ? 2.6 : 1.8) * zk;
+          dd = crenelDist(u, v, P, a);
+          lenK = 1.0 + (k == 0 ? 0.75 : 0.65) * (1.0 - zk);
+        } else {
+          dd = abs(v + zig * 0.6);
+          lenK = mix(1.15, 1.0, zk);
+        }
+        float hw = (k == 0 ? 1.1 : 0.9) * lenK;
+        tr = max(tr, bandCov(dd, hw, w));
+        spoil = max(spoil, ringCov(dd, hw, hw + (k == 0 ? 3.4 : 2.6) * lenK, w));
       }
     }
-    // Communication trenches zig-zagging back from the line.
-    float ct = abs(fract(along / 380.0 + tnoise(vec2(d / 200.0, 3.0)) * 0.08) - 0.5) * 380.0;
-    ct += (triWave(d / 22.0) - 0.5) * 3.0;
-    float inComm = step(115.0, abs(d)) * step(abs(d), 660.0);
-    tr = max(tr, (1.0 - smoothstep(1.35 - trAA, 1.35 + trAA, ct)) * inComm);
-    spoil = max(spoil, (1.0 - smoothstep(2.8 - trAA, 4.2 + trAA, ct)) * inComm);
-    // Barbed-wire belts ahead of each fire trench.
+    // Communication trenches wander back from the line; not every lane has one.
+    float lane = along / 380.0 + (tnoise(vec2(d / 260.0, 3.0)) - 0.5) * 0.3;
+    float laneId = floor(lane);
+    float ct = (fract(lane) - 0.5) * 380.0; // signed: trench centre at fract 0.5
+    float ck = 1.0 - smoothstep(1.5, 4.0, px);
+    ct = abs(ct - sin(d / 12.0 + laneId) * 2.5 * ck);
+    float inComm = step(115.0, abs(d)) * step(abs(d), 660.0) * step(0.3, th12(vec2(laneId, sign(d) + 4.0)));
+    tr = max(tr, bandCov(ct, 0.8, w) * inComm);
+    spoil = max(spoil, ringCov(ct, 0.8, 2.8, w) * inComm);
+    spoil = max(spoil - tr, 0.0);
+    // Heaped spoil is lumpy up close (mean ~0.9 so distance keeps the tone).
+    float lumpK = clamp(1.0 - px / 2.5, 0.0, 1.0);
+    spoil *= spoil > 0.0 && lumpK > 0.0 ? mix(0.9, 0.55 + 0.7 * tnoise(p / 3.5 + 8.0), lumpK) : 0.9;
+    // Barbed-wire belts ahead of each fire trench: individual pickets up close,
+    // a faint grey haze band from altitude.
+    float nearK = clamp(1.0 - px / 1.5, 0.0, 1.0);
     float wire = 0.0;
+    float wireFar = 0.0;
     for (int s = 0; s < 2; s++) {
       float sg = s == 0 ? 1.0 : -1.0;
       float wd = abs(d - sg * 85.0 + zig * 0.3);
-      wire = max(wire, (1.0 - smoothstep(4.0, 7.0, wd)) * step(0.45, tnoise(p / 2.2)));
+      wire = max(wire, 1.0 - smoothstep(4.0, 7.0, wd));
+      wireFar = max(wireFar, bandCov(wd, 5.0, w));
     }
-    // Keep the network readable from altitude: fade to a thin tone, not to nothing.
-    float fade = clamp(1.6 - px / 2.5, 0.3, 1.0);
-    vec3 spoilCol = mix(uChalk * 1.1, warBase * 1.15, flanders);
-    col = mix(col, spoilCol, spoil * 0.6 * fade);
-    col = mix(col, vec3(0.06, 0.05, 0.045), tr * 0.9 * fade);
-    col = mix(col, vec3(0.13, 0.11, 0.09), wire * 0.5 * fade * clamp(1.0 - px / 1.5, 0.0, 1.0));
+    if (wire > 0.0 && nearK > 0.0) wire *= step(0.45, tnoise(p / 2.2));
+    // Everything fades out together before the px cutoff (no pop).
+    float farFade = 1.0 - smoothstep(28.0, 40.0, px);
+    // Spoil: fresh chalk in Artois and the Somme; dun sandbag and mud breastworks in Flanders.
+    vec3 spoilCol = mix(uChalk * 1.12, mix(warBase, uChalk, 0.3) * 1.1, flanders);
+    // The cut: shadowed earth, dark but not ink.
+    vec3 cutCol = warBase * 0.36;
+    // No-man's-land between the fire trenches: churned, brown-grey and pocked.
+    // Ragged edges and heavy mottling so it reads as ground, not a paved strip.
+    if (abs(d) < 140.0) {
+      float nml = 1.0 - smoothstep(50.0, 105.0, abs(d) + (tnoise(p / 90.0 + 2.0) - 0.5) * 60.0);
+      // A tint over the crater shading already in col (keeps the pocking).
+      float mk = clamp(1.0 - px / 6.0, 0.0, 1.0);
+      float nmlMot = tnoise(p / 38.0 + 5.0) * 0.6 + (mk > 0.0 ? tnoise(p / 13.0 + 1.0) * 0.4 * mk : 0.0) + 0.2 * (1.0 - mk);
+      vec3 nmlCol = mix(col, vec3(dot(col, vec3(0.3, 0.55, 0.15))), 0.15) * (0.74 + 0.42 * nmlMot);
+      if (lumpK > 0.0) nmlCol *= 1.0 + (tnoise(p / 5.0) - 0.5) * 0.3 * lumpK;
+      col = mix(col, nmlCol, nml * 0.8 * farFade);
+    }
+    col = mix(col, spoilCol, spoil * 0.75 * farFade);
+    col = mix(col, cutCol, tr * 0.92 * farFade);
+    col = mix(col, vec3(dot(warBase, vec3(0.33)) * 0.55), wireFar * 0.18 * (1.0 - nearK) * farFade);
+    col = mix(col, warBase * 0.45, wire * 0.5 * nearK);
     tBump += (-tr * 1.4 + spoil * 0.3) * clamp(1.0 - px / 2.0, 0.0, 1.0);
-    // No-man's-land between the fire trenches: completely churned.
-    col = mix(col, warBase * 0.82 * (0.8 + 0.4 * tnoise(p / 7.0)), (1.0 - smoothstep(60.0, 100.0, abs(d))) * 0.55);
   }
 
   // --- mask features: water (R), roads (G), aerodrome grass (B)
