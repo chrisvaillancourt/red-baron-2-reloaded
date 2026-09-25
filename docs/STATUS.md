@@ -101,7 +101,20 @@ Remaining:
   p50, 'high' ≈ 3.5 ms, 'ultra' ≈ 4 ms uncapped, and a locked 60 fps with vsync.
 - The crater grid is built in a worker at load, and `whenReady` waits for it.
 
+**Visuals — done (wave 6)**
+- PLAYTEST #3 (trenches and woods as black ink from altitude) is fixed
+  (DECISIONS "Trenches drawn as energy-conserving lines"). Trenches thin with
+  distance and read as pale chalk lines from 1–3 km. Up close they are
+  crenellated cuts edged with spoil. No-man's-land is a mottled brown-grey band,
+  and woods are mottled mid-tones. Check with
+  `node src/render/dev/frontShots.mjs <out> <port>` (300 m / 1 km / 2.5 km /
+  straight down at Croisilles, the Somme and Ypres).
+- Showcase gallery regenerated. Before/after (left/right): `docs/screenshots/front-before-after.jpg`.
+
 **Defer — visuals**
+- Trench bays follow a fixed world axis, so east–west stretches of the line
+  show stretched bays. Fix with an arc-length vertex attribute only if players
+  notice.
 - Dusk and dawn light is correct but muted: low sun lights the ground weakly.
   Revisit if players want more golden-hour drama.
 - Openfield strips read busy from 700–1500 m. Consider lowering the
