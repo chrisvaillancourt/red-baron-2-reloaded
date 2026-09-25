@@ -128,7 +128,7 @@ test('career: a twelve-victory sortie earns the headline, promotion and a medal'
 
   // The pilot record reflects it.
   const pilot = await page.evaluate(() => {
-    const c = window.__rb2!.services.campaign;
+    const c = window.__rb2!.services!.campaign;
     const id = c.listPilots()[0].id;
     const p = c.loadPilot(id)!;
     return { victories: p.victories.filter((v) => v.confirmed).length, medals: p.medals.map((m) => m.medalId), rank: p.rankId, missions: p.missionsFlown };

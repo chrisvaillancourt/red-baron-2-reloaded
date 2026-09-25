@@ -80,6 +80,13 @@ export interface AutoplayReport {
    * `enemy-fire(<outcome>)`, `flak/ground(<outcome>)` or `self(<outcome>, <ai phase>)`.
    */
   playerLossCause: string | null;
+  /**
+   * Every aircraft-aircraft collision: `<pair> <geometry> <stateA>/<stateB>`, where pair is
+   * player-enemy / player-wingman / player-friendly / ai-enemy / ai-wingman / ai-friendly,
+   * `wreck` marks a pair where one was already going down, and geometry is the angle
+   * between the two noses (head-on ~180, same heading ~0).
+   */
+  collisions: string[];
   events: Partial<Record<GameEvent['type'], number>>;
 }
 
@@ -102,7 +109,22 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   let collisionWith: string | null = null;
   let playerLossCause: string | null = null;
   let lastDamageSum = 0;
+  const collisions: string[] = [];
   bus.onAny((e) => {
+    if (e.type === 'collision') {
+      const a = world.getEntity(e.aId);
+      const b = world.getEntity(e.bId);
+      if (a?.kind === 'aircraft' && b?.kind === 'aircraft') {
+        const withPlayer = a.id === player?.id || b.id === player?.id;
+        const rel = a.side !== b.side ? 'enemy' : a.flightId === b.flightId ? 'wingman' : 'friendly';
+        const fa = new Vector3(0, 0, -1).applyQuaternion(a.state.orientation);
+        const fb = new Vector3(0, 0, -1).applyQuaternion(b.state.orientation);
+        const ang = Math.round((Math.acos(Math.max(-1, Math.min(1, fa.dot(fb)))) * 180) / Math.PI);
+        const st = (x: typeof a) => (x.id === player?.id ? 'P:' : '') + ((core.ai.get(x.id) as { debugState?: string } | undefined)?.debugState ?? '-').replace(/ /g, '_');
+        const wreck = a.damage.destroyed || b.damage.destroyed ? ' wreck' : '';
+        collisions.push(`${withPlayer ? 'player' : 'ai'}-${rel}${wreck} ${ang}deg ${st(a)}/${st(b)} t=${world.time.toFixed(0)}`);
+      }
+    }
     if (player && e.type === 'bullet-hit' && e.targetId === player.id) lastBulletHit = world.time;
     if (player && e.type === 'collision' && (e.aId === player.id || e.bId === player.id) && collisionWith === null) {
       const other = world.getEntity(e.aId === player.id ? e.bId : e.aId);
@@ -215,6 +237,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
     acesPresent: [...new Set(acesPresent)],
     acesDowned: [...acesDowned],
     playerLossCause,
+    collisions,
     events,
   };
 }

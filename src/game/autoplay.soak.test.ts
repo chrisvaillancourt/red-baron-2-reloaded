@@ -18,8 +18,12 @@ const OUT = process.env.AUTOPLAY_OUT;
 const MAX_TIME = Number(process.env.AUTOPLAY_MAXTIME ?? 2400);
 /** Seeded repetitions of each quick-mission setup (quick missions are otherwise random). */
 const QUICK_REPS = Number(process.env.AUTOPLAY_QUICK_REPS ?? 1);
+/** Summarise quick runs per setup as well as per type (AUTOPLAY_QUICK_BY_SETUP=1). */
+const QUICK_BY_SETUP = !!process.env.AUTOPLAY_QUICK_BY_SETUP;
 /** Career difficulty for the career survey (recruit | pilot | ace). */
 const DIFFICULTY = (process.env.AUTOPLAY_DIFFICULTY ?? 'pilot') as CareerDifficulty;
+/** Offset for the career pilots' seeds, so repeated surveys sample different careers. */
+const SEED_BASE = Number(process.env.AUTOPLAY_SEED_BASE ?? 0);
 
 function log(line: string) {
   if (OUT) appendFileSync(OUT, line + '\n');
@@ -50,6 +54,7 @@ function describeRow(r: Row): string {
     `bal ${x.balloonsDestroyed} gnd ${x.groundDestroyed}`,
     `obj ${obj}${x.result.missionSuccess ? ' OK' : ' --'}`,
     x.playerLossCause ? `LOSS ${x.playerLossCause}` : '',
+    x.collisions.length ? `COLL ${x.collisions.join(';')}` : '',
     x.badSpawns.length ? `BADSPAWN ${x.badSpawns.join(';')}` : '',
     x.misplaced.length ? `MISPLACED ${x.misplaced.join(';')}` : '',
     x.acesPresent.length ? `aces ${x.acesPresent.join(',')}${x.acesDowned.length ? ` downed ${x.acesDowned.join(',')}` : ''}` : '',
@@ -87,6 +92,12 @@ function summarise(rows: Row[]): void {
     if (c) causes.set(c, (causes.get(c) ?? 0) + 1);
   }
   log(`LOSS CAUSES (${rows.length} missions): ${[...causes].sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`).join(' | ') || 'none'}`);
+  const coll = new Map<string, number>();
+  for (const r of rows) for (const c of r.rep.collisions) {
+    const k = c.split(' ').slice(0, 2).join(' ').replace(/ \d+deg$/, '') + (/ (1[3-8]\d)deg/.test(c) ? ' head-on' : '');
+    coll.set(k, (coll.get(k) ?? 0) + 1);
+  }
+  log(`COLLISIONS (${rows.length} missions): ${[...coll].sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`).join(' | ') || 'none'}`);
   const claims = rows.reduce((s, r) => s + r.rep.result.claims.length, 0);
   log(`CLAIMS per mission ${(claims / Math.max(1, rows.length)).toFixed(2)}`);
 }
@@ -105,7 +116,7 @@ describe.skipIf(!MODES.includes('career'))('autoplay: careers', () => {
       if (OUT) writeFileSync(OUT, `# autoplay career run ${new Date().toISOString()} per-pilot=${PER_PILOT}\n`);
       const campaign = createCampaignService(memoryStorage());
       const rows: Row[] = [];
-      let seed = 1;
+      let seed = 1 + SEED_BASE;
       for (const { nation, dates } of CAREERS) {
         for (const startDate of dates) {
           const p = campaign.createPilot({ firstName: 'Auto', lastName: `Pilot${seed}`, nation, startDate, difficulty: DIFFICULTY });
@@ -138,9 +149,15 @@ describe.skipIf(!MODES.includes('career'))('autoplay: careers', () => {
   );
 });
 
+/** Comma-separated label substrings selecting quick setups (default: all). */
+const QUICK_SETUPS = (process.env.AUTOPLAY_QUICK_SETUPS ?? '').split(',').filter(Boolean);
+/** Comma-separated quick types (default: all). */
+const QUICK_TYPES = (process.env.AUTOPLAY_QUICK_TYPES ?? '').split(',').filter(Boolean);
 const QUICK: (QuickMissionOptions & { label: string })[] = [];
 for (const type of ['dogfight', 'balloon-attack', 'escort', 'intercept', 'ground-attack'] as const) {
   QUICK.push(
+    // The Quick Mission screen's defaults (src/ui/screens/quick.ts): an even fight at standard skill.
+    { label: `default camel v dv ${type}`, type, playerAircraft: 'sopwith_camel', enemyAircraft: 'albatros_dv', enemyCount: 2, wingmen: 1, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.35 },
     { label: `camel v dr1 ${type}`, type, playerAircraft: 'sopwith_camel', enemyAircraft: 'fokker_dri', enemyCount: 3, wingmen: 2, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2000, startPosition: 'random', timeOfDay: 'midday', cloudCover: 0.3 },
     { label: `dvii v spad ${type}`, type, playerAircraft: 'fokker_dvii', enemyAircraft: 'spad_xiii', enemyCount: 2, wingmen: 1, enemySkill: 'veteran', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.5 },
   );
@@ -152,11 +169,12 @@ describe.skipIf(!MODES.includes('quick'))('autoplay: quick missions', () => {
     () => {
       if (OUT) writeFileSync(OUT, `# autoplay quick run ${new Date().toISOString()} reps=${QUICK_REPS}\n`);
       const rows: Row[] = [];
+      const setups = QUICK.filter((q) => (!QUICK_SETUPS.length || QUICK_SETUPS.some((s) => q.label.includes(s))) && (!QUICK_TYPES.length || QUICK_TYPES.includes(q.type)));
       for (let rep = 0; rep < QUICK_REPS; rep++) {
-        for (const q of QUICK) {
+        for (const q of setups) {
           const m: MissionDefinition = buildQuickMission(q, 1000 + rep * 97 + QUICK.indexOf(q));
           const r = runAutoplay(m, { maxTime: MAX_TIME });
-          const row: Row = { label: `quick ${q.label} #${rep}`, type: `q-${q.type}`, rep: r };
+          const row: Row = { label: `quick ${q.label} #${rep}`, type: `q-${q.type}${QUICK_BY_SETUP ? `-${q.label.split(' ')[0]}` : ''}`, rep: r };
           rows.push(row);
           log(describeRow(row));
           expect(r.badSpawns).toEqual([]);
