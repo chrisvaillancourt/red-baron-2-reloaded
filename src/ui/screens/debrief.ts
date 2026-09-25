@@ -120,7 +120,8 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
           'div',
           { class: 'hdr' },
           h('div', null, h('div', { class: 'engraved muted', style: 'font-size:.8em' }, 'Combat Report'), h('h2', null, mission.title), h('div', { class: 'typed muted' }, `${FATE_LABEL[fate]} · ${formatDate(mission.date)}`)),
-          stamp(success ? 'Mission Successful' : 'Mission Failed', success ? 'green' : '', 'big slam outcome'),
+          // An abandoned flight is never credited, even with its objectives ticked; say why.
+          stamp(success ? 'Mission Successful' : result.aborted ? 'Mission Abandoned' : 'Mission Failed', success ? 'green' : '', 'big slam outcome'),
         ),
         h('hr', { class: 'rule double' }),
         h(
