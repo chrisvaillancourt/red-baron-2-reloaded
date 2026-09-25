@@ -190,11 +190,16 @@ makes that possible: the analytic terrain costs ~20 us a call).
 - `playerLossCause` classifies what took the player out:
   - `collision-<wingman|friendly|enemy|balloon>`;
   - `enemy-fire(<outcome>)` for bullets within the last 25 s;
-  - `flak/ground(<outcome>)` for damage without a bullet hit;
+  - `flak/ground(<outcome>)` for damage without a bullet hit (a shot-up airframe
+    that fails later, a zone jumping to 1, still counts as enemy fire);
   - `self(<outcome>, <AI phase>)` for everything else.
 
   The soak summary prints a histogram of these causes and the claims per
   mission.
+- `collisions` lists every aircraft–aircraft collision in the flight as
+  `<player|ai>-<enemy|wingman|friendly>[ wreck] <angle between noses>deg
+  <stateA>/<stateB> t=<s>`; the soak prints them per mission (`COLL …`) and a
+  `COLLISIONS` histogram (head-on = noses 130–180° apart).
 - `passivePlayer: true` replaces the AI player with one that holds wings
   level and the nose on the horizon and never fights.
 - `src/game/autoplay.test.ts` (in `pnpm test`):
@@ -213,7 +218,12 @@ makes that possible: the analytic terrain costs ~20 us a call).
   campaign (promotions, medals, wounds, fates) and logging a debrief line;
   `quick` flies every quick-mission type. `AUTOPLAY_QUICK_REPS=N` repeats each
   quick setup with N fixed seeds, and `AUTOPLAY_DIFFICULTY=recruit|pilot|ace`
-  sets the career difficulty. The output ends with a per-type
+  sets the career difficulty. `AUTOPLAY_SEED_BASE=N` offsets the career pilots'
+  seeds so parallel runs sample different careers. The quick setups include the
+  Quick Mission screen's default (Camel and wingman v two regular D.Vs);
+  `AUTOPLAY_QUICK_SETUPS=default,camel,dvii` and
+  `AUTOPLAY_QUICK_TYPES=dogfight,ground-attack` select setups and types, and
+  `AUTOPLAY_QUICK_BY_SETUP=1` summarises per setup as well as per type. The output ends with a per-type
   table: contact %, median contact time, success %, kills per mission,
   returned/killed/captured/wounded %, timeouts. ~110 missions take ~10 min.
   Note the AI player is a `veteran`; its death rate is an upper bound on a
