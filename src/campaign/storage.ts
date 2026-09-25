@@ -13,6 +13,8 @@ const VERSION = 1;
 interface SaveDoc {
   version: number;
   pilots: CareerPilot[];
+  /** Records that failed validation, kept verbatim so no save ever erases them. */
+  quarantined?: unknown[];
 }
 
 export function memoryStorage(): StorageLike {
@@ -56,25 +58,74 @@ function isPilot(x: unknown): x is CareerPilot {
   );
 }
 
+/** Upgrade an older document in place. Add a case per schema change (see docs/game.md "Robustness"). */
+function migrate(doc: Partial<SaveDoc>): Partial<SaveDoc> {
+  // Version-less documents predate the version field: same shape as v1.
+  if (doc.version === undefined) doc.version = 1;
+  return doc;
+}
+
+/**
+ * Save-safety rules:
+ *  - Read-modify-write: every mutation re-reads storage and changes only its own
+ *    pilot, so two tabs (or two stores) never erase each other's careers.
+ *  - A pilot record that fails validation is kept under `quarantined` instead
+ *    of being dropped by the next save.
+ *  - A document from a newer game version is never overwritten (`readOnly`):
+ *    changes stay in memory for this session.
+ *  - A corrupt document is backed up under `<key>.corrupt-<time>` before the
+ *    store starts afresh.
+ *  - If storage refuses a write (quota), memory stays authoritative until a
+ *    write succeeds.
+ */
 export class CareerStore {
   private pilots = new Map<string, CareerPilot>();
+  private quarantined: unknown[] = [];
+  private docVersion = VERSION;
+  /** True when the save came from a newer version of the game: never written. */
+  readOnly = false;
+  /** A write failed: memory holds changes storage doesn't have yet. */
+  private unsaved = false;
+  /** Raw document last parsed or written, to skip re-parsing unchanged storage. */
+  private lastRaw: string | null = null;
 
   constructor(private readonly storage: StorageLike) {
-    this.load();
+    this.refresh(true);
   }
 
-  private load(): void {
+  /** Mirror storage into memory (unless memory holds unsaved changes). */
+  private refresh(initial = false): void {
+    if (!initial && (this.readOnly || this.unsaved)) return;
     let raw: string | null = null;
     try {
       raw = this.storage.getItem(STORAGE_KEY);
     } catch {
+      return; // unreadable storage: keep what we have
+    }
+    if (!raw) {
+      if (!initial) this.pilots.clear();
+      this.quarantined = [];
+      this.lastRaw = null;
       return;
     }
-    if (!raw) return;
+    if (raw === this.lastRaw) return; // unchanged since we last parsed or wrote it
+    this.lastRaw = raw;
     try {
-      const doc = JSON.parse(raw) as Partial<SaveDoc>;
+      const doc = migrate(JSON.parse(raw) as Partial<SaveDoc>);
       if (!doc || !Array.isArray(doc.pilots)) throw new Error('malformed save');
-      for (const p of doc.pilots) if (isPilot(p)) this.pilots.set(p.id, p);
+      const pilots = new Map<string, CareerPilot>();
+      const quarantined: unknown[] = Array.isArray(doc.quarantined) ? [...doc.quarantined] : [];
+      for (const p of doc.pilots) {
+        if (isPilot(p)) pilots.set(p.id, p);
+        else quarantined.push(p);
+      }
+      this.pilots = pilots;
+      this.quarantined = quarantined;
+      this.docVersion = doc.version ?? VERSION;
+      if (this.docVersion > VERSION) {
+        this.readOnly = true;
+        console.warn(`[campaign] save is from a newer version (v${this.docVersion} > v${VERSION}); it will not be modified.`);
+      }
     } catch {
       try {
         this.storage.setItem(`${STORAGE_KEY}.corrupt-${Date.now()}`, raw);
@@ -82,35 +133,47 @@ export class CareerStore {
         /* ignore */
       }
       this.pilots.clear();
-      this.flush();
+      this.quarantined = [];
+      this.write();
     }
   }
 
-  private flush(): void {
+  private write(): void {
+    if (this.readOnly) return;
     const doc: SaveDoc = { version: VERSION, pilots: [...this.pilots.values()] };
+    if (this.quarantined.length) doc.quarantined = this.quarantined;
     try {
-      this.storage.setItem(STORAGE_KEY, JSON.stringify(doc));
+      const raw = JSON.stringify(doc);
+      this.storage.setItem(STORAGE_KEY, raw);
+      this.lastRaw = raw;
+      this.unsaved = false;
     } catch {
-      /* quota or unavailable: keep in memory */
+      this.unsaved = true; // quota or unavailable: keep in memory
     }
+  }
+
+  private mutate(fn: (pilots: Map<string, CareerPilot>) => void): void {
+    this.refresh(); // pick up other tabs' changes first
+    fn(this.pilots);
+    this.write();
   }
 
   all(): CareerPilot[] {
+    this.refresh();
     return [...this.pilots.values()];
   }
 
   get(id: string): CareerPilot | null {
+    this.refresh();
     const p = this.pilots.get(id);
     return p ? structuredClone(p) : null;
   }
 
   put(p: CareerPilot): void {
-    this.pilots.set(p.id, structuredClone(p));
-    this.flush();
+    this.mutate((m) => m.set(p.id, structuredClone(p)));
   }
 
   delete(id: string): void {
-    this.pilots.delete(id);
-    this.flush();
+    this.mutate((m) => m.delete(id));
   }
 }
