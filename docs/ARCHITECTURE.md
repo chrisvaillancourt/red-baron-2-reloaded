@@ -49,5 +49,6 @@ events (EventBus) fan out to renderer.handleEvent, audio.handleEvent, hud, missi
 
 * `pnpm dev` — play at http://localhost:5173
 * `pnpm test` — unit tests; `pnpm typecheck`; `pnpm build`
-* `pnpm e2e` — Playwright smoke tests (after integration)
+* `pnpm e2e` — Playwright browser tests; `pnpm e2e:soak` — 20-flight leak soak
+* `pnpm build && pnpm preview --port 5325` then `pnpm prodcheck 5325` — production-build check
 * `blender --background --factory-startup --python tools/blender/build_models.py` — regenerate models

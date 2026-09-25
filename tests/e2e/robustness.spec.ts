@@ -151,6 +151,35 @@ test('boots and flies with no WebAudio (silent engine)', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('closing the tab mid-flight neither loses nor advances the career', async ({ page }) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  const before = await page.evaluate(() => {
+    const s = window.__rb2!.services!;
+    const p = s.campaign.createPilot({ firstName: 'Interrupted', lastName: 'Flight', nation: 'germany', startDate: '1917-04-10', difficulty: 'pilot' });
+    const m = s.campaign.generateMission(p);
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;inset:0;z-index:1000';
+    document.body.appendChild(host);
+    void s.launcher.fly(m, s.getSettings(), host);
+    return { id: p.id, date: p.date, missions: p.missionsFlown, missionId: m.id };
+  });
+  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 40_000 });
+  await page.reload(); // the tab goes away mid-flight
+  await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30_000 });
+  const after = await page.evaluate((id) => {
+    const s = window.__rb2!.services!;
+    const p = s.campaign.loadPilot(id);
+    return p ? { date: p.date, missions: p.missionsFlown, missionId: s.campaign.generateMission(p).id } : null;
+  }, before.id);
+  expect(after).not.toBeNull();
+  expect(after!.date).toBe(before.date);
+  expect(after!.missions).toBe(before.missions);
+  // The same sortie is waiting: nothing was recorded, nothing skipped.
+  expect(after!.missionId).toBe(before.missionId);
+  expect(errors).toEqual([]);
+});
+
 test('an uncaught error outside a flight offers a working "Return to menu"', async ({ page }) => {
   collectErrors(page, [/injected menu fault/]);
   await boot(page);

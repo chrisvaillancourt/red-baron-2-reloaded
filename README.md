@@ -125,6 +125,8 @@ zsh tools/blender/render_art.sh
 | `pnpm test` | unit tests (Vitest): sim, AI, campaign, world, UI logic |
 | `pnpm typecheck` | TypeScript check |
 | `pnpm e2e` | Playwright browser tests (uses installed Chrome and the GPU; set `E2E_SWIFTSHADER=1` on machines without a GPU) |
+| `pnpm e2e:soak` | Long-session leak test: 20 consecutive flights in one page (`E2E_SOAK_FLIGHTS` to change) |
+| `pnpm prodcheck <port>` | Checks a served production build (`pnpm build && pnpm preview --port <port>`): assets, workers, a flight, no errors |
 | `node dev/walk-menus.mjs <url>` | screenshots every menu screen with real campaign data (dev server) |
 
 Developer test pages served by `pnpm dev`:
