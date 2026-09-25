@@ -74,7 +74,7 @@ Remaining:
 - **Done (gunnery wave 7):** the AI lead solution now models bullet drag (it under-led by
   10–20% at 200–400 m), with a turn-aware lead regression test (`src/ai/gunnery.test.ts`)
   and a gunnery diagnostic soak (`AI_SOAK=gundiag`). See DECISIONS "Drag-aware lead".
-- **Defer (src/ui owner decides):** the Quick Mission default dogfight (Camel+1 v 2 regular
+- **Skip (decided, DECISIONS D-071: keep the D.V default):** the Quick Mission default dogfight (Camel+1 v 2 regular
   D.V) stays lopsided: player down 0–8% (target 35–55%), and 6–13% against veteran D.Vs.
   Wave 7 showed it is the airframe, not gunnery: the D.V (wing loading 44 against the
   Camel's 31 kg/m², same speed and climb) almost never reaches a Camel's six, so its hits
