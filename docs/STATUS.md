@@ -71,11 +71,19 @@ Remaining:
     Iron Cross, and HQ shows the victories.
   - Autoplayer: logs every collision, has setup and type filters and seed offsets, and no
     longer counts a shot-up airframe that fails later as a flak loss.
-- **Defer:** the Quick Mission default dogfight is lopsided in the player's favour. Player
-  down is 4%, against a 40–55% target. Mirror matchups are fair, so this is the matchup,
-  not skill scaling: the AI rarely hits a hard-turning Camel. Next step, in two parts:
-  improve AI gunnery against high-turn-rate targets (src/ai), and/or change the screen's
-  default enemy type (src/ui). Measure with `AI_SOAK=fairness AI_FAIR_SET=default,mirror`.
+- **Done (gunnery wave 7):** the AI lead solution now models bullet drag (it under-led by
+  10–20% at 200–400 m), with a turn-aware lead regression test (`src/ai/gunnery.test.ts`)
+  and a gunnery diagnostic soak (`AI_SOAK=gundiag`). See DECISIONS "Drag-aware lead".
+- **Defer (src/ui owner decides):** the Quick Mission default dogfight (Camel+1 v 2 regular
+  D.V) stays lopsided: player down 0–8% (target 35–55%), and 6–13% against veteran D.Vs.
+  Wave 7 showed it is the airframe, not gunnery: the D.V (wing loading 44 against the
+  Camel's 31 kg/m², same speed and climb) almost never reaches a Camel's six, so its hits
+  are all head-on. Three out-turned tactics (high yo-yo, diving extension, jousting) and
+  mutual-support targeting were measured and dropped (docs/ai.md "Known weaknesses").
+  If an even first fight is wanted, change the screen default: 2 regular Dr.I put the
+  player down ~70%, novice Dr.I 6%, regular D.VII 17%. Keeping the D.V default as an
+  easy first fight for a new player is also defensible; decide from human playtests,
+  not the veteran autoplayer.
 - **Defer:** quick ground attack against *veteran* defenders is still 63% killed or
   captured. The difficulty is chosen by the player; revisit only if players complain.
 - **Defer:** the career killed-or-captured rate is ~25% for the veteran autoplayer
