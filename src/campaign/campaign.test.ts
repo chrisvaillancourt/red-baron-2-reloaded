@@ -246,6 +246,24 @@ describe('mission generator', () => {
     expect(standing.victories).toBe(aceVictoriesOn(getAce('mvr')!, '1917-04-09'));
   });
 
+  it('never flies a squadron mate who was killed or captured', () => {
+    const s = newService();
+    const p = s.createPilot({ firstName: 'A', lastName: 'B', nation: 'usa', startDate: '1918-06-10', squadronId: 'us94', difficulty: 'pilot' });
+    const mateNames = (m: MissionDefinition) => m.flights[0].members.filter((x) => !x.isPlayer && !x.aceId).map((x) => x.pilotName!);
+    let m = s.generateMission(p);
+    for (let i = 0; i < 4 && mateNames(m).length < 2; i++) (p.missionsFlown += 1), (m = s.generateMission(p));
+    const [dead, prisoner] = mateNames(m);
+    expect(dead).toBeDefined();
+    const r = { ...randomResult(m, new Rng(5), 'returned'), claims: [], friendlyLosses: [{ name: dead, fate: 'killed' as const }, ...(prisoner ? [{ name: prisoner, fate: 'captured' as const }] : [])] };
+    s.applyMissionResult(p, m, r);
+    for (let i = 0; i < 25; i++) {
+      p.missionsFlown += 1;
+      const names = mateNames(s.generateMission(p));
+      expect(names).not.toContain(dead);
+      if (prisoner) expect(names).not.toContain(prisoner);
+    }
+  });
+
   it('retires an ace brought down by someone else in the fight (acesDown)', () => {
     const s = newService();
     const p = s.createPilot({ firstName: 'A', lastName: 'B', nation: 'britain', startDate: '1917-04-10', squadronId: 'rfc60', difficulty: 'pilot' });

@@ -86,6 +86,8 @@ export interface CareerPilot {
    * appearing from `date`.
    */
   alteredAces?: Record<string, { fate: 'killed' | 'captured'; date: string }>;
+  /** Generic squadron mates killed or taken prisoner in the player's flight; never rostered again. */
+  lostMates?: string[];
   /** Seed for deterministic mission generation. */
   rngSeed: number;
   createdAt: string;
