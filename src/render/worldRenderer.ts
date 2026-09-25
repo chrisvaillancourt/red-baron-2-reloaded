@@ -32,6 +32,7 @@ import { hourForTimeOfDay, seasonOf, sunPosition, turbidityFor } from './environ
 import { balloonBurnState, createBalloonVisual, syncBalloonVisual } from './objects/balloon';
 import { CraterGridLoader } from './terrain/craterGridLoader';
 import { createGroundTargetVisual, setGroundTargetDestroyed } from './objects/groundTargets';
+import { releaseGpuResources } from './releaseGpu';
 import { QUALITY, type QualityPreset } from './quality';
 import { RiverRibbons } from './rivers';
 import { RoadRibbons } from './roadRibbons';
@@ -418,6 +419,11 @@ export class WorldRendererImpl implements WorldRenderer {
   }
 
   dispose(): void {
+    // Dev QA hook: don't let it pin a finished flight's renderer (and its GL context).
+    const g = globalThis as unknown as { __rb2render?: WorldRendererImpl };
+    if (g.__rb2render === this) g.__rb2render = undefined;
+    // First, so shared/cached resources drop this renderer's dispose listeners (releaseGpu.ts).
+    releaseGpuResources(this.renderer, this.scene);
     this.craterGrids.dispose();
     this.terrain.dispose();
     this.trees.dispose();
@@ -427,7 +433,13 @@ export class WorldRendererImpl implements WorldRenderer {
     this.mask.texture.dispose();
     this.effects.dispose();
     this.clouds.dispose();
+    const lost = this.renderer.getContext().isContextLost();
     this.renderer.dispose();
+    if (lost) return;
+    // Each flight gets a fresh canvas + context. Release the GPU context now rather than
+    // whenever the canvas is garbage-collected: browsers cap live contexts (~16) and
+    // evict the oldest with a warning, and the GPU memory is held meanwhile.
+    this.renderer.forceContextLoss();
   }
 }
 

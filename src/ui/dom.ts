@@ -66,7 +66,11 @@ export function escapeHtml(s: string): string {
 /** Base-URL-aware public asset path (vite `base: './'`). */
 export function assetUrl(path: string): string {
   const base = (import.meta.env?.BASE_URL as string | undefined) ?? './';
-  return `${base.endsWith('/') ? base : base + '/'}${path.replace(/^\//, '')}`;
+  const rel = `${base.endsWith('/') ? base : base + '/'}${path.replace(/^\//, '')}`;
+  // Absolute: a relative url() inside a CSS custom property resolves against the
+  // stylesheet that uses it (dist/assets/*.css in a build), not the document, so
+  // './art/title.jpg' would become '/assets/art/title.jpg' in production.
+  return typeof document !== 'undefined' ? new URL(rel, document.baseURI).href : rel;
 }
 
 /** Background layers: art image over a CSS fallback (a missing image leaves the fallback visible). */

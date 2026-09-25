@@ -31,6 +31,8 @@ import { resolveUnits } from '../ui/format';
 import { getGunnerTarget } from '../sim';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
+import { showFlightInterrupted } from './errorOverlay';
+import { getActiveFlight, setActiveFlight } from './activeFlight';
 
 export { SIM_HZ, AI_EVERY_N_STEPS } from './simCore';
 export const TIME_SCALES = [1, 2, 4, 8] as const;
@@ -67,6 +69,9 @@ export interface SessionDebug {
   aiState(id: number): string | undefined;
   /** Test hook: set the player down, stopped, on the home aerodrome (to exercise landing rules). */
   placeAtHome(): boolean;
+  /** Robustness hooks: lose the WebGL context (restore after `restoreAfterMs`, or never if null); throw inside the next frame. */
+  simulateContextLoss(restoreAfterMs: number | null): void;
+  throwNextFrame(message: string): void;
 }
 
 declare global {
@@ -74,6 +79,11 @@ declare global {
     __rb2?: { session: SessionDebug | null; services?: GameServices };
   }
 }
+
+export { abortActiveFlight } from './activeFlight';
+
+/** How long a lost WebGL context may stay lost before the flight is abandoned. */
+export const CONTEXT_RESTORE_TIMEOUT_MS = 8000;
 
 export function createFlightLauncher(modules: GameModules, audio: AudioEngine): FlightLauncher {
   return {
@@ -118,6 +128,25 @@ export class FlightSession {
   private reject!: (e: unknown) => void;
   private finished = false;
   private onResize = () => this.resize();
+  private contextLost = false;
+  private contextLostAt = 0;
+  private throwOnNextFrame: string | null = null;
+  /** Audio is not flight-critical: after its first exception it is switched off for this session. */
+  private audioFailed = false;
+  private onContextLost = (e: Event) => {
+    if (this.finished) return;
+    e.preventDefault(); // lets the browser restore the context
+    this.contextLost = true;
+    this.contextLostAt = performance.now();
+    this.hud?.showMessage('Graphics device reset: restoring…', { kind: 'warning', duration: 4 });
+  };
+  private onContextRestored = () => {
+    if (this.finished) return;
+    // three.js re-initialises its GL state on restore; every resource re-uploads lazily.
+    this.contextLost = false;
+    this.lastT = performance.now();
+    this.hud?.showMessage('Graphics restored.', { kind: 'info', duration: 2 });
+  };
 
   constructor(
     private readonly modules: GameModules,
@@ -129,6 +158,8 @@ export class FlightSession {
 
   run(): Promise<MissionResult> {
     return new Promise<MissionResult>((resolve, reject) => {
+      getActiveFlight()?.abort(new Error('A new flight replaced this one'), true);
+      setActiveFlight(this);
       this.resolve = resolve;
       this.reject = reject;
       this.setup().catch((e) => this.fail(e));
@@ -153,6 +184,8 @@ export class FlightSession {
     this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;outline:none';
     this.canvas.tabIndex = 0;
     this.root.appendChild(this.canvas);
+    this.canvas.addEventListener('webglcontextlost', this.onContextLost);
+    this.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     this.core = new SimCore(modules, mission, () => settings.realism, { bus: this.bus });
     this.world = this.core.world;
@@ -254,6 +287,15 @@ export class FlightSession {
       },
       aiState: (id) => self.core.ai.get(id)?.debugState,
       placeAtHome: () => self.placeAtHome(),
+      simulateContextLoss: (restoreAfterMs) => {
+        const ext = self.renderer.renderer.getContext().getExtension('WEBGL_lose_context');
+        if (!ext) return;
+        ext.loseContext();
+        if (restoreAfterMs !== null) setTimeout(() => ext.restoreContext(), restoreAfterMs);
+      },
+      throwNextFrame: (message) => {
+        self.throwOnNextFrame = message;
+      },
     };
   }
 
@@ -348,7 +390,7 @@ export class FlightSession {
 
   private onEvent(e: GameEvent): void {
     this.renderer.handleEvent(e);
-    this.audio.handleEvent(e, this.rig.camera.position);
+    this.guardAudio(() => this.audio.handleEvent(e, this.rig.camera.position));
     const player = this.world.player;
     if (e.type === 'radio') this.hud.showMessage(e.text, { from: e.from || undefined, kind: e.from ? 'radio' : 'info' });
     else if (e.type === 'bullet-hit' && player && e.targetId === player.id) this.hud.setDamageFlash(0.35);
@@ -502,7 +544,22 @@ export class FlightSession {
 
   private frame = (now: number): void => {
     if (this.finished) return;
+    if (this.contextLost) {
+      // Nothing can be drawn; hold the simulation still until the browser restores the context.
+      this.lastT = now;
+      if (now - this.contextLostAt > CONTEXT_RESTORE_TIMEOUT_MS) {
+        this.fail(new Error('The graphics device was lost and did not recover.'));
+        return;
+      }
+      this.raf = requestAnimationFrame(this.frame);
+      return;
+    }
     try {
+      if (this.throwOnNextFrame !== null) {
+        const msg = this.throwOnNextFrame;
+        this.throwOnNextFrame = null;
+        throw new Error(msg);
+      }
       this.tick(now);
     } catch (e) {
       this.fail(e);
@@ -568,7 +625,7 @@ export class FlightSession {
     this.renderer.render(this.rig.camera);
     this.interp.restore();
     if (this.pixelRequests.length) this.samplePixels();
-    this.audio.updateFlight(this.rig.camera, player, world, this.paused ? 0 : dtReal, this.rig.inCockpit);
+    this.guardAudio(() => this.audio.updateFlight(this.rig.camera, player, world, this.paused ? 0 : dtReal, this.rig.inCockpit));
     if (player) {
       this.waypointIndex = advanceWaypoint(player, world, this.waypointIndex);
       this.hud.update(
@@ -639,36 +696,93 @@ export class FlightSession {
 
   private finish(): void {
     if (this.finished) return;
-    const result = this.director.buildResult();
+    let result: MissionResult;
+    try {
+      result = this.director.buildResult();
+    } catch (e) {
+      this.fail(e);
+      return;
+    }
     this.teardown();
-    this.bus.emit({ type: 'mission-end', result });
+    try {
+      this.bus.emit({ type: 'mission-end', result });
+    } catch (e) {
+      console.error('[flight] mission-end handler failed', e);
+    }
     this.resolve(result);
   }
 
-  private fail(e: unknown): void {
+  private fail(e: unknown, silent = false): void {
     if (this.finished) return;
     console.error('Flight session failed', e);
     this.teardown();
+    if (!silent) showFlightInterrupted(e);
     this.reject(e);
   }
 
+  /** Stop this flight with an error (see abortActiveFlight). */
+  abort(e: unknown, silent: boolean): void {
+    this.fail(e, silent);
+  }
+
+  /** Run a non-critical audio call; the first exception switches audio off for this flight. */
+  private guardAudio(fn: () => void): void {
+    if (this.audioFailed) return;
+    try {
+      fn();
+    } catch (e) {
+      this.audioFailed = true;
+      console.error('[flight] audio failed; continuing silently', e);
+      try {
+        this.audio.stopFlight();
+      } catch {
+        /* already broken */
+      }
+    }
+  }
+
+  /**
+   * Release everything. Each step is isolated: a throwing dispose must never
+   * stop the rest, or the fly() promise would never settle and the UI would
+   * stay in its "flying" state for good.
+   */
   private teardown(): void {
     this.finished = true;
+    if (getActiveFlight() === this) setActiveFlight(null);
+    const step = (label: string, fn: () => void) => {
+      try {
+        fn();
+      } catch (e) {
+        console.error(`[flight] teardown: ${label} failed`, e);
+      }
+    };
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.onResize);
-    this.unsubs.forEach((u) => u());
-    this.unsubs = [];
-    this.input?.detach();
-    this.audio.stopFlight();
-    this.director?.dispose();
-    this.visuals.forEach((v) => {
-      v.object.removeFromParent();
-      v.dispose();
+    step('canvas listeners', () => {
+      this.canvas?.removeEventListener('webglcontextlost', this.onContextLost);
+      this.canvas?.removeEventListener('webglcontextrestored', this.onContextRestored);
     });
+    step('event subscriptions', () => this.unsubs.forEach((u) => u()));
+    this.unsubs = [];
+    step('input', () => this.input?.detach());
+    step('audio', () => this.audio.stopFlight());
+    step('director', () => this.director?.dispose());
+    // Renderer first, while aircraft visuals are still in its scene: its dispose sweeps
+    // every geometry/material/texture in the scene, including shared model caches, so
+    // none of them keeps this flight's WebGL context alive (src/render/releaseGpu.ts).
+    step('renderer', () => this.renderer?.dispose());
+    this.visuals.forEach((v) =>
+      step('aircraft visual', () => {
+        v.object.removeFromParent();
+        v.dispose();
+      }),
+    );
     this.visuals.clear();
-    this.hud?.dispose();
-    this.renderer?.dispose();
-    this.root?.remove();
+    this.entityObjects.clear();
+    this.interp = new RenderInterpolator();
+    this.pixelRequests = [];
+    step('hud', () => this.hud?.dispose());
+    step('root', () => this.root?.remove());
     if (window.__rb2) window.__rb2.session = null;
   }
 }

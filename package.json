@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:soak": "E2E_SOAK=1 playwright test tests/e2e/soak.spec.ts",
+    "prodcheck": "node tools/playtest/prodcheck.mjs"
   },
   "dependencies": {
     "three": "^0.186.0"

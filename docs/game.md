@@ -1,15 +1,19 @@
 # Game layer (`src/game`)
 
 The glue: app bootstrap, the in-flight loop, input, cameras and the mission
-director. Everything else is reached through one composition point.
+director. Everything else is reached through one composition point, split
+into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 
 ## Files
 
 | File | Role |
 |---|---|
-| `modules.ts` | **Composition point.** Binds every subsystem factory (`GameModules`). |
-| `moduleTypes.ts` | `GameModules` factory signatures, `AIControllerOptions`, `UiHandle`. The HUD type is `Hud` from `src/ui/hud/types.ts`. |
-| `app.ts` | `startApp(root, modules)`: settings, `GameServices`, display catalog (`setUiCatalog(catalogFromCampaignData())`), UI mount, `showFatalError`. |
+| `modules.ts` | **Composition point, menu half.** `menuModules` (audio, campaign, UI); `createLazyFlightLauncher`, `loadFlightChunk`, `prefetchFlightChunk`. |
+| `flightModules.ts` | **Composition point, flight half.** `flightModules` (sim, combat, AI, world renderer, aircraft visuals, HUD, terrain) — its own build chunk. |
+| `moduleTypes.ts` | `GameModules` factory signatures (= `MenuModules` + `FlightOnlyModules`), `AIControllerOptions`, `UiHandle`. The HUD type is `Hud` from `src/ui/hud/types.ts`. |
+| `app.ts` | `startApp(root, menuModules)`: settings, `GameServices`, display catalog (`setUiCatalog(catalogFromCampaignData())`), UI mount, error recovery (`restart()`), `installGlobalErrorHandlers`. |
+| `errorOverlay.ts` | `showFatalError` (recoverable: "Return to menu" / "Reload") and `showFlightInterrupted`. |
+| `activeFlight.ts` | Registry of the flight in progress; `abortActiveFlight(err, { silent })`. |
 | `flightSession.ts` | `createFlightLauncher(modules, audio)` → `FlightLauncher.fly`. The loop; drives the HUD cards (pause, end flight, orders, map). |
 | `simCore.ts` | `SimCore`: the headless flight — world, combat, AI controllers, mission director, the fixed step, landing detection, wingman orders. Shared by `FlightSession` and the autoplayer. |
 | `heightCache.ts` | Tiled bilinear cache (32 m cells, 1 km tiles, LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
@@ -19,7 +23,7 @@ director. Everything else is reached through one composition point.
 | `input.ts` | Keyboard (rebindable actions), mouse (direct stick / mouse-aim instructor), gamepad. |
 | `cameras.ts` | Cockpit (head look, snap views), chase, padlock, fly-by, target, orbit. |
 | `hudView.ts` | `buildHudView` → the UI's `HudView` each frame; `toScreen`, `advanceWaypoint`. |
-| `stubs/` | Placeholders still bound in `modules.ts` (renderer, aircraft visuals) plus `sim`/`campaign` stubs used by unit tests. |
+| `stubs/` | `sim`/`campaign` stand-ins used by unit tests (no stub is bound in the game any more). |
 
 ## Loop
 
@@ -131,24 +135,23 @@ against a running dev server (`--port`, `--keys Space --hold 1.5`, `--count`,
 `--start`, `--realism`; `|`-separate views that carry JS). The session debug
 handle exposes `rig`, `visuals` and `freeze()` for QA.
 
-## Swapping stubs
+## Binding subsystems
 
-Edit only `modules.ts`. Real today: sim, combat, AI, audio, campaign, UI,
-HUD, world. Still stubbed:
-
-| Entry | Real module |
-|---|---|
-| `createWorldRenderer` | `src/render/worldRenderer.ts` `createWorldRenderer(canvas, { quality, date })` |
-| `createAircraftVisual`, `preloadAircraftModels` | `src/render/aircraft` |
+Every entry is real. To swap an implementation, edit `modules.ts` (audio,
+campaign, UI) or `flightModules.ts` (everything a flight needs). Keep
+flight-only code out of `modules.ts` and `app.ts`: anything they import
+statically lands in the boot bundle (see Robustness → Bundles).
 
 ## Debug hook and tests
 
 `window.__rb2 = { services, session }`. `session` exposes `time`,
 `timeScale`, `paused`, `player`, `world`, `frames`, `samplePixels()` (reads
 back the WebGL drawing buffer right after a render), `command(action)`,
-`endFlight()`, `abandon()`, and two test hooks: `aiState(id)` (an AI's
-behaviour label, e.g. `formation`, `engage #4`, `rtb`) and `placeAtHome()`
-(parks the player, stopped, on the home strip to exercise the landing rules).
+`endFlight()`, `abandon()`, and test hooks: `aiState(id)` (an AI's
+behaviour label, e.g. `formation`, `engage #4`, `rtb`), `placeAtHome()`
+(parks the player, stopped, on the home strip to exercise the landing rules),
+`simulateContextLoss(restoreAfterMs | null)` and `throwNextFrame(message)`
+(see Robustness).
 
 - `pnpm test`: `missionDirector.test.ts` (claims, witnesses, objectives,
   fates, end flight), `input.test.ts` (bindings, shaping, mouse-aim),
@@ -167,6 +170,8 @@ behaviour label, e.g. `formation`, `engage #4`, `rtb`) and `placeAtHome()`
     change), time compression up/down and refused near enemies, end flight
     refused near enemies, abandon = aborted failure, landing at home =
     returned, a career balloon attack at x8 (balloons on the enemy side).
+  - `robustness.spec.ts`: see Robustness below.
+  - `soak.spec.ts` (skipped unless `E2E_SOAK=1`; `pnpm e2e:soak`).
   Screenshots land in `test-results/`.
 
 ## Autoplayer
@@ -214,3 +219,90 @@ makes that possible: the analytic terrain costs ~20 us a call).
   Note the AI player is a `veteran`; its death rate is an upper bound on a
   careful human's, not a target to drive to zero.
 
+
+## Robustness
+
+### Long sessions (no per-flight leaks)
+
+A flight builds a fresh canvas, `WebGLRenderer`, scene, workers and audio
+loops; all of it must go when the flight ends.
+
+- **GPU sweep.** three.js adds a `'dispose'` listener to every geometry,
+  material and texture it uploads, and `WebGLRenderer.dispose()` does not
+  remove them. Anything that outlives the flight — the aircraft model cache,
+  livery canvases, shared balloon materials, three's own module-level DFG LUT —
+  would otherwise pin every past renderer with its GL context and programs.
+  `WorldRenderer.dispose()` therefore first calls `releaseGpuResources`
+  (`src/render/releaseGpu.ts`), which disposes everything reachable from the
+  scene (including renderer-injected uniforms), then force-loses the context.
+  Shared resources stay usable: three re-uploads them next time. The flight
+  session disposes the renderer *while aircraft are still in the scene*.
+- **Livery cache** (`src/render/aircraft/livery.ts`) is an LRU capped at
+  `LIVERY_CACHE_MAX` (48): every squadron mate has a personal marking.
+- **Teardown** isolates each step, so one throwing `dispose` can't leave the
+  `fly()` promise unsettled.
+- **Soak test**: `E2E_PORT=5323 pnpm e2e:soak` (`E2E_SOAK_FLIGHTS`, default
+  20) flies consecutive quick and career flights in one page and asserts,
+  after every flight: 0 live WebGL contexts, 0 workers, no extra rAF loop,
+  no live audio source with music off, and bounded DOM/listener/heap growth.
+  Before the sweep, each flight left its context alive (6 flights → 6
+  contexts); after it, heap levels at ~26 MB and DOM nodes at ~1,200 over
+  20 flights.
+- **Hunting a leak**: with a dev server running,
+  `node tools/playtest/retainers.mjs <port> diff 2 3` lists the object
+  groups that grow per flight, and
+  `node tools/playtest/retainers.mjs <port> path 3 <CtorName|~prefix>` prints
+  the retainer path from a GC root.
+
+### Errors
+
+| Failure | Behaviour |
+|---|---|
+| Exception in a frame or in flight setup | Flight tears down, `fly()` rejects, "Flight interrupted" card (`#rb-flight-error`). Nothing is recorded. |
+| Exception in audio during a flight | Audio is switched off for that flight; the flight continues. |
+| WebGL context lost | Simulation holds still, HUD says "restoring"; resumes on `webglcontextrestored`. Not restored within `CONTEXT_RESTORE_TIMEOUT_MS` (8 s): flight ends as an error. |
+| Uncaught error / rejection outside a flight | Fatal overlay (`#rb-fatal`) with "Return to menu" (`App.restart()`: aborts any flight, remounts the UI) and "Reload". ResizeObserver loop noise is ignored. |
+| Missing aircraft GLB | Procedural fallback mesh (`src/render/aircraft/fallbackModel.ts`). |
+| No WebAudio | `NullAudioEngine` (silent). |
+
+`tests/e2e/robustness.spec.ts` covers each row, using the
+`throwNextFrame` / `simulateContextLoss` debug hooks and request routing for
+the missing GLB.
+
+### Saves
+
+`CareerStore` (`src/campaign/storage.ts`, tests in `storage.test.ts`):
+
+- **Read-modify-write**: each mutation re-reads storage and changes only its
+  own pilot, so two tabs never erase each other's careers.
+- **Quarantine**: a record that fails validation is kept in `quarantined`,
+  never dropped by the next save.
+- **Newer version**: a document with `version` above ours is never written
+  (`readOnly`); changes stay in memory for the session.
+- **Migration**: `migrate()` upgrades old documents (version-less → v1). Add a
+  step there with every schema change and bump `VERSION`.
+- **Corrupt JSON** is copied to `rb2r.campaign.v1.corrupt-<time>` before the
+  store starts afresh.
+- **Quota**: a refused write leaves memory authoritative until one succeeds.
+- **Interrupted flights**: a career changes only when `applyMissionResult` runs
+  after a flight, and missions are generated deterministically from the
+  pilot's state. Closing the tab mid-flight therefore loses nothing and skips
+  nothing: the same sortie is waiting (e2e: "closing the tab mid-flight…").
+  The flip side: quitting a doomed flight dodges its outcome (no "ironman" mode).
+
+### Bundles and the production build
+
+- Boot bundle (menus): ~580 kB (180 kB gzip). The flight half
+  (`flightModules.ts`: three's WebGL renderer, sim, AI, render) is a separate
+  ~670 kB chunk, prefetched when the browser is idle after the menus mount
+  and awaited by the first `launcher.fly()`. Workers are their own chunks.
+  Dev harness pages (`dev/*.html`) are not part of the build.
+- `base: './'` makes the build hostable from any path. `assetUrl()` returns
+  absolute URLs because a relative `url()` inside a CSS custom property
+  resolves against the stylesheet (`dist/assets/`) rather than the document.
+  That bug hid the title key art in production builds only.
+- Check a build: `pnpm build && pnpm preview --port 5325 --strictPort`, then
+  `pnpm prodcheck 5325` (or `pnpm prodcheck 5326 /sub/` against
+  `vite preview --base /sub/`). The check loads the menus, flies a mission,
+  and fails on any 4xx, any asset served as HTML, any console error, a missing
+  GLB or worker, or a blank frame.
