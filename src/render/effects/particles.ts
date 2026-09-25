@@ -101,7 +101,10 @@ void main() {
   if (vShape < 0.5) {
     vec2 q = vUv * 2.5 + vSeed * 13.0;
     float nz = n2(q) * 0.6 + n2(q * 2.3) * 0.4;
-    a = (1.0 - smoothstep(0.25 + 0.3 * nz, 1.0, r));
+    // Noise-eroded, soft-cored billow: ragged edges instead of a cotton ball.
+    float edge = r + (nz - 0.5) * 0.6;
+    a = 1.0 - smoothstep(0.1, 0.92, edge);
+    a *= a * (3.0 - 2.0 * a);
     // Self-shadowing: darker toward the bottom of each puff (not for additive).
     if (uAdditive < 0.5) col *= mix(1.0, 0.75 + 0.25 * (vUv.y * 0.5 + 0.5), 0.8) * uSunTint;
   } else {

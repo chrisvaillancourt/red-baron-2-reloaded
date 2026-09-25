@@ -3,7 +3,7 @@
  * worker or on the main thread. Produces a regular (N+1)^2 grid plus a skirt
  * ring, with per-vertex land-use attributes for the terrain shader.
  */
-import { craterIntensityAt, signedDistanceToFront } from '../../world/frontline';
+import { battleFreshnessAt, craterIntensityAt, signedDistanceToFront } from '../../world/frontline';
 import { forestDensityAt, townDensityAt } from '../../world/landuse';
 import { coastDistance, terrainHeightAt } from '../../world/terrain';
 
@@ -23,7 +23,7 @@ export interface ChunkData {
   positions: Float32Array; // local to (cx, 0, cz)
   normals: Float32Array;
   land: Float32Array; // forest, town, crater, beach
-  front: Float32Array; // signed distance to front (m)
+  front: Float32Array; // per vertex: signed distance to front (m), battle freshness 0..1
   minY: number;
   maxY: number;
 }
@@ -96,7 +96,7 @@ export function buildChunk(req: ChunkRequest, n = CHUNK_SEGMENTS): ChunkData {
   const positions = new Float32Array(count * 3);
   const normals = new Float32Array(count * 3);
   const land = new Float32Array(count * 4);
-  const front = new Float32Array(count);
+  const front = new Float32Array(count * 2);
   let minY = Infinity;
   let maxY = -Infinity;
   const detailed = req.size <= 16_384;
@@ -126,8 +126,9 @@ export function buildChunk(req: ChunkRequest, n = CHUNK_SEGMENTS): ChunkData {
       normals[k * 3 + 1] = ny;
       normals[k * 3 + 2] = nz;
       const fd = signedDistanceToFront(wx, wz, req.date);
-      front[k] = fd;
       const crater = Math.abs(fd) < 40_000 ? craterIntensityAt(wx, wz, req.date) : 0;
+      front[k * 2] = fd;
+      front[k * 2 + 1] = crater > 0 ? battleFreshnessAt(wx, wz, req.date) : 0;
       land[k * 4] = forestDensityAt(wx, wz);
       land[k * 4 + 1] = detailed || req.size <= 65_536 ? townDensityAt(wx, wz) : 0;
       land[k * 4 + 2] = crater;
@@ -143,7 +144,8 @@ export function buildChunk(req: ChunkRequest, n = CHUNK_SEGMENTS): ChunkData {
     positions[dst * 3 + 2] = positions[src * 3 + 2];
     for (let c = 0; c < 3; c++) normals[dst * 3 + c] = normals[src * 3 + c];
     for (let c = 0; c < 4; c++) land[dst * 4 + c] = land[src * 4 + c];
-    front[dst] = front[src];
+    front[dst * 2] = front[src * 2];
+    front[dst * 2 + 1] = front[src * 2 + 1];
   };
   for (let k = 0; k <= n; k++) {
     copy(grid + 0 * v + k, k); // north

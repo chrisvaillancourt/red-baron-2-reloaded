@@ -37,6 +37,7 @@ function paint(g: BufferGeometry, c: Color): BufferGeometry {
   const a = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3);
   g.setAttribute('color', new Float32BufferAttribute(a, 3));
+  g.setAttribute('crown', new Float32BufferAttribute(new Float32Array(n), 1));
   if (g.getAttribute('uv')) g.deleteAttribute('uv');
   return g;
 }
@@ -58,6 +59,7 @@ function paintCrown(g: BufferGeometry): BufferGeometry {
     a[i * 3 + 2] = k * 0.95;
   }
   g.setAttribute('color', new Float32BufferAttribute(a, 3));
+  g.setAttribute('crown', new Float32BufferAttribute(new Float32Array(p.count).fill(1), 1));
   if (g.getAttribute('uv')) g.deleteAttribute('uv');
   return g;
 }
@@ -136,7 +138,8 @@ const SEASON_LEAF: Record<Season, string[]> = {
   spring: ['#5f8a3a', '#6d9442', '#557f35', '#79a04a'],
   summer: ['#3f5f2b', '#4a6a30', '#355426', '#56753a'],
   autumn: ['#77683a', '#85613c', '#66683a', '#6f5433', '#56602f'],
-  winter: ['#5a5146', '#62584a', '#4f483f', '#6a604f'],
+  // Bare winter crowns: twig-grey, drawn see-through via alpha-to-coverage (see bareUniform).
+  winter: ['#5d5550', '#655b52', '#554e49', '#6b6158'],
 };
 
 export class TreeLayer {
@@ -145,6 +148,8 @@ export class TreeLayer {
   private readonly meshes: InstancedMesh[] = [];
   private readonly farMesh: InstancedMesh;
   private readonly material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+  /** 1 in winter: crowns become a see-through tangle of twigs (alpha-to-coverage, no sorting). */
+  private readonly bareUniform = { value: 0 };
   private date: string;
   private season: Season = 'summer';
   private lastPackPos = new Vector3(1e9, 0, 0);
@@ -160,6 +165,19 @@ export class TreeLayer {
   ) {
     this.date = date;
     this.group.name = 'trees';
+    // Winter: crowns are a sparse tangle of bare twigs. Alpha-to-coverage (MSAA) gives
+    // stable see-through canopies without transparency sorting; opaque when MSAA is off.
+    this.material.alphaToCoverage = true;
+    const bare = this.bareUniform;
+    this.material.onBeforeCompile = (sh) => {
+      sh.uniforms.uBare = bare;
+      sh.vertexShader = 'attribute float crown;\nvarying float vCrown;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCrown = crown;');
+      sh.fragmentShader = 'uniform float uBare;\nvarying float vCrown;\n' + sh.fragmentShader.replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\ndiffuseColor.a = mix(1.0, 0.38, uBare * vCrown);',
+      );
+    };
+    this.material.customProgramCacheKey = () => 'rb2-trees-v1';
     this.capacity = Math.round(60_000 * q.treeDensity + 10_000);
     const geos = [broadleaf(true), poplar(true), stump()];
     for (let k = 0; k < KINDS; k++) {
@@ -187,6 +205,7 @@ export class TreeLayer {
   setSeason(s: Season): void {
     if (s === this.season) return;
     this.season = s;
+    this.bareUniform.value = s === 'winter' ? 1 : 0;
     this.cells.clear();
     this.dirty = true;
   }
@@ -303,6 +322,9 @@ export class TreeLayer {
     };
   }
 
+  /** Cells in range still waiting to be built (for loading screens). */
+  pendingCount = 0;
+
   update(cam: Vector3): void {
     const R = this.q.treeRadius;
     // Build a few cells per frame, nearest first.
@@ -322,11 +344,14 @@ export class TreeLayer {
       }
     need.sort((a, b) => a[2] - b[2]);
     const t0 = performance.now();
+    let built = 0;
     for (const [i, j] of need) {
       if (performance.now() - t0 > 4) break;
       this.cells.set(`${i},${j}`, this.buildCell(i, j));
       this.dirty = true;
+      built++;
     }
+    this.pendingCount = need.length - built;
     const now = performance.now();
     if ((this.dirty && now - this.lastPackTime > 300) || cam.distanceTo(this.lastPackPos) > 120) {
       this.lastPackTime = now;
@@ -373,12 +398,25 @@ export class TreeLayer {
     for (let k = 0; k < KINDS; k++) {
       const mesh = this.meshes[k];
       mesh.count = counts[k];
+      // Upload only the live range (the buffers are sized for the worst case).
+      mesh.instanceMatrix.clearUpdateRanges();
+      mesh.instanceMatrix.addUpdateRange(0, counts[k] * 16);
       mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      if (mesh.instanceColor) {
+        mesh.instanceColor.clearUpdateRanges();
+        mesh.instanceColor.addUpdateRange(0, counts[k] * 3);
+        mesh.instanceColor.needsUpdate = true;
+      }
     }
     this.farMesh.count = far;
+    this.farMesh.instanceMatrix.clearUpdateRanges();
+    this.farMesh.instanceMatrix.addUpdateRange(0, far * 16);
     this.farMesh.instanceMatrix.needsUpdate = true;
-    if (farCol) farCol.needsUpdate = true;
+    if (farCol) {
+      farCol.clearUpdateRanges();
+      farCol.addUpdateRange(0, far * 3);
+      farCol.needsUpdate = true;
+    }
     if (this.farMesh.instanceColor) this.farMesh.instanceColor.needsUpdate = true;
   }
 

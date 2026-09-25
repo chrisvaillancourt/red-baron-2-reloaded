@@ -29,6 +29,8 @@ for (const name of (params.get('hide') ?? '').split(',').filter(Boolean)) {
   if (o) o.visible = false;
 }
 
+if (params.get('noshadow')) world.renderer.shadowMap.enabled = false;
+
 function resize() {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();

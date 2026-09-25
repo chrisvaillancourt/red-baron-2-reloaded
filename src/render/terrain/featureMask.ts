@@ -37,10 +37,14 @@ export function buildFeatureMask(_date: string, resolution: number): FeatureMask
     r.points.forEach((p, i) => (i === 0 ? ctx.moveTo(X(p.x), Z(p.z)) : ctx.lineTo(X(p.x), Z(p.z))));
     ctx.stroke();
   }
-  // Rivers (red). Minimum width keeps them legible from altitude.
+  // Rivers (red) as *coverage*: a band at least 2.2 texels wide whose intensity is the
+  // fraction of it that is water (x2.2 so rivers stay legible from altitude). The shader
+  // blends by coverage instead of thresholding, so thin rivers stay smooth, not beaded.
   for (const r of riverPolylines()) {
-    ctx.strokeStyle = 'rgb(255,0,0)';
-    ctx.lineWidth = Math.max(r.width, resolution * 1.15) / resolution;
+    const bandW = Math.max(r.width, resolution * 2.2);
+    const cov = Math.min(1, (2.2 * r.width) / bandW);
+    ctx.strokeStyle = `rgb(${Math.round(255 * cov)},0,0)`;
+    ctx.lineWidth = bandW / resolution;
     ctx.beginPath();
     r.points.forEach((p, i) => (i === 0 ? ctx.moveTo(X(p.x), Z(p.z)) : ctx.lineTo(X(p.x), Z(p.z))));
     ctx.stroke();

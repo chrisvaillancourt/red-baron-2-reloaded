@@ -248,7 +248,7 @@ export class TerrainSystem {
     g.setAttribute('position', new BufferAttribute(d.positions, 3));
     g.setAttribute('normal', new BufferAttribute(d.normals, 3));
     g.setAttribute('aLand', new BufferAttribute(d.land, 4));
-    g.setAttribute('aFront', new BufferAttribute(d.front, 1));
+    g.setAttribute('aFront', new BufferAttribute(d.front, 2));
     g.setIndex(this.index);
     const half = n.size / 2;
     g.boundingBox = new Box3(new Vector3(-half, d.minY - 300, -half), new Vector3(half, d.maxY, half));

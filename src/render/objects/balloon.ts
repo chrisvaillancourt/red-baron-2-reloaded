@@ -111,8 +111,88 @@ export function createBalloonVisual(b: BalloonEntity): Group {
 }
 
 const tmp = new Vector3();
+const canopyMat = new MeshStandardMaterial({ color: 0xd8d2c0, roughness: 0.8, side: 2 });
+const figureMat = new MeshStandardMaterial({ color: 0x3a3428, roughness: 0.9 });
 
-export function syncBalloonVisual(g: Group, b: BalloonEntity, time: number): void {
+/** Observer under a static-line parachute (Heinecke / "Guardian Angel"), world-space. */
+function createParachute(): Group {
+  const p = new Group();
+  p.name = 'parachute';
+  const canopy = new Mesh(new SphereGeometry(3.2, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2.2), canopyMat);
+  canopy.scale.y = 0.6;
+  canopy.position.y = 7;
+  p.add(canopy);
+  const lines: number[] = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    lines.push(Math.cos(a) * 3, 7.2, Math.sin(a) * 3, 0, 0.9, 0);
+  }
+  const lg = new BufferGeometry();
+  lg.setAttribute('position', new Float32BufferAttribute(lines, 3));
+  p.add(new LineSegments(lg, ropeMat));
+  const fig = new Mesh(new BoxGeometry(0.45, 1.7, 0.35), figureMat);
+  fig.position.y = 0;
+  p.add(fig);
+  return p;
+}
+
+/** Seconds a flamed balloon takes to burn out; the wreck falls meanwhile. */
+export const BALLOON_BURN_TIME = 16;
+
+/**
+ * Burn phase of a flamed balloon visual: time since ignition, how far the
+ * burning wreck has fallen (m) and fire intensity (1 → 0). Null if not burning.
+ */
+export function balloonBurnState(g: Group): { t: number; fall: number; intensity: number; pos: Vector3 } | null {
+  const u = g.userData as { burnT0?: number; burnT?: number; fall?: number };
+  if (u.burnT0 === undefined) return null;
+  const t = u.burnT ?? 0;
+  return { t, fall: u.fall ?? 0, intensity: Math.max(0, 1 - t / BALLOON_BURN_TIME) * (t < 1.5 ? 1 : 0.8), pos: g.position };
+}
+
+export function syncBalloonVisual(g: Group, b: BalloonEntity, time: number, groundY = b.anchor.y): void {
+  const u = g.userData as { burnT0?: number; burnT?: number; fall?: number; chute?: Group; chuteY?: number };
+  // Observer's parachute: leaves the basket when he bails out, drifts down, lands.
+  if (b.observerBailed && !u.chute && g.parent) {
+    u.chute = createParachute();
+    u.chute.position.set(b.position.x + 2, b.position.y - 14, b.position.z);
+    u.chuteY = u.chute.position.y;
+    g.parent.add(u.chute);
+  }
+  if (u.chute && u.chuteY !== undefined) {
+    const dt = u.chute.userData.lastT === undefined ? 0 : time - u.chute.userData.lastT;
+    u.chute.userData.lastT = time;
+    const gy = groundY;
+    u.chuteY = Math.max(gy + 0.9, u.chuteY - dt * 5.5);
+    u.chute.position.y = u.chuteY;
+    u.chute.position.x += dt * 2;
+    u.chute.rotation.z = Math.sin(time * 1.3) * 0.08;
+    // Collapsed canopy on the ground; removed after a while.
+    const landed = u.chuteY <= gy + 0.95;
+    u.chute.children[0].scale.set(1, landed ? 0.08 : 0.6, 1);
+    if (landed && (u.chute.userData.landT ??= time) < time - 60) u.chute.visible = false;
+  }
+  if (b.burning && u.burnT0 === undefined) {
+    u.burnT0 = time;
+    u.fall = 0;
+  }
+  if (u.burnT0 !== undefined) {
+    // Burning wreck: hydrogen flash, envelope shrivels, the lot falls (accelerating, ~25 m/s cap).
+    const t = time - u.burnT0;
+    u.burnT = t;
+    const tf = Math.max(0, t - 1.2);
+    u.fall = Math.min(tf < 2.5 ? 2 * tf * tf : 12.5 + (tf - 2.5) * 25, b.position.y - groundY);
+    g.position.set(b.position.x, b.position.y - u.fall, b.position.z);
+    const env = g.getObjectByName('envelope')!;
+    const shrink = Math.max(0.12, 1 - t / 4);
+    env.scale.set(shrink, shrink * 0.8, Math.max(0.2, shrink));
+    const mat = g.userData.material as MeshStandardMaterial;
+    mat.color.copy(g.userData.baseColor as Color).multiplyScalar(0.12);
+    mat.emissive.setRGB(1, 0.35, 0.06).multiplyScalar(Math.max(0, 1.4 - t / 5));
+    g.getObjectByName('tether')!.visible = false;
+    g.visible = t < BALLOON_BURN_TIME && g.position.y > groundY + 1;
+    return;
+  }
   g.position.copy(b.position);
   // Weather-vane gently and bob on the cable.
   const env = g.getObjectByName('envelope')!;
@@ -123,11 +203,5 @@ export function syncBalloonVisual(g: Group, b: BalloonEntity, time: number): voi
   const len = Math.max(1, -tmp.y - 12);
   tether.scale.set(1, len, 1);
   tether.visible = !b.destroyed;
-  const mat = g.userData.material as MeshStandardMaterial;
-  if (b.burning || b.destroyed) {
-    mat.color.copy(g.userData.baseColor as Color).multiplyScalar(0.25);
-    mat.emissive.setRGB(0.8, 0.3, 0.05).multiplyScalar(b.destroyed ? 0.2 : 1);
-    env.scale.y = Math.max(0.3, env.scale.y - 0.002);
-  }
-  if (b.destroyed) g.visible = b.position.y > b.anchor.y + 2;
+  if (b.destroyed) g.visible = false; // destroyed without burning (hauled down)
 }

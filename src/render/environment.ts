@@ -70,7 +70,9 @@ export function seasonOf(date: string): { t: number; name: 'winter' | 'spring' |
   const doy = dayOfYear(date);
   const t = doy / 365;
   const m = Number(date.slice(5, 7));
-  const name = m === 12 || m <= 2 ? 'winter' : m <= 5 ? 'spring' : m <= 8 ? 'summer' : 'autumn';
+  // Foliage lags the calendar: leaves turn in October, trees are bare Dec to mid-March.
+  const d = Number(date.slice(8, 10));
+  const name = m === 12 || m <= 2 || (m === 3 && d < 15) ? 'winter' : m <= 5 ? 'spring' : m <= 9 ? 'summer' : 'autumn';
   return { t, name };
 }
 

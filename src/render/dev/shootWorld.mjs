@@ -31,6 +31,10 @@ const SHOTS = [
   { name: 'boom', q: 'town=Bapaume&alt=80&pitch=-2&date=1917-05-01&tod=afternoon&cover=0.3&fx=boom&back=2500' },
   { name: 'lowlevel-30', q: 'town=Bertangles&alt=30&pitch=-3&yaw=250&date=1917-06-01&tod=morning&cover=0.35&back=1400' },
   { name: 'demo-fx', q: 'town=Bapaume&alt=250&pitch=-8&date=1917-05-01&tod=morning&cover=0.3&demo=1&back=2500' },
+  { name: 'ypres-1800', q: 'town=Ypres&alt=1800&pitch=-25&yaw=40&date=1917-09-15&tod=afternoon&cover=0.35&back=3000' },
+  { name: 'ypres-1800-ns', q: 'town=Ypres&alt=1800&pitch=-25&yaw=40&date=1917-09-15&tod=afternoon&cover=0.35&back=3000&noshadow=1' },
+  { name: 'somme-old-1500', q: 'town=Albert&alt=1500&pitch=-20&yaw=60&date=1917-09-15&tod=afternoon&cover=0.35&back=3000' },
+  { name: 'arras-1917-2000', q: 'town=Arras&alt=2000&pitch=-22&yaw=90&date=1917-09-15&tod=afternoon&cover=0.35&back=4000' },
 ];
 
 const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu', ...(process.env.UNCAPPED ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : [])] });
