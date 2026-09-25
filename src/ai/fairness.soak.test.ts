@@ -53,6 +53,8 @@ const SETS: Record<string, Setup[]> = {
     base('spad_xiii', 'fokker_dvii'),
     base('fokker_dvii', 'spad_xiii'),
   ],
+  // Candidate even first fights for the Quick Mission default (src/ui/screens/quick.ts).
+  camel: [base('sopwith_camel', 'albatros_dv'), base('sopwith_camel', 'pfalz_diiia'), base('sopwith_camel', 'fokker_dri'), base('sopwith_camel', 'fokker_dvii'), base('se5a', 'albatros_dv'), base('se5a', 'pfalz_diiia'), base('spad_xiii', 'fokker_dvii')],
   survey: [
     { ...base('sopwith_camel', 'fokker_dri', { enemyCount: 3, wingmen: 2, altitudeM: 2000, startPosition: 'random', timeOfDay: 'midday', cloudCover: 0.3 }), label: 'camel v 3 dr1 (survey)' },
     { ...base('fokker_dvii', 'spad_xiii', { enemySkill: 'veteran', startPosition: 'head-on', cloudCover: 0.5 }), label: 'dvii v 2 vet spad (survey)' },

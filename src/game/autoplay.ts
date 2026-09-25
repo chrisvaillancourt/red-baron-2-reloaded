@@ -109,6 +109,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   let collisionWith: string | null = null;
   let playerLossCause: string | null = null;
   let lastDamageSum = 0;
+  let wasFailed = false;
   const collisions: string[] = [];
   bus.onAny((e) => {
     if (e.type === 'collision') {
@@ -187,7 +188,10 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
       // Damage that arrives without a bullet hit is flak or ground fire.
       let sum = 0;
       for (const v of Object.values(player.damage.zones)) sum += v;
-      if (sum > lastDamageSum + 1e-9 && lastBulletHit < world.time - 0.02) lastSplinter = world.time;
+      // A shot-up airframe that later fails (a zone jumps to 1) is the enemy's doing, not flak.
+      const failedNow = player.damage.structuralFailure && !wasFailed;
+      wasFailed = player.damage.structuralFailure;
+      if (sum > lastDamageSum + 1e-9 && lastBulletHit < world.time - 0.02 && !failedNow) lastSplinter = world.time;
       lastDamageSum = sum;
       const o = player.outcome;
       if (o !== null && o !== 'landed-friendly' && o !== 'disengaged') {
