@@ -277,11 +277,10 @@ export function fighterFlight(
   });
 }
 
-/** Two-seater reconnaissance or bomber flight. */
 /**
- * How briefings name a two-seater flight. Before late 1916 the roster has no two-seaters in
- * service, so a later type stands in (DECISIONS D-010); name those generically rather than
- * send an R.E.8 to the Somme in July 1916 on paper.
+ * How briefings name a two-seater flight. The roster covers 1915-18 (B.E.2c, F.E.2b, Farman
+ * F.40, Albatros C.III for the early war), but where a side has no type in service on the date a
+ * later one stands in (aircraftPool; DECISIONS D-010) — name those generically.
  */
 export function chargeNames(aircraftId: AircraftId, date: string): { plural: string; long: string; inService: boolean } {
   const spec = AIRCRAFT[aircraftId];
@@ -291,11 +290,15 @@ export function chargeNames(aircraftId: AircraftId, date: string): { plural: str
   return { plural: kind, long: `observation ${kind}`, inService };
 }
 
+/** Two-seater reconnaissance or bomber flight. */
 export function twoSeaterFlight(
   ctx: GenCtx,
   opts: { side: Side; role: FlightRole; count: number; start: XZ; altitude: number; waypoints: Waypoint[]; task: 'recon' | 'bomb'; spawnDelay?: number; preferNation?: Nation },
 ): MissionFlight {
-  const pool = aircraftPool(opts.side, opts.task === 'bomb' ? 'bomber' : 'recon', ctx.date);
+  const all = aircraftPool(opts.side, opts.task === 'bomb' ? 'bomber' : 'recon', ctx.date);
+  // Escort your own nation's machines when it flies any in service (a French pilot escorts Farmans).
+  const own = opts.preferNation ? all.filter((id) => AIRCRAFT[id].nation === opts.preferNation || AIRCRAFT[id].alsoUsedBy.includes(opts.preferNation!)) : [];
+  const pool = own.length ? own : all;
   const aircraftId = ctx.rng.pick(pool);
   const spec = AIRCRAFT[aircraftId];
   const nation = opts.preferNation && (spec.nation === opts.preferNation || spec.alsoUsedBy.includes(opts.preferNation)) ? opts.preferNation : nationForAircraft(aircraftId, opts.side);

@@ -31,6 +31,7 @@ const FACTORY: Record<AircraftId, Finish> = {
   fokker_dviii: FOKKER_LOZENGE,
   halberstadt_clii: GERMAN_TWO_SEATER,
   rumpler_civ: { ...GERMAN_TWO_SEATER, fuselage: '#d0c7a6', pattern: 'plain' },
+  albatros_ciii: { ...CLEAR_LINEN, fuselage: '#b27b3e', tail: '#b27b3e', pattern: 'plain' }, // varnished plywood, clear-doped wings
   airco_dh2: CLEAR_LINEN,
   nieuport_11: NIEUPORT_SILVER,
   nieuport_17: NIEUPORT_SILVER,
@@ -44,6 +45,9 @@ const FACTORY: Record<AircraftId, Finish> = {
   bristol_f2b: PC10,
   re8: PC10,
   dh4: PC10,
+  be2c: CLEAR_LINEN, // clear-doped in 1915-16; PC10 came later
+  fe2b: CLEAR_LINEN,
+  farman_f40: { ...CLEAR_LINEN, fuselage: '#b8bbb4' }, // aluminium-doped nacelle
 };
 
 /** National insignia by nation and date. */

@@ -25,6 +25,7 @@ import {
   BALLOON_RADIUS,
   GROUND_TARGET_BOXES,
   getHitModel,
+  gunnerFacesForward,
   pointSegmentDistanceSq,
   segmentBox,
 } from './hitboxes';
@@ -76,6 +77,13 @@ export function aimFlexibleGun(
 function flexibleArc(ac: AircraftEntity, dirWorld: Vector3): boolean {
   _aimQ.copy(ac.state.orientation).invert();
   const d = _aimTmp.copy(dirWorld).applyQuaternion(_aimQ);
+  if (gunnerFacesForward(ac.spec)) {
+    // Pusher nose gunner: open ahead and below; the pilot, engine and propeller blank the rear
+    // unless he fires back up over the top wing.
+    if (d.y < -0.6) return false;
+    if (d.z > 0.25 && d.y < 0.55) return false;
+    return true;
+  }
   if (d.y < -0.35) return false; // fuselage/lower wing below
   if (d.z < -0.55 && d.y < 0.5) return false; // forward: propeller and upper wing
   if (d.z > 0.8 && d.y < 0.12) return false; // own tail blanks the line of fire

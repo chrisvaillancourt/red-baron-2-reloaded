@@ -33,7 +33,7 @@ export {
   type CombatOptions,
   type SimCombatSystem,
 } from './combat';
-export { getHitModel, BALLOON_RADIUS, GROUND_TARGET_BOXES } from './hitboxes';
+export { getHitModel, gunnerFacesForward, observerForward, BALLOON_RADIUS, GROUND_TARGET_BOXES } from './hitboxes';
 export { createAircraftEntity, createControls, createDamageState, createGunStates, type NewAircraftOptions } from './entity';
 export { Autopilot, type AutopilotTarget } from './autopilot';
 export { createRng, type Rng } from './rng';

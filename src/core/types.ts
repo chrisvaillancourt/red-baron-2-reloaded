@@ -139,6 +139,7 @@ export type AircraftId =
   | 'fokker_dviii'
   | 'halberstadt_clii'
   | 'rumpler_civ'
+  | 'albatros_ciii'
   // Allies
   | 'airco_dh2'
   | 'nieuport_11'
@@ -152,7 +153,10 @@ export type AircraftId =
   | 'nieuport_28'
   | 'bristol_f2b'
   | 're8'
-  | 'dh4';
+  | 'dh4'
+  | 'be2c'
+  | 'fe2b'
+  | 'farman_f40';
 
 // ---------------------------------------------------------------------------
 // Liveries
