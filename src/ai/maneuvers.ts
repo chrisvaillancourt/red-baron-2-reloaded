@@ -51,6 +51,8 @@ export function chooseDefensive(
   now: number,
   rng: () => number,
   homeDir?: Vector3,
+  /** Experienced pilots turn up into an attacker diving from above. */
+  meetBounce = false,
 ): Maneuver {
   const f = forwardOf(self.state.orientation, _f);
   const r = _r.set(-f.z, 0, f.x).normalize();
@@ -76,6 +78,10 @@ export function chooseDefensive(
     else if (t < 0.25) kind = roll < 0.6 ? 'break' : 'jink';
     else if (canExtend && traits.style === 'energy' && roll < 0.45) kind = 'extend';
     else kind = 'break';
+  } else if (meetBounce && attacker && t > 0.6 && !traits.isTwoSeater && attacker.state.position.y > self.state.position.y + 150 && range < 1000) {
+    // Dicta Boelcke: "if your opponent dives on you, do not try to evade his onslaught,
+    // but fly to meet it": a climbing turn into a bounce from above (often out of the sun).
+    kind = 'climbing-turn';
   } else if (traits.isTwoSeater) kind = roll < 0.6 ? 'jink' : 'break';
   else if (t < 0.25) kind = roll < 0.45 ? 'break' : roll < 0.75 ? 'jink' : 'extend';
   else if (traits.style === 'energy' && agl > 700 && roll < 0.45) kind = 'spiral';

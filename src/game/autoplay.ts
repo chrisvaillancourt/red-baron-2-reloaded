@@ -7,6 +7,7 @@
  */
 import { Vector3 } from 'three';
 import { createAIController } from '../ai';
+import { aiControllerOptions } from './aiOptions';
 import type { GameEvent, MissionDefinition, MissionResult, RealismSettings } from '../core/types';
 import { DEFAULT_SETTINGS } from '../core/settings';
 import { bankAngle, createCombatSystem, createFlightEnvironment, pitchAngle, setGunnerTarget, sim } from '../sim';
@@ -20,16 +21,7 @@ export const headlessModules: SimCoreModules = {
   createFlightEnvironment,
   createCombatSystem: (bus, getRealism) => createCombatSystem(bus, getRealism),
   createAIController: (ac, o) =>
-    createAIController(ac, {
-      role: o.flight.role,
-      task: o.flight.task,
-      skill: o.skill,
-      leaderId: o.leaderId === ac.id ? undefined : o.leaderId,
-      formationSlot: o.slot > 0 ? o.slot : undefined,
-      realism: o.realism,
-      setGunnerTarget,
-      homeAerodromeId: o.homeAerodromeId,
-    }),
+    createAIController(ac, aiControllerOptions(ac, o, setGunnerTarget)),
   terrainHeightAt,
   sideOfFrontAt,
 };

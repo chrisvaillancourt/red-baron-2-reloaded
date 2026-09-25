@@ -46,6 +46,8 @@ import {
 import { isAlive, isAttacking, Perception, threatLevel } from './perception';
 import { makeSkillProfile, skillValue, type SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
+import { aceTactics, attackSetupPoint, outTurnedBy, spottedByEstimate, sunLineAngle, TACTICS_FLAGS, tacticsProfile, type TacticsProfile } from './tactics';
+import type { AceTactics } from '../data/aces';
 import { getCoefficients } from '../sim/coefficients';
 import { getSimInternal } from '../sim/flightModel';
 import { gunnerFacesForward } from '../sim/hitboxes';
@@ -72,7 +74,14 @@ export interface AIControllerOptions {
   controlLaw?: 'sim' | 'generic';
   /** Steer clear of other aircraft (default true). False stands in for a human pilot in tests. */
   avoidCollisions?: boolean;
+  /** Named ace flying this aircraft (src/data/aces.ts): sets his tactical signature. */
+  aceId?: string;
+  /** Tactical signature override (tests); defaults to the ace's own, else generic for the skill. */
+  tactics?: AceTactics;
 }
+
+/** Boom-and-zoom cycle against one target: set up above, dive through, zoom away. */
+type BoomZoomStage = 'position' | 'attack' | 'zoom';
 
 export type AIPhase =
   | 'takeoff'
@@ -122,6 +131,7 @@ type AttackStage = 'approach' | 'run' | 'pullout';
 const _tmp = new Vector3();
 const _tmp2 = new Vector3();
 const _rel = new Vector3();
+const _up = new Vector3(0, 1, 0);
 
 export class AIPilot implements AIController {
   readonly entityId: number;
@@ -131,6 +141,7 @@ export class AIPilot implements AIController {
   readonly traits: AircraftTraits;
   readonly profile: SkillProfile;
   readonly autopilot: Autopilot;
+  readonly tactics: TacticsProfile;
 
   private readonly opts: AIControllerOptions;
   private readonly perception: Perception;
@@ -178,6 +189,12 @@ export class AIPilot implements AIController {
   private prevTargetId: number | null = null;
   private targetAcc = new Vector3();
   private missionDone = false;
+  private bz: { stage: BoomZoomStage; since: number; targetId: number } | null = null;
+  /** Setting up an unseen attack on this target since this time. */
+  private stalk: { targetId: number; since: number } | null = null;
+  /** A cloud to hide in on the way home (damaged, pursued), and until when to stay in it. */
+  private refuge: { pos: Vector3; until: number } | null = null;
+  private refugeCheck = 0;
   private loiter: Vector3 | null = null;
   private readonly steer: SteerCommand = { dir: new Vector3(0, 0, -1), speed: Infinity };
   private readonly lead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
@@ -189,6 +206,7 @@ export class AIPilot implements AIController {
     this.traits = traitsFor(ac.spec);
     this.profile = makeSkillProfile(skillValue(opts.skill, opts.role, opts.realism));
     this.perception = new Perception(this.profile);
+    this.tactics = tacticsProfile(this.profile.t, opts.tactics ?? aceTactics(opts.aceId));
     this.rng = makeRng(opts.seed ?? ac.id * 7919 + 13);
     this.autopilot = new Autopilot(
       this.traits,
@@ -360,6 +378,7 @@ export class AIPilot implements AIController {
     else if (z.engine > 0.5) reason = 'engine damaged';
     else if (z.leftWing > 0.5 || z.rightWing > 0.5 || z.tail > 0.5 || z.controls > 0.6) reason = 'airframe damaged';
     else if (dm.pilotWounded && (t < 0.7 || z.pilot > 0.5)) reason = 'wounded';
+    else if (damageSum(self) > this.tactics.disengageDamage) reason = 'airframe damaged';
     else if (self.state.fuelL < 0.12 * self.spec.performance.fuelCapacityL) reason = 'low fuel';
     else if (this.traits.hasFixedGuns && this.opts.task !== 'recon' && this.opts.task !== 'bomb' && fixedAmmo(self) === 0) reason = 'out of ammunition';
     if (reason) this.startRtb(reason);
@@ -449,7 +468,7 @@ export class AIPilot implements AIController {
             return;
           }
           const agl = self.state.heightAboveGround;
-          this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined);
+          this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined, TACTICS_FLAGS.meetBounce);
           if (this.phase !== 'rtb') this.phase = 'defend';
           this.threatId = attacker?.id ?? null;
         }
@@ -585,6 +604,9 @@ export class AIPilot implements AIController {
       if (damageSum(e) > 0.3 || e.damage.smoking) s += 0.25;
       if (task === 'defend' && e.spec.role !== 'fighter') s += 0.5;
       if (this.traits.style === 'energy' && e.state.position.y > self.state.position.y + 500) s -= 0.2;
+      // Signatures: stragglers (nobody of his own within 800 m) and two-seaters.
+      if (this.tactics.twoSeaterBias && e.spec.geometry.crew === 2) s += this.tactics.twoSeaterBias;
+      if (this.tactics.stragglerBias && !world.aircraft.some((o) => o !== e && o.side === e.side && isAlive(o) && o.state.position.distanceToSquared(e.state.position) < 800 * 800)) s += this.tactics.stragglerBias;
       // Spread targets across the flight.
       for (const a of world.aircraft) {
         if (a === self || a.side !== self.side) continue;
@@ -807,12 +829,18 @@ export class AIPilot implements AIController {
       steer.dir.copy(this.breakDir).addScaledVector(f, 0.35);
       return true;
     }
+    if (this.useBoomZoom(self, tgt)) {
+      this.steerBoomZoom(self, tgt, world, steer, r, f, dt);
+      return true;
+    }
+    this.bz = null;
     // Energy fighters extend after a pass instead of turning.
     if (this.traits.style === 'energy' && p.t > 0.3 && passed && s.velocity.length() > tSpeed + 5 && angleOff > 60 * DEG) {
       this.startExtend(5 + 3 * this.rng());
       return true;
     }
 
+    if (this.steerStalk(self, tgt, world, steer, r)) return true;
     // Aces gain height before engaging a distant enemy (and approach two-seaters from below).
     if (r > 1500 && p.energyTactics > 0.5 && s.position.y < ts.position.y + 250 && this.now - this.hitAt > 5) {
       const back = _tmp2.copy(ts.velocity).setY(0);
@@ -854,6 +882,139 @@ export class AIPilot implements AIController {
     }
     steer.minAgl = p.groundMargin * 0.6;
     return true;
+  }
+
+  /** Has `watcher` seen `self`? AI pilots: their own contacts; the player: an estimate. */
+  private spottedBy(self: AircraftEntity, watcher: AircraftEntity, world: WorldQuery): boolean {
+    const ctl = REGISTRY.get(watcher);
+    if (ctl) return ctl.perception.contacts.has(self.id);
+    return spottedByEstimate(self, watcher, world);
+  }
+
+  /**
+   * Stalking (DECISIONS "Stalking and ace signatures"): a patient pilot who has seen his
+   * target without being seen climbs to a setup point above it and, if he uses the sun,
+   * round to where the target must look into it, then attacks from there. He goes in at
+   * once if he is spotted, and when his patience runs out.
+   */
+  private steerStalk(self: AircraftEntity, tgt: AircraftEntity, world: WorldQuery, steer: SteerCommand, r: number): boolean {
+    const tp = this.tactics;
+    if (!TACTICS_FLAGS.stalk || tp.patience <= 0 || r < 900 || this.now - this.hitAt < 5) {
+      if (r < 900) this.stalk = null;
+      return false;
+    }
+    if (!this.stalk || this.stalk.targetId !== tgt.id) this.stalk = { targetId: tgt.id, since: this.now };
+    if (this.now - this.stalk.since > tp.patience || this.spottedBy(self, tgt, world)) return false;
+    const s = self.state;
+    const dh = s.position.y - tgt.state.position.y;
+    const sunOk = tp.sunUse < 0.3 || !world.sunDirection || world.sunDirection.y < 0.05 || sunLineAngle(tgt.state.position, s.position, world) < 20 * DEG;
+    if (dh >= tp.heightAdv * 0.8 && sunOk) return false;
+    attackSetupPoint(tgt, world, tp.heightAdv + 60, tp.sunUse, steer.dir).sub(s.position);
+    const hd = Math.hypot(steer.dir.x, steer.dir.z);
+    if (steer.dir.y > hd * 0.35) steer.dir.y = hd * 0.35;
+    // Climb while short of the height; with it in hand, close at speed round into the sun.
+    steer.speed = dh < tp.heightAdv * 0.8 ? Math.max(this.traits.bestClimbSpeed * 1.2, this.traits.cruiseSpeed * 0.8) : Infinity;
+    steer.maxG = 3;
+    steer.minAgl = this.profile.groundMargin;
+    return true;
+  }
+
+  /** Out-turned pilots (and, later, energy types) fly boom-and-zoom rather than turn. */
+  private useBoomZoom(self: AircraftEntity, tgt: AircraftEntity): boolean {
+    if (this.profile.t < 0.3 || this.tactics.commitment >= 1 || tgt.spec.role !== 'fighter') return false;
+    const want = (TACTICS_FLAGS.boomZoomEnergy && this.traits.style === 'energy') || (TACTICS_FLAGS.boomZoomOutTurned && outTurnedBy(self, tgt));
+    if (!want) return false;
+    if (!TACTICS_FLAGS.boomZoomHighOnly) return true;
+    // Only with the height already in hand: keep diving and zooming while the cycle lasts,
+    // but never climb for position with him close; that just hands him the shot.
+    if (this.bz && this.bz.targetId === tgt.id && this.bz.stage !== 'position') return true;
+    return self.state.position.y - tgt.state.position.y > this.tactics.heightAdv * 0.6;
+  }
+
+  /**
+   * Boom-and-zoom (DECISIONS "Out-turned pilots fly boom-and-zoom"): climb to a setup point
+   * above (and up-sun of) the target, dive through with one burst, zoom back up along the
+   * pass instead of turning after him, and set up again.
+   */
+  private steerBoomZoom(self: AircraftEntity, tgt: AircraftEntity, world: WorldQuery, steer: SteerCommand, r: number, f: Vector3, dt: number): void {
+    const s = self.state;
+    const ts = tgt.state;
+    const p = this.profile;
+    const tp = this.tactics;
+    const dh = s.position.y - ts.position.y;
+    if (!this.bz || this.bz.targetId !== tgt.id) this.bz = { stage: dh > tp.heightAdv * 0.6 ? 'attack' : 'position', since: this.now, targetId: tgt.id };
+    const bz = this.bz;
+    const go = (stage: BoomZoomStage) => {
+      bz.stage = stage;
+      bz.since = this.now;
+    };
+    _rel.copy(ts.position).sub(s.position);
+    const off = angleBetween(f, _rel);
+    const vs = this.traits.stallSpeed;
+    const chased = r < 900 && isAttacking(tgt, self, 900) && off > 90 * DEG;
+    if (bz.stage === 'position') {
+      const high = dh >= tp.heightAdv * 0.8 && r < 1800;
+      const impatient = this.now - bz.since > tp.patience && dh > 60;
+      const gift = off < 20 * DEG && r < 500 && dh > -50;
+      // Coming at us head-on: meet him with the guns rather than climb slowly into the merge.
+      const headOn = off < 35 * DEG && r < 1500 && isAttacking(tgt, self, 1500);
+      if (high || impatient || gift || headOn) go('attack');
+    } else if (bz.stage === 'attack') {
+      const passed = _rel.dot(f) < 0 && r < 300;
+      const below = dh < -40 && off > 15 * DEG;
+      const outTurned = off > 60 * DEG && r < 600;
+      if (passed || r < 90 || below || outTurned || this.now - bz.since > 15) go('zoom');
+    } else if (this.now - bz.since > 7 || (this.now - bz.since > 2 && s.airspeed < vs * 1.5)) {
+      go('position');
+      // High-only: the zoom is over; attack again only if it left us above him.
+      if (TACTICS_FLAGS.boomZoomHighOnly && dh > tp.heightAdv * 0.6) go('attack');
+    }
+
+    steer.minAgl = p.groundMargin * 0.6;
+    if (bz.stage === 'position') {
+      if (chased && s.position.y - world.groundHeightAt(s.position.x, s.position.z) > LOW_AGL + 200) {
+        // He is on our tail and we can't out-turn him: dive away (the heavier machine
+        // gains on him going down), then zoom once there is room.
+        const away = _tmp2.copy(s.position).sub(ts.position).setY(0).normalize();
+        steer.dir.copy(away).add(new Vector3(0, -0.4, 0));
+        steer.speed = Infinity;
+      } else {
+        attackSetupPoint(tgt, world, tp.heightAdv + 60, tp.sunUse, steer.dir).sub(s.position);
+        const hd = Math.hypot(steer.dir.x, steer.dir.z);
+        if (steer.dir.y > hd * 0.3) steer.dir.y = hd * 0.3;
+        // Keep the speed up: a slow climber is a sitting duck at the merge.
+        steer.speed = Math.max(this.traits.bestClimbSpeed * 1.3, this.traits.cruiseSpeed * 0.8);
+      }
+      steer.maxG = Math.min(p.maxG, 3.5);
+      return;
+    }
+    if (bz.stage === 'zoom') {
+      const fh = _tmp2.set(s.velocity.x, 0, s.velocity.z);
+      if (fh.lengthSq() < 1) fh.set(f.x, 0, f.z);
+      fh.normalize();
+      const away = new Vector3(s.position.x - ts.position.x, 0, s.position.z - ts.position.z).normalize();
+      steer.dir.copy(fh).addScaledVector(away, 0.3).add(new Vector3(0, 0.9, 0));
+      steer.speed = Infinity;
+      steer.maxG = Math.min(p.maxG, 3.5);
+      return;
+    }
+    // Attack: dive through on the lead, no range hold, no lag pursuit.
+    const mv = this.traits.fixedMuzzleVelocity || 800;
+    steer.speed = Infinity;
+    steer.maxG = p.maxG;
+    if (r < 800) {
+      leadSolution(s.position, s.velocity, ts.position, ts.velocity, this.targetAcc, mv, this.leadScale, this.lead);
+      steer.dir.copy(this.lead.dir);
+      this.applyAimNoise(self, steer.dir, dt);
+      steer.aim = true;
+    } else {
+      const closure = Math.max(20, -_rel.dot(_tmp2.copy(ts.velocity).sub(s.velocity)) / Math.max(r, 1));
+      steer.dir.copy(ts.position).addScaledVector(ts.velocity, clamp(r / closure, 0, 30) * 0.6).sub(s.position);
+    }
+    if (s.velocity.length() > this.traits.maxSafeDiveSpeed * 0.95 && steer.dir.y < 0) {
+      steer.dir.normalize();
+      steer.dir.y = Math.max(steer.dir.y, 0);
+    }
   }
 
   private startExtend(seconds: number): void {
@@ -1056,6 +1217,7 @@ export class AIPilot implements AIController {
       if (s.position.y - gy < 20) steer.dir.y = -0.02;
       return;
     }
+    if (this.steerRefuge(self, world, steer)) return;
     if (home) {
       const d = Math.hypot(home.x - s.position.x, home.z - s.position.z);
       if (d < 4500 && !threatened) {
@@ -1072,6 +1234,43 @@ export class AIPilot implements AIController {
     }
     steer.speed = threatened || world.sideOfFrontAt(s.position.x, s.position.z) !== self.side ? Infinity : this.traits.cruiseSpeed;
     steer.maxG = 3;
+  }
+
+  /**
+   * Cloud refuge (DECISIONS "Stalking and ace signatures"): a pilot heading home hurt, with
+   * an enemy close, makes for a nearby cloud and stays inside it a while before carrying on,
+   * so a pursuer loses sight of him. Only clouds the renderer draws count (world.nearestCloud).
+   */
+  private steerRefuge(self: AircraftEntity, world: WorldQuery, steer: SteerCommand): boolean {
+    if (!TACTICS_FLAGS.cloudEscape || !world.nearestCloud || VOLUNTARY_RTB.has(this.rtbReason)) return false;
+    const s = self.state;
+    if (!this.refuge && this.now >= this.refugeCheck) {
+      this.refugeCheck = this.now + 2;
+      const pursuer = world.aircraft.some((e) => e.side !== self.side && isAlive(e) && e.spec.role === 'fighter' && e.state.position.distanceToSquared(s.position) < 1800 * 1800);
+      if (pursuer) {
+        const c = world.nearestCloud(s.position, 3000);
+        // Don't climb into it slowly with a scout on us: only clouds at or below our height, or a short climb.
+        if (c && c.position.y < s.position.y + 250) this.refuge = { pos: c.position.clone(), until: Infinity };
+      }
+    }
+    const rf = this.refuge;
+    if (!rf) return false;
+    const inside = (world.cloudDensityAt?.(s.position.x, s.position.y, s.position.z) ?? 0) > 0.3;
+    if (inside && rf.until === Infinity) rf.until = this.now + 12 + 8 * this.rng();
+    if (this.now > rf.until || (rf.until === Infinity && s.position.distanceTo(rf.pos) > 5000)) {
+      this.refuge = null;
+      this.refugeCheck = this.now + 30;
+      return false;
+    }
+    // Refresh the drifting cloud's centre, then fly into it (and wander inside it).
+    const c = world.nearestCloud(rf.pos, 600);
+    if (c) rf.pos.copy(c.position);
+    steer.dir.copy(rf.pos).sub(s.position);
+    if (inside) steer.dir.setY(0).normalize().applyAxisAngle(_up, 0.6 * Math.sin(this.now * 0.4));
+    steer.speed = Infinity;
+    steer.maxG = 3;
+    steer.minAgl = this.profile.groundMargin;
+    return true;
   }
 
   /** Landing lane by formation slot: grass fields are wide, so a flight lands abreast (40 m apart). */
@@ -1268,7 +1467,7 @@ export class AIPilot implements AIController {
       // Perceived error: the pilot's own (imperfect) solution.
       leadSolution(s.position, s.velocity, e.state.position, e.state.velocity, e === cur ? this.targetAcc : null, mv, this.leadScale, this.lead);
       const err = angleBetween(f, this.lead.dir) + Math.abs(gauss(this.rng)) * p.aimNoiseRad * 0.5;
-      const range = e === cur ? p.fireRange : p.fireRange * 0.7;
+      const range = (e === cur ? p.fireRange : p.fireRange * 0.7) * this.tactics.fireRangeScale;
       if ((r < range && err < size + p.fireConeRad) || (r < range * 1.6 && err < size + p.fireConeRad * 0.3)) {
         want = true;
         break;
@@ -1293,7 +1492,7 @@ export class AIPilot implements AIController {
 
     if (want) {
       if (this.now >= this.burstUntil && this.now >= this.burstNext) {
-        this.burstUntil = this.now + p.burstLength * (0.7 + 0.6 * this.rng());
+        this.burstUntil = this.now + p.burstLength * this.tactics.burstScale * (0.7 + 0.6 * this.rng());
         this.burstNext = this.burstUntil + p.burstPause * (0.7 + 0.6 * this.rng());
         this.leadScale = 1 - p.leadError * (0.5 + this.rng());
       }

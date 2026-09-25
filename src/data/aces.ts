@@ -44,7 +44,24 @@ export interface Ace {
   ranks?: AceRankStep[];
   /** Post-nominal honours appended from their award (gazette) date, e.g. " VC". */
   honours?: { from: string; text: string }[];
+  /**
+   * How the ace fought, from the historical record (DECISIONS "Ace signatures"). The AI maps
+   * it to patience, height and sun use, target choice, burst discipline and when to break
+   * off (src/ai/tactics.ts). Absent = a generic pilot of the ace's skill.
+   */
+  tactics?: AceTactics;
 }
+
+/**
+ * - `stalker`: patient, from above and out of the sun, short close bursts, leaves a bad fight.
+ * - `lone-hunter`: roams alone and attacks on sight from any advantage; long bursts.
+ * - `leader`: fights by the Dicta Boelcke: height and sun first, keeps his flight together,
+ *   picks off stragglers, two-seaters' gunners first.
+ * - `brawler`: a turning dogfighter who closes and stays in the fight.
+ * - `two-seater-hunter`: hunts reconnaissance two-seaters, from below and behind.
+ * - `calculated`: attacks only with the advantage and breaks off a fight that turns bad.
+ */
+export type AceTactics = 'stalker' | 'lone-hunter' | 'leader' | 'brawler' | 'two-seater-hunter' | 'calculated';
 
 export interface AceRankStep {
   from: string;
@@ -76,7 +93,7 @@ const svc =(from: string, to: string, squadronId: string | null, ...aircraft: Ai
 export const ACES: readonly Ace[] = [
   // ============================================================== Germany
   {
-    id: 'mvr', firstName: 'Manfred', lastName: 'von Richthofen', displayName: 'Rittmeister Manfred Freiherr von Richthofen', shortName: 'Rittm. von Richthofen',
+    id: 'mvr', tactics: 'leader', firstName: 'Manfred', lastName: 'von Richthofen', displayName: 'Rittmeister Manfred Freiherr von Richthofen', shortName: 'Rittm. von Richthofen',
     ranks: [rk('1914-01-01', 'Leutnant', 'Ltn.'), rk('1917-03-22', 'Oberleutnant', 'Oblt.'), rk('1917-04-06', 'Rittmeister', 'Rittm.')],
     nickname: 'The Red Baron', nation: 'germany', skill: 'ace',
     service: [
@@ -90,7 +107,7 @@ export const ACES: readonly Ace[] = [
     bio: 'The ace of aces of the Great War with 80 victories. Commander of Jasta 11 and then of Jagdgeschwader I, the "Flying Circus".',
   },
   {
-    id: 'lothar', firstName: 'Lothar', lastName: 'von Richthofen', displayName: 'Leutnant Lothar Freiherr von Richthofen', shortName: 'Ltn. L. von Richthofen',
+    id: 'lothar', tactics: 'brawler', firstName: 'Lothar', lastName: 'von Richthofen', displayName: 'Leutnant Lothar Freiherr von Richthofen', shortName: 'Ltn. L. von Richthofen',
     nation: 'germany', skill: 'ace',
     service: [
       // Gaps are his three spells in hospital (wounded 13 May 1917 and 13 March 1918).
@@ -104,7 +121,7 @@ export const ACES: readonly Ace[] = [
     bio: 'Manfred\'s younger brother: a hunter rather than a marksman, with 40 victories.',
   },
   {
-    id: 'boelcke', firstName: 'Oswald', lastName: 'Boelcke', displayName: 'Hauptmann Oswald Boelcke', shortName: 'Hptm. Boelcke',
+    id: 'boelcke', tactics: 'leader', firstName: 'Oswald', lastName: 'Boelcke', displayName: 'Hauptmann Oswald Boelcke', shortName: 'Hptm. Boelcke',
     ranks: [rk('1914-01-01', 'Oberleutnant', 'Oblt.'), rk('1916-05-22', 'Hauptmann', 'Hptm.')],
     nickname: 'Father of air fighting', nation: 'germany', skill: 'ace',
     service: [svc('1915-07-01', '1916-06-30', 'ffa62', 'fokker_eiii'), svc('1916-08-27', '1916-10-28', 'jasta2', 'albatros_dii')],
@@ -121,7 +138,7 @@ export const ACES: readonly Ace[] = [
     bio: 'Eindecker pioneer and namesake of the Immelmann turn.',
   },
   {
-    id: 'voss', firstName: 'Werner', lastName: 'Voss', displayName: 'Leutnant Werner Voss', shortName: 'Ltn. Voss',
+    id: 'voss', tactics: 'brawler', firstName: 'Werner', lastName: 'Voss', displayName: 'Leutnant Werner Voss', shortName: 'Ltn. Voss',
     nickname: 'The Hussar of Krefeld', nation: 'germany', skill: 'ace',
     service: [
       svc('1916-11-21', '1917-01-31', 'jasta2', 'albatros_dii'),
@@ -267,7 +284,7 @@ export const ACES: readonly Ace[] = [
     bio: 'The first British fighter ace and first airman awarded the VC for air-to-air combat. Commanded No. 24 Squadron.',
   },
   {
-    id: 'ball', firstName: 'Albert', lastName: 'Ball', displayName: 'Captain Albert Ball', shortName: 'Capt. Ball',
+    id: 'ball', tactics: 'lone-hunter', firstName: 'Albert', lastName: 'Ball', displayName: 'Captain Albert Ball', shortName: 'Capt. Ball',
     ranks: [rk('1914-01-01', 'Lieutenant', 'Lt.'), rk('1916-09-01', 'Captain', 'Capt.')], honours: [{ from: '1917-06-08', text: ' VC' }],
     nation: 'britain', skill: 'ace',
     service: [svc('1916-05-01', '1916-08-14', null, 'nieuport_11'), svc('1916-08-15', '1916-10-01', 'rfc60', 'nieuport_17'), svc('1917-04-07', '1917-05-07', 'rfc56', 'se5a')],
@@ -276,7 +293,7 @@ export const ACES: readonly Ace[] = [
     bio: 'A lone hunter who attacked any odds from below with his wing-mounted Lewis. Britain\'s first national air hero.',
   },
   {
-    id: 'mccudden', firstName: 'James', lastName: 'McCudden', displayName: 'Captain James McCudden', shortName: 'Capt. McCudden',
+    id: 'mccudden', tactics: 'two-seater-hunter', firstName: 'James', lastName: 'McCudden', displayName: 'Captain James McCudden', shortName: 'Capt. McCudden',
     ranks: [rk('1914-01-01', 'Flight Sergeant', 'F/Sgt.'), rk('1917-01-01', 'Second Lieutenant', '2/Lt.'), rk('1917-06-01', 'Captain', 'Capt.')], honours: [{ from: '1918-04-02', text: ' VC' }],
     nation: 'britain', skill: 'ace',
     service: [svc('1916-08-01', '1917-08-13', null, 'sopwith_pup'), svc('1917-08-14', '1918-03-05', 'rfc56', 'se5a')],
@@ -285,7 +302,7 @@ export const ACES: readonly Ace[] = [
     bio: 'A former mechanic, a patient stalker of high-flying two-seaters, and a meticulous tactician.',
   },
   {
-    id: 'mannock', firstName: 'Edward', lastName: 'Mannock', displayName: 'Major Edward Mannock', shortName: 'Maj. Mannock',
+    id: 'mannock', tactics: 'leader', firstName: 'Edward', lastName: 'Mannock', displayName: 'Major Edward Mannock', shortName: 'Maj. Mannock',
     ranks: [rk('1914-01-01', 'Second Lieutenant', '2/Lt.'), rk('1917-12-01', 'Captain', 'Capt.'), rk('1918-06-18', 'Major', 'Maj.')], honours: [{ from: '1919-07-18', text: ' VC' }],
     nickname: 'Mick', nation: 'britain', skill: 'ace',
     service: [
@@ -299,7 +316,7 @@ export const ACES: readonly Ace[] = [
     bio: 'The great British patrol leader, who taught his pilots to fight as a team. He feared fire above all.',
   },
   {
-    id: 'bishop', firstName: 'William', lastName: 'Bishop', displayName: 'Major William Bishop', shortName: 'Maj. Bishop',
+    id: 'bishop', tactics: 'lone-hunter', firstName: 'William', lastName: 'Bishop', displayName: 'Major William Bishop', shortName: 'Maj. Bishop',
     ranks: [rk('1914-01-01', 'Lieutenant', 'Lt.'), rk('1917-04-01', 'Captain', 'Capt.'), rk('1918-04-01', 'Major', 'Maj.')], honours: [{ from: '1917-08-11', text: ' VC' }],
     nickname: 'Billy', nation: 'britain', skill: 'ace',
     service: [svc('1917-03-17', '1917-08-31', 'rfc60', 'nieuport_17'), svc('1918-05-22', '1918-06-19', 'rfc85', 'se5a')],
@@ -360,7 +377,7 @@ export const ACES: readonly Ace[] = [
 
   // =============================================================== France
   {
-    id: 'guynemer', firstName: 'Georges', lastName: 'Guynemer', displayName: 'Capitaine Georges Guynemer', shortName: 'Capt. Guynemer',
+    id: 'guynemer', tactics: 'lone-hunter', firstName: 'Georges', lastName: 'Guynemer', displayName: 'Capitaine Georges Guynemer', shortName: 'Capt. Guynemer',
     ranks: [rk('1914-01-01', 'Sergent', 'Sgt.'), rk('1916-03-04', 'Sous-Lieutenant', 'S/Lt.'), rk('1916-07-05', 'Lieutenant', 'Lt.'), rk('1917-02-18', 'Capitaine', 'Capt.')],
     nation: 'france', skill: 'ace',
     service: [svc('1915-06-01', '1916-05-31', null, 'nieuport_11'), svc('1916-06-01', '1916-09-30', 'spa3', 'nieuport_17'), svc('1916-10-01', '1917-09-11', 'spa3', 'spad_vii')],
@@ -369,7 +386,7 @@ export const ACES: readonly Ace[] = [
     bio: 'France\'s beloved ace, frail and fearless. His SPAD "Vieux Charles" hangs in Les Invalides.',
   },
   {
-    id: 'fonck', firstName: 'René', lastName: 'Fonck', displayName: 'Lieutenant René Fonck', shortName: 'Lt. Fonck',
+    id: 'fonck', tactics: 'stalker', firstName: 'René', lastName: 'Fonck', displayName: 'Lieutenant René Fonck', shortName: 'Lt. Fonck',
     ranks: [rk('1914-01-01', 'Sergent', 'Sgt.'), rk('1917-01-01', 'Adjudant', 'Adj.'), rk('1917-08-01', 'Sous-Lieutenant', 'S/Lt.'), rk('1918-04-01', 'Lieutenant', 'Lt.')],
     nation: 'france', skill: 'ace',
     service: [svc('1917-04-15', '1917-07-31', 'spa103', 'spad_vii'), svc('1917-08-01', '1918-11-11', 'spa103', 'spad_xiii')],
@@ -421,7 +438,7 @@ export const ACES: readonly Ace[] = [
     bio: 'The Lafayette Escadrille\'s ace, who taught the 94th\'s novices to fight - and gave his name to the "Lufbery circle".',
   },
   {
-    id: 'rickenbacker', firstName: 'Edward', lastName: 'Rickenbacker', displayName: 'Captain Edward Rickenbacker', shortName: 'Capt. Rickenbacker',
+    id: 'rickenbacker', tactics: 'calculated', firstName: 'Edward', lastName: 'Rickenbacker', displayName: 'Captain Edward Rickenbacker', shortName: 'Capt. Rickenbacker',
     ranks: [rk('1914-01-01', 'First Lieutenant', '1st Lt.'), rk('1918-09-25', 'Captain', 'Capt.')],
     nickname: 'Eddie', nation: 'usa', skill: 'ace',
     service: [svc('1918-03-05', '1918-07-14', 'us94', 'nieuport_28'), svc('1918-07-15', '1918-11-11', 'us94', 'spad_xiii')],
@@ -430,7 +447,7 @@ export const ACES: readonly Ace[] = [
     bio: 'A racing driver turned fighter pilot and commander of the "Hat in the Ring" squadron.',
   },
   {
-    id: 'luke', firstName: 'Frank', lastName: 'Luke', displayName: 'Second Lieutenant Frank Luke', shortName: '2nd Lt. Luke',
+    id: 'luke', tactics: 'lone-hunter', firstName: 'Frank', lastName: 'Luke', displayName: 'Second Lieutenant Frank Luke', shortName: '2nd Lt. Luke',
     nickname: 'The Arizona Balloon Buster', nation: 'usa', skill: 'ace',
     service: [svc('1918-07-25', '1918-09-29', 'us27', 'spad_xiii')],
     victories: [['1918-08-16', 1], ['1918-09-11', 2], ['1918-09-18', 13], ['1918-09-29', 18]],

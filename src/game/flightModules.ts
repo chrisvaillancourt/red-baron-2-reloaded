@@ -5,6 +5,7 @@
  * three's WebGL renderer, the flight model or the AI in the first download.
  */
 import { createAIController } from '../ai';
+import { aiControllerOptions } from './aiOptions';
 import { createHud } from '../ui/hud/hud';
 import { createAircraftVisual, preloadAircraftModels } from '../render/aircraft';
 import { createWorldRenderer } from '../render/worldRenderer';
@@ -28,16 +29,7 @@ export const flightModules: FlightOnlyModules = {
   preloadAircraftModels: (ids) => preloadAircraftModels(ids),
   // src/ai — adapt the game's per-slot options to the AI's vic-slot options.
   createAIController: (ac, o) =>
-    createAIController(ac, {
-      role: o.flight.role,
-      task: o.flight.task,
-      skill: o.skill,
-      leaderId: o.leaderId === ac.id ? undefined : o.leaderId,
-      formationSlot: o.slot > 0 ? o.slot : undefined,
-      realism: o.realism,
-      setGunnerTarget,
-      homeAerodromeId: o.homeAerodromeId,
-    }),
+    createAIController(ac, aiControllerOptions(ac, o, setGunnerTarget)),
   // src/ui (in-flight HUD)
   createHud,
   // src/world
