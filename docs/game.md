@@ -341,4 +341,6 @@ the missing GLB.
   `pnpm prodcheck 5325` (or `pnpm prodcheck 5326 /sub/` against
   `vite preview --base /sub/`). The check loads the menus, flies a mission,
   and fails on any 4xx, any asset served as HTML, any console error, a missing
-  GLB or worker, or a blank frame.
+  GLB or worker, the lazy flight chunk not loading, or a blank frame.
+- Check the deployed site the same way: `pnpm prodcheck https://chrisvaillancourt.github.io/red-baron-2-reloaded/`.
+  Every run uses a fresh browser context, so it measures a cold-cache first load.

@@ -1,5 +1,8 @@
 # Red Baron II: Reloaded
 
+**[Play online](https://chrisvaillancourt.github.io/red-baron-2-reloaded/)**: no install,
+just a desktop browser with WebGL2 and a real GPU.
+
 A modern rebuild, playable in the browser, of Dynamix's 1997 First World War flight sim
 *Red Baron II*. You fly for the Kaiser, the King, the French Republic or the United States
 over a real-scale Western Front, from the Fokker Scourge of 1915 to the Armistice.
@@ -12,7 +15,8 @@ over a real-scale Western Front, from the Fokker Scourge of 1915 to the Armistic
 
 ## Play it
 
-You need Node 22+, pnpm, and a desktop browser with WebGL2 and a real GPU (Chrome, Edge,
+The quickest way is the [online build](https://chrisvaillancourt.github.io/red-baron-2-reloaded/),
+which is redeployed from `main` on every push. To run it locally, you need Node 22+, pnpm, and a desktop browser with WebGL2 and a real GPU (Chrome, Edge,
 Safari or Firefox).
 
 ```sh
@@ -148,7 +152,7 @@ zsh tools/blender/render_art.sh
 | `pnpm typecheck` | TypeScript check |
 | `pnpm e2e` | Playwright browser tests (uses installed Chrome and the GPU; set `E2E_SWIFTSHADER=1` on machines without a GPU) |
 | `pnpm e2e:soak` | Long-session leak test: 20 consecutive flights in one page (`E2E_SOAK_FLIGHTS` to change) |
-| `pnpm prodcheck <port>` | Checks a served production build (`pnpm build && pnpm preview --port <port>`): assets, workers, a flight, no errors |
+| `pnpm prodcheck <port>` | Checks a served production build (`pnpm build && pnpm preview --port <port>`): assets, workers, a flight, no errors. Pass a full URL to check a deployed site, e.g. the live build |
 | `node dev/walk-menus.mjs <url>` | screenshots every menu screen with real campaign data (dev server) |
 
 Developer test pages served by `pnpm dev`:
