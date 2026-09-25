@@ -688,7 +688,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - Tactics can now use the sun and cloud (the tactics work builds on `contact()`, `sunAngle` and `likelySpottedBy`). Humans get the same cover from the sun, and the HUD no longer warns of a bounce the player couldn't see.
 
 
-## D-XXX — Tactics: stalking out of the sun, ace signatures, cloud refuge, memory pursuit (tactics, AI depth)
+## D-074 — Tactics: stalking out of the sun, ace signatures, cloud refuge, memory pursuit (tactics, AI depth)
 **Context.** With perception able to lose a target in glare or cloud (D-073), the AI still attacked from wherever it happened to be: in `gundiag` (8 runs) regular D.Vs entered 0% of attack passes from above and 5% up-sun, and almost no pass was unseen. Hurt pilots flew straight home with a scout on their tail, a pursuer who lost sight of a target still read its true position, and every ace fought alike.
 **Decision.**
 - **Tactics profile** (`src/ai/tactics.ts`): patience (seconds he will spend setting up), preferred height advantage, sun use, straggler and two-seater bias, burst and fire-range scale, commitment and a damage level at which he disengages. It comes from skill (novices and regulars have no patience; veterans and aces climb for 150–350 m and, above t = 0.5, use the sun), then from an optional ace signature.
@@ -701,7 +701,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - All of these sit behind `TACTICS_FLAGS` (env `AI_TACTICS=flag=0,...` in the soaks), so each can be A/B measured.
 **Consequences.** Real sim, 5 seeds (`stalk.realsim.test.ts`): a stalker ace against an unaware patrolling Nieuport, low November sun, enters inside 600 m 5–10° off the sun and unseen in 3 of 5 runs; with stalking off, 17–46° off the sun and seen every time. Cloud escape, 6 seeds (`cloudEscape.realsim.test.ts`): the wounded pilot spends 126 s in cloud against 46 s and his pursuer is without sight of him for 151 s against 57 s, but he takes about as many hits (227 against 213), because close-range cloud visibility is lenient and he leaves cloud after 12–20 s. Soak results are in docs/ai.md ("Wave 8").
 
-## D-XXX — Boom-and-zoom by matchup measured and rejected (tactics, AI depth)
+## D-075 — Boom-and-zoom by matchup measured and rejected (tactics, AI depth)
 **Context.** HANDOFF §4.3 asked for boom-and-zoom for out-turned pilots (the D.V at 44 kg/m² against the Camel's 31), expecting it to bring the default quick fight's player-down rate toward 20–40% with no flight-model changes.
 **Decision.** Built: a position → attack → zoom stage machine that climbs to a setup point above (and up-sun), dives on the target with lead pursuit, fires one pass and zooms for 7 s, repeating. Three variants were measured at 24 reps (player down, veteran autoplayer, same seeds):
 
@@ -716,7 +716,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 "Only while above" was worse still (D.VII v Camel 100%), and "every energy type" was no better. It lost more fights in every matchup, so it is off by default (`TACTICS_FLAGS.boomZoomOutTurned = false`); the code stays behind its flags for re-measurement. The reason is the airframe: an `AI_SOAK=energy` dive-and-zoom probe shows the D.V is dive-limited. Its structural strength of 0.55 sets a low sim `vne` (src/sim/coefficients.ts), and the AI's dive governor (`traits.maxSafeDiveSpeed`) keeps about 13% under it. From the same height it reaches 74 m/s in a dive against the Camel's 80, and the Dr.I 69 against the SPAD's 93. The heavy type can't dive away from, or zoom back above, its lighter enemy, so the extension hands him the tail shot.
 **Consequences.** The 20–40% target for the default fight is not reachable with AI tactics alone. It needs a flight-model change (D.V dive limit, drag) or a different default enemy (D-071). The high yo-yo was not rebuilt; D-070 measured it with no effect.
 
-## D-XXX — D-071 revisited: keep the Camel v D.V default (tactics, AI depth)
+## D-076 — D-071 revisited: keep the Camel v D.V default (tactics, AI depth)
 **Context.** D-071 kept the default quick dogfight at Camel against regular D.Vs, pending AI work that might make the D.V a real threat. HANDOFF §4.4 set a target of 20–40% player down, from D.V boom-and-zoom, with no flight-model changes.
 **Decision.** Keep D-071. With the wave-8 tactics the default fight is unchanged: player down 4% on and 4% off (24 runs each). Boom-and-zoom, the lever the target assumed, lost more fights in every matchup (DECISIONS "Boom-and-zoom measured and rejected"). The energy probe explains why: the D.V can't out-turn, out-dive or out-zoom a Camel in this flight model. The acceptance target is reset in docs/ai.md. A harder default needs either a flight-model change to the D.V (dive limit or drag, owned by src/sim) or a different default enemy. D-071's candidates still stand: regular D.VII ~17%, 2 regular Dr.I ~70%.
 **Consequences.** The default stays gentle for a first-time human, as D-071 intended. Revisit when human playtest data exists, or if the sim's D.V figures change.
