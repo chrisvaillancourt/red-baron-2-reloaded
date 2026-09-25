@@ -292,7 +292,7 @@ two enemies; ±12% noise.
 | Mirror fights, player down (Camel / D.V / Dr.I / SPAD XIII / D.VII) | 44 / 56 / 44 / 19 / 44% | 56 / 25 / 13 / 38 / 25% |
 | Quick ground attack, screen default (24 seeds): success / killed+captured | 100% / 13% (wave 6) | 96% / 8% |
 | Career killed+captured, veteran autoplayer | 25% (719 missions, wave 6) | 29% (113 missions, ±4%) |
-| Hits within the fight, D.V / veteran Camel / regular Camel (`gundiag`, 8 runs) | 38 / 277 / 417 | 25 / 391 / 295 |
+| Hits within the fight, D.V / veteran Camel / regular Camel (`gundiag`, 8 runs) | 38 / 277 / 417 | 27 / 270 / 220 |
 
 ### Known weaknesses
 
