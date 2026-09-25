@@ -208,7 +208,9 @@ export class Autopilot {
     // command, less the pitch-damping lag: under power at low speed the propeller
     // slipstream would otherwise carry the wing past the stall.
     this.tailRatio = tailPressureRatio(ac, world.env);
-    c.pitch = clamp(stickForAlpha(co, (alpha + lag) / this.tailRatio), -1, 1);
+    // A wounded pilot's pull is weaker (src/sim: pilotStrength); ask for more stick.
+    const stick = stickForAlpha(co, (alpha + lag) / this.tailRatio);
+    c.pitch = clamp(stick > 0 ? stick / (1 - 0.35 * ac.damage.zones.pilot) : stick, -1, 1);
 
     // ---- roll -----------------------------------------------------------------
     const K = co.rollAuthority / (2 * co.rollDamping);

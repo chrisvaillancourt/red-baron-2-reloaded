@@ -152,6 +152,14 @@ export function orientationFrom(heading: number, pitch: number, bank = 0, out = 
   return out.copy(qy).multiply(qx).multiply(qz);
 }
 
+/**
+ * Sustained load factor the pilot tolerates before greying out, for the game's
+ * g-effect overlay: ~5.5 g fit, falling with wounds (z.pilot 0..1) to ~2.5 g.
+ */
+export function pilotGTolerance(ac: AircraftEntity): number {
+  return 5.5 - 3 * ac.damage.zones.pilot;
+}
+
 /** Propeller slipstream dynamic pressure over the tail, Pa. */
 function slipstreamQ(co: FlightCoefficients, thrust: number): number {
   return Math.min(2500, (thrust / co.propDiscArea) * 0.6);
@@ -355,8 +363,12 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   const alphaTail = qTail > 1 ? (qd * alpha) / qTail : 0;
 
   // Pitch law: stick commands an angle of attack about the hands-off trim.
+  // A wounded pilot can't haul the stick fully back (z.pilot is wound severity 0..1).
+  const pilotStrength = 1 - 0.35 * z.pilot;
   let alphaCmd =
-    pitchIn >= 0 ? co.alphaTrim + pitchIn * (co.alphaCmdMax - co.alphaTrim) : co.alphaTrim + -pitchIn * (co.alphaCmdMin - co.alphaTrim);
+    pitchIn >= 0
+      ? co.alphaTrim + pitchIn * pilotStrength * (co.alphaCmdMax - co.alphaTrim)
+      : co.alphaTrim + -pitchIn * (co.alphaCmdMin - co.alphaTrim);
   alphaCmd = co.alphaTrim + (alphaCmd - co.alphaTrim) * controlEff;
   if (qS > 50) {
     const gCap = relaxed ? Math.min(5.5, co.gLimit * 0.8) : level === 'standard' ? co.gLimit * 1.08 : Infinity;
@@ -393,7 +405,7 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   // In a developed spin the wing stays deeply stalled (~32 deg alpha).
   if (spinDrive > 0) qDot += 5 * (32 * DEG - alpha) - 1.5 * qRate;
 
-  const rollEff = controlEff * (1 - 0.6 * stallFactor) * (1 - 0.2 * (dL + dR));
+  const rollEff = controlEff * (1 - 0.6 * stallFactor) * (1 - 0.2 * (dL + dR)) * (1 - 0.25 * z.pilot);
   const asym = (it.failedPart === 'leftWing' || it.failedPart === 'rightWing' ? 0.03 : 0.012) * qd * clamp(cl / co.clMax, -1, 1);
   let pDot =
     co.rollAuthority * qd * rollIn * rollEff -

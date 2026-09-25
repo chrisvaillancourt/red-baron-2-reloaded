@@ -530,7 +530,9 @@ export class AIPilot implements AIController {
       for (const a of world.aircraft) {
         if (a === self || a.side !== self.side) continue;
         const ctl = REGISTRY.get(a);
-        if (ctl && ctl.targetId === e.id) s -= 0.15;
+        // Strongly prefer an unengaged enemy: a whole flight piling onto the leader
+        // is how a patrol leader dies in the first minute.
+        if (ctl && ctl.targetId === e.id) s -= 0.35;
       }
       if (e.id === this.targetId) s *= 1.4;
       if (s > bestScore) {
@@ -810,7 +812,8 @@ export class AIPilot implements AIController {
 
   /** Ornstein-Uhlenbeck aim wander, rotating dir by small angles. */
   private applyAimNoise(self: AircraftEntity, dir: Vector3, dt: number): void {
-    const sigma = this.profile.aimNoiseRad;
+    // A wounded pilot's aim wanders more.
+    const sigma = this.profile.aimNoiseRad * (1 + 1.5 * self.damage.zones.pilot);
     const theta = 0.5;
     const k = Math.sqrt(2 * theta * dt) * sigma;
     this.noise.x += -theta * this.noise.x * dt + k * gauss(this.rng);
