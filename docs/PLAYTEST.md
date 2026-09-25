@@ -1,3 +1,85 @@
+# Playtest reports
+
+## Wave 7 release check
+
+The real app was played in headless Chrome, through the real menus and controls:
+- **Resolutions:** 1280×720 and 1920×1080, on the Metal GPU.
+- **Low preset on SwiftShader:** once, on the 'low' preset, as a stand-in for a machine
+  without a GPU.
+- **Production build:** once, served by `pnpm preview`.
+
+Sessions played:
+- **Menus:**
+  - Every menu screen at both sizes (`dev/walk-menus.mjs`).
+  - Keyboard-only title navigation.
+  - Esc back-out from all six title-menu screens.
+  - Every Options tab. A graphics change and a key rebind survive a reload; this is now
+    an e2e test, `tests/e2e/options.spec.ts`.
+- **Quick missions:**
+  - Intercept, flying the E.III against N.11s and against F.E.2bs.
+  - Escort, flying the Nieuport 11 with Farman F.40s.
+  - The default dogfight, on both the dev server and the production build.
+  - A hard mouse-aim turn.
+  - A cockpit look-down at the trenches from 2,200, 1,000 and 400 m.
+- **Careers (2–4 sorties each):**
+  - Jasta 5 in August 1916, flying the D.II: an escort of Albatros C.IIIs, then a
+    balloon attack.
+  - Lafayette in February 1918, flying the SPAD VII: four sorties toward the squadron's
+    disbanding.
+  - 24 Sqn in May 1916, flying the D.H.2: an escort of B.E.2cs, then taken prisoner.
+  - N.65 in June 1916, flying the N.11: an escort of Farmans, then killed.
+- **Fate screens:** wounded, hospital and return to duty; captured and the POW record;
+  killed and the memorial (menu walk).
+- **Not reached in play:** the award screens (promotion, medal, newspaper). They have been
+  covered by `tests/e2e/career-awards.spec.ts` since wave 6.
+
+Checks on the wave-6 changes, from the player's seat:
+- **Mouse-aim cockpit:** in a hard right climbing turn the view stays forward, and the
+  nose, struts and horizon stay in frame. Fixed, as #4 below.
+- **Trenches from altitude:** from 1–2 km they read as thin pale lines, with no black
+  ribbon. One exception is noted at #9.
+- **Early two-seaters:**
+  - 1916 briefings name B.E.2cs, F.E.2bs, Farman F.40s and Albatros C.IIIs.
+  - In flight, the F.E.2b and Farman F.40 pushers render correctly close up: nacelle,
+    booms and rear propeller. There are no see-through surfaces.
+  - They cruise at 90–106 km/h.
+- **Time compression:** it cut out by itself on the Jasta 5 balloon run ("Under fire:
+  time compression off.") and when enemies closed within about 4 km.
+- **Wingman names:** unique surnames, shown in the HUD roster. No clash came up in these
+  sessions; the unit tests cover clashes.
+
+Console: no errors on any screen or in any flight, dev or production. The only warnings
+were the GPU's `ReadPixels` stall messages, caused by the screenshot tool.
+- **Frame rate:** 60 fps on the Metal GPU, 9 fps on SwiftShader 'low'.
+
+### Ranked findings
+
+| # | Severity | Issue | Repro | Status |
+|---|---|---|---|---|
+| 1 | minor | **Quick intercept: 2.5–4 minutes to contact.** The intruders started about 12 km away. A player who flies to the "Intercept" waypoint and orbits waits about two minutes before anything appears. | Quick Mission → Intercept → any aircraft | **Fixed** (`src/campaign/quickMission.ts`, with a test): both flights run about 4.5 km to the intercept point, so contact comes in about 90 s. |
+| 2 | minor | **Dead squadron mates fly again.** "1st Lt. J. Collins — killed in action" appeared on the Lafayette's 8 February sortie and again on 15 February. Rosters regenerate each quarter and didn't remember losses. | Career: lose a wingman, fly on in the same quarter | **Fixed:** `CareerPilot.lostMates` (additive, in `src/core/campaignTypes.ts`), with a test. Mates killed or captured are left out of later rosters, matched by name without the rank. |
+| 3 | minor | **"Mission Failed" beside a ticked objective.** Abandoning after the charges were safe (24 Sqn escort, then captured) stamped FAILED with a green tick, which reads as a bug. | Career or quick → Esc → Abandon after an objective is met | **Fixed:** the stamp reads "Mission Abandoned" (`src/ui/screens/debrief.ts`). There's an e2e assertion in `ui-flow.spec.ts`. |
+| 4 | minor | **An escort is judged a success when the player dies early.** The N.65 pilot collided at 4:47, before the Farmans reached their objective, and the report said MISSION SUCCESSFUL. The check seems to count charges still alive when the flight ends. | Career escort; die early | Routed (game, `src/game/missionDirector.ts` protect-flight evaluation). It doesn't affect career progress: the career has ended. |
+| 5 | minor | **Quick matchups from different years are dated silently by your aircraft.** A Nieuport 11 against Albatros D.Vs is dated July 1916, a year before the D.V existed. There's no hint on the Quick Mission screen. | Quick Mission → Nieuport 11 vs Albatros D.V | Open (polish for `src/ui/screens/quick.ts`): show "These machines never met; dated by yours." Deferred. |
+| 6 | polish | **Keyboard-only Quick Mission needs about 57 Tab presses to reach "To the briefing".** | Quick Mission with the keyboard only | Defer. Enter works on the focused control, and mouse players are unaffected. |
+| 7 | polish | **SwiftShader 'low' runs at about 9 fps.** It is playable only as a slideshow. | `E2E_SWIFTSHADER` / no GPU | Defer. The README already asks for a real GPU. |
+| 8 | polish | **The CO's remarks drop cap splits "Lt."** into a big "L" and "t. Smith". | Debrief when a wingman is lost | Defer (typographic nicety). |
+| 9 | polish | **One dark serrated ribbon still reads near-black from 2 km.** It is at the edge of the front, probably a tree-lined road or wood strip, and is visible in the 2,200 m look-down. | Quick dogfight, look down at 2 km | Routed (render). |
+| 10 | polish | **Ace standings say "Flying" for an ace in hospital.** For example, Lothar von Richthofen on 1 June 1917. The status ignores service gaps. | HQ → Ace Standings, June 1917 | Defer. It needs an additive `AceStanding` status. |
+| 11 | polish | **American mates in the Lafayette carry USAS ranks** ("1st Lt.", "Sgt."). The escadrille used French ranks until February 1918. | Lafayette career | Defer. |
+
+### Verdict
+
+**GO.** A fan can play this for an evening without hitting a blocker.
+- **Coverage:** every mission type flown briefed, flew, ended and debriefed correctly.
+- **Careers:** they advanced across sorties and ended on the right fate screens.
+- **Robustness:** the production build ran clean at 60 fps, settings persisted, and no
+  screen threw an error.
+- **Remaining issues:** everything above is minor or polish. Findings 1–3 are fixed in
+  this pass.
+
+---
+
 # Playtest report — wave 5 (fresh eyes)
 
 A new player who loved *Red Baron II* in 1997 played the real app, not mocks, in
