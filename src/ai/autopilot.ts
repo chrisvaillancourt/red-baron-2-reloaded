@@ -95,6 +95,8 @@ const _p = new Vector3();
 const _vb = new Vector3();
 const _ff = new Vector3();
 const _qInv = new Quaternion();
+/** Nose-to-aim error below which fine aiming (softened bank, rudder pointing) blends in. */
+const FINE_AIM = 10 * DEG;
 // Scratch for groundCheck only (fly() holds _f/_u/_r/_v/_p across the call).
 const _gcV = new Vector3();
 const _gcUp = new Vector3();
@@ -137,6 +139,10 @@ export class Autopilot {
   stallMarginDeg: number | null = null;
   /** Last tail/free-stream pressure ratio used by the pitch law (telemetry). */
   tailRatio = 1;
+  /** 0..1 fine-aim blend this tick (telemetry; also scales slip nulling). */
+  fineAim = 0;
+  /** Spec roll-rate scale (1 = Camel-class), for roll-rate-aware aiming. */
+  private readonly rollAgility: number;
   /** 0..1 how far into the dive-speed governor band we are (telemetry). */
   overspeed = 0;
   /** Load factor the airframe tolerates now (wing damage lowers it), with a margin. */
@@ -167,6 +173,7 @@ export class Autopilot {
     coefficients: FlightCoefficients | null = null,
   ) {
     this.gains = defaultGains(rollRate, pitchRate);
+    this.rollAgility = clamp(rollRate, 0.3, 1);
     this.co = coefficients;
   }
 
@@ -261,6 +268,7 @@ export class Autopilot {
       this.first = false;
     }
     this.clock += dt;
+    this.fineAim = 0;
     const headingRate = wrapPi(heading - this.prevHeading) / Math.max(dt, 1e-3);
     this.prevHeading = heading;
 
@@ -373,9 +381,10 @@ export class Autopilot {
 
     if (this.recovering) {
       rollErr = s.stalled && Math.abs(bank) < 1.6 ? -bank : levelRollErr;
-      // Unload while stalled; once flying, hold what the wing can carry (up to 1 g)
-      // instead of a fixed 0.7 g that sinks the aircraft.
-      nDes = s.stalled ? 0.3 : clamp(nAvail * 0.8 * this.availScale, 0.7, 1);
+      // Unload while stalled. Once flying: with height to spare let the nose drop and dive
+      // for speed (an underpowered E.III takes many seconds to accelerate level); near the
+      // ground hold what the wing can carry (up to 1 g) instead of sinking.
+      nDes = s.stalled ? 0.3 : s.heightAboveGround > 600 ? 0.7 : clamp(nAvail * 0.8 * this.availScale, 0.7, 1);
       if (Math.abs(headingRate) > 0.6) yaw = -Math.sign(headingRate);
       c.throttle = 1;
     } else if (ground.emergency || diveRecovery) {
@@ -412,6 +421,17 @@ export class Autopilot {
       const disc = b * b - (gComp.lengthSq() - nLim * nLim);
       const aLatMax = disc > 0 ? Math.max(0, -b + Math.sqrt(disc)) : 0;
       const a = _a.copy(perp).multiplyScalar(omega * V);
+      // Fine aim: with the target a few degrees off the nose, banking the whole lift
+      // vector over to correct (a 5 deg error asked for ~35 deg of bank) makes slow-rolling
+      // types rock, the roll lagging the error. Soften the lateral part of the proportional
+      // correction for small errors (more for slow rollers) and let the rudder take it up.
+      // The line-of-sight feed-forward below is untouched, so a turning target is still led.
+      let fineAim = 0;
+      if (cmd.aim && theta < FINE_AIM) {
+        fineAim = 1 - theta / FINE_AIM;
+        const soften = (0.35 + 0.5 * (1 - this.rollAgility)) * fineAim;
+        a.addScaledVector(r, -a.dot(r) * soften);
+      }
       // Feed-forward the rotation of the desired direction (line-of-sight rate), so a
       // turning target is tracked without the steady-state lag of a pure P loop.
       // The raw rate is differentiated from a noisy aim point, so low-pass it (~0.25 s)
@@ -439,7 +459,15 @@ export class Autopilot {
       // a little above the aim point): push, keeping the wings where they are, instead of
       // rolling inverted to "pull" down - which is a split-S reflex for a 5 degree error.
       const push = ay < 0 && theta < 25 * DEG && -ay < 1.4 * G && Math.abs(ax) < -ay * 1.5;
-      if (mag < 0.35 * G) {
+      if (mag < 0.35 * G && theta > 30 * DEG) {
+        // The demand cancels gravity (typically "behind and below"): wings-level would sit
+        // doing nothing. Turn hard instead, lift vector toward the horizontal part of the
+        // demand - a descending turn rather than a split-S near the ground.
+        const side = perp.x * r.x + perp.z * r.z;
+        const sgn = Math.abs(side) > 0.05 ? Math.sign(side) : this.rollSign;
+        rollErr = wrapPi(sgn * 75 * DEG - bank);
+        nDes = Math.min(maxG, nUsable);
+      } else if (mag < 0.35 * G) {
         rollErr = -bank;
         nDes = ay / G;
       } else if (push) {
@@ -453,11 +481,14 @@ export class Autopilot {
       }
       if (nDes > 1) nDes = 1 + (nDes - 1) * clamp(Math.cos(rollErr) * 1.3, 0, 1);
       if (Math.abs(rollErr) > 1.2) nDes = Math.min(nDes, 0.6);
-      // Fine nose pointing with rudder when aiming.
-      if (cmd.aim && theta < 0.07) {
+      // Fine nose pointing with rudder: proportional with yaw-rate damping (it used to
+      // saturate at a 1 deg error, i.e. bang-bang, which rocked the nose).
+      if (fineAim > 0) {
         const lateral = Math.atan2(d.dot(r), d.dot(f));
-        yaw += clamp(lateral * k.aimYawK * 10, -0.6, 0.6);
+        const yawRateRight = -s.angularVelocity.y;
+        yaw += clamp(lateral * k.aimYawK * 2.6 - yawRateRight * 0.35, -0.5, 0.5) * (0.4 + 0.6 * fineAim);
       }
+      this.fineAim = fineAim;
     }
     if (Math.abs(rollErr) > 0.2) this.rollSign = Math.sign(rollErr) || 1;
 
@@ -502,7 +533,8 @@ export class Autopilot {
     // ---- yaw: null sideslip ----------------------------------------------
     const vb = _vb.copy(s.velocity).applyQuaternion(_qInv.copy(q).invert());
     const beta = Math.atan2(vb.x, -vb.z);
-    if (V > 5) yaw += k.slipK * beta;
+    // While fine-aiming, let the rudder hold a small skid instead of nulling it.
+    if (V > 5) yaw += k.slipK * beta * (1 - 0.6 * this.fineAim);
     c.yaw = clamp(yaw, -1, 1);
 
     // ---- throttle --------------------------------------------------------

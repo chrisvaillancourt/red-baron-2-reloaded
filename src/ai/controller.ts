@@ -40,6 +40,7 @@ import { isAlive, isAttacking, Perception, threatLevel } from './perception';
 import { makeSkillProfile, skillValue, type SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
 import { getCoefficients } from '../sim/coefficients';
+import { getSimInternal } from '../sim/flightModel';
 
 export interface AIControllerOptions {
   role: FlightRole;
@@ -1075,18 +1076,21 @@ export class AIPilot implements AIController {
     let wsum = 0;
     const avoid = _tmp.set(0, 0, 0);
     for (const o of world.aircraft) {
-      if (o === self || !isAlive(o)) continue;
+      // Falling wrecks still collide in the sim: an attacker following its victim down
+      // flies into the tumbling wreck unless it dodges those too.
+      if (o === self || o.state.onGround || getSimInternal(o).impacted) continue;
       const rel = _tmp2.copy(o.state.position).sub(s.position);
       const r = rel.length();
-      if (r > 250) continue;
+      // Head-on closures run at 100+ m/s: look ~4 s ahead.
+      if (r > 450) continue;
       const relV = o.state.velocity.clone().sub(s.velocity);
       const vv = relV.lengthSq();
-      const tcpa = vv > 1e-3 ? clamp(-rel.dot(relV) / vv, 0, 3) : 0;
+      const tcpa = vv > 1e-3 ? clamp(-rel.dot(relV) / vv, 0, 4) : 0;
       const cpa = rel.clone().addScaledVector(relV, tcpa);
       const dcpa = cpa.length();
-      const radius = 30;
+      const radius = isAlive(o) ? 32 : 40;
       if (dcpa >= radius) continue;
-      const w = (1 - dcpa / radius) * (1 - tcpa / 3.2);
+      const w = (1 - dcpa / radius) * (1 - tcpa / 4.2);
       if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).negate();
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;

@@ -370,11 +370,15 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
       ? co.alphaTrim + pitchIn * pilotStrength * (co.alphaCmdMax - co.alphaTrim)
       : co.alphaTrim + -pitchIn * (co.alphaCmdMin - co.alphaTrim);
   alphaCmd = co.alphaTrim + (alphaCmd - co.alphaTrim) * controlEff;
+  // The caps below limit the *wing* AoA. The law settles where the tail AoA meets the
+  // command, and slipstream makes the wing sit above that by qTail / qd under power at
+  // low speed, so scale the caps down by that ratio (else relaxed stall protection fails).
+  const tailRatio = qd > 1 ? qTail / qd : 1;
   if (qS > 50) {
     const gCap = relaxed ? Math.min(5.5, co.gLimit * 0.8) : level === 'standard' ? co.gLimit * 1.08 : Infinity;
-    if (Number.isFinite(gCap)) alphaCmd = Math.min(alphaCmd, co.alpha0 + (gCap * co.weight) / qS / co.clAlpha);
+    if (Number.isFinite(gCap)) alphaCmd = Math.min(alphaCmd, (co.alpha0 + (gCap * co.weight) / qS / co.clAlpha) / tailRatio);
   }
-  if (relaxed) alphaCmd = Math.min(alphaCmd, co.alphaStall - 2.5 * DEG);
+  if (relaxed) alphaCmd = Math.min(alphaCmd, (co.alphaStall - 2.5 * DEG) / tailRatio);
   alphaCmd -= co.stallSharpness * stallFactor * 3 * DEG; // nose drops at the break
 
   // Spin mode (latched; never in relaxed). Entered from a stall with yaw rate:

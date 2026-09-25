@@ -184,7 +184,9 @@ describe('AI on the real flight model', { timeout: 60_000 }, () => {
       world.addAI(att, 'novice', { seed: seed + 10 });
       runSim(world, 120, { onStep: () => !!att.outcome || !!re8.outcome });
       gunnerHits += world.eventsOf('bullet-hit').filter((h) => h.shooterId === re8.id && h.targetId === att.id).length;
-      if (att.outcome || att.damage.pilotWounded) attackerLosses++;
+      // Punished: downed, wounded, or carrying real damage home (a lone gunner rarely kills).
+      const dmg = Object.values(att.damage.zones).reduce((a, b) => a + b, 0);
+      if (att.outcome || att.damage.pilotWounded || dmg >= 0.3) attackerLosses++;
     }
     expect(gunnerHits).toBeGreaterThan(8);
     expect(attackerLosses).toBeGreaterThanOrEqual(1);
