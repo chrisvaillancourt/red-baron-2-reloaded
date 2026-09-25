@@ -152,6 +152,38 @@ export function orientationFrom(heading: number, pitch: number, bank = 0, out = 
   return out.copy(qy).multiply(qx).multiply(qz);
 }
 
+/**
+ * Sustained load factor the pilot tolerates before greying out, for the game's
+ * g-effect overlay: ~5.5 g fit, falling with wounds (z.pilot 0..1) to ~2.5 g.
+ */
+export function pilotGTolerance(ac: AircraftEntity): number {
+  return 5.5 - 3 * ac.damage.zones.pilot;
+}
+
+/** Propeller slipstream dynamic pressure over the tail, Pa. */
+function slipstreamQ(co: FlightCoefficients, thrust: number): number {
+  return Math.min(2500, (thrust / co.propDiscArea) * 0.6);
+}
+
+/**
+ * Tail dynamic pressure over free-stream dynamic pressure, (q + qSlip) / q, for the
+ * aircraft's current power and speed. The pitch law settles where the *tail* angle of
+ * attack (alpha * q / (q + qSlip)) meets the commanded AoA, so under power at low speed
+ * the wing settles above the stick's commanded AoA by this ratio. A controller
+ * inverting the pitch law (stickForAlpha) divides its desired wing AoA by it.
+ */
+export function tailPressureRatio(ac: AircraftEntity, env: FlightEnvironment): number {
+  const co = getCoefficients(ac.spec);
+  const s = ac.state;
+  const V = Math.max(1, s.airspeed);
+  const qd = 0.5 * env.airDensityAt(s.position.y) * V * V;
+  const z = ac.damage.zones;
+  const engineAlive = !ac.damage.engineDead && z.engine < 1;
+  const power = powerAtAltitude(co, s.position.y) * getSimInternal(ac).powerFrac * (1 - 0.75 * z.engine);
+  const thrust = engineAlive ? propThrust(co, power, V * Math.cos(s.aoa)) : 0;
+  return (qd + slipstreamQ(co, thrust)) / Math.max(qd, 1);
+}
+
 /** Map a desired angle of attack to the stick position that commands it (inverse of the pitch law). */
 export function stickForAlpha(co: FlightCoefficients, alpha: number): number {
   if (alpha >= co.alphaTrim) return clamp((alpha - co.alphaTrim) / (co.alphaCmdMax - co.alphaTrim), 0, 1);
@@ -326,19 +358,27 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   const vDamp = Math.max(V, 6);
 
   // Slipstream over the tail gives pitch/yaw authority on the ground.
-  const qSlip = Math.min(2500, (thrust / co.propDiscArea) * 0.6);
+  const qSlip = slipstreamQ(co, thrust);
   const qTail = qd + qSlip;
   const alphaTail = qTail > 1 ? (qd * alpha) / qTail : 0;
 
   // Pitch law: stick commands an angle of attack about the hands-off trim.
+  // A wounded pilot can't haul the stick fully back (z.pilot is wound severity 0..1).
+  const pilotStrength = 1 - 0.35 * z.pilot;
   let alphaCmd =
-    pitchIn >= 0 ? co.alphaTrim + pitchIn * (co.alphaCmdMax - co.alphaTrim) : co.alphaTrim + -pitchIn * (co.alphaCmdMin - co.alphaTrim);
+    pitchIn >= 0
+      ? co.alphaTrim + pitchIn * pilotStrength * (co.alphaCmdMax - co.alphaTrim)
+      : co.alphaTrim + -pitchIn * (co.alphaCmdMin - co.alphaTrim);
   alphaCmd = co.alphaTrim + (alphaCmd - co.alphaTrim) * controlEff;
+  // The caps below limit the *wing* AoA. The law settles where the tail AoA meets the
+  // command, and slipstream makes the wing sit above that by qTail / qd under power at
+  // low speed, so scale the caps down by that ratio (else relaxed stall protection fails).
+  const tailRatio = qd > 1 ? qTail / qd : 1;
   if (qS > 50) {
     const gCap = relaxed ? Math.min(5.5, co.gLimit * 0.8) : level === 'standard' ? co.gLimit * 1.08 : Infinity;
-    if (Number.isFinite(gCap)) alphaCmd = Math.min(alphaCmd, co.alpha0 + (gCap * co.weight) / qS / co.clAlpha);
+    if (Number.isFinite(gCap)) alphaCmd = Math.min(alphaCmd, (co.alpha0 + (gCap * co.weight) / qS / co.clAlpha) / tailRatio);
   }
-  if (relaxed) alphaCmd = Math.min(alphaCmd, co.alphaStall - 2.5 * DEG);
+  if (relaxed) alphaCmd = Math.min(alphaCmd, (co.alphaStall - 2.5 * DEG) / tailRatio);
   alphaCmd -= co.stallSharpness * stallFactor * 3 * DEG; // nose drops at the break
 
   // Spin mode (latched; never in relaxed). Entered from a stall with yaw rate:
@@ -369,7 +409,7 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   // In a developed spin the wing stays deeply stalled (~32 deg alpha).
   if (spinDrive > 0) qDot += 5 * (32 * DEG - alpha) - 1.5 * qRate;
 
-  const rollEff = controlEff * (1 - 0.6 * stallFactor) * (1 - 0.2 * (dL + dR));
+  const rollEff = controlEff * (1 - 0.6 * stallFactor) * (1 - 0.2 * (dL + dR)) * (1 - 0.25 * z.pilot);
   const asym = (it.failedPart === 'leftWing' || it.failedPart === 'rightWing' ? 0.03 : 0.012) * qd * clamp(cl / co.clMax, -1, 1);
   let pDot =
     co.rollAuthority * qd * rollIn * rollEff -

@@ -103,11 +103,17 @@ export function createMouseAimState(): MouseAimState {
   return { prevPitchErr: 0, prevRollErr: 0, prevYawErr: 0, pilot: null, pilotKey: '' };
 }
 
-/** Instructor limits per flight-model level: relaxed is gentle and safe, authentic lets you pull hard. */
-export const INSTRUCTOR: Record<FlightModelLevel, { maxG: number; caution: number; maxPerformance: boolean; minAgl: number }> = {
-  relaxed: { maxG: 5, caution: 1, maxPerformance: true, minAgl: 90 },
-  standard: { maxG: 5.2, caution: 0.85, maxPerformance: true, minAgl: 60 },
-  authentic: { maxG: 6.2, caution: 0.6, maxPerformance: true, minAgl: 35 },
+/**
+ * Instructor limits per flight-model level: relaxed is gentle and safe, authentic lets you
+ * pull hard. `caution` is the structural/dive margin (0 careless .. 1 wide); `stallMarginDeg`
+ * is the AoA kept below the stall, separate from it so the beginner level gets the widest
+ * margin on both (it used to derive the stall margin from caution, which gave relaxed the
+ * narrowest, an ace's 1.0 deg).
+ */
+export const INSTRUCTOR: Record<FlightModelLevel, { maxG: number; caution: number; stallMarginDeg: number; maxPerformance: boolean; minAgl: number }> = {
+  relaxed: { maxG: 5, caution: 1, stallMarginDeg: 3.2, maxPerformance: true, minAgl: 90 },
+  standard: { maxG: 5.2, caution: 0.85, stallMarginDeg: 1.8, maxPerformance: true, minAgl: 60 },
+  authentic: { maxG: 6.2, caution: 0.6, stallMarginDeg: 1.3, maxPerformance: true, minAgl: 35 },
 };
 
 /**
@@ -132,6 +138,7 @@ export function mouseAimAssist(
     const p = ac.spec.performance;
     st.pilot = new Autopilot(traitsFor(ac.spec), cfg.maxG, cfg.minAgl, p.rollRate, p.pitchRate, getCoefficients(ac.spec));
     st.pilot.diveCaution = cfg.caution;
+    st.pilot.stallMarginDeg = cfg.stallMarginDeg;
     st.pilotKey = key;
   }
   const c = ac.controls;

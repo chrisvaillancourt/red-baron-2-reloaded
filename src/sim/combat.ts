@@ -136,7 +136,7 @@ const RECENT_HIT_S = 30;
 const ZONE_DAMAGE: Record<DamageZone, number> = {
   engine: 0.1,
   fuelTank: 0.09,
-  pilot: 0.34,
+  pilot: 0.22,
   gunner: 0.34,
   leftWing: 0.035,
   rightWing: 0.035,
@@ -260,12 +260,13 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
           bus.emit({ type: 'engine-damaged', aircraftId: ac.id });
         }
         if (z.engine > 0.4) d.smoking = true;
-        if (rng() < 0.04) startFire(ac);
+        if (rng() < 0.04 * Math.min(1, amount / ZONE_DAMAGE.engine)) startFire(ac);
         if (z.engine >= 1) d.engineDead = true;
         break;
       case 'fuelTank':
         if (rng() < 0.35) d.fuelLeak = true;
-        if (rng() < 0.06 + 0.1 * z.fuelTank) startFire(ac);
+        // Splinters (flak, ground fire) are smaller than a bullet strike: fewer fires.
+        if (rng() < (0.06 + 0.1 * z.fuelTank) * Math.min(1, amount / ZONE_DAMAGE.fuelTank)) startFire(ac);
         break;
       case 'pilot':
       case 'gunner': {
@@ -274,10 +275,11 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         if (rng() > 0.45) break;
         z[zone] = Math.min(1, z[zone] + amount);
         if (zone === 'pilot') {
-          const wasWounded = d.pilotWounded;
           // Splinters (flak, ground fire) mostly wound; a full bullet strike is likelier to kill.
           const severity = 0.3 + 0.7 * Math.min(1, amount / ZONE_DAMAGE.pilot);
-          const killed = z.pilot >= 1 || rng() < (wasWounded ? 0.35 : 0.18) * severity;
+          // Most hits wound. The chance that this one kills grows with the wounds already
+          // taken (z.pilot accumulates ~0.22 per bullet; the fifth is certainly fatal).
+          const killed = z.pilot >= 1 || rng() < (0.07 + 0.25 * z.pilot) * severity;
           if (killed) {
             z.pilot = 1;
             d.pilotKilled = true;

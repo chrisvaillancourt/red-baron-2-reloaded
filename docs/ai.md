@@ -65,7 +65,12 @@ their leader is doing).
    six. Energy fighters (SPAD, S.E.5a, D.VII, Pfalz…) extend and zoom after a
    pass; turners stay in the turn. Aces climb for height before engaging and
    approach two-seaters from below. Defence: break, climbing turn, spiral,
-   split-S, jinking, extension, chosen by skill, type and height.
+   split-S, jinking, extension, chosen by skill, type and height. Below 350 m
+   AGL (`LOW_AGL`) everything is flown level: level breaks, flat jinks, and
+   energy fighters with a lead extend along the deck toward home. Flat scissors
+   were tried and measured worse (DECISIONS.md "Low-level defence").
+   Collision avoidance covers airborne wrecks as well as live aircraft (~4 s /
+   450 m look-ahead).
 3. **Mission** (`navigation.ts`). Waypoints (`fly`, `patrol`, `rendezvous`,
    `attack-balloon`, `attack-ground`, `land`), vic formation keeping, escort
    station 300 m above and behind the escorted flight, balloon and strafing
@@ -83,6 +88,14 @@ their leader is doing).
    - **Scouts:** attackers fight scouts within 1.5 km unless already committed to a close
      run. A tried "run home when outnumbered low" rule made things worse (fleeing with a
      scout on your tail is deadlier than turning with him), so it was dropped.
+   - **Leaving the target:** at most 3 ground / 4 balloon passes, and the attack ends with
+     45% (ground) / 20% (balloon) fixed-gun ammunition left for the fight home. Between
+     runs, after at least one pass, an enemy scout within 3.5 km ends the attack: the
+     flight leaves at speed instead of zooming up for another slow pass. Strafing keeps
+     1.6–1.7 Vs through the approach and pull-out and sets up 250 m above the target.
+   - **Fighting back on the way home:** after a voluntary RTB (ordered home, mission or
+     escort complete), a fit fighter (undamaged, > 20% ammo) engages a scout within
+     1.2 km that is attacking it or its leader, then resumes the RTB.
 
 Skill is continuous (`skill.ts`): novice → ace changes spotting, reaction
 delay, aim noise, lead error, fire range and cone, burst discipline, g
@@ -99,8 +112,23 @@ every gain with dynamic pressure automatically.
   small integral on g error (expressed as an AoA correction) absorbs thrust and
   damage. In a sustained pull the airframe settles short of the commanded AoA by
   `pitchDamping·ρ·V·q / (pitchStiffness·q̄)`; the expected flight-path rotation
-  rate is fed forward to cancel that lag. The stall margin (2.2° novice → 1° ace)
-  protects the *settled* AoA.
+  rate is fed forward to cancel that lag. The law settles where the *tail* AoA meets
+  the command, and propeller slipstream lowers the tail AoA at low speed under power,
+  so the desired wing AoA is divided by `tailPressureRatio(ac, env)` (src/sim) before
+  inverting; without it the wing overshot by 10–30% and "safe" commands stalled. A
+  wounded pilot's reduced pull (`1 − 0.35·wounds`) is compensated the same way. The
+  stall margin (2.2° novice → 1° ace) protects the *settled* AoA; `stallMarginDeg`
+  overrides it (the mouse-aim instructor presets: relaxed 3.2°, standard 1.8°,
+  authentic 1.3°) independently of `diveCaution`.
+- **Energy-aware g.** Usable g tapers toward 1 as true airspeed approaches ~1.12 Vs
+  (full at ~1.4 Vs), so a scout flies out of a bleeding turn instead of stalling.
+  Stall recovery exits at 1.15 Vs below 400 m AGL (1.25 Vs higher) once the AoA is
+  back inside the margin, holding up to 1 g near the ground.
+- **Fine aim.** Within 10° of an aim point the lateral proportional demand is softened
+  (more for slow rollers such as the E.III) and a proportional, yaw-damped rudder takes
+  up the rest, which stopped wing-rocking on a near solution. A demand that cancels
+  gravity at large errors (target behind and below) rolls into a 75° descending turn
+  instead of sitting wings-level.
 - **Roll.** Steady roll rate is `rollSteady·(V/vRef)·stick`, so the aileron is
   `p_cmd / (K·V)` with `K = rollAuthority / (2·rollDamping)`, plus a roll-rate loop
   on the measured rate and a small integral (frozen during large bank changes)
@@ -162,6 +190,16 @@ every gain with dynamic pressure automatically.
 - Soak / probe runs (skipped unless enabled):
   `AI_SOAK=route,combat,struct,terrain AI_SEEDS=6 AI_OUT=/tmp/x.txt pnpm vitest run src/ai/tuning.soak.test.ts`
   and `AI_SOAK=track|turn|straight|mission|zones|spot|probe pnpm vitest run src/ai/probe.soak.test.ts`.
+  Wave-5 surveys: `AI_SOAK=lowlevel AI_SEEDS=16 AI_OUT=… pnpm vitest run src/ai/lowlevel.soak.test.ts`
+  (low-altitude fights: losses, ground impacts, stalled time, recovery share of engage
+  time); `AI_SOAK=dither|dithertrace` in `aimDither.realsim.test.ts` (mouse-aim bank
+  activity near the aim); `AI_SOAK=lossdiag` (how the veteran autoplayer dies in career
+  missions) and `AI_SOAK=quickdiag AI_Q=dvii|camel AI_QSEED=n` (5 s trace of a quick
+  ground attack).
+- `aimDither.realsim.test.ts` and `instructorMargin.realsim.test.ts` (CI): E.III and
+  Camel settle on a mouse-aim point without wing-rocking; the instructor presets order
+  their stall margins relaxed > standard > authentic and relaxed never stalls a Camel or
+  D.V in a sustained maximum turn.
 - The point-mass tests (`scenarios`, `furball`, `robustness`, `autopilot`) use
   `controlLaw: 'generic'` and cover mission logic cheaply; combat outcomes and
   landing are tested on the real sim only.
@@ -193,7 +231,23 @@ hit in src/sim); pilot and engine hits end fights quickly. That, not the AI, set
 the length of 1v1 fights between equal pilots (4–7 min); balance it in
 `ZONE_DAMAGE` (src/sim/combat.ts) if fights should be shorter.
 
+### Wave 5: low-level fights and survivability
+
+| Measure | Before | After |
+|---|---|---|
+| Low-level survey, 16 seeds × 5 matchups: low flight / attackers lost | 46 / 84 of 160 | 40 / 59 of 160 |
+| Ground impacts in that survey | 19 | 5 |
+| Stall-recovery share of engage time (A / B) | 11.4% / 11.6% | 5.4% / 3.9% |
+| Seconds stalled | 1,880 | ~590 |
+| Veteran autoplayer career deaths | 31% (13/42) | 18% (10/56) |
+| Quick ground attack (veteran defenders): killed + captured / returned | 88% / 13% | 75% / 25% |
+| E.III mouse-aim bank rate near the aim (standard) | ~20°/s | ~14°/s |
+
 ### Known weaknesses
+
+- Quick ground attacks against veteran scouts remain very dangerous (~2/3 killed):
+  the defenders arrive with height and speed while the strafers are low and slow.
+- Quick dogfights (1 v several, veteran) kill the autoplayer ~75% of the time.
 
 - Aces don't exploit the vertical (yo-yos, zoom climbs) beyond energy-fighter
   extensions; equal turn fights between regulars can circle for minutes.

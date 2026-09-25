@@ -15,6 +15,8 @@ export {
   getSimInternal,
   headingOf,
   isStoppedOnGround,
+  pilotGTolerance,
+  tailPressureRatio,
   orientationFrom,
   pitchAngle,
   stepFlight,

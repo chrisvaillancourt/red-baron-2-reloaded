@@ -555,3 +555,42 @@ whose version is newer than the game's is never written. `migrate()` is the
 one place schema upgrades go.
 **Consequences.** Safe across tabs and versions. Reads parse storage only
 when its text has changed, so repeated `get()` calls stay cheap.
+## D-059 — Controllers invert the pitch law through the tail's slipstream (ai-sim wave 5)
+**Context.** Low-level AI fights spent 11–12% of engage time in stall recovery, and 19 of 160 aircraft in the low-level survey flew into the ground. Stall onsets showed the autopilot already limiting g to 0.5 with the stick forward, at 1.3–1.6 Vs. The sim's pitch law settles where the *tail* AoA meets the command, and the propeller slipstream lowers the tail AoA under power at low speed. The wing therefore settled 10–30% above the AoA the model-inverse stick asked for, and the "safe" command sat past the stall. The sim's own relaxed stall cap had the same flaw.
+**Decision.** `tailPressureRatio(ac, env)` in src/sim (qTail/q̄ for current power and speed). The AI autopilot divides its desired wing AoA by it. The sim scales its relaxed/standard g cap and the relaxed stall cap by the same ratio.
+**Consequences.** Seconds stalled in the low-level survey fell from 1,880 s to about 600 s, and ground impacts from 19 to 5–6 (16 seeds, 5 matchups). Nothing is re-tuned: it removes a systematic model mismatch. Any future controller that inverts `stickForAlpha` must divide by the ratio too.
+
+## D-060 — Low-level defence: energy-aware g, faster recovery, level breaks; scissors rejected (ai-sim wave 5)
+**Context.** Defended ground attacks killed the veteran autoplayer ~88% of the time: the strafers lose the low, slow fight that follows.
+**Decision.**
+- **Energy-aware g:** usable g tapers toward 1 as true airspeed approaches ~1.12 Vs, so a scout flies out of a bleeding turn instead of stalling.
+- **Recovery:** exits at 1.15 Vs below 400 m (1.25 Vs higher, was 1.35) once the AoA is back inside the margin. It holds up to 1 g near the ground instead of a sinking 0.7 g, and above 600 m it lets the nose drop to regain speed.
+- **Level manoeuvres below 350 m AGL:** breaks are flown level, jinks keep little vertical wander, and there are no climbing turns. Energy fighters with a lead extend along the deck toward friendly lines. Flat scissors were implemented and measured worse: the low flight lost 60/160 aircraft with them against 43/160 without, because reversing at low speed hands a better-turning attacker the shot. They were removed.
+**Consequences.** Recovery share of engage time is ~4–5% (was ~11.5%). In the survey the low flight loses 40/160 (was 46) and the attackers 59/160 (was 84; mostly fewer attackers flying into the ground).
+
+## D-061 — Wounds before deaths; fewer splinter fires; dodge falling wrecks (ai-sim wave 5)
+**Context.** Veteran career deaths ran 25–50%, often an early one-bullet pilot kill. Diagnosis of 17 career missions also found 3 of 7 deaths were mid-air collisions, typically flying into a tumbling wreck the AI no longer "saw".
+**Decision.**
+- **Pilot hits:** each accumulates 0.22 wound (was 0.34). A hit kills with probability (0.07 + 0.25 × wounds) × severity (was 0.18, then 0.35), and the fifth is certain.
+- **Wound effects:** a wounded pilot pulls (−35%) and rolls (−25%) less in the flight model and aims worse as AI. `pilotGTolerance(ac)` (5.5 g → 2.5 g with wounds) is exported for a wound-aware grey-out; it is not yet wired into the game's overlay.
+- **Fires:** flak and ground-fire splinters start fires in proportion to their size.
+- **Target spreading:** the AI's penalty for choosing an enemy a flight-mate is already on rose from 0.15 to 0.35.
+- **Collision avoidance:** it now covers airborne wrecks, looking ~4 s / 450 m ahead with a wider radius for wrecks.
+**Consequences.** Instant kills are rare, and wounded pilots fly home degraded (fate: wounded, hospital). A straight-flying target lasts ~31 s against an ace (was ~24 s).
+
+## D-062 — Mouse-aim fine aiming and a separate instructor stall margin (ai-sim wave 5)
+**Context.** Slow rollers (E.III) rocked their wings while tracking a near solution: a 5° error asked for ~35° of bank, and the fine-aim rudder saturated at a 1° error (bang-bang). The instructor passed `caution` as the autopilot's `diveCaution`, which also set the stall margin, so 'relaxed' got the narrowest margin (1.0°).
+**Decision.**
+- **Fine aim:** within 10° of the aim, the lateral part of the proportional turn demand is softened by 35–60% (more for slower rollers), leaving the line-of-sight feed-forward untouched. The rudder takes up the rest: proportional over ~3° with yaw-rate damping, and sideslip nulling is relaxed so the skid holds.
+- **Deadlock fix:** a demand that cancels gravity at large errors ("behind and below") now rolls into a hard descending turn, instead of sitting wings-level.
+- **Separate stall margin:** `Autopilot.stallMarginDeg` is separate from `diveCaution`. Instructor presets are relaxed 3.2°, standard 1.8°, authentic 1.3°; AI pilots keep the skill-derived margin.
+**Consequences.** E.III bank-rate activity near the aim fell from ~20 to ~14°/s at standard. On relaxed the instructor never stalls a Camel or Albatros in a maximum turn. Standard gives up a little peak turn for a real margin.
+
+## D-063 — Strafers leave early and keep ammunition; RTB flights fight back (ai-sim wave 5)
+**Context.** In quick ground attacks against veteran SPADs the autoplayer died or was captured ~88–92% of the time. Traces showed strafers at 23–38 m/s and low, zooming up for another pass, when defenders dived in from ~400 m above. Some had also shot themselves dry before the scouts arrived.
+**Decision.**
+- **Pass limits:** an attack ends after 3 ground / 4 balloon passes, or when fixed-gun ammunition falls below 45% / 20%.
+- **Scouts end it:** between runs, after at least one pass, an enemy scout within 3.5 km ends the attack and the flight heads home at speed.
+- **Energy floors:** strafing holds 1.6–1.7 Vs through approach and pull-out and sets up 250 m above the target (was 320 m).
+- **Fighting back:** during a voluntary RTB (ordered home, mission or escort complete), a fit fighter engages a scout within 1.2 km that is attacking it or its leader, then resumes the RTB.
+**Consequences.** Quick ground attack (12 missions): 25% returned (was 13%), 67% killed + 8% captured, and success fell from 75% to 58%. That is the right trade for a strafer. The mission stays the deadliest quick type: the defenders' height advantage is structural, and softening it belongs to mission balance rather than AI.
