@@ -210,7 +210,7 @@ export const hqScreen: ScreenFactory = (ctx, params) => {
             ),
           ),
         )
-      : h('p', { class: 'typed muted' }, 'No victories yet. Five confirmed and they will call you an ace.');
+      : h('p', { class: 'typed muted' }, !closed ? 'No victories yet. Five confirmed and they will call you an ace.' : 'No victories were confirmed.');
 
   const medalCase = () =>
     h(
@@ -221,7 +221,7 @@ export const hqScreen: ScreenFactory = (ctx, params) => {
             const d = medalDisplay(m.medalId, p.nation);
             return h('div', { class: 'm', title: m.citation }, svg(medalSvg(d, 80)), h('div', null, d.name), h('div', { class: 'date' }, formatDateShort(m.date)));
           })
-        : [h('div', { class: 'empty' }, 'The case is empty — for now.')]),
+        : [h('div', { class: 'empty' }, !closed ? 'The case is empty — for now.' : 'No decorations were awarded.')]),
     );
 
   const aces = () => {
@@ -296,7 +296,7 @@ function squadronPanel(sq: SquadronInfo, date: string): HTMLElement {
         { class: 'typed', style: 'font-size:.88em;line-height:1.8' },
         h('div', null, 'Aerodrome: ', field?.name ?? '—'),
         h('div', null, 'Establishment: ', equipmentOn(sq, date).join(', ') || '—'),
-        h('div', null, 'Formed: ', formatDate(sq.formed)),
+        h('div', null, 'In the line from: ', formatDate(sq.formed)),
         sq.notableAces.length ? h('div', null, 'Notable pilots: ', sq.notableAces.map((id) => aceDisplay(id)?.name ?? id).join(', ')) : null,
       ),
       (() => {

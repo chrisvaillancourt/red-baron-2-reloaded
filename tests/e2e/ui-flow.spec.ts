@@ -75,6 +75,9 @@ test('quick mission from the Quick Mission screen', async ({ page }) => {
   await page.waitForSelector('.hud-card');
   expect(await page.evaluate(() => window.__rb2!.session!.paused)).toBe(true);
   await page.click('.hud-card button:has-text("Abandon mission")');
+  // Abandoning asks for confirmation (it can mean capture behind the lines).
+  await expect(page.locator('.hud-card')).toContainText('taken prisoner');
+  await page.click('.hud-card button.danger:has-text("Abandon")');
   await expectScreen(page, 'debrief');
   await expect(page.locator('.rb-ui')).toBeVisible();
   await page.screenshot({ path: 'test-results/quick-debrief.png' });

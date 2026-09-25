@@ -65,9 +65,12 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
   const back = { x: -eDir.x, z: -eDir.z };
 
   const startMode = o.startPosition === 'random' ? rng.pick(['head-on', 'advantage', 'disadvantage'] as const) : o.startPosition;
-  let pStart: XZ = pointOnSide(fp, side, 2500, date);
+  // Instant action: a head-on dogfight merges in ~25 s (flights start ~2.6 km apart), as in RB2.
+  // Other quick types start further back so there is a run-in to the target.
+  const runIn = o.type === 'dogfight' ? 1300 : 2500;
+  let pStart: XZ = pointOnSide(fp, side, runIn, date);
   let pAlt = alt;
-  let eStart: XZ = pointOnSide(fp, enemySide, 2500, date);
+  let eStart: XZ = pointOnSide(fp, enemySide, runIn, date);
   let eAlt = alt;
   let pHeading = heading(pStart, eStart);
   let eHeading = heading(eStart, pStart);

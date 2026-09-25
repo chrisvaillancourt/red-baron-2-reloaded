@@ -60,9 +60,11 @@ export const ACES: readonly Ace[] = [
     id: 'lothar', firstName: 'Lothar', lastName: 'von Richthofen', displayName: 'Leutnant Lothar Freiherr von Richthofen', shortName: 'Ltn. L. von Richthofen',
     nation: 'germany', skill: 'ace',
     service: [
-      svc('1917-03-06', '1917-08-31', 'jasta11', 'albatros_diii'),
-      svc('1917-09-01', '1918-05-31', 'jasta11', 'fokker_dri'),
-      svc('1918-06-01', '1918-08-13', 'jasta11', 'fokker_dvii'),
+      // Gaps are his three spells in hospital (wounded 13 May 1917 and 13 March 1918).
+      svc('1917-03-06', '1917-05-13', 'jasta11', 'albatros_diii'),
+      svc('1917-09-24', '1917-12-31', 'jasta11', 'albatros_dv'),
+      svc('1918-01-01', '1918-03-13', 'jasta11', 'fokker_dri'),
+      svc('1918-07-19', '1918-08-13', 'jasta11', 'fokker_dvii'),
     ],
     victories: [['1917-03-28', 1], ['1917-05-13', 24], ['1918-03-12', 29], ['1918-07-19', 33], ['1918-08-12', 40]],
     fate: { kind: 'retired', date: '1918-08-13', note: 'Wounded for the third time; survived the war.' },

@@ -134,8 +134,16 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
     const unconf = claims.length - confirmedNow;
     narrative.push(
       confirmedNow
-        ? `${confirmedNow === 1 ? 'Your claim has' : `${confirmedNow} of your claims have`} been confirmed${unconf ? `; ${unconf} could not be verified` : ''}. That brings your tally to ${total}.`
-        : `None of your ${claims.length} claim${claims.length > 1 ? 's' : ''} could be confirmed - no witnesses, and no wreckage found.`,
+        ? `${
+            claims.length === 1
+              ? 'Your claim has been confirmed'
+              : confirmedNow === claims.length
+                ? `All ${claims.length} of your claims have been confirmed`
+                : `${confirmedNow} of your ${claims.length} claims ${confirmedNow === 1 ? 'has' : 'have'} been confirmed; ${unconf === 1 ? 'the other' : 'the rest'} could not be verified`
+          }. That brings your tally to ${total}.`
+        : claims.length === 1
+          ? 'Your claim could not be confirmed - no witnesses, and no wreckage found.'
+          : `None of your ${claims.length} claims could be confirmed - no witnesses, and no wreckage found.`,
     );
   }
   for (const milestone of [5, 10, 20, 30, 40, 50, 60, 70, 80]) {
