@@ -3,10 +3,11 @@
  * aces) the historical signature in src/data/aces.ts. Pure functions and data; the
  * controller (controller.ts) flies it.
  *
- * - **Energy tactics by matchup.** A pilot whose wing loading is well above his target's
- *   (Albatros D.V 44 against a Camel's 31 kg/m²) can't win a turning fight, so he flies
- *   boom-and-zoom: gain height, dive, one burst, zoom away, repeat. Static energy types
- *   (SPAD, S.E.5a, D.VII...) do the same against anyone.
+ * - **Energy tactics by matchup (off: measured worse).** Boom-and-zoom for a pilot whose
+ *   wing loading is well above his target's (D.V 44 against a Camel's 31 kg/m²), or for
+ *   any static energy type, lost more fights than turning did in every matchup measured
+ *   (DECISIONS "Boom-and-zoom measured and rejected"). The code stays behind its flags so
+ *   it can be re-measured if the flight model's dive limits change.
  * - **Positioning.** Before an attack, a pilot with patience climbs for a height advantage
  *   and, if he uses the sun, moves to where the target must look into it.
  */
@@ -22,8 +23,8 @@ import { clamp, lerp } from './math';
  * Each defaults to what measured best.
  */
 export const TACTICS_FLAGS = {
-  /** Out-turned pilots (wing loading >= OUT_TURNED_RATIO x target's) fly boom-and-zoom. */
-  boomZoomOutTurned: true,
+  /** Out-turned pilots (wing loading >= OUT_TURNED_RATIO x target's) fly boom-and-zoom. Off: measured worse. */
+  boomZoomOutTurned: false,
   /** Boom-and-zoom only while above the target (no climbing for position with him close). */
   boomZoomHighOnly: false,
   /** Static energy types (traits.ts ENERGY) fly boom-and-zoom against any fighter. */
@@ -85,17 +86,17 @@ export function tacticsProfile(skillT: number, tactics?: AceTactics): TacticsPro
   };
   switch (tactics) {
     case 'stalker':
-      return { ...base, patience: 120, heightAdv: 450, sunUse: 1, stragglerBias: 0.35, twoSeaterBias: 0.2, burstScale: 0.6, fireRangeScale: 0.8, commitment: 0.2, disengageDamage: 0.45 };
+      return { ...base, patience: 180, heightAdv: 450, sunUse: 1, stragglerBias: 0.35, twoSeaterBias: 0.2, burstScale: 0.6, fireRangeScale: 0.8, commitment: 0.2, disengageDamage: 0.45 };
     case 'lone-hunter':
       return { ...base, patience: 25, heightAdv: 250, sunUse: 0.7, stragglerBias: 0.3, burstScale: 1.3, commitment: 0.7, disengageDamage: 0.8 };
     case 'leader':
-      return { ...base, patience: 75, heightAdv: 400, sunUse: 1, stragglerBias: 0.45, twoSeaterBias: 0.25, burstScale: 0.8, commitment: 0.35, disengageDamage: 0.6 };
+      return { ...base, patience: 120, heightAdv: 400, sunUse: 1, stragglerBias: 0.45, twoSeaterBias: 0.25, burstScale: 0.8, commitment: 0.35, disengageDamage: 0.6 };
     case 'brawler':
       return { ...base, patience: 10, heightAdv: 200, sunUse: 0.3, burstScale: 1.2, fireRangeScale: 0.9, commitment: 1 };
     case 'two-seater-hunter':
-      return { ...base, patience: 90, heightAdv: 300, sunUse: 0.6, stragglerBias: 0.3, twoSeaterBias: 0.7, burstScale: 0.8, fireRangeScale: 0.85, commitment: 0.4, disengageDamage: 0.6 };
+      return { ...base, patience: 150, heightAdv: 300, sunUse: 0.6, stragglerBias: 0.3, twoSeaterBias: 0.7, burstScale: 0.8, fireRangeScale: 0.85, commitment: 0.4, disengageDamage: 0.6 };
     case 'calculated':
-      return { ...base, patience: 90, heightAdv: 400, sunUse: 0.9, stragglerBias: 0.3, burstScale: 0.8, commitment: 0.2, disengageDamage: 0.45 };
+      return { ...base, patience: 150, heightAdv: 400, sunUse: 0.9, stragglerBias: 0.3, burstScale: 0.8, commitment: 0.2, disengageDamage: 0.45 };
     default:
       return base;
   }
@@ -122,9 +123,10 @@ export function outTurnedBy(self: AircraftEntity, target: AircraftEntity): boole
 /**
  * Where to set up a diving attack on `target`: `heightAdv` above it and, weighted by
  * `sunUse`, along the line from the target toward the sun (so the target must look into
- * the sun to see the attack coming). Writes into `out`.
+ * the sun to see the attack coming). `standoff` (m along the sun line) lets a stalker work
+ * round at a distance before closing down the line. Writes into `out`.
  */
-export function attackSetupPoint(target: AircraftEntity, world: WorldQuery, heightAdv: number, sunUse: number, out: Vector3): Vector3 {
+export function attackSetupPoint(target: AircraftEntity, world: WorldQuery, heightAdv: number, sunUse: number, out: Vector3, standoff?: number): Vector3 {
   const tp = target.state.position;
   const tv = target.state.velocity;
   const sun = world.sunDirection;
@@ -135,9 +137,15 @@ export function attackSetupPoint(target: AircraftEntity, world: WorldQuery, heig
   out.y = heightAdv;
   if (sun && sun.y > 0.05 && sunUse > 0) {
     // Along the sun line from the target, far enough out to have the height.
-    const d = clamp(heightAdv / sun.y, 600, 1600);
-    _s.copy(sun).multiplyScalar(d);
-    _s.y = Math.max(_s.y, heightAdv);
+    if (standoff !== undefined) {
+      // Out at the sun's bearing, at the preferred height: closing from there brings us
+      // down the sun line (the target sees us inside the glare once dh/r ~ tan(elevation)).
+      _s.set(sun.x, 0, sun.z).normalize().multiplyScalar(standoff);
+      _s.y = heightAdv;
+    } else {
+      _s.copy(sun).multiplyScalar(clamp(heightAdv / sun.y, 600, 1600));
+      _s.y = Math.max(_s.y, heightAdv);
+    }
     out.lerp(_s, clamp(sunUse, 0, 1));
   }
   return out.add(tp);

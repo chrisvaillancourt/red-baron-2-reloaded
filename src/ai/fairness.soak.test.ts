@@ -18,7 +18,7 @@ import type { AircraftId, SkillLevel } from '../core/types';
 import { runAutoplay } from '../game/autoplay';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
-// AI_TACTICS=boomZoomOutTurned=0,stalk=1,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.
+// AI_TACTICS=boomZoomOutTurned=1,stalk=0,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.
 applyTacticsFlagsFromEnv(process.env);
 const REPS = Number(process.env.AI_FAIR_REPS ?? 16);
 const SET = process.env.AI_FAIR_SET ?? 'default';

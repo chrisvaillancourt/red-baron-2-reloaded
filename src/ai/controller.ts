@@ -829,6 +829,17 @@ export class AIPilot implements AIController {
       steer.dir.copy(this.breakDir).addScaledVector(f, 0.35);
       return true;
     }
+    // Lost him at a distance (cloud, glare): fly to where he was heading, not where he is.
+    // Close in, a pilot who loses sight under the nose or behind the wing still knows where
+    // a man he was just fighting is, so the ordinary pursuit (and its collision care) runs.
+    const seen = this.perception.contact(tgt.id);
+    if (TACTICS_FLAGS.memoryPursuit && seen && !seen.visible && this.now - this.hitAt > 1.5 && seen.position.distanceTo(s.position) > 350) {
+      const age = Math.min(this.now - seen.lastSeen, 8);
+      steer.dir.copy(seen.position).addScaledVector(seen.velocity, age).sub(s.position);
+      steer.maxG = Math.min(p.maxG, 3.5);
+      steer.minAgl = p.groundMargin * 0.6;
+      return true;
+    }
     if (this.useBoomZoom(self, tgt)) {
       this.steerBoomZoom(self, tgt, world, steer, r, f, dt);
       return true;
@@ -892,17 +903,52 @@ export class AIPilot implements AIController {
    */
   private steerStalk(self: AircraftEntity, tgt: AircraftEntity, world: WorldQuery, steer: SteerCommand, r: number): boolean {
     const tp = this.tactics;
-    if (!TACTICS_FLAGS.stalk || tp.patience <= 0 || r < 900 || this.now - this.hitAt < 5) {
-      if (r < 900) this.stalk = null;
+    // The setup point itself is ~600-1,600 m out along the sun line, so only a target this
+    // close ends the stalk.
+    if (!TACTICS_FLAGS.stalk || tp.patience <= 0 || r < 500 || this.now - this.hitAt < 5) {
+      if (r < 500) this.stalk = null;
       return false;
     }
     if (!this.stalk || this.stalk.targetId !== tgt.id) this.stalk = { targetId: tgt.id, since: this.now };
     if (this.now - this.stalk.since > tp.patience || likelySpottedBy(self, tgt, world)) return false;
     const s = self.state;
     const dh = s.position.y - tgt.state.position.y;
-    const sunOk = tp.sunUse < 0.3 || !world.sunDirection || world.sunDirection.y < 0.05 || sunAngle(tgt.state.position, s.position, world) < 20 * DEG;
-    if (dh >= tp.heightAdv * 0.8 && sunOk) return false;
-    attackSetupPoint(tgt, world, tp.heightAdv + 60, tp.sunUse, steer.dir).sub(s.position);
+    const sun = world.sunDirection;
+    const useSun = tp.sunUse >= 0.3 && sun !== undefined && sun.y > 0.05;
+    if (!useSun) {
+      if (dh >= tp.heightAdv * 0.8) return false;
+      attackSetupPoint(tgt, world, tp.heightAdv + 60, 0, steer.dir).sub(s.position);
+    } else {
+      // Work round to the sun's bearing at a distance (beyond his spotting range), then run
+      // in down the sun line: inside ~5-15° of the sun he is blind to us (perception glare).
+      const sa = sunAngle(tgt.state.position, s.position, world);
+      if (sa < 12 * DEG) {
+        if (r < 650) return false;
+        // In the glare: come straight down the sun line at him (a dive at the sun's
+        // elevation keeps us in it all the way), slightly led.
+        // Steer for the point on the line at (or below) our height: level until we reach the
+        // line, then down it. Pure pursuit would drift out of the glare.
+        const d = clamp(Math.min(r - 250, dh / sun.y), 250, r);
+        steer.dir.copy(tgt.state.position).addScaledVector(tgt.state.velocity, 1.5).addScaledVector(sun, d).sub(s.position);
+        this.stalk.since = Math.max(this.stalk.since, this.now - tp.patience + 5);
+        steer.speed = Infinity;
+        steer.maxG = 3;
+        steer.minAgl = this.profile.groundMargin;
+        return true;
+      }
+      const rel = _tmp2.copy(s.position).sub(tgt.state.position).setY(0);
+      const onBearing = rel.lengthSq() > 1 && rel.angleTo(new Vector3(sun.x, 0, sun.z)) < 15 * DEG;
+      if (onBearing && dh >= tp.heightAdv * 0.8) {
+        // On his sun bearing with the height: close in level until inside the glare.
+        steer.dir.copy(tgt.state.position).sub(s.position);
+        steer.dir.y = tgt.state.position.y + tp.heightAdv - s.position.y;
+        steer.speed = Infinity;
+        steer.maxG = 3;
+        steer.minAgl = this.profile.groundMargin;
+        return true;
+      }
+      attackSetupPoint(tgt, world, tp.heightAdv + 60, 1, steer.dir, clamp(r * 0.85, 1500, 3000)).sub(s.position);
+    }
     const hd = Math.hypot(steer.dir.x, steer.dir.z);
     if (steer.dir.y > hd * 0.35) steer.dir.y = hd * 0.35;
     // Climb while short of the height; with it in hand, close at speed round into the sun.
@@ -1258,7 +1304,9 @@ export class AIPilot implements AIController {
     // Refresh the drifting cloud's centre, then fly into it (and wander inside it).
     const c = world.nearestCloud(rf.pos, 600);
     if (c) rf.pos.copy(c.position);
+    // Into its flank at our own height (a climb for its core would hand him the shot).
     steer.dir.copy(rf.pos).sub(s.position);
+    steer.dir.y = Math.min(steer.dir.y, 40);
     if (inside) steer.dir.setY(0).normalize().applyAxisAngle(_up, 0.6 * Math.sin(this.now * 0.4));
     steer.speed = Infinity;
     steer.maxG = 3;

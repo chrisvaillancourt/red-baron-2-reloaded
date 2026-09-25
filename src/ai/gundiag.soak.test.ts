@@ -19,7 +19,7 @@ import { forwardOf } from './math';
 import { EntryTracker, entryLine, type EntryAcc } from './testing/entryStats';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
-// AI_TACTICS=boomZoomOutTurned=0,stalk=1,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.
+// AI_TACTICS=boomZoomOutTurned=1,stalk=0,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.
 applyTacticsFlagsFromEnv(process.env);
 const REPS = Number(process.env.AI_GD_REPS ?? 8);
 const SET = process.env.AI_GD_SET ?? 'default';

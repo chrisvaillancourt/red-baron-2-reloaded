@@ -1,7 +1,9 @@
 /**
  * Attack-entry geometry for soaks and tests: for each firing pass (the first round after
  * a 4 s pause), where the shooter came from relative to its target: height advantage,
- * out of the sun, unseen. Also time spent in sustained flat turns (bank > 45°, climb
+ * out of the sun, unseen. "Came from" is the geometry when the shooter last closed inside
+ * 600 m of that target (within 12 s of the burst): a diving attack from 400 m above is
+ * nearly level by the time an ace opens fire at 150 m. Also time spent in sustained flat turns (bank > 45°, climb
  * angle within ±10°, lasting more than 5 s) with an enemy within 1.5 km.
  */
 import { Vector3 } from 'three';
@@ -42,6 +44,8 @@ const SUN_CONE = (15 * Math.PI) / 180;
 export class EntryTracker {
   private readonly lastShot = new Map<number, number>();
   private readonly seg = new Map<number, number>();
+  /** Per shooter: geometry the last time it was outside 600 m of its target. */
+  private readonly approach = new Map<number, { targetId: number; t: number; dh: number; upSun: boolean }>();
   /** `acc` may be shared across runs to pool them. */
   constructor(
     private readonly world: EntryWorld,
@@ -70,26 +74,33 @@ export class EntryTracker {
     if (!target) return;
     const g = this.get(this.key(shooter));
     g.passes++;
-    const dh = shooter.state.position.y - target.state.position.y;
+    const ap = this.approach.get(shooter.id);
+    const useAp = ap && ap.targetId === target.id && t - ap.t < 12;
+    const dh = useAp ? ap.dh : shooter.state.position.y - target.state.position.y;
     g.heightAdvSum += dh;
     const above = dh > 100;
     if (above) g.above++;
-    const sun = this.world.sunDirection;
-    let upSun = false;
-    if (sun && sun.y > 0.05) {
-      const los = shooter.state.position.clone().sub(target.state.position);
-      upSun = los.angleTo(sun) < SUN_CONE;
-    }
+    const upSun = useAp ? ap.upSun : this.upSun(shooter, target);
     if (upSun) g.upSun++;
     if (above || upSun) g.aboveOrSun++;
     const tc = this.ctl(target.id) as CtlView | undefined;
     if (tc?.perception?.contacts && !tc.perception.contacts.has(shooter.id)) g.unseen++;
   }
 
-  /** Call at a fixed interval dt for flat-turn time. */
+  private upSun(shooter: AircraftEntity, target: AircraftEntity): boolean {
+    const sun = this.world.sunDirection;
+    if (!sun || sun.y < 0.05) return false;
+    return shooter.state.position.clone().sub(target.state.position).angleTo(sun) < SUN_CONE;
+  }
+
+  /** Call at a fixed interval dt for flat-turn time and approach geometry. */
   sample(dt: number): void {
     for (const a of this.world.aircraft) {
       if (a.outcome) continue;
+      const tgt = this.targetOf(a, Infinity);
+      if (tgt && tgt.state.position.distanceTo(a.state.position) > 600) {
+        this.approach.set(a.id, { targetId: tgt.id, t: this.world.time, dh: a.state.position.y - tgt.state.position.y, upSun: this.upSun(a, tgt) });
+      }
       const near = this.world.aircraft.some((e) => e.side !== a.side && !e.outcome && e.state.position.distanceToSquared(a.state.position) < 1500 * 1500);
       const g = this.get(this.key(a));
       if (near) g.combat += dt;
@@ -114,7 +125,7 @@ export class EntryTracker {
     }
   }
 
-  private targetOf(a: AircraftEntity): AircraftEntity | undefined {
+  private targetOf(a: AircraftEntity, nearest = 1000): AircraftEntity | undefined {
     const c = this.ctl(a.id) as CtlView | undefined;
     const id = c?.targetId;
     const byId = id != null ? this.world.aircraft.find((x) => x.id === id) : undefined;
@@ -130,7 +141,7 @@ export class EntryTracker {
         best = e;
       }
     }
-    return bd < 1000 ? best : undefined;
+    return bd < nearest ? best : undefined;
   }
 }
 
