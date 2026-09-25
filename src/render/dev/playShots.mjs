@@ -101,6 +101,12 @@ for (const [name, sc] of Object.entries(SCENARIOS)) {
     const T = window.__rb2render;
     const V = (x, y, z) => ({ x, y, z });
     window.__cam = { mode: 'none', seed: 1 };
+    // Frame-interval log for hitch analysis.
+    window.__frames = [];
+    let last = performance.now();
+    window.__hitchLog = [];
+    const tick = (t) => { const d = t - last; window.__frames.push(d); if (d > 25) window.__hitchLog.push([+(window.__rb2?.session?.time ?? -1).toFixed(2), Math.round(d)]); last = t; requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
     T.debugCameraHook = (cam) => {
       const st = window.__cam;
       if (st.mode === 'none') return;
@@ -194,15 +200,19 @@ for (const [name, sc] of Object.entries(SCENARIOS)) {
         await page.evaluate((m) => { window.__cam.mode = m; }, cam);
       }
       await page.waitForTimeout(120);
-      await page.screenshot({ path: `${outDir}/${name}-t${String(t).padStart(3, '0')}-${cam}.png` });
+      if (!process.env.NOSHOT) await page.screenshot({ path: `${outDir}/${name}-t${String(t).padStart(3, '0')}-${cam}.png` });
     }
     const info = await page.evaluate(() => {
       const s = window.__rb2render.stats();
+      window.__rb2render.towns.buildMaxMs = 0;
       const w = window.__rb2.session.world;
-      return { fps: Math.round(s.fps), ms: s.frameMs.toFixed(1), calls: s.drawCalls, tris: s.triangles, parts: s.particles, cpu: s.cpu, alive: w.aircraft.filter((a) => !a.outcome).length, smoking: w.aircraft.filter((a) => a.damage.smoking).length, burning: w.balloons?.filter((b) => b.burning).length };
+      const f = window.__frames.splice(0).sort((a, b) => a - b);
+      const pct = (q) => f.length ? f[Math.min(f.length - 1, Math.floor(q * f.length))].toFixed(1) : 0;
+      return { p50: pct(0.5), p95: pct(0.95), max: pct(1), hitches: f.filter((x) => x > 25).length, n: f.length, fps: Math.round(s.fps), ms: s.frameMs.toFixed(1), calls: s.drawCalls, tris: s.triangles, parts: s.particles, cpu: s.cpu, trees: s.trees, alive: w.aircraft.filter((a) => !a.outcome).length, smoking: w.aircraft.filter((a) => a.damage.smoking).length, burning: w.balloons?.filter((b) => b.burning).length };
     });
     console.log(name, 't=' + t, JSON.stringify(info));
   }
+  console.log(name, 'hitches@', JSON.stringify(await page.evaluate(() => window.__hitchLog.slice(0, 30))));
   if (errors.length) console.log(name, 'ERRORS', errors.slice(0, 5));
   await page.close();
 }

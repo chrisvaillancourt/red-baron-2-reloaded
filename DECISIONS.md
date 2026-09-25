@@ -427,3 +427,7 @@ and success/death rates are in a playable band (see the table in the final polis
 safe "End flight" (no enemy within 5 km, friendly ground below) remains a normal return.
 Every ace lost in a fight is reported in `MissionResult.acesDown` so the campaign retires
 him even when someone other than the player brought him down.
+## D-046 — Tree and town placement runs in web workers (render)
+**Context.** In real flights, building one forested tree cell (~20–45 ms) or one city tile (~100–220 ms) on the main thread caused visible stutters at low altitude.
+**Decision.** Placement moved to pure modules (`src/render/treeCells.ts`, `townTiles.ts`) run by `treeWorker.ts`/`townWorker.ts`, the same pattern as terrain chunks. The worker returns packed instance matrices and colours, and results for a stale date or season are dropped. If `Worker` is unavailable, placement falls back to the main thread. `whenReady()` also waits for nearby tree cells and town tiles.
+**Consequences.** No hitches over 25 ms in in-game strafing and dogfight runs (previously 180–230 ms spikes).
