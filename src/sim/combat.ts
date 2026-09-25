@@ -136,7 +136,9 @@ interface PendingBurst {
   lethalRadius: number;
 }
 
-const DRAG_K = 0.0007; // 1/m, bullet drag deceleration = k |v| v
+/** Bullet drag, 1/m: deceleration = k |v| v. The AI lead solution (src/ai/gunnery.ts) uses it. */
+export const BULLET_DRAG_K = 0.0007;
+const DRAG_K = BULLET_DRAG_K;
 const BULLET_LIFE = 3.5;
 const CONVERGENCE = 150;
 const RECENT_HIT_S = 30;

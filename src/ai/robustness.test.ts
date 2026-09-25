@@ -4,6 +4,7 @@ import type { AIController } from '../core/interfaces';
 import type { AircraftEntity, MissionFlight, SkillLevel, Waypoint } from '../core/types';
 import { createAIController, type AIPilot } from './controller';
 import { leadSolution } from './gunnery';
+import { BULLET_DRAG_K } from '../sim/combat';
 import { makeSkillProfile, skillValue } from './skill';
 import type { ModelVariant } from './testing/pointMassModel';
 import { makeAircraft, runScenario, TestWorld, TEST_REALISM } from './testing/testWorld';
@@ -92,18 +93,25 @@ describe('ground attack', () => {
 });
 
 describe('gunnery & skill', () => {
-  it('lead solution hits a constant-velocity target (ignoring drag)', () => {
+  it('lead solution hits a constant-velocity target (sim bullet drag and drop)', () => {
     const sp = new Vector3(0, 1000, 0);
     const sv = new Vector3(0, 0, -50);
     const tp = new Vector3(40, 1010, -250);
     const tv = new Vector3(30, 0, -40);
     const mv = 800;
     const sol = leadSolution(sp, sv, tp, tv, null, mv);
-    const t = sol.tof;
-    const bullet = sp.clone().addScaledVector(sv.clone().addScaledVector(sol.dir, mv), t);
-    bullet.y -= 0.5 * 9.81 * t * t * 1.15; // matches the solver's drag fudge
-    const target = tp.clone().addScaledVector(tv, t);
-    expect(bullet.distanceTo(target)).toBeLessThan(0.5);
+    // Integrate the round as src/sim/combat.ts does.
+    const b = sp.clone();
+    const bv = sv.clone().addScaledVector(sol.dir, mv);
+    const dt = 1 / 600;
+    let best = Infinity;
+    for (let t = dt; t < 1.5; t += dt) {
+      bv.multiplyScalar(1 - BULLET_DRAG_K * bv.length() * dt);
+      bv.y -= 9.81 * dt;
+      b.addScaledVector(bv, dt);
+      best = Math.min(best, b.distanceTo(tp.clone().addScaledVector(tv, t)));
+    }
+    expect(best).toBeLessThan(0.5);
   });
 
   it('enemy skill bias shifts only enemy pilots', () => {
