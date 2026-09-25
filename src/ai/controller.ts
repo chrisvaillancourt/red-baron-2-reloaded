@@ -924,12 +924,24 @@ export class AIPilot implements AIController {
       const sa = sunAngle(tgt.state.position, s.position, world);
       if (sa < 12 * DEG) {
         if (r < 650) return false;
-        // In the glare: come straight down the sun line at him (a dive at the sun's
-        // elevation keeps us in it all the way), slightly led.
-        // Steer for the point on the line at (or below) our height: level until we reach the
-        // line, then down it. Pure pursuit would drift out of the glare.
-        const d = clamp(Math.min(r - 250, dh / sun.y), 250, r);
-        steer.dir.copy(tgt.state.position).addScaledVector(tgt.state.velocity, 1.5).addScaledVector(sun, d).sub(s.position);
+        // In the glare: come down the sun line at him. The line moves with the target, so
+        // fly a constant-bearing course along it: his velocity plus a closing speed c
+        // toward him along the line (|v_t − c·sun| = our speed), plus a correction back
+        // onto the line. Steering for a point on the line lags a crossing target and drifts
+        // out of the glare (the attacker ended 30°+ off the sun at 600 m).
+        // Solve with the speed of a powered dive, not the current one: a stalker slower
+        // than a crossing target would otherwise find no closing speed and just fly
+        // alongside him, sliding off the line.
+        const vt = tgt.state.velocity;
+        const S = Math.max(s.velocity.length(), this.traits.maxSpeed * 0.9);
+        const vs = vt.dot(sun);
+        const c = vs + Math.sqrt(Math.max(0, vs * vs - vt.lengthSq() + S * S));
+        const off = _tmp2.copy(s.position).sub(tgt.state.position);
+        off.addScaledVector(sun, -off.dot(sun)); // offset from the line, perpendicular to it
+        // Below the line, climb back only gently: the 5° glare core is 100-200 m wide at
+        // these ranges, and a speed-bleeding climb loses the run.
+        if (off.y < 0) off.y *= 0.25;
+        steer.dir.copy(vt).addScaledVector(sun, -Math.max(c, 10)).addScaledVector(off, -0.15);
         this.stalk.since = Math.max(this.stalk.since, this.now - tp.patience + 5);
         steer.speed = Infinity;
         steer.maxG = 3;
