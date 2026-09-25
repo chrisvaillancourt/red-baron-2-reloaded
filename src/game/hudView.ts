@@ -9,6 +9,7 @@ import { GUNS } from '../data/aircraft';
 import { getCoefficients } from '../sim';
 import type { HudCameraView, HudGun, HudScreenPoint, HudTarget, HudThreat, HudView, HudWingman, WingmanStatus } from '../ui/hud/types';
 import type { CameraMode } from './cameras';
+import { wingmanLabels } from './wingmanNames';
 
 const tmp = new Vector3();
 const tmp2 = new Vector3();
@@ -150,16 +151,15 @@ function wingmen(i: HudBuildInput): HudWingman[] {
   const flight = world.getFlight(player.flightId);
   if (!flight) return [];
   const mates = world.aircraft.filter((a) => a.flightId === player.flightId && a.id !== player.id);
-  return mates.map((a) => {
+  const names = wingmanLabels(mates);
+  return mates.map((a, idx) => {
     let status: WingmanStatus = 'ok';
     if (a.outcome === 'landed-friendly') status = 'landed';
     else if (a.outcome !== null) status = 'down';
     else if (Math.max(...Object.values(a.damage.zones)) > 0.4 || a.damage.smoking) status = 'damaged';
     else if (world.aircraft.some((e) => e.side !== a.side && e.outcome === null && e.state.position.distanceTo(a.state.position) < 1200))
       status = 'engaged';
-    const last = a.callsign.split(' ').slice(-1)[0] ?? a.callsign;
-    const surname = last.startsWith('#') ? a.callsign : last;
-    return { name: surname, status, order: i.wingmanOrders.get(a.id) };
+    return { name: names[idx], status, order: i.wingmanOrders.get(a.id) };
   });
 }
 
