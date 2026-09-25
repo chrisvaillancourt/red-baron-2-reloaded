@@ -31,7 +31,8 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 per rAF frame (dt clamped to 0.1 s):
   input.enabled = !hud.menuOpen          (HUD cards own the keyboard)
   input.update -> player.controls, edge commands (views, time, wingmen, pause...)
-  if time compression > 1 and an enemy is within 4 km: drop to x1
+  threats.update (hits, silent damage, enemy rounds within 40 m)
+  if time compression > 1 and compressionBlock(): drop to x1 (see Time compression)
   accumulator += dt * timeScale; while accumulator >= 1/120:   (SimCore.step)
       world.time += h; spawn due flights
       every 4th step (30 Hz): ai.update(ac, world, 4h) for AI aircraft
@@ -98,6 +99,24 @@ The session builds the UI's `HudView` directly (no adapter layer):
 - `MissionResult.acesDown` lists every historical ace lost in the fight
   (either side, whoever brought him down); the campaign retires killed and
   captured ones from the career.
+
+## Time compression
+
+x1/x2/x4/x8 (`TIME_SCALES`). `compressionBlock` (`timeCompression.ts`) refuses
+it, or drops it to x1 with a HUD message, when:
+- an enemy aircraft is within 4 km (`COMPRESSION_SAFE_RANGE`);
+- the player was threatened in the last 8 s (`ThreatWatch`): hit, damaged
+  without an event (trench small-arms fire), a flak burst within 200 m, or an
+  enemy round passing within 40 m;
+- the player is below 300 m AGL over enemy-held ground, or near a live enemy
+  ground target (2.5 km; AA guns 4 km).
+
+## G-effects
+
+`stepGEffect` (`gEffect.ts`) builds grey-out a g below the pilot's sustained
+tolerance (sim `pilotGTolerance`: 5.5 g fit, down to 2.5 g badly wounded), so a
+fit pilot greys from 4.5 g and a wounded one sooner. Red-out starts at -1.5 g,
+scaled by the same ratio.
 
 ## Mouse-aim
 
