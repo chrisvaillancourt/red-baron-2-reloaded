@@ -457,7 +457,7 @@ function playerMembers(ctx: GenCtx, s: PlayerSetup): MissionFlightMember[] {
   for (const ace of aces) {
     members.push({ pilotName: aceNamesOn(ace, ctx.date).short, aceId: ace.id, skill: 'ace', livery: composeLivery({ aircraftId, nation: pilot.nation, date: ctx.date, squadronId: squadron.id, aceId: ace.id }) });
   }
-  const roster = squadronRoster(pilot.rngSeed, squadron.id, pilot.nation, ctx.date, pilot.difficulty);
+  const roster = squadronRoster(pilot.rngSeed, squadron.id, pilot.nation, ctx.date, pilot.difficulty, 8, pilot.lastName);
   const picks = ctx.rng.shuffle(roster).slice(0, mates - aces.length);
   for (const r of picks) {
     members.push({ pilotName: r.name, skill: r.skill, livery: composeLivery({ aircraftId, nation: pilot.nation, date: ctx.date, squadronId: squadron.id, marking: markingFor(pilot.nation, members.length) }) });
@@ -511,9 +511,16 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
       const dirLat = rng.chance(0.5) ? 1 : -1;
       const p1 = pointOnSide(fp, patrolSide, d, date, ingressLat - dirLat * 1500);
       const p2 = pointOnSide(fp, patrolSide, d, date, ingressLat + dirLat * 6500);
+      // Name the patrol line's ends by where they really lie (-Z is north), not by leg order.
+      const p1North = p1.z <= p2.z;
       const wps = deep
         ? [wp(ingress, alt, 'fly', { label: 'Cross the lines' }), wp(p1, alt, 'patrol', { duration: 300, label: 'Hunting ground' }), wp(ingress, alt, 'fly', { label: 'Recross the lines' }), home]
-        : [wp(ingress, alt, 'fly', { label: 'The lines' }), wp(p1, alt, 'patrol', { duration: 120, label: 'Patrol line (north)' }), wp(p2, alt, 'patrol', { duration: 120, label: 'Patrol line (south)' }), home];
+        : [
+            wp(ingress, alt, 'fly', { label: 'The lines' }),
+            wp(p1, alt, 'patrol', { duration: 120, label: `Patrol line (${p1North ? 'north' : 'south'})` }),
+            wp(p2, alt, 'patrol', { duration: 120, label: `Patrol line (${p1North ? 'south' : 'north'})` }),
+            home,
+          ];
       const enemyStart = pointOnSide(fp, enemySide, 6000, date, ingressLat + rng.range(-4000, 4000));
       const e1 = fighterFlight(ctx, {
         side: enemySide, role: 'enemy', near: fp, count: enemyCount(ctx, 3), start: enemyStart, altitude: eAlt(),

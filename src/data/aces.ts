@@ -211,6 +211,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'lowenhardt', firstName: 'Erich', lastName: 'Löwenhardt', displayName: 'Oberleutnant Erich Löwenhardt', shortName: 'Oblt. Löwenhardt',
+    ranks: [rk('1914-01-01', 'Leutnant', 'Ltn.'), rk('1918-04-01', 'Oberleutnant', 'Oblt.')],
     nation: 'germany', skill: 'ace',
     service: [
       svc('1917-03-01', '1917-06-30', 'jasta10', 'albatros_diii'),
@@ -446,6 +447,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'springs', firstName: 'Elliott', lastName: 'White Springs', displayName: 'Captain Elliott White Springs', shortName: 'Capt. Springs',
+    ranks: [rk('1914-01-01', 'First Lieutenant', '1st Lt.'), rk('1918-10-01', 'Captain', 'Capt.')],
     nation: 'usa', skill: 'veteran',
     service: [svc('1918-07-01', '1918-10-30', 'us148', 'sopwith_camel')],
     victories: [['1918-06-03', 1], ['1918-08-31', 11], ['1918-10-30', 16]],
@@ -454,6 +456,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'kindley', firstName: 'Field', lastName: 'Kindley', displayName: 'Captain Field Kindley', shortName: 'Capt. Kindley',
+    ranks: [rk('1914-01-01', 'First Lieutenant', '1st Lt.'), rk('1918-10-01', 'Captain', 'Capt.')],
     nation: 'usa', skill: 'veteran',
     service: [svc('1918-07-01', '1918-11-11', 'us148', 'sopwith_camel')],
     victories: [['1918-06-26', 1], ['1918-10-28', 12]],
@@ -478,6 +481,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'chambers', firstName: 'Reed', lastName: 'Chambers', displayName: 'Captain Reed Chambers', shortName: 'Capt. Chambers',
+    ranks: [rk('1914-01-01', 'First Lieutenant', '1st Lt.'), rk('1918-10-01', 'Captain', 'Capt.')],
     nation: 'usa', skill: 'veteran',
     service: [svc('1918-03-05', '1918-07-14', 'us94', 'nieuport_28'), svc('1918-07-15', '1918-11-11', 'us94', 'spad_xiii')],
     victories: [['1918-05-07', 1], ['1918-10-22', 7]],

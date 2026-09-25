@@ -47,6 +47,11 @@ function newspaperBody(report: DebriefReport): string {
   return `Witnesses on the ground report that the patrol ${what} in the course of the action${ace ? `, among them the machine of a celebrated enemy ace` : ''}. ${report.missionSuccess ? 'Headquarters describes the operation as a complete success.' : 'The fighting was costly, but the spirit of the squadron is unbroken.'}`;
 }
 
+/** "1 sortie", "3 sorties". */
+function count(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 function victimName(c: VictoryClaim): string {
   if (c.victimAircraftId === 'balloon') return 'Observation balloon';
   const ac = AIRCRAFT[c.victimAircraftId as keyof typeof AIRCRAFT];
@@ -232,7 +237,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
           h('div', { class: 'c-kicker engraved', style: 'color:var(--brass-hi)' }, fate === 'killed' ? 'In memoriam' : fate === 'captured' ? 'Prisoner of War' : 'The war is over'),
           h('h2', null, pilot ? `${pilot.firstName} ${pilot.lastName}` : name),
           h('div', { class: 'typed' }, `${pilot ? rankDisplay(pilot.rankId).title : ''}${squadron ? `, ${squadron.name}` : ''}`),
-          h('div', { class: 'typed' }, `${pilot?.missionsFlown ?? 0} sorties · ${confirmed} confirmed victories · ${pilot?.medals.length ?? 0} decorations`),
+          h('div', { class: 'typed' }, `${count(pilot?.missionsFlown ?? 0, 'sortie')} · ${count(confirmed, 'confirmed victory', 'confirmed victories')} · ${count(pilot?.medals.length ?? 0, 'decoration')}`),
           fate === 'killed' ? h('p', { class: 'epitaph' }, `“${ep}”`, h('br'), h('small', null, `— ${by}`)) : h('p', { class: 'epitaph' }, fate === 'captured' ? 'Held in captivity until the Armistice. The skies went on without you.' : 'You survived the war in the air — few can say the same.'),
           continueBtn(true, 'Close the record'),
         );
