@@ -635,3 +635,18 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Woods:** multi-scale canopy tone (stand, clump, crown), each fading to its mean, over lighter seasonal forest colours. Autumn tree tints are less orange.
 - **`tblob`:** two rotated value-noise octaves for thresholded patches.
 **Consequences.** From 1–3 km the network reads as fine pale lines, from 2 km straight down as parallel chalk lines with communication trenches, and at 50–300 m as dark crenellated cuts edged with spoil. The wave-4 low-level crater look is unchanged. Cost: +0.16 ms p50 on 'high' in big16 (A/B mean of five, 3.64 against 3.48 ms), within noise in the `frontShots` views. The trench trace direction is still a fixed world axis (`along`), so lines running east–west show stretched bays; an arc-length parameter would need a per-vertex attribute.
+## D-068 — Quick ground attack: defenders scramble low in two staggered elements; flak is not a strafing target (balance wave 6)
+**Context.** Quick ground attacks killed or captured the autoplayer in most runs. The defenders were one flight arriving together at 500 m AGL, about two minutes in. Traces also showed strafers spending passes on the AA gun sited next to the target waypoint (never an objective), so they failed the 3-target objective and left with the job undone.
+**Decision.** `buildQuickMission` splits the defenders into two elements (ceil(n/2), then the rest). They scramble 7 and 8.5 km beyond the target at 350 m AGL, and arrive ~150 s and ~240 s after the player reaches the target. Strafers add 4 km to an AA gun's distance when choosing a target, so they attack flak only when nothing else is left. A closure-based "scouts coming" exit and different pass caps were measured and gave no gain, so they were dropped.
+**Consequences.** Quick ground attacks, 24 seeds per setup:
+- Screen default (Camel and wingman v 2 regular D.Vs): success 38% → 100%, killed or captured 21% → 13%.
+- Camel v 3 Dr.I: success 42% → 92%, killed or captured 46% → 29%.
+- D.VII v 2 veteran SPADs: success 88% → 96%, killed or captured 71% → 63%. Veteran defenders stay deadly.
+
+## D-069 — Collision avoidance: early committed head-on break, wider berth for the player (balance wave 6)
+**Context.** The career survey had 8.5 collisions per 100 missions, 2.5% of them fatal to the player. The worst case is a pilot who holds his line (the human never dodges for the AI). In a 4v4 soak with the allied leader flown without avoidance, 21 fights in 100 had a collision and the leader was lost in 35 of 150. Most were head-on, against a wreck-to-be. The old break came at 55 m, half a second from impact at head-on closure.
+**Decision.** An attacker breaks a closing pass at max(55 m, 1.8 s × closure). For 0.8 s it flies a committed escape: away from the closest-approach point, or up the lift line when dead ahead, split by id and always up against the player. It then extends. Avoidance gives the player and a flight-mate chasing the same target a 45 m radius (32 m otherwise). A real conflict (weight > 0.25) lifts the manoeuvre's g cap. `AIControllerOptions.avoidCollisions: false` lets tests stand in for a human.
+**Consequences.**
+- Soak (150 runs): human-leader collisions fell from 21 to 4 per 100 runs, and leader losses from 35 to 6. Kills per run held (2.77 → 2.69).
+- Career survey: collisions fell from 8.5 to 3.5 per 100 missions, and player collision losses from 2.5% to 1.0%. The overall career killed-or-captured rate is unchanged at 25%.
+- Tests: `collision.realsim.test.ts` fails on the old controller (3 human collisions in 20 runs) and passes on the new one.

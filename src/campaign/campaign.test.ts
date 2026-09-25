@@ -289,10 +289,9 @@ describe('mission generator', () => {
         expect(m.isCareer).toBe(false);
         expect(m.flights[0].members).toHaveLength(3);
         expect(m.flights[0].side).toBe('allied');
-        const enemy = m.flights.find((f) => f.role === 'enemy')!;
-        expect(enemy.aircraftId).toBe('fokker_dri');
-        expect(enemy.members[0].aceId).toBe('mvr');
-        expect(enemy.members).toHaveLength(3);
+        const enemies = m.flights.filter((f) => f.role === 'enemy' && f.aircraftId === 'fokker_dri');
+        expect(enemies[0].members[0].aceId).toBe('mvr');
+        expect(enemies.reduce((n, f) => n + f.members.length, 0)).toBe(3);
       }
     }
   });

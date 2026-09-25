@@ -51,14 +51,38 @@ are less accurate"):
   RTB flights that fight back. Quick ground attack returned 13% → 25%.
 
 Remaining:
-- **Defer (mission balance, not AI):** defended quick ground attacks still kill
-  the autoplayer ~67% (+8% captured), with success 58%. Veteran SPADs arrive with
-  height and speed over low, slow strafers. Levers: defender scramble delay or
-  altitude in `src/campaign` quick builder.
+- **Done (wave 6):** defended quick ground attacks. The defenders now scramble low in
+  staggered elements; see "Balance — wave 6".
 - **Defer:** quick dogfight survey setups (D.VII against two veteran SPADs)
   are hard by construction (~75% killed); not a bug.
-- **Do:** career collisions (2 wingman, 2 enemy in 56 missions) are now a large
-  share of losses; formation and head-on pass separation are the next place to look.
+- **Done (wave 6):** career collisions. Head-on break and separation; see "Balance —
+  wave 6".
+
+**Balance — wave 6**
+- **Done:**
+  - Quick ground attack: the defenders scramble low in two staggered elements, and
+    strafers leave the flak gun until last. The screen default went from 38% to 100%
+    success, and killed-or-captured from 21% to 13% (docs/ai.md "Wave 6").
+  - Collisions: early head-on break, and a wider berth for the player and for flight-mates
+    chasing the same target. Career collisions per 100 missions fell from 8.5 to 3.5, and
+    player losses to collision from 2.5% to 1.0%.
+  - Career-awards e2e (`tests/e2e/career-awards.spec.ts`): through the real campaign it
+    shows the report, newspaper ("NEW ACE…"), promotion (Leutnant → Oberleutnant) and
+    Iron Cross, and HQ shows the victories.
+  - Autoplayer: logs every collision, has setup and type filters and seed offsets, and no
+    longer counts a shot-up airframe that fails later as a flak loss.
+- **Defer:** the Quick Mission default dogfight is lopsided in the player's favour. Player
+  down is 4%, against a 40–55% target. Mirror matchups are fair, so this is the matchup,
+  not skill scaling: the AI rarely hits a hard-turning Camel. Next step, in two parts:
+  improve AI gunnery against high-turn-rate targets (src/ai), and/or change the screen's
+  default enemy type (src/ui). Measure with `AI_SOAK=fairness AI_FAIR_SET=default,mirror`.
+- **Defer:** quick ground attack against *veteran* defenders is still 63% killed or
+  captured. The difficulty is chosen by the player; revisit only if players complain.
+- **Defer:** the career killed-or-captured rate is ~25% for the veteran autoplayer
+  (patrol 35%, free hunt 35%). Enemy fire, not collisions, is now the cause. This is an
+  upper bound for a careful human (see docs/game.md).
+- **Do (game owner):** wire `pilotGTolerance` into `FlightSession.updateGEffect` (from
+  wave 5; not done here).
 
 **Done (wave 4) — flight and HUD**
 - HUD centre declutter (`src/ui/hud/declutter.ts`; DECISIONS "HUD declutter by priority"): the waypoint fades

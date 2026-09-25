@@ -13,7 +13,9 @@ describe.skipIf(!SOAK.includes('quickdiag'))('quick diag', () => {
   it('trace', () => {
     const which = process.env.AI_Q ?? 'dvii';
     const q: QuickMissionOptions =
-      which === 'dvii'
+      which === 'default'
+        ? { type: 'ground-attack', playerAircraft: 'sopwith_camel', enemyAircraft: 'albatros_dv', enemyCount: 2, wingmen: 1, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.35 }
+        : which === 'dvii'
         ? { type: 'ground-attack', playerAircraft: 'fokker_dvii', enemyAircraft: 'spad_xiii', enemyCount: 2, wingmen: 1, enemySkill: 'veteran', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.5 }
         : { type: 'ground-attack', playerAircraft: 'sopwith_camel', enemyAircraft: 'fokker_dri', enemyCount: 3, wingmen: 2, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2000, startPosition: 'random', timeOfDay: 'midday', cloudCover: 0.3 };
     const m = buildQuickMission(q, Number(process.env.AI_QSEED ?? 1009));

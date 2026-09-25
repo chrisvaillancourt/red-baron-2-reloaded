@@ -70,7 +70,12 @@ their leader is doing).
    energy fighters with a lead extend along the deck toward home. Flat scissors
    were tried and measured worse (DECISIONS.md "Low-level defence").
    Collision avoidance covers airborne wrecks as well as live aircraft (~4 s /
-   450 m look-ahead).
+   450 m look-ahead). It gives the player, who won't dodge for the AI, and a
+   flight-mate on the same target a 45 m radius (32 m otherwise), and a real
+   conflict lifts the manoeuvre's g cap. A closing pass is broken off 1.8 s out
+   (not at 55 m) with a committed 0.8 s escape: away from the closest-approach
+   point, or up the lift line when dead ahead (DECISIONS.md "Collision avoidance:
+   early committed head-on break").
 3. **Mission** (`navigation.ts`). Waypoints (`fly`, `patrol`, `rendezvous`,
    `attack-balloon`, `attack-ground`, `land`), vic formation keeping, escort
    station 300 m above and behind the escorted flight, balloon and strafing
@@ -88,6 +93,8 @@ their leader is doing).
    - **Scouts:** attackers fight scouts within 1.5 km unless already committed to a close
      run. A tried "run home when outnumbered low" rule made things worse (fleeing with a
      scout on your tail is deadlier than turning with him), so it was dropped.
+   - **Target choice:** AA guns count 4 km further away, so flak is strafed only when
+     nothing else is left (it is never an objective).
    - **Leaving the target:** at most 3 ground / 4 balloon passes, and the attack ends with
      45% (ground) / 20% (balloon) fixed-gun ammunition left for the fight home. Between
      runs, after at least one pass, an enemy scout within 3.5 km ends the attack: the
@@ -195,7 +202,14 @@ every gain with dynamic pressure automatically.
   time); `AI_SOAK=dither|dithertrace` in `aimDither.realsim.test.ts` (mouse-aim bank
   activity near the aim); `AI_SOAK=lossdiag` (how the veteran autoplayer dies in career
   missions) and `AI_SOAK=quickdiag AI_Q=dvii|camel AI_QSEED=n` (5 s trace of a quick
-  ground attack).
+  ground attack; `AI_Q=default` is the Quick Mission screen's setup).
+  Wave-6 surveys: `AI_SOAK=collision AI_SEEDS=150` (`collision.soak.test.ts`: 4v4 furballs,
+  the same with a human stand-in leader without avoidance, a 5-ship vic; collisions by pair
+  and geometry, plus kills and first-kill time) and `AI_SOAK=fairness AI_FAIR_SET=default|mirror|matrix|camel|survey
+  AI_FAIR_REPS=24` (`fairness.soak.test.ts`: quick-dogfight win %, player losses, exchange).
+- `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
+  at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
+  the flak gun at the waypoint.
 - `aimDither.realsim.test.ts` and `instructorMargin.realsim.test.ts` (CI): E.III and
   Camel settle on a mouse-aim point without wing-rocking; the instructor presets order
   their stall margins relaxed > standard > authentic and relaxed never stalls a Camel or
@@ -243,11 +257,31 @@ the length of 1v1 fights between equal pilots (4–7 min); balance it in
 | Quick ground attack (veteran defenders): killed + captured / returned | 88% / 13% | 75% / 25% |
 | E.III mouse-aim bank rate near the aim (standard) | ~20°/s | ~14°/s |
 
+### Wave 6: quick-mission balance and collisions
+
+| Measure | Before | After |
+|---|---|---|
+| Quick ground attack, screen default (24 seeds): success / killed+captured | 38% / 21% | 100% / 13% |
+| Quick ground attack, Camel v 3 Dr.I | 42% / 46% | 92% / 29% |
+| Quick ground attack, D.VII v 2 veteran SPADs | 88% / 71% | 96% / 63% |
+| Collision soak, human stand-in leader: collisions per 100 fights / leader lost | 21 / 35 of 150 | 4 / 6 of 150 |
+| Career survey collisions per 100 missions | 8.5 (353 missions) | 3.5 (719) |
+| Career player losses to collision | 2.5% | 1.0% |
+| Career killed+captured (veteran autoplayer) | 25.2% | 25.0% |
+| Quick dogfight, screen default (Camel+1 v 2 regular D.V): player down | — | 4% |
+
 ### Known weaknesses
 
-- Quick ground attacks against veteran scouts remain very dangerous (~2/3 killed):
-  the defenders arrive with height and speed while the strafers are low and slow.
-- Quick dogfights (1 v several, veteran) kill the autoplayer ~75% of the time.
+- Quick ground attacks against *veteran* scouts remain very dangerous (63% killed or
+  captured).
+- The Quick Mission default dogfight (Camel v D.V) is lopsided, not even: the player
+  goes down in ~4% (target 40–55%). The AI shoots a Camel badly: in 16 runs the D.Vs
+  landed 81 hits against the Camels' 1,287. Mirror matchups are fair: the player goes
+  down 21–50% (Camel v Camel 38%, D.V v D.V 50%, Dr.I v Dr.I 46%). So the gap comes
+  from the matchup (turn rate, and the AI's gunnery against a hard-turning target), not
+  from skill scaling. Skill was not changed.
+- The old survey setups (Camel+2 v 3 Dr.I at random start, D.VII+1 v 2 veteran SPADs)
+  put the player down 83% and 50%. Both are hard by construction.
 
 - Aces don't exploit the vertical (yo-yos, zoom climbs) beyond energy-fighter
   extensions; equal turn fights between regulars can circle for minutes.
