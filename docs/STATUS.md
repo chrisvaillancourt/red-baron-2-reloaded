@@ -81,8 +81,7 @@ Remaining:
 - **Defer:** the career killed-or-captured rate is ~25% for the veteran autoplayer
   (patrol 35%, free hunt 35%). Enemy fire, not collisions, is now the cause. This is an
   upper bound for a careful human (see docs/game.md).
-- **Do (game owner):** wire `pilotGTolerance` into `FlightSession.updateGEffect` (from
-  wave 5; not done here).
+- **Done (game wave 6):** `pilotGTolerance` drives the grey-out (see below).
 
 **Done (wave 4) — flight and HUD**
 - HUD centre declutter (`src/ui/hud/declutter.ts`; DECISIONS "HUD declutter by priority"): the waypoint fades
