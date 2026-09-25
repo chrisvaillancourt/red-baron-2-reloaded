@@ -501,7 +501,7 @@ lazy build still applies.
 **Consequences.** No main-thread grid build during flight. Costs ~4 MB of transfer per date,
 which is negligible.
 
-## D-XXX — Renderer teardown disposes every scene resource (robustness)
+## D-055 — Renderer teardown disposes every scene resource (robustness)
 **Context.** A 20-flight soak showed every flight leaking its whole
 `WebGLRenderer` (live GL context, programs, buffers). three.js registers a
 `'dispose'` listener on each geometry/material/texture it uploads, and
@@ -519,7 +519,7 @@ The next flight pays a re-upload of the shared models, which is negligible.
 Any new module-level GPU cache is covered automatically, as long as its
 objects are in the scene when the flight ends.
 
-## D-XXX — Flight code is a lazily loaded chunk (robustness; amends D-018)
+## D-056 — Flight code is a lazily loaded chunk (robustness; amends D-018)
 **Context.** The boot bundle was 1.25 MB (370 kB gzip) because menus
 statically pulled in the renderer, sim and AI.
 **Decision.** The composition point is split. `src/game/modules.ts` binds
@@ -532,7 +532,7 @@ in `activeFlight.ts` so error recovery doesn't import the flight chunk.
 typed split (`MenuModules` / `FlightOnlyModules`). A static import of
 flight-only code from `modules.ts` or `app.ts` would quietly undo the split.
 
-## D-XXX — Errors end the flight, never the app (robustness)
+## D-057 — Errors end the flight, never the app (robustness)
 **Decision.**
 - A frame or setup exception tears the flight down and shows "Flight
   interrupted". Nothing is recorded, and the UI is back.
@@ -545,7 +545,7 @@ flight-only code from `modules.ts` or `app.ts` would quietly undo the split.
 **Consequences.** Recovery never touches saves: a career changes only in
 `applyMissionResult`, so an error can't corrupt or double-advance it.
 
-## D-XXX — Career saves are read-modify-write with quarantine (robustness)
+## D-058 — Career saves are read-modify-write with quarantine (robustness)
 **Context.** The store rewrote the whole document from memory. A second tab
 erased the first tab's new pilots, a record failing validation vanished at
 the next save, and a newer build's save would have been downgraded.
