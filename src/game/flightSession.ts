@@ -28,7 +28,8 @@ import type { Hud } from '../ui/hud/types';
 import type { MapMarker, MapView } from '../ui/map/mapRenderer';
 import { resolveUnits } from '../ui/format';
 // Read-only gunner state for the rear-gun visuals (pure sim helper, no composition needed).
-import { getGunnerTarget } from '../sim';
+import { getGunnerTarget, pilotGTolerance } from '../sim';
+import { stepGEffect } from './gEffect';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
 import { showFlightInterrupted } from './errorOverlay';
@@ -672,10 +673,7 @@ export class FlightSession {
       this.gEffect = 0;
       return;
     }
-    const g = p.state.gLoad;
-    if (g > 4.5) this.gEffect = Math.min(1, this.gEffect + (g - 4.5) * 0.25 * dt);
-    else if (g < -1.5) this.gEffect = Math.max(-1, this.gEffect - (-1.5 - g) * 0.4 * dt);
-    else this.gEffect += (0 - this.gEffect) * Math.min(1, dt * 0.8);
+    this.gEffect = stepGEffect(this.gEffect, p.state.gLoad, pilotGTolerance(p), dt);
   }
 
   private samplePixels(): void {
