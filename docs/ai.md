@@ -354,7 +354,8 @@ setup, about ±10% noise.
 | Enemy entries from above or up-sun, head-on quick fight (`gundiag`, 24): regular / novice / ace D.V | 7 / 7 / 16% | 11 / 5 / 19% |
 | Stalker ace v unaware patrol, low sun (`stalk.realsim`, 5 seeds): entries up-sun / unseen | 0 / 0 of 5 | 5 / 3 of 5 |
 | Wounded pilot, cumulus 900 m ahead (`cloudEscape.realsim`, 6 seeds): s in cloud / s out of pursuer's sight / hits taken | 46 / 57 / 213 | 126 / 151 / 227 |
-| Veteran career killed+captured | pending | pending |
+| Veteran career killed+captured (`AUTOPLAY_MISSIONS=10`) | 24% (19 of 78 missions) | 16% (15 of 91) |
+| Career collisions per 100 missions | 5.1 (4 of 78) | 3.3 (3 of 91) |
 
 The mirror swings (Camel 33→13%, D.V 21→38%, Dr.I 25→42%) go both ways and sit inside
 the noise for 24 runs of a 2v2. Read them as no net change. None of the quick setups tests
@@ -365,9 +366,10 @@ flights meet beyond spotting range, and in a quick dogfight with
 `startPosition: 'disadvantage'` (enemy 1.6 km behind and 500 m above, in the player's
 blind cone) against a named ace in a low sun.
 
-Career survey (pending, lead to run after merge; compare against the same command with the
-`AI_TACTICS=...` off switch above):
-`AUTOPLAY=career AUTOPLAY_MISSIONS=10 AUTOPLAY_OUT=<scratch>/career.txt pnpm vitest run src/game/autoplay.soak.test.ts`.
+The career survey (`AUTOPLAY=career AUTOPLAY_MISSIONS=10 AUTOPLAY_OUT=<scratch>/career.txt
+pnpm vitest run src/game/autoplay.soak.test.ts`, off with the `AI_TACTICS=...` prefix) is
+one run each. A pilot's career ends when he is killed, so the two runs fly different
+missions (78 against 91), and the gap is about ±5%. Read it as "no worse", not as a gain.
 Run `career` and `quick` as separate invocations: both write to `AUTOPLAY_OUT` from the
 start, so a combined run keeps only the quick table.
 
