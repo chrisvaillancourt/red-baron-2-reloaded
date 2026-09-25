@@ -86,6 +86,24 @@ test('an error inside a frame interrupts the flight cleanly and the app stays us
   expect(errors).toEqual([]);
 });
 
+test('a mid-flight error launched from the menus shows only the interrupted card, not the start-failure toast', async ({ page }) => {
+  collectErrors(page, [/Flight session failed/, /injected frame fault/, /flight failed/]);
+  await page.goto('/');
+  await page.waitForFunction(() => document.querySelector('.rb-screen')?.getAttribute('data-screen') === 'title', undefined, { timeout: 30_000 });
+  await page.click('text=Quick Mission');
+  await page.click('text=To the briefing');
+  await page.click('button:has-text("Take off")');
+  await page.locator('.rb-modal:has-text("Flying School") button:has-text("Understood")').click();
+  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 40_000 });
+  await page.evaluate(() => window.__rb2!.session!.throwNextFrame('injected frame fault'));
+  const card = page.locator('#rb-flight-error');
+  await expect(card).toContainText('Flight interrupted');
+  await expect(page.locator('.rb-ui')).toBeVisible();
+  await page.waitForTimeout(500);
+  // Counted once: a retrying expect() would pass when the toast times out on its own.
+  expect(await page.locator('.rb-toast').count()).toBe(0);
+});
+
 test('survives a WebGL context loss that the browser restores', async ({ page }) => {
   const errors = collectErrors(page, [/CONTEXT_LOST_WEBGL/i, /context lost/i]);
   await boot(page);

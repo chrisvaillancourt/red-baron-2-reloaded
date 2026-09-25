@@ -32,6 +32,7 @@ import { getGunnerTarget } from '../sim';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
 import { showFlightInterrupted } from './errorOverlay';
+import { markErrorReported } from '../core/flightErrors';
 import { getActiveFlight, setActiveFlight } from './activeFlight';
 
 export { SIM_HZ, AI_EVERY_N_STEPS } from './simCore';
@@ -115,6 +116,8 @@ export class FlightSession {
   private root!: HTMLDivElement;
   private canvas!: HTMLCanvasElement;
   private raf = 0;
+  /** Set when setup is done and the first frame is scheduled (errors after this interrupt a flight). */
+  private started = false;
   private lastT = 0;
   private accumulator = 0;
   private timeScaleIdx = 0;
@@ -245,6 +248,7 @@ export class FlightSession {
     window.__rb2 = { ...window.__rb2, session: this.debugHandle() };
     this.bus.emit({ type: 'radio', from: '', text: `${mission.title}. Esc for the menu, M for the map.` });
     this.lastT = performance.now();
+    this.started = true;
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -716,7 +720,10 @@ export class FlightSession {
     if (this.finished) return;
     console.error('Flight session failed', e);
     this.teardown();
-    if (!silent) showFlightInterrupted(e);
+    if (!silent) {
+      showFlightInterrupted(e, this.started ? 'flight' : 'setup');
+      e = markErrorReported(e);
+    }
     this.reject(e);
   }
 
