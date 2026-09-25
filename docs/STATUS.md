@@ -221,9 +221,7 @@ Remaining:
 - Remotion or any video pipeline. Not needed for the game.
 
 ## Housekeeping
-- Agent worktrees remain under `.claude/worktrees/` (gitignored), and all
-  their branches are merged. Remove them with
-  `git worktree list` → `git worktree remove <path>`, then
-  `git branch -d worktree-agent-*`.
+- All agent worktrees and their branches have been merged and removed. Future
+  agent worktrees go under `.claude/worktrees/` (gitignored).
 - E2E needs a free port: `E2E_PORT=5241 pnpm e2e` if 5199 is taken by a dev
   server.
