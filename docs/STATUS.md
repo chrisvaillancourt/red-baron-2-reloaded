@@ -125,6 +125,21 @@ Remaining:
   button glyphs when a pad is connected. It is still untested on a physical
   device (see Defer).
 
+**Done (wave 6) — early-war two-seaters (PLAYTEST #15)** (DECISIONS "Early-war two-seaters")
+- B.E.2c, F.E.2b, Farman F.40 and Albatros C.III: specs, Blender models, liveries. 1915–16
+  escorts and intercepts fly period types, and escorts guard their own nation's machines.
+- Pusher nose gunners have their own field of fire (`gunnerFacesForward`). Crew hit boxes
+  follow the seats. Tests: `src/ai/earlyTwoSeaters.realsim.test.ts`,
+  `src/campaign/twoSeaters.test.ts`, and "early-war two-seater observers" in
+  `src/sim/combat.test.ts`.
+- **Defer:** German two-seaters before December 1915 still use the C.III as a stand-in, named
+  generically. Add an Aviatik C.I if 1915 careers get more attention.
+- **Defer:** the D.H.2's tail booms (x = 1.2 m) pass through its 1.3 m propeller disc. The
+  two-seat pushers root theirs outside the disc; the D.H.2 was left as is to keep its model
+  unchanged.
+- **Skip:** the F.E.2b's second, rear-firing Lewis. Combat models one flexible gun per aircraft,
+  and the nose arc already allows fire high over the top wing.
+
 **Defer**
 - Gamepad support is implemented but untested on a real device. Test when one
   is available.

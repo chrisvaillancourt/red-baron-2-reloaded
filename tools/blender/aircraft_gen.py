@@ -30,21 +30,28 @@ TIP = {
     'bristol_f2b': 'raked', 're8': 'raked', 'dh4': 'square', 'rumpler_civ': 'raked',
     'halberstadt_clii': 'square', 'fokker_dviii': 'round', 'airco_dh2': 'square',
     'sopwith_triplane': 'round', 'fokker_eiii': 'square',
+    'be2c': 'raked', 'fe2b': 'raked', 'albatros_ciii': 'raked', 'farman_f40': 'square',
 }
 THICK = {'fokker_dvii': 0.12, 'fokker_dri': 0.12, 'fokker_dviii': 0.14}
-SPINNER = {'albatros_dii', 'albatros_diii', 'albatros_dv', 'pfalz_diiia', 'rumpler_civ'}
+SPINNER = {'albatros_dii', 'albatros_diii', 'albatros_dv', 'pfalz_diiia', 'rumpler_civ', 'albatros_ciii'}
 WING_RADIATOR = {'albatros_diii', 'albatros_dv', 'pfalz_diiia', 'albatros_dii'}
-EXPOSED_HEADS = {'albatros_dii', 'albatros_diii', 'albatros_dv', 'pfalz_diiia', 'halberstadt_clii', 'rumpler_civ', 'fokker_dvii'}
+EXPOSED_HEADS = {'albatros_dii', 'albatros_diii', 'albatros_dv', 'pfalz_diiia', 'halberstadt_clii', 'rumpler_civ', 'fokker_dvii', 'albatros_ciii'}
 AXLE_WING = {'fokker_dri', 'fokker_dvii', 'fokker_dviii'}
 NO_WIRES = {'fokker_dri', 'fokker_dvii', 'fokker_dviii'}
-TWO_BAY = {'bristol_f2b', 're8', 'dh4', 'rumpler_civ', 'halberstadt_clii'}
+TWO_BAY = {'bristol_f2b', 're8', 'dh4', 'rumpler_civ', 'halberstadt_clii', 'be2c', 'albatros_ciii', 'fe2b', 'farman_f40'}
 INTERMEDIATE_STRUTS = {'spad_vii', 'spad_xiii'}
 N_STRUTS = {'fokker_dvii'}
 RADIATOR_FRONT = {'fokker_dvii': 'box', 'se5a': 'box', 'bristol_f2b': 'box', 'dh4': 'box', 're8': 'none',
-                  'spad_vii': 'round', 'spad_xiii': 'round', 'halberstadt_clii': 'none', 'rumpler_civ': 'none'}
+                  'spad_vii': 'round', 'spad_xiii': 'round', 'halberstadt_clii': 'none', 'rumpler_civ': 'none',
+                  'albatros_ciii': 'none', 'be2c': 'none'}
 HUMP = {'sopwith_camel'}
 LOWER_WING_BELOW = {'bristol_f2b'}
 SHARED_COCKPIT = {'halberstadt_clii'}
+# Tall exhaust stacks rising over the upper wing (RAF 1a / RAF 4a air-cooled V-8s).
+EXHAUST_STACKS = {'re8', 'be2c'}
+# Pusher tail booms: half-width where they meet the tail (F.E.2b converges, the Farman stays wide).
+BOOM_TAIL_X = {'farman_f40': 0.9}
+NOSE_WHEEL = {'fe2b'}
 
 
 # ---------------------------------------------------------------------------
@@ -343,6 +350,8 @@ class Aircraft:
         self.rotary = spec['engineType'] == 'rotary'
         self.pusher = bool(g['pusher'])
         self.two = g['crew'] == 2
+        # Observer ahead of the pilot (B.E.2c front seat, F.E.2b/Farman nose) when his gun sits forward.
+        self.front_obs = self.two and any(m['mount'] == 'flexible' and m['position'][2] < 0 for m in spec['guns'])
         self.layout = g['layout']
         L = g['length']
         W = g['fuselageWidth']
@@ -370,7 +379,8 @@ class Aircraft:
             self.upperLE, self.lowerLE = ref + st / 2, ref - st / 2
             self.midLE = ref
         if self.pusher:
-            self.noseY = self.upperLE + 1.25
+            # two-seat nacelle carries the observer in the nose, ahead of the pilot
+            self.noseY = self.upperLE + (2.4 if self.two else 1.25)
             self.nacelleEnd = self.upperLE - chord - 0.35
         else:
             k = 0.16 if self.rotary else 0.2
@@ -391,8 +401,8 @@ class Aircraft:
         else:
             self.cpY = upperTE + 0.05
         if self.pusher:
-            self.cpY = self.upperLE - 0.2
-        self.gunY = self.cpY - 1.05
+            self.cpY = self.upperLE - (0.1 if self.two else 0.2)
+        self.gunY = self.cpY + 1.1 if self.front_obs else self.cpY - 1.05
         self.span = g['span']
         self.thick = THICK.get(self.id, 0.075)
         self.tip = TIP.get(self.id, 'round')
@@ -893,20 +903,33 @@ class Aircraft:
         # Pusher tail booms
         if self.pusher:
             tail_y = self.postY
+            # Two-seaters swing a bigger propeller: root the booms outside its disc.
+            bx = self.prop_R() + 0.5 if self.two else 1.2
+            tx = BOOM_TAIL_X.get(self.id, 0.25)
+            zt_tail = 0.25
             for s in (-1, 1):
                 for name in ('Upper', 'Lower'):
                     y = spar_y(name, rs)
-                    x = 1.2
-                    zu, zl = self.wing_surface_z(name, x, y)
+                    zu, zl = self.wing_surface_z(name, bx, y)
                     z = zl if name == 'Upper' else zu
-                    strut(mb, (s * x, y, z), (s * 0.25, tail_y + 0.2, 0.25 if name == 'Upper' else 0.02), chord=0.04, thick=0.03, mat=1)
-                # interplane struts near the booms
+                    strut(mb, (s * bx, y, z), (s * tx, tail_y + 0.2, zt_tail if name == "Upper" else 0.02), chord=0.06 if self.two else 0.04, thick=0.045 if self.two else 0.03, mat=1)
+                # interplane struts at the booms
                 for f in (fs, rs):
                     y1 = spar_y('Lower', f)
                     y2 = spar_y('Upper', f)
-                    strut(mb, (s * 1.2, y1, self.wing_surface_z('Lower', 1.2, y1)[0]), (s * 1.2, y2, self.wing_surface_z('Upper', 1.2, y2)[1]), chord=0.06, thick=0.022, mat=0)
+                    strut(mb, (s * bx, y1, self.wing_surface_z('Lower', bx, y1)[0]), (s * bx, y2, self.wing_surface_z('Upper', bx, y2)[1]), chord=0.06, thick=0.022, mat=0)
+                if self.two:
+                    # vertical boom struts halfway back, and at the tail
+                    for k in (0.5, 1.0):
+                        yy = lerp(spar_y('Upper', rs), tail_y + 0.2, k)
+                        xx = lerp(bx, tx, k)
+                        zu_ = lerp(self.wing_surface_z('Upper', bx, spar_y('Upper', rs))[1], zt_tail, k)
+                        zl_ = lerp(self.wing_surface_z('Lower', bx, spar_y('Lower', rs))[0], 0.02, k)
+                        strut(mb, (s * xx, yy, zl_), (s * xx, yy, zu_), chord=0.03, thick=0.02, mat=1)
             # boom cross struts
-            strut(mb, (-0.25, tail_y + 0.2, 0.25), (0.25, tail_y + 0.2, 0.25), chord=0.03, thick=0.02, mat=1)
+            strut(mb, (-tx, tail_y + 0.2, zt_tail), (tx, tail_y + 0.2, zt_tail), chord=0.03, thick=0.02, mat=1)
+            if self.two:
+                strut(mb, (-tx, tail_y + 0.2, 0.02), (tx, tail_y + 0.2, 0.02), chord=0.03, thick=0.02, mat=1)
         if self.id in LOWER_WING_BELOW:
             # Bristol: lower wing hangs below fuselage on short struts
             for f in (fs, rs):
@@ -1022,6 +1045,27 @@ class Aircraft:
     # ------------------------------------------------------------ engine / prop
     def build_engine(self, parent, prop):
         objs = []
+        if self.pusher and not self.rotary:
+            # inline engine at the back of the nacelle (Beardmore, Renault)
+            y = self.nacelleEnd + 0.3
+            mb = MB(['Metal', 'Livery_Cowling'])
+            top = self.fuselage_top(y)
+            box(mb, (0, y, 0.05), (0.5, 0.75, 0.5), mat=0)
+            box(mb, (0, y - 0.05, top + 0.12), (0.34, 0.6, 0.18), mat=0)  # cylinder block over the nacelle line
+            if self.id == 'fe2b':
+                # radiator behind the pilot, standing up over the engine
+                box(mb, (0, y + 0.45, top + 0.28), (0.62, 0.1, 0.55), mat=0)
+                for s in (-1, 1):
+                    tube(mb, [(s * 0.2, y - 0.2, top + 0.2), (s * 0.3, y - 0.45, top + 0.55)], radius=0.035, sides=6)
+            else:
+                # air-cooled V-8: cowled fan shroud and short exhaust stacks
+                cylinder(mb, (0, y + 0.42, 0.1), (0, 1, 0), 0.3, 0.12, sides=14, mat=1)
+                for s in (-1, 1):
+                    for k in range(4):
+                        yy = y + 0.25 - k * 0.15
+                        cylinder(mb, (s * 0.22, yy, top + 0.2), (s * 0.2, 0, 1), 0.025, 0.2, sides=6)
+            objs.append(mb.build('Engine', parent, smooth=False))
+            return objs
         if self.pusher:
             # rotary at the back of the nacelle
             y = self.nacelleEnd - 0.05
@@ -1082,7 +1126,7 @@ class Aircraft:
                         x = s * (self.fuselage_halfw(y) + 0.02)
                         z = (self.fuselage_top(y) + self.fuselage_bot(y)) / 2
                         cylinder(mb, (x, y, z), (s * 0.3, -1, -0.4), 0.025, 0.25 if self.id != 'spad_xiii' else 0.8, sides=6)
-            if self.id == 're8':
+            if self.id in EXHAUST_STACKS:
                 for s in (-1, 1):
                     tube(mb, [(s * 0.3, y0 - 0.3, self.fuselage_top(y0 - 0.3)), (s * 0.35, y0 - 0.5, self.fuselage_top(y0) + 1.3)], radius=0.05, sides=6)
             if self.id in WING_RADIATOR and 'Upper' in self.wings:
@@ -1092,10 +1136,14 @@ class Aircraft:
                 objs.append(mb.build('Engine', parent, smooth=False))
         return objs
 
-    def build_propeller(self, parent):
+    def prop_R(self):
         R = 1.3 if not self.two else 1.45
         if self.id in ('fokker_eiii', 'nieuport_11', 'sopwith_pup'):
             R = 1.25
+        return R
+
+    def build_propeller(self, parent):
+        R = self.prop_R()
         if self.pusher:
             hub = (0, self.nacelleEnd - 0.25, 0.05)
             direction = -1
@@ -1171,6 +1219,19 @@ class Aircraft:
         cylinder(mb, (0, axleY, axleZ), (1, 0, 0), 0.025, track, sides=6)
         if self.id in AXLE_WING:
             box(mb, (0, axleY - 0.1, axleZ), (track * 0.85, 0.42, 0.06), mat=1)
+        if self.id in NOSE_WHEEL:
+            # small anti-noseover wheel under the nacelle nose (F.E.2b oleo undercarriage)
+            ny = self.noseY - 0.35
+            nb = self.fuselage_bot(ny)
+            nz = axleZ + 0.12
+            nr = 0.17
+            strut(mb, (0, ny + 0.2, nb + 0.02), (0, ny + 0.45, nz + nr * 0.3), chord=0.05, thick=0.03, mat=0)
+            strut(mb, (0, axleY + 0.4, yb + 0.02), (0, ny + 0.45, nz + nr * 0.3), chord=0.05, thick=0.03, mat=0)
+            N = 12
+            rings = []
+            for dx, rr in ((-0.04, nr * 0.6), (-0.035, nr), (0.035, nr), (0.04, nr * 0.6)):
+                rings.append([(dx, ny + 0.45 + rr * math.sin(TAU * j / N), nz + rr * math.cos(TAU * j / N)) for j in range(N)])
+            loft(wh, rings, closed=True, mats=lambda i, j: 0, cap_start=True, cap_end=True)
         # tail skid
         skidY = self.skid_y
         ground_angle = math.radians(11)
