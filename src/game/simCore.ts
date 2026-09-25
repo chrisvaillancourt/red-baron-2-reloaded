@@ -92,7 +92,8 @@ export class SimCore {
       if (s.heightAboveGround > 5) this.wasAirborne.add(ac.id);
       return;
     }
-    if (ac.outcome !== null || !this.wasAirborne.has(ac.id) || s.airspeed > 2) return;
+    // Ground speed, not airspeed: in any wind a stopped aircraft still shows airspeed.
+    if (ac.outcome !== null || !this.wasAirborne.has(ac.id) || s.velocity.length() > 2) return;
     const friendly = this.world.sideOfFrontAt(s.position.x, s.position.z) === ac.side;
     ac.outcome = friendly ? 'landed-friendly' : 'landed-enemy';
     this.bus.emit({ type: 'aircraft-landed', aircraftId: ac.id, friendlyTerritory: friendly });

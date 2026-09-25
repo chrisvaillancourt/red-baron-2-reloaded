@@ -569,5 +569,6 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
 
 /** True when the aircraft is sitting on its wheels, nearly stopped (landed). */
 export function isStoppedOnGround(ac: AircraftEntity): boolean {
-  return ac.state.onGround && ac.state.airspeed < 3 && ac.state.velocity.length() < 3 && !getSimInternal(ac).impacted;
+  // Ground speed, not airspeed: an aircraft parked in a breeze still has airspeed.
+  return ac.state.onGround && ac.state.velocity.length() < 3 && !getSimInternal(ac).impacted;
 }
