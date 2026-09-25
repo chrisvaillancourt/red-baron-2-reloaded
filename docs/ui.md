@@ -70,7 +70,8 @@ off-screen edge arrows. Key fields: airspeed/altitude/heading/rpm/throttle/fuel,
 `guns[]` (rounds, capacity, spares, jammed, jamClearProgress, reloading 0..1),
 `damage` (per zone 0..1 + fire/leak/engine/wounded flags), `target` (name, type,
 range, closure, screen point, optional lead point), `padlock`, `threats[]`,
-`wingmen[]`, `waypoint`, `gunReticle`, `timeCompression`, `missionTime`, `hint`.
+`wingmen[]`, `waypoint`, `gunReticle`, `timeCompression`, `missionTime`, `hint`,
+`sunGlare` (sun screen point, 15° glare radius in screen heights, strength 0..1).
 `showInstruments` shows the period gauge cluster (for external views).
 
 HUD methods: `showMessage`, `showWingmanMenu`, `showPauseMenu` /

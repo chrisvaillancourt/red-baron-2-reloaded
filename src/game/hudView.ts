@@ -7,6 +7,7 @@ import type { WorldQuery } from '../core/interfaces';
 import type { AircraftEntity, Entity, GameSettings, GunType } from '../core/types';
 import { GUNS } from '../data/aircraft';
 import { getCoefficients } from '../sim';
+import { sunGlareStrength } from '../ai/perception';
 import type { HudCameraView, HudGun, HudScreenPoint, HudTarget, HudThreat, HudView, HudWingman, WingmanStatus } from '../ui/hud/types';
 import type { CameraMode } from './cameras';
 import { wingmanLabels } from './wingmanNames';
@@ -64,6 +65,11 @@ export interface HudBuildInput {
   /** Acknowledged wingman orders by entity id. */
   wingmanOrders: ReadonlyMap<number, string>;
   hint: string | null;
+  /**
+   * Whether the player could know about this enemy (src/game/playerAwareness.ts):
+   * threat triangles and the automatic target box skip the rest. Absent = all known.
+   */
+  knowsEnemy?: (id: number) => boolean;
 }
 
 const AUTO_TARGET_RANGE = 2500;
@@ -126,6 +132,7 @@ function pickTarget(i: HudBuildInput): Entity | null {
   let bestD = AUTO_TARGET_RANGE;
   for (const a of world.aircraft) {
     if (a.side === player.side || a.outcome !== null) continue;
+    if (i.knowsEnemy && !i.knowsEnemy(a.id)) continue;
     const d = a.state.position.distanceTo(player.state.position);
     if (d < bestD) {
       bestD = d;
@@ -143,6 +150,7 @@ function threats(i: HudBuildInput): HudThreat[] {
     if (a.side === player.side || a.outcome !== null) continue;
     const d = a.state.position.distanceTo(player.state.position);
     if (d > THREAT_RANGE) continue;
+    if (i.knowsEnemy && !i.knowsEnemy(a.id)) continue;
     const s = toScreen(camera, a.state.position);
     const angle = s.onScreen ? Math.atan2(s.x - 0.5, 0.5 - s.y) : s.edgeAngle!;
     const rel = tmp.copy(a.state.position).sub(player.state.position).normalize();
@@ -151,6 +159,29 @@ function threats(i: HudBuildInput): HudThreat[] {
     out.push({ angle, distance: d, danger: behind && closing && d < 800, onScreen: s.onScreen });
   }
   return out;
+}
+
+/** Glare fills 15° around the sun (src/ai/perception glare cone). */
+const GLARE_RADIUS = Math.tan((15 * Math.PI) / 180);
+
+/** Where the sun sits on screen and how hard it glares, if it is up, unclouded and near the view. */
+export function sunGlare(camera: PerspectiveCamera, world: WorldQuery): HudView['sunGlare'] {
+  const sun = world.sunDirection;
+  if (!sun) return undefined;
+  const cam = camera.getWorldPosition(tmp2);
+  const strength = sunGlareStrength(world, cam);
+  if (strength < 0.02) return undefined;
+  const v = tmp.copy(sun).transformDirection(camera.matrixWorldInverse);
+  if (v.z >= 0) return undefined; // behind the camera
+  const k = 1 / Math.tan((camera.fov * Math.PI) / 360);
+  // Screen-height units: y spans 1, x spans the aspect.
+  const ndcY = (v.y / -v.z) * k;
+  const ndcX = (v.x / -v.z) * (k / camera.aspect);
+  const radius = (GLARE_RADIUS * k) / 2;
+  const x = (ndcX + 1) / 2;
+  const y = (1 - ndcY) / 2;
+  if (x < -radius / camera.aspect || x > 1 + radius / camera.aspect || y < -radius || y > 1 + radius) return undefined;
+  return { x, y, radius, strength };
 }
 
 function wingmen(i: HudBuildInput): HudWingman[] {
@@ -274,6 +305,7 @@ export function buildHudView(i: HudBuildInput): HudView {
     timeCompression: i.timeScale,
     missionTime: world.time,
     hint: i.hint,
+    sunGlare: sunGlare(camera, world),
   };
 }
 

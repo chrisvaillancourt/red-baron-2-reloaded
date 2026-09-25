@@ -1,11 +1,13 @@
 // Production-build check. Serve dist/ (e.g. `pnpm preview --port 5325 --strictPort`),
 // then: node tools/playtest/prodcheck.mjs 5325 [subpath]
+// or, against a deployed site: node tools/playtest/prodcheck.mjs https://host/path/
 // Loads the menus, flies a quick mission, and reports every failed request,
 // console error, worker started, and GLB/art/chunk fetched. Exits 1 on failure.
+// Each run uses a fresh browser context, so the first load is always cold-cache.
 import { chromium } from '@playwright/test';
 
-const port = process.argv[2] ?? '5325';
-const sub = process.argv[3] ?? '/';
+const target = process.argv[2] ?? '5325';
+const url = /^https?:\/\//.test(target) ? target : `http://localhost:${target}${process.argv[3] ?? '/'}`;
 const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const failed = [];
@@ -26,7 +28,7 @@ const workers = [];
 page.on('worker', (w) => workers.push(new URL(w.url()).pathname));
 
 const t0 = Date.now();
-await page.goto(`http://localhost:${port}${sub}`);
+await page.goto(url);
 await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30000 });
 const menuMs = Date.now() - t0;
 await page.waitForTimeout(2500); // idle prefetch of the flight chunk
@@ -54,9 +56,10 @@ const result = await page.evaluate(() => window.__done);
 await browser.close();
 
 const glbs = [...fetched].filter((p) => p.endsWith('.glb'));
+const flightChunk = [...fetched].some((p) => p.includes('flightModules'));
 const art = [...fetched].filter((p) => p.includes('/art/'));
-const report = { menuMs, prefetched, workers: [...new Set(workers)], glbs, art, pixels: px, failed, errors, resultError: result?.error };
+const report = { url, menuMs, prefetched, flightChunk, workers: [...new Set(workers)], glbs, art, pixels: px, failed, errors, resultError: result?.error };
 console.log(JSON.stringify(report, null, 2));
-const ok = failed.length === 0 && errors.length === 0 && !result?.error && glbs.length > 0 && workers.length >= 3 && px.nonBlack > px.total * 0.5;
+const ok = failed.length === 0 && errors.length === 0 && !result?.error && flightChunk && glbs.length > 0 && workers.length >= 3 && px.nonBlack > px.total * 0.5;
 console.log(ok ? 'PROD CHECK OK' : 'PROD CHECK FAILED');
 process.exit(ok ? 0 : 1);

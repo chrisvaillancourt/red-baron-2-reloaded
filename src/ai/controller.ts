@@ -43,10 +43,10 @@ import {
   type LandingPlan,
   type LandingStage,
 } from './navigation';
-import { isAlive, isAttacking, Perception, threatLevel } from './perception';
+import { isAlive, isAttacking, likelySpottedBy, Perception, sunAngle, threatLevel } from './perception';
 import { makeSkillProfile, skillValue, type SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
-import { aceTactics, attackSetupPoint, outTurnedBy, spottedByEstimate, sunLineAngle, TACTICS_FLAGS, tacticsProfile, type TacticsProfile } from './tactics';
+import { aceTactics, attackSetupPoint, outTurnedBy, TACTICS_FLAGS, tacticsProfile, type TacticsProfile } from './tactics';
 import type { AceTactics } from '../data/aces';
 import { getCoefficients } from '../sim/coefficients';
 import { getSimInternal } from '../sim/flightModel';
@@ -205,7 +205,7 @@ export class AIPilot implements AIController {
     this.opts = opts;
     this.traits = traitsFor(ac.spec);
     this.profile = makeSkillProfile(skillValue(opts.skill, opts.role, opts.realism));
-    this.perception = new Perception(this.profile);
+    this.perception = new Perception(this.profile, ac);
     this.tactics = tacticsProfile(this.profile.t, opts.tactics ?? aceTactics(opts.aceId));
     this.rng = makeRng(opts.seed ?? ac.id * 7919 + 13);
     this.autopilot = new Autopilot(
@@ -359,8 +359,8 @@ export class AIPilot implements AIController {
       this.hitAt = this.now;
       const att = self.damage.lastAttackerId;
       if (att != null) {
-        this.perception.notice(att, this.now);
         const e = world.getEntity(att);
+        this.perception.notice(att, this.now, e?.kind === 'aircraft' ? e : undefined);
         if (e && e.kind === 'aircraft') this.threatId = att;
       }
     }
@@ -554,7 +554,7 @@ export class AIPilot implements AIController {
     if (this.order === 'attack-my-target' && this.orderTargetId != null) {
       const e = world.getEntity(this.orderTargetId);
       if (e && e.kind === 'aircraft' && isAlive(e)) {
-        this.perception.notice(e.id, this.now);
+        this.perception.notice(e.id, this.now, e);
         return e;
       }
       this.order = 'engage-at-will';
@@ -884,13 +884,6 @@ export class AIPilot implements AIController {
     return true;
   }
 
-  /** Has `watcher` seen `self`? AI pilots: their own contacts; the player: an estimate. */
-  private spottedBy(self: AircraftEntity, watcher: AircraftEntity, world: WorldQuery): boolean {
-    const ctl = REGISTRY.get(watcher);
-    if (ctl) return ctl.perception.contacts.has(self.id);
-    return spottedByEstimate(self, watcher, world);
-  }
-
   /**
    * Stalking (DECISIONS "Stalking and ace signatures"): a patient pilot who has seen his
    * target without being seen climbs to a setup point above it and, if he uses the sun,
@@ -904,10 +897,10 @@ export class AIPilot implements AIController {
       return false;
     }
     if (!this.stalk || this.stalk.targetId !== tgt.id) this.stalk = { targetId: tgt.id, since: this.now };
-    if (this.now - this.stalk.since > tp.patience || this.spottedBy(self, tgt, world)) return false;
+    if (this.now - this.stalk.since > tp.patience || likelySpottedBy(self, tgt, world)) return false;
     const s = self.state;
     const dh = s.position.y - tgt.state.position.y;
-    const sunOk = tp.sunUse < 0.3 || !world.sunDirection || world.sunDirection.y < 0.05 || sunLineAngle(tgt.state.position, s.position, world) < 20 * DEG;
+    const sunOk = tp.sunUse < 0.3 || !world.sunDirection || world.sunDirection.y < 0.05 || sunAngle(tgt.state.position, s.position, world) < 20 * DEG;
     if (dh >= tp.heightAdv * 0.8 && sunOk) return false;
     attackSetupPoint(tgt, world, tp.heightAdv + 60, tp.sunUse, steer.dir).sub(s.position);
     const hd = Math.hypot(steer.dir.x, steer.dir.z);

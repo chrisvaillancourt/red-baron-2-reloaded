@@ -14,6 +14,16 @@ Verified on `main` after the wave-7 merges: `npx tsc --noEmit` clean, `pnpm test
 334 passed (21 env-gated soak tests skipped), `pnpm e2e` 16 passed (1 gated
 soak skipped), `pnpm build` OK.
 
+## Deployment
+- **Live:** https://chrisvaillancourt.github.io/red-baron-2-reloaded/ (public repo
+  `chrisvaillancourt/red-baron-2-reloaded`, GitHub Pages; DECISIONS D-072).
+- **How deploys happen:** every push to `main` runs `.github/workflows/deploy.yml`:
+  frozen-lockfile install, typecheck, unit tests, build, then a Pages deploy. A failing
+  test blocks the release. E2E is not in CI (it needs a GPU), so run `pnpm e2e` locally
+  before pushing.
+- **After a deploy:** `pnpm prodcheck https://chrisvaillancourt.github.io/red-baron-2-reloaded/`
+  runs a cold-cache load, a flight, GLBs and workers, and fails on any error.
+
 ## How it was built
 Parallel agents in git worktrees, one subsystem each, merged by the lead over
 seven waves. Rationale for every significant choice is in `DECISIONS.md`

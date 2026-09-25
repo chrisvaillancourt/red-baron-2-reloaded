@@ -29,6 +29,8 @@ function perCallMs(batch: (i: number) => number, calls: number, runs = 7): numbe
  * they get 3x headroom so machine load can't flake them, while an accidental
  * order-of-magnitude slowdown still fails.
  */
+/** 7 × 20k calls take ~5 s on a 2-core CI runner at 3x budget: the budget, not the timeout, is the gate. */
+const PERF_TIMEOUT_MS = 60_000;
 const PERF_STRICT = typeof process !== 'undefined' && !!process.env.PERF_STRICT;
 function expectPerCallUnder(label: string, ms: number, budgetMs: number): void {
   const limit = PERF_STRICT ? budgetMs : budgetMs * 3;
@@ -82,7 +84,7 @@ describe('terrain', () => {
   it('is fast enough for mesh generation', () => {
     const ms = perCallMs((i) => terrainHeightAt((i % 141) * 37 - 2000, Math.floor(i / 141) * 41 - 30000), 20000);
     expectPerCallUnder('terrainHeightAt', ms, 0.04);
-  });
+    }, PERF_TIMEOUT_MS);
 });
 
 describe('front lines', () => {
@@ -129,7 +131,7 @@ describe('front lines', () => {
   it('is fast per call', () => {
     const ms = perCallMs((i) => (sideOfFrontAt((i % 200) * 500 - 50000, Math.floor(i / 200) * 1500 - 80000, '1917-06-01') === 'allied' ? 1 : 0), 20000);
     expectPerCallUnder('sideOfFrontAt', ms, 0.03);
-  });
+    }, PERF_TIMEOUT_MS);
 });
 
 describe('land use', () => {

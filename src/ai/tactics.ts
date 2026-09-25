@@ -119,17 +119,6 @@ export function outTurnedBy(self: AircraftEntity, target: AircraftEntity): boole
   return wingLoading(self) >= OUT_TURNED_RATIO * wingLoading(target);
 }
 
-/** Angle (rad) between the line from `from` to `to` and the sun; Infinity with no sun above the horizon. */
-export function sunLineAngle(from: Vector3, to: Vector3, world: WorldQuery): number {
-  const sun = world.sunDirection;
-  if (!sun || sun.y < 0.05) return Infinity;
-  _d.copy(to).sub(from);
-  const len = _d.length();
-  if (len < 1) return Infinity;
-  return Math.acos(clamp(_d.dot(sun) / len, -1, 1));
-}
-const _d = new Vector3();
-
 /**
  * Where to set up a diving attack on `target`: `heightAdv` above it and, weighted by
  * `sunUse`, along the line from the target toward the sun (so the target must look into
@@ -154,21 +143,3 @@ export function attackSetupPoint(target: AircraftEntity, world: WorldQuery, heig
   return out.add(tp);
 }
 const _s = new Vector3();
-
-/**
- * Stand-in until perception's `likelySpottedBy` lands: could `watcher` plausibly have seen
- * `self`? Inside ~3.5 km, not hidden in his rear blind cone, and not within 12° of the sun
- * as he sees it.
- */
-export function spottedByEstimate(self: AircraftEntity, watcher: AircraftEntity, world: WorldQuery): boolean {
-  _d.copy(self.state.position).sub(watcher.state.position);
-  const r = _d.length();
-  if (r > 3500) return false;
-  if (r < 400) return true;
-  _f.set(0, 0, -1).applyQuaternion(watcher.state.orientation);
-  const off = Math.acos(clamp(_d.dot(_f) / r, -1, 1));
-  if (off > (150 * Math.PI) / 180) return false;
-  if (sunLineAngle(watcher.state.position, self.state.position, world) < (12 * Math.PI) / 180) return false;
-  return true;
-}
-const _f = new Vector3();
