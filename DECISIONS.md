@@ -595,7 +595,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Fighting back:** during a voluntary RTB (ordered home, mission or escort complete), a fit fighter engages a scout within 1.2 km that is attacking it or its leader, then resumes the RTB.
 **Consequences.** Quick ground attack (12 missions): 25% returned (was 13%), 67% killed + 8% captured, and success fell from 75% to 58%. That is the right trade for a strafer. The mission stays the deadliest quick type: the defenders' height advantage is structural, and softening it belongs to mission balance rather than AI.
 
-## D-XXX — Mouse-aim cockpit view leads the aim a little, not all the way (game wave 6)
+## D-064 — Mouse-aim cockpit view leads the aim a little, not all the way (game wave 6)
 **Context.** PLAYTEST #4: in mouse-aim mode the cockpit head turned to 0.9× the aim offset, so in hard turns and pulls (aim 40–95° off the nose) the view filled with the upper-wing underside and lost the horizon and airframe. RB2 had a fixed forward cockpit view plus padlock.
 **Decision.**
 - **Head lead:** toward the aim by about 0.9× a small offset, saturating smoothly (tanh) at an ellipse of ±25° yaw, +12° up and −10° down. Upward lead is smallest because the upper wing fills the view above the nose.
@@ -605,7 +605,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **No setting:** an option for the old full follow was not added. It would need an Options control in src/ui, and nothing asked for the old view.
 **Consequences.** In a hard pull (aim 45–49° up) the head sits at 12° up with the nose, struts and horizon in view (was 42° up, all wing). In a 94°-off hard turn it sits at about 12° yaw and 11° pitch (was −103° yaw, 72° pitch). Screenshots are `docs/screenshots/aimlead-*.jpg`, made with `tools/playtest/aim-turn-shots.mjs`.
 
-## D-XXX — Time compression also drops low over enemy ground and under fire (game wave 6)
+## D-065 — Time compression also drops low over enemy ground and under fire (game wave 6)
 **Context.** Compression only cut out for enemy aircraft within 4 km, so at x4 players dropped to 60–200 m over the trenches under ground fire (PLAYTEST, other observations).
 **Decision.** `compressionBlock` (`src/game/timeCompression.ts`) refuses compression, or drops it to x1 with a reason, when:
 - an enemy aircraft is within 4 km;
