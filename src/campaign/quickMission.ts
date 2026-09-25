@@ -37,7 +37,8 @@ function quickDate(a: AircraftId, b: AircraftId): string {
 function members(ctx: GenCtx, n: number, aircraftId: AircraftId, nation: Nation, skill: MissionFlightMember['skill'], playerFirst: boolean): MissionFlightMember[] {
   return Array.from({ length: n }, (_, i) => ({
     ...(playerFirst && i === 0 ? { isPlayer: true, pilotName: 'You' } : {}),
-    skill,
+    // The player's own skill only matters to the autoplayer; match career missions (veteran).
+    skill: playerFirst && i === 0 ? 'veteran' : skill,
     livery: composeLivery({ aircraftId, nation, date: ctx.date, marking: String(i + 1) }),
   }));
 }
