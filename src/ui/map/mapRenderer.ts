@@ -519,7 +519,12 @@ function drawAerodromes(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u
       ctx.fillStyle = col;
       ctx.font = `${home ? 'bold ' : ''}${(home ? 11 : 9) * u}px "Courier New", monospace`;
       ctx.textAlign = 'center';
-      ctx.fillText(home ? `${a.name} (home)` : a.name, x, y + r + 9 * u);
+      const name = home ? `${a.name} (home)` : a.name;
+      // Keep the name on the sheet when the field sits near the map's edge.
+      const half = ctx.measureText(name).width / 2;
+      const margin = 20 * u;
+      const tx = Math.min(Math.max(x, margin + half), ctx.canvas.width - margin - half);
+      ctx.fillText(name, tx, y + r + 9 * u);
     }
   }
 }
@@ -555,11 +560,16 @@ function drawRoute(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u: num
     ctx.fill();
     ctx.restore();
   }
-  route.forEach((w, i) => {
+  // Waypoints that land on (almost) the same spot — "Cross the lines" and "Recross the
+  // lines" often do — share one circle ("1·3") and one tag, instead of stacking.
+  const groups = groupWaypoints(route.map((w) => ({ x: P.sx(w.x), y: P.sy(w.z) })), 16 * u);
+  const radius = (g: number[]) => (g.includes(view.activeWaypoint ?? -1) ? 11 : 9) * u * (g.length > 1 ? 1.35 : 1);
+  groups.forEach((g) => {
+    const w = route[g[0]];
     const x = P.sx(w.x);
     const y = P.sy(w.z);
-    const active = view.activeWaypoint === i;
-    const r = (active ? 11 : 9) * u;
+    const active = g.includes(view.activeWaypoint ?? -1);
+    const r = radius(g);
     ctx.fillStyle = active ? '#a8262c' : 'rgba(255,250,235,0.95)';
     ctx.strokeStyle = '#1d1813';
     ctx.lineWidth = 2 * u;
@@ -568,33 +578,46 @@ function drawRoute(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u: num
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = active ? '#fff' : '#1d1813';
-    ctx.font = `bold ${11 * u}px Georgia, serif`;
+    ctx.font = `bold ${(g.length > 1 ? 9.5 : 11) * u}px Georgia, serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(i + 1), x, y + 0.5 * u);
+    ctx.fillText(g.map((i) => i + 1).join('·'), x, y + 0.5 * u);
   });
   // Tags after every circle, so no circle covers a tag, placed clear of the
   // circles and of each other (waypoints often bunch up at the lines).
-  const taken: Rect[] = route.map((w, i) => {
-    const r = (view.activeWaypoint === i ? 11 : 9) * u;
+  const taken: Rect[] = groups.map((g) => {
+    const w = route[g[0]];
+    const r = radius(g);
     return { x: P.sx(w.x) - r, y: P.sy(w.z) - r, w: 2 * r, h: 2 * r };
   });
   const sheet: Rect = { x: 16 * u, y: 16 * u, w: ctx.canvas.width - 32 * u, h: ctx.canvas.height - 32 * u };
-  route.forEach((w, i) => {
-    const label = w.label ?? actionLabel(w.action);
-    if (!label) return;
+  groups.forEach((g, gi) => {
+    const texts = [
+      ...new Set(
+        g
+          .map((i) => {
+            const w = route[i];
+            const label = w.label ?? actionLabel(w.action);
+            if (!label) return '';
+            // The landing waypoint sits on the (already labelled) home field: just say "Land".
+            if (w.action === 'land') return 'Land';
+            const alt = view.units === 'metric' ? `${Math.round(w.altitude / 100) * 100} m` : `${Math.round((w.altitude * 3.28084) / 500) * 500} ft`;
+            return `${label} · ${alt}`;
+          })
+          .filter(Boolean),
+      ),
+    ];
+    if (!texts.length) return;
+    const text = texts.join(' / ');
+    const w = route[g[0]];
     const x = P.sx(w.x);
     const y = P.sy(w.z);
-    const r = (view.activeWaypoint === i ? 11 : 9) * u;
     ctx.font = `${10 * u}px "Courier New", monospace`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const alt = view.units === 'metric' ? `${Math.round(w.altitude / 100) * 100} m` : `${Math.round((w.altitude * 3.28084) / 500) * 500} ft`;
-    // The landing waypoint sits on the (already labelled) home field: just say "Land".
-    const text = w.action === 'land' ? 'Land' : `${label} · ${alt}`;
     const tw = ctx.measureText(text).width + 6 * u;
-    const own = taken[i];
-    const box = placeLabel(x, y, r, tw, 14 * u, 3 * u, taken.filter((t) => t !== own), sheet);
+    const own = taken[gi];
+    const box = placeLabel(x, y, radius(g), tw, 14 * u, 3 * u, taken.filter((t) => t !== own), sheet);
     taken.push(box);
     ctx.fillStyle = 'rgba(255,250,235,0.85)';
     ctx.fillRect(box.x, box.y, box.w, box.h);
@@ -602,6 +625,17 @@ function drawRoute(ctx: CanvasRenderingContext2D, P: Proj, view: MapView, u: num
     ctx.fillText(text, box.x + 3 * u, box.y + box.h / 2);
   });
   ctx.restore();
+}
+
+/** Cluster screen points closer than `minDist` to a group's first point; groups keep route order. */
+export function groupWaypoints(pts: readonly { x: number; y: number }[], minDist: number): number[][] {
+  const groups: number[][] = [];
+  pts.forEach((p, i) => {
+    const g = groups.find((gr) => Math.hypot(pts[gr[0]].x - p.x, pts[gr[0]].y - p.y) < minDist);
+    if (g) g.push(i);
+    else groups.push([i]);
+  });
+  return groups;
 }
 
 function actionLabel(a: Waypoint['action']): string {

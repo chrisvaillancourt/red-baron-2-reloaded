@@ -37,14 +37,47 @@ export interface Ace {
   victories: [string, number][];
   fate: AceFate;
   bio: string;
+  /**
+   * Rank history, ascending; the last entry must be the rank that prefixes `displayName` /
+   * `shortName`. Absent = the pilot held that rank throughout the game's span.
+   */
+  ranks?: AceRankStep[];
+  /** Post-nominal honours appended from their award (gazette) date, e.g. " VC". */
+  honours?: { from: string; text: string }[];
 }
 
-const svc = (from: string, to: string, squadronId: string | null, ...aircraft: AircraftId[]): AceService => ({ from, to, squadronId, aircraft });
+export interface AceRankStep {
+  from: string;
+  title: string;
+  abbrev: string;
+}
+
+const rk = (from: string, title: string, abbrev: string): AceRankStep => ({ from, title, abbrev });
+
+/**
+ * An ace's names as they stood on `date`: "Captain William Bishop" in June 1917, not the
+ * "Major William Bishop VC" he became. Falls back to the static names when no history is given.
+ */
+export function aceNamesOn(ace: Ace, date: string): { display: string; short: string } {
+  let display = ace.displayName;
+  let short = ace.shortName;
+  const final = ace.ranks?.[ace.ranks.length - 1];
+  if (ace.ranks && final && display.startsWith(`${final.title} `) && short.startsWith(`${final.abbrev} `)) {
+    const current = [...ace.ranks].reverse().find((r) => r.from <= date) ?? ace.ranks[0];
+    display = `${current.title} ${display.slice(final.title.length + 1)}`;
+    short = `${current.abbrev} ${short.slice(final.abbrev.length + 1)}`;
+  }
+  for (const hon of ace.honours ?? []) if (hon.from <= date) display += hon.text;
+  return { display, short };
+}
+
+const svc =(from: string, to: string, squadronId: string | null, ...aircraft: AircraftId[]): AceService => ({ from, to, squadronId, aircraft });
 
 export const ACES: readonly Ace[] = [
   // ============================================================== Germany
   {
     id: 'mvr', firstName: 'Manfred', lastName: 'von Richthofen', displayName: 'Rittmeister Manfred Freiherr von Richthofen', shortName: 'Rittm. von Richthofen',
+    ranks: [rk('1914-01-01', 'Leutnant', 'Ltn.'), rk('1917-03-22', 'Oberleutnant', 'Oblt.'), rk('1917-04-06', 'Rittmeister', 'Rittm.')],
     nickname: 'The Red Baron', nation: 'germany', skill: 'ace',
     service: [
       svc('1916-09-01', '1917-01-14', 'jasta2', 'albatros_dii'),
@@ -60,9 +93,11 @@ export const ACES: readonly Ace[] = [
     id: 'lothar', firstName: 'Lothar', lastName: 'von Richthofen', displayName: 'Leutnant Lothar Freiherr von Richthofen', shortName: 'Ltn. L. von Richthofen',
     nation: 'germany', skill: 'ace',
     service: [
-      svc('1917-03-06', '1917-08-31', 'jasta11', 'albatros_diii'),
-      svc('1917-09-01', '1918-05-31', 'jasta11', 'fokker_dri'),
-      svc('1918-06-01', '1918-08-13', 'jasta11', 'fokker_dvii'),
+      // Gaps are his three spells in hospital (wounded 13 May 1917 and 13 March 1918).
+      svc('1917-03-06', '1917-05-13', 'jasta11', 'albatros_diii'),
+      svc('1917-09-24', '1917-12-31', 'jasta11', 'albatros_dv'),
+      svc('1918-01-01', '1918-03-13', 'jasta11', 'fokker_dri'),
+      svc('1918-07-19', '1918-08-13', 'jasta11', 'fokker_dvii'),
     ],
     victories: [['1917-03-28', 1], ['1917-05-13', 24], ['1918-03-12', 29], ['1918-07-19', 33], ['1918-08-12', 40]],
     fate: { kind: 'retired', date: '1918-08-13', note: 'Wounded for the third time; survived the war.' },
@@ -70,6 +105,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'boelcke', firstName: 'Oswald', lastName: 'Boelcke', displayName: 'Hauptmann Oswald Boelcke', shortName: 'Hptm. Boelcke',
+    ranks: [rk('1914-01-01', 'Oberleutnant', 'Oblt.'), rk('1916-05-22', 'Hauptmann', 'Hptm.')],
     nickname: 'Father of air fighting', nation: 'germany', skill: 'ace',
     service: [svc('1915-07-01', '1916-06-30', 'ffa62', 'fokker_eiii'), svc('1916-08-27', '1916-10-28', 'jasta2', 'albatros_dii')],
     victories: [['1915-07-04', 1], ['1916-01-12', 8], ['1916-06-27', 19], ['1916-09-02', 20], ['1916-10-26', 40]],
@@ -117,6 +153,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'udet', firstName: 'Ernst', lastName: 'Udet', displayName: 'Oberleutnant Ernst Udet', shortName: 'Oblt. Udet',
+    ranks: [rk('1914-01-01', 'Leutnant', 'Ltn.'), rk('1918-04-01', 'Oberleutnant', 'Oblt.')],
     nation: 'germany', skill: 'ace',
     service: [
       svc('1916-03-18', '1918-03-22', null, 'albatros_diii'),
@@ -174,6 +211,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'lowenhardt', firstName: 'Erich', lastName: 'Löwenhardt', displayName: 'Oberleutnant Erich Löwenhardt', shortName: 'Oblt. Löwenhardt',
+    ranks: [rk('1914-01-01', 'Leutnant', 'Ltn.'), rk('1918-04-01', 'Oberleutnant', 'Oblt.')],
     nation: 'germany', skill: 'ace',
     service: [
       svc('1917-03-01', '1917-06-30', 'jasta10', 'albatros_diii'),
@@ -220,7 +258,8 @@ export const ACES: readonly Ace[] = [
 
   // ============================================================== Britain
   {
-    id: 'hawker', firstName: 'Lanoe', lastName: 'Hawker', displayName: 'Major Lanoe Hawker VC', shortName: 'Maj. Hawker',
+    id: 'hawker', firstName: 'Lanoe', lastName: 'Hawker', displayName: 'Major Lanoe Hawker', shortName: 'Maj. Hawker',
+    ranks: [rk('1914-01-01', 'Captain', 'Capt.'), rk('1915-09-01', 'Major', 'Maj.')], honours: [{ from: '1915-08-24', text: ' VC' }],
     nickname: 'The English Boelcke', nation: 'britain', skill: 'ace',
     service: [svc('1916-02-01', '1916-11-23', 'rfc24', 'airco_dh2')],
     victories: [['1915-07-25', 3], ['1916-11-22', 7]],
@@ -228,7 +267,8 @@ export const ACES: readonly Ace[] = [
     bio: 'The first British fighter ace and first airman awarded the VC for air-to-air combat. Commanded No. 24 Squadron.',
   },
   {
-    id: 'ball', firstName: 'Albert', lastName: 'Ball', displayName: 'Captain Albert Ball VC', shortName: 'Capt. Ball',
+    id: 'ball', firstName: 'Albert', lastName: 'Ball', displayName: 'Captain Albert Ball', shortName: 'Capt. Ball',
+    ranks: [rk('1914-01-01', 'Lieutenant', 'Lt.'), rk('1916-09-01', 'Captain', 'Capt.')], honours: [{ from: '1917-06-08', text: ' VC' }],
     nation: 'britain', skill: 'ace',
     service: [svc('1916-05-01', '1916-08-14', null, 'nieuport_11'), svc('1916-08-15', '1916-10-01', 'rfc60', 'nieuport_17'), svc('1917-04-07', '1917-05-07', 'rfc56', 'se5a')],
     victories: [['1916-05-16', 1], ['1916-07-02', 11], ['1916-08-31', 24], ['1916-10-01', 31], ['1917-04-30', 38], ['1917-05-06', 44]],
@@ -236,7 +276,8 @@ export const ACES: readonly Ace[] = [
     bio: 'A lone hunter who attacked any odds from below with his wing-mounted Lewis. Britain\'s first national air hero.',
   },
   {
-    id: 'mccudden', firstName: 'James', lastName: 'McCudden', displayName: 'Captain James McCudden VC', shortName: 'Capt. McCudden',
+    id: 'mccudden', firstName: 'James', lastName: 'McCudden', displayName: 'Captain James McCudden', shortName: 'Capt. McCudden',
+    ranks: [rk('1914-01-01', 'Flight Sergeant', 'F/Sgt.'), rk('1917-01-01', 'Second Lieutenant', '2/Lt.'), rk('1917-06-01', 'Captain', 'Capt.')], honours: [{ from: '1918-04-02', text: ' VC' }],
     nation: 'britain', skill: 'ace',
     service: [svc('1916-08-01', '1917-08-13', null, 'sopwith_pup'), svc('1917-08-14', '1918-03-05', 'rfc56', 'se5a')],
     victories: [['1916-09-06', 1], ['1917-08-13', 7], ['1917-12-31', 37], ['1918-02-26', 57]],
@@ -244,7 +285,8 @@ export const ACES: readonly Ace[] = [
     bio: 'A former mechanic, a patient stalker of high-flying two-seaters, and a meticulous tactician.',
   },
   {
-    id: 'mannock', firstName: 'Edward', lastName: 'Mannock', displayName: 'Major Edward Mannock VC', shortName: 'Maj. Mannock',
+    id: 'mannock', firstName: 'Edward', lastName: 'Mannock', displayName: 'Major Edward Mannock', shortName: 'Maj. Mannock',
+    ranks: [rk('1914-01-01', 'Second Lieutenant', '2/Lt.'), rk('1917-12-01', 'Captain', 'Capt.'), rk('1918-06-18', 'Major', 'Maj.')], honours: [{ from: '1919-07-18', text: ' VC' }],
     nickname: 'Mick', nation: 'britain', skill: 'ace',
     service: [
       svc('1917-04-06', '1917-09-30', 'rfc40', 'nieuport_17'),
@@ -257,7 +299,8 @@ export const ACES: readonly Ace[] = [
     bio: 'The great British patrol leader, who taught his pilots to fight as a team. He feared fire above all.',
   },
   {
-    id: 'bishop', firstName: 'William', lastName: 'Bishop', displayName: 'Major William Bishop VC', shortName: 'Maj. Bishop',
+    id: 'bishop', firstName: 'William', lastName: 'Bishop', displayName: 'Major William Bishop', shortName: 'Maj. Bishop',
+    ranks: [rk('1914-01-01', 'Lieutenant', 'Lt.'), rk('1917-04-01', 'Captain', 'Capt.'), rk('1918-04-01', 'Major', 'Maj.')], honours: [{ from: '1917-08-11', text: ' VC' }],
     nickname: 'Billy', nation: 'britain', skill: 'ace',
     service: [svc('1917-03-17', '1917-08-31', 'rfc60', 'nieuport_17'), svc('1918-05-22', '1918-06-19', 'rfc85', 'se5a')],
     victories: [['1917-03-25', 1], ['1917-06-02', 22], ['1917-08-16', 47], ['1918-05-27', 48], ['1918-06-19', 72]],
@@ -266,6 +309,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'collishaw', firstName: 'Raymond', lastName: 'Collishaw', displayName: 'Major Raymond Collishaw', shortName: 'Maj. Collishaw',
+    ranks: [rk('1914-01-01', 'Flight Sub-Lieutenant', 'F/S/Lt.'), rk('1917-06-01', 'Flight Commander', 'F/Cdr.'), rk('1918-04-01', 'Major', 'Maj.')],
     nation: 'britain', skill: 'ace',
     service: [
       svc('1917-05-15', '1917-07-31', 'rnas10', 'sopwith_triplane'),
@@ -317,6 +361,7 @@ export const ACES: readonly Ace[] = [
   // =============================================================== France
   {
     id: 'guynemer', firstName: 'Georges', lastName: 'Guynemer', displayName: 'Capitaine Georges Guynemer', shortName: 'Capt. Guynemer',
+    ranks: [rk('1914-01-01', 'Sergent', 'Sgt.'), rk('1916-03-04', 'Sous-Lieutenant', 'S/Lt.'), rk('1916-07-05', 'Lieutenant', 'Lt.'), rk('1917-02-18', 'Capitaine', 'Capt.')],
     nation: 'france', skill: 'ace',
     service: [svc('1915-06-01', '1916-05-31', null, 'nieuport_11'), svc('1916-06-01', '1916-09-30', 'spa3', 'nieuport_17'), svc('1916-10-01', '1917-09-11', 'spa3', 'spad_vii')],
     victories: [['1915-07-19', 1], ['1916-06-01', 8], ['1916-12-31', 25], ['1917-05-26', 45], ['1917-09-10', 53]],
@@ -325,6 +370,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'fonck', firstName: 'René', lastName: 'Fonck', displayName: 'Lieutenant René Fonck', shortName: 'Lt. Fonck',
+    ranks: [rk('1914-01-01', 'Sergent', 'Sgt.'), rk('1917-01-01', 'Adjudant', 'Adj.'), rk('1917-08-01', 'Sous-Lieutenant', 'S/Lt.'), rk('1918-04-01', 'Lieutenant', 'Lt.')],
     nation: 'france', skill: 'ace',
     service: [svc('1917-04-15', '1917-07-31', 'spa103', 'spad_vii'), svc('1917-08-01', '1918-11-11', 'spa103', 'spad_xiii')],
     victories: [['1916-08-06', 2], ['1917-05-03', 4], ['1917-12-31', 19], ['1918-05-09', 36], ['1918-11-01', 75]],
@@ -367,6 +413,7 @@ export const ACES: readonly Ace[] = [
   // ================================================================== USA
   {
     id: 'lufbery', firstName: 'Raoul', lastName: 'Lufbery', displayName: 'Major Raoul Lufbery', shortName: 'Maj. Lufbery',
+    ranks: [rk('1914-01-01', 'Sergent', 'Sgt.'), rk('1917-01-01', 'Sous-Lieutenant', 'S/Lt.'), rk('1918-01-10', 'Major', 'Maj.')],
     nation: 'usa', skill: 'ace',
     service: [svc('1916-06-01', '1917-06-30', 'n124', 'nieuport_17'), svc('1917-07-01', '1918-01-05', 'n124', 'spad_vii'), svc('1918-03-05', '1918-05-19', 'us94', 'nieuport_28')],
     victories: [['1916-07-30', 1], ['1917-12-02', 16], ['1918-05-19', 17]],
@@ -375,6 +422,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'rickenbacker', firstName: 'Edward', lastName: 'Rickenbacker', displayName: 'Captain Edward Rickenbacker', shortName: 'Capt. Rickenbacker',
+    ranks: [rk('1914-01-01', 'First Lieutenant', '1st Lt.'), rk('1918-09-25', 'Captain', 'Capt.')],
     nickname: 'Eddie', nation: 'usa', skill: 'ace',
     service: [svc('1918-03-05', '1918-07-14', 'us94', 'nieuport_28'), svc('1918-07-15', '1918-11-11', 'us94', 'spad_xiii')],
     victories: [['1918-04-29', 1], ['1918-05-30', 6], ['1918-09-14', 7], ['1918-09-25', 10], ['1918-10-30', 26]],
@@ -399,6 +447,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'springs', firstName: 'Elliott', lastName: 'White Springs', displayName: 'Captain Elliott White Springs', shortName: 'Capt. Springs',
+    ranks: [rk('1914-01-01', 'First Lieutenant', '1st Lt.'), rk('1918-10-01', 'Captain', 'Capt.')],
     nation: 'usa', skill: 'veteran',
     service: [svc('1918-07-01', '1918-10-30', 'us148', 'sopwith_camel')],
     victories: [['1918-06-03', 1], ['1918-08-31', 11], ['1918-10-30', 16]],
@@ -407,6 +456,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'kindley', firstName: 'Field', lastName: 'Kindley', displayName: 'Captain Field Kindley', shortName: 'Capt. Kindley',
+    ranks: [rk('1914-01-01', 'First Lieutenant', '1st Lt.'), rk('1918-10-01', 'Captain', 'Capt.')],
     nation: 'usa', skill: 'veteran',
     service: [svc('1918-07-01', '1918-11-11', 'us148', 'sopwith_camel')],
     victories: [['1918-06-26', 1], ['1918-10-28', 12]],
@@ -431,6 +481,7 @@ export const ACES: readonly Ace[] = [
   },
   {
     id: 'chambers', firstName: 'Reed', lastName: 'Chambers', displayName: 'Captain Reed Chambers', shortName: 'Capt. Chambers',
+    ranks: [rk('1914-01-01', 'First Lieutenant', '1st Lt.'), rk('1918-10-01', 'Captain', 'Capt.')],
     nation: 'usa', skill: 'veteran',
     service: [svc('1918-03-05', '1918-07-14', 'us94', 'nieuport_28'), svc('1918-07-15', '1918-11-11', 'us94', 'spad_xiii')],
     victories: [['1918-05-07', 1], ['1918-10-22', 7]],

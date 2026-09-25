@@ -34,12 +34,13 @@ const SKILL_TABLE: Record<CareerDifficulty, readonly (readonly [SkillLevel, numb
 };
 
 /** Deterministic roster of squadron mates for the pilot's current quarter. */
-export function squadronRoster(pilotSeed: number, squadronId: string, nation: Nation, date: string, difficulty: CareerDifficulty, size = 8): RosterPilot[] {
+export function squadronRoster(pilotSeed: number, squadronId: string, nation: Nation, date: string, difficulty: CareerDifficulty, size = 8, excludeSurname?: string): RosterPilot[] {
   const quarter = `${date.slice(0, 4)}Q${Math.floor((Number(date.slice(5, 7)) - 1) / 3)}`;
   const rng = new Rng(seedFrom(pilotSeed, squadronId, quarter));
   const ranks = ranksFor(nation);
   const start = ranks.find((r) => r.start)!;
-  const used = new Set<string>();
+  // Never give a squadron mate the player's own surname ("Ltn. Hartmann" flying with "Ltn. M. Hartmann").
+  const used = new Set<string>(excludeSurname ? [excludeSurname] : []);
   const out: RosterPilot[] = [];
   while (out.length < size) {
     const first = rng.pick(FIRST[nation]);

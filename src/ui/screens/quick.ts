@@ -20,7 +20,8 @@ function defaults(): QuickMissionOptions {
   return {
     playerAircraft: 'sopwith_camel',
     enemyAircraft: 'albatros_dv',
-    enemyCount: 3,
+    // An even first fight: you and a wingman against a pair.
+    enemyCount: 2,
     wingmen: 1,
     enemySkill: 'regular',
     wingmanSkill: 'regular',

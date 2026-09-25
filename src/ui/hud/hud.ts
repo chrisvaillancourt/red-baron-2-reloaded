@@ -484,9 +484,30 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
           h('button', { class: 'primary', onClick: () => (closeCard(), cb.onResume()) }, 'Resume flight'),
           cb.onRestart ? h('button', { onClick: () => (closeCard(), cb.onRestart!()) }, 'Restart mission') : null,
           h('button', { onClick: () => (closeCard(), cb.onEndFlight()) }, 'End flight'),
-          h('button', { class: 'danger', onClick: () => (closeCard(), cb.onQuit()) }, 'Abandon mission'),
+          h('button', { class: 'danger', onClick: () => confirmAbandon() }, 'Abandon mission'),
         ),
       );
+      // Abandoning can end a career (capture behind the lines), so it takes a second, explicit step.
+      const confirmAbandon = () => {
+        closeCard();
+        const confirm = h(
+          'div',
+          { class: 'hud-card', role: 'dialog', 'aria-label': 'Abandon mission' },
+          h('h2', null, 'Abandon the mission?'),
+          h(
+            'p',
+            { class: 'warn' },
+            'The sortie will be recorded as a failure. If you are over the enemy side of the lines, you will come down there and be taken prisoner.',
+          ),
+          h(
+            'div',
+            { class: 'row' },
+            h('button', { class: 'primary', onClick: () => (closeCard(), cb.onResume()) }, 'Keep flying'),
+            h('button', { class: 'danger', onClick: () => (closeCard(), cb.onQuit()) }, 'Abandon'),
+          ),
+        );
+        openCard(confirm, () => (closeCard(), cb.onResume()));
+      };
       openCard(card, () => (closeCard(), cb.onResume()));
     },
     hidePauseMenu: closeCard,

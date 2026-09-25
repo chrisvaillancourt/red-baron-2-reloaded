@@ -499,6 +499,12 @@
 }
 .hud-box .info .nm {
   color: var(--c);
+  font-weight: 700;
+  /* The red name sits on bright sky and cloud: give it a solid dark outline. */
+  text-shadow:
+    0 0 2px #000,
+    0 0 2px #000,
+    0 1px 3px rgba(0, 0, 0, 0.9);
 }
 .hud-box .info .ace {
   color: #ffe08a;

@@ -7,6 +7,7 @@ import { aceDisplay, FIRST_NAMES, LAST_NAMES, NATION_INFO, warPeriodFor } from '
 import { insigniaFor, nationalInsignia, squadronBadge } from '../insignia';
 import { rangeInput, screenShell, withHints } from '../components';
 import { AIRCRAFT } from '../../data/aircraft';
+import { ACES } from '../../data/aces';
 
 const MIN_DATE = '1915-07-01';
 const MAX_DATE = '1918-10-01';
@@ -181,7 +182,7 @@ export const createPilotScreen: ScreenFactory = (ctx) => {
           { type: 'button', class: 'choice', 'aria-pressed': String(sq.id === squadronId), onClick: () => ((squadronId = sq.id), renderSquadrons()) },
           svg(squadronBadge(sq, 56)),
           h('div', { class: 'sq-name' }, sq.name, sq.motto ? h('span', { class: 'muted', style: 'font-weight:400;font-style:italic;font-size:.8em' }, `  “${sq.motto}”`) : null),
-          h('div', { class: 'sq-meta' }, `Flying ${equipmentOn(sq, date).join(', ') || '—'}`, sq.notableAces.length ? ` · with ${sq.notableAces.slice(0, 3).map(prettyAce).join(', ')}` : ''),
+          h('div', { class: 'sq-meta' }, `Flying ${equipmentOn(sq, date).join(', ') || '—'}`, acesLine(sq, date)),
           h('div', { class: 'sq-desc' }, sq.description),
         ),
       ),
@@ -235,6 +236,14 @@ export const createPilotScreen: ScreenFactory = (ctx) => {
   withHints(shell);
   return { el: shell.el, music: 'menu' };
 };
+
+/** " · with Voss, Richthofen" for aces serving on the date; otherwise the squadron's famous names as history. */
+function acesLine(sq: SquadronInfo, date: string): string {
+  const serving = ACES.filter((a) => a.service.some((s) => s.squadronId === sq.id && s.from <= date && date <= s.to)).map((a) => a.id);
+  if (serving.length) return ` · with ${serving.slice(0, 3).map(prettyAce).join(', ')}`;
+  if (sq.notableAces.length) return ` · home of ${sq.notableAces.slice(0, 3).map(prettyAce).join(', ')}`;
+  return '';
+}
 
 function prettyAce(id: string): string {
   const a = aceDisplay(id);
