@@ -16,8 +16,14 @@ zsh tools/blender/render_art.sh [samples] [title aerodrome desk debrief] # publi
 * `tools/blender/aircraft_gen.py` — the parametric generator (one `Aircraft` class, driven by
   `AircraftGeometry` + a few per-type detail tables at the top of the file: tip shapes, spinners,
   radiators, axle wings, bay counts, the Camel hump, the Bristol's low-slung lower wing...).
+* **Crew layouts** follow `spec.guns`: a flexible gun with body z < 0 puts the observer *ahead*
+  of the pilot (B.E.2c front seat under the upper wing; F.E.2b/Farman F.40 nose). Two-seat
+  pushers get a longer nacelle (nose 2.4 m ahead of the upper LE), an inline engine block at the
+  back (`Engine`, not a spinning `RotaryEngine`), and tail booms rooted outside the propeller disc
+  (`prop_R() + 0.5`) with `BOOM_TAIL_X` setting where they meet the tail. `NOSE_WHEEL` adds the
+  F.E.2b's anti-noseover wheel; `EXHAUST_STACKS` the RAF V-8's stacks over the upper wing.
 * `tools/blender/build_models.py` — builds and exports every type to `public/models/<id>.glb`
-  (~230–275 KB, 5–7.3k triangles each; 5.5 MB total) and optionally renders EEVEE previews.
+  (~230–285 KB, 5–7.4k triangles each; 27 types, 6.6 MB total) and optionally renders EEVEE previews.
 * `tools/blender/art.py` — Cycles key-art scenes; reuses the generator and paints liveries with
   a NumPy port of the runtime painter.
 * `dev/hangar.html` — in-engine inspection (any type × livery, turntable, cockpit view, RPM,

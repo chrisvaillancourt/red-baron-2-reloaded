@@ -287,3 +287,37 @@ describe('gunners, collisions and flak', () => {
     for (const b of bursts) if (b.type === 'flak-burst') expect(b.position.x).toBeGreaterThan(-10000);
   });
 });
+
+describe('early-war two-seater observers', () => {
+  const lewisFrom = (s: ReturnType<typeof scenario>, id: number) => s.events.filter((e) => e.type === 'gun-fired' && e.shooterId === id && e.gun === 'lewis').length;
+
+  it('a pusher nose gunner (F.E.2b, Farman) fires ahead but cannot fire through his own engine', () => {
+    for (const type of ['fe2b', 'farman_f40'] as const) {
+      const ahead = scenario({ realism: { gunJams: false } });
+      ahead.add(1, type, 0, 0, 1000);
+      ahead.add(2, 'fokker_eiii', 20, -180, 1015, 0, 'germany');
+      ahead.step(3, undefined, 'kinematic');
+      expect(lewisFrom(ahead, 1), `${type} ahead`).toBeGreaterThan(5);
+
+      const behind = scenario({ realism: { gunJams: false } });
+      behind.add(1, type, 0, 0, 1000);
+      behind.add(2, 'fokker_eiii', 0, 150, 1000, 0, 'germany');
+      behind.step(3, undefined, 'kinematic');
+      expect(lewisFrom(behind, 1), `${type} behind`).toBe(0);
+    }
+  });
+
+  it('the B.E.2c front observer and the Albatros C.III rear gunner engage an attacker above and behind', () => {
+    const be = scenario({ realism: { gunJams: false } });
+    be.add(1, 'be2c', 0, 0, 1000);
+    be.add(2, 'fokker_eiii', 60, 150, 1080, 0, 'germany');
+    be.step(3, undefined, 'kinematic');
+    expect(lewisFrom(be, 1)).toBeGreaterThan(5);
+
+    const alb = scenario({ realism: { gunJams: false } });
+    alb.add(1, 'albatros_ciii', 0, 0, 1000, 0, 'germany');
+    alb.add(2, 'airco_dh2', 0, 180, 1040, 0);
+    alb.step(3, undefined, 'kinematic');
+    expect(alb.events.filter((e) => e.type === 'gun-fired' && e.shooterId === 1 && e.gun === 'parabellum').length).toBeGreaterThan(5);
+  });
+});

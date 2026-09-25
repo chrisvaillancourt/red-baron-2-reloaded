@@ -25,6 +25,8 @@ const sync = (type: 'spandau' | 'vickers', x: number, rounds = 500): GunMount =>
 });
 const overwingLewis = (y = 1.6, z = -0.9): GunMount => ({ type: 'lewis', position: [0, y, z], mount: 'fixed-overwing', rounds: 97, spareDrums: 4 });
 const rearGun = (type: 'lewis' | 'parabellum'): GunMount => ({ type, position: [0, 0.9, 0.9], mount: 'flexible', rounds: 97, spareDrums: 6 });
+/** Observer's gun ahead of the pilot (B.E.2c front seat, pusher nose); early 47-round Lewis drums. */
+const frontGun = (position: [number, number, number]): GunMount => ({ type: 'lewis', position, mount: 'flexible', rounds: 47, spareDrums: 8 });
 
 function geom(g: Partial<AircraftGeometry> & Pick<AircraftGeometry, 'layout' | 'span' | 'length' | 'chord'>): AircraftGeometry {
   return {
@@ -132,6 +134,15 @@ const SPECS: AircraftSpec[] = [
     guns: [sync('spandau', 0), rearGun('parabellum')],
   },
 
+  {
+    id: 'albatros_ciii', name: 'Albatros C.III', shortName: 'C.III', manufacturer: 'Albatros Flugzeugwerke', nation: 'germany', alsoUsedBy: [],
+    role: 'two-seater', flyable: false, introduced: '1915-12-01', retired: '1917-06-01',
+    description: 'The most numerous German two-seater of 1916: a sturdy reconnaissance and artillery machine with the observer behind the pilot, where his Parabellum commands the rear. Later machines added a fixed gun for the pilot.',
+    geometry: geom({ layout: 'biplane', span: 11.69, lowerSpan: 11.0, length: 8.0, chord: 1.75, gap: 1.8, stagger: 0.3, height: 3.07, dihedralDeg: 2, crew: 2, tailShape: 'rounded', fuselageShape: 'round', fuselageWidth: 0.95, wheelTrack: 2.0 }),
+    performance: perf({ massLoaded: 1353, massEmpty: 851, wingArea: 36.91, enginePowerHp: 150, engineType: 'inline', engineName: 'Benz Bz.III', maxSpeedKmh: 140, maxSpeedAltM: 0, ceilingM: 3350, climbTo3000mMin: 35, enduranceHours: 4, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.8, fuelCapacityL: 160 }),
+    guns: [sync('spandau', 0), rearGun('parabellum')],
+  },
+
   // ============================================================== Allies
   {
     id: 'airco_dh2', name: 'Airco D.H.2', shortName: 'D.H.2', manufacturer: 'Airco', nation: 'britain', alsoUsedBy: [],
@@ -236,6 +247,30 @@ const SPECS: AircraftSpec[] = [
     geometry: geom({ layout: 'biplane', span: 12.92, lowerSpan: 12.92, length: 9.35, chord: 1.7, gap: 1.75, stagger: 0.3, height: 3.35, crew: 2, tailShape: 'squared', fuselageWidth: 0.95, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1575, massEmpty: 1083, wingArea: 40.32, enginePowerHp: 375, engineType: 'inline', engineName: 'Rolls-Royce Eagle VIII', maxSpeedKmh: 230, maxSpeedAltM: 1000, ceilingM: 6700, climbTo3000mMin: 11, enduranceHours: 3.75, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.85, fuelCapacityL: 300 }),
     guns: [sync('vickers', 0), rearGun('lewis')],
+  },
+  {
+    id: 'be2c', name: 'Royal Aircraft Factory B.E.2c', shortName: 'B.E.2c', manufacturer: 'Royal Aircraft Factory', nation: 'britain', alsoUsedBy: [],
+    role: 'two-seater', flyable: false, introduced: '1915-04-01', retired: '1917-06-01',
+    description: 'The "Quirk": built to be inherently stable for reconnaissance, it was easy meat for the Fokker monoplanes. The observer sits in front, under the upper wing, hemmed in by struts, wires and the propeller.',
+    geometry: geom({ layout: 'biplane', span: 11.28, lowerSpan: 10.7, length: 8.31, chord: 1.68, gap: 1.9, stagger: 0.6, height: 3.39, dihedralDeg: 3.5, crew: 2, tailShape: 'rounded', fuselageWidth: 0.85, wheelTrack: 1.9 }),
+    performance: perf({ massLoaded: 972, massEmpty: 623, wingArea: 34.8, enginePowerHp: 90, engineType: 'inline', engineName: 'RAF 1a', maxSpeedKmh: 116, maxSpeedAltM: 1000, ceilingM: 3400, climbTo3000mMin: 40, enduranceHours: 3.25, rollRate: 0.35, pitchRate: 0.45, structuralStrength: 0.7, fuelCapacityL: 145 }),
+    guns: [frontGun([0, 0.9, -1.0])],
+  },
+  {
+    id: 'fe2b', name: 'Royal Aircraft Factory F.E.2b', shortName: 'F.E.2b', manufacturer: 'Royal Aircraft Factory', nation: 'britain', alsoUsedBy: [],
+    role: 'two-seater', flyable: false, introduced: '1916-01-01', retired: '1917-08-01',
+    description: 'A big pusher fighter-reconnaissance machine. The observer stands in the open nose with a Lewis gun and a clear field of fire forward; behind him the pilot, and behind them both the Beardmore engine. Formations of them fought back hard in circles.',
+    geometry: geom({ layout: 'biplane', pusher: true, span: 14.55, lowerSpan: 14.55, length: 9.83, chord: 1.68, gap: 1.83, stagger: 0, height: 3.85, dihedralDeg: 3, crew: 2, tailShape: 'rounded', fuselageWidth: 0.9, wheelTrack: 2.2 }),
+    performance: perf({ massLoaded: 1378, massEmpty: 935, wingArea: 45.9, enginePowerHp: 160, engineType: 'inline', engineName: 'Beardmore 160 hp', maxSpeedKmh: 147, maxSpeedAltM: 0, ceilingM: 3350, climbTo3000mMin: 38, enduranceHours: 2.5, rollRate: 0.35, pitchRate: 0.45, structuralStrength: 0.8, fuelCapacityL: 180 }),
+    guns: [frontGun([0, 0.7, -2.6])],
+  },
+  {
+    id: 'farman_f40', name: 'Farman F.40', shortName: 'F.40', manufacturer: 'Farman', nation: 'france', alsoUsedBy: [],
+    role: 'two-seater', flyable: false, introduced: '1915-09-01', retired: '1917-03-01',
+    description: 'The "Horace", mainstay of French reconnaissance and artillery observation into 1916. A pusher with a wide upper wing and its tail carried on booms; the observer rides in the nose with a Lewis gun.',
+    geometry: geom({ layout: 'biplane', pusher: true, span: 17.6, lowerSpan: 12.5, length: 9.25, chord: 2.0, gap: 2.0, stagger: 0, height: 3.9, dihedralDeg: 1, crew: 2, tailShape: 'squared', fuselageWidth: 0.85, wheelTrack: 2.2 }),
+    performance: perf({ massLoaded: 1120, massEmpty: 750, wingArea: 52, enginePowerHp: 130, engineType: 'inline', engineName: 'Renault 8C', maxSpeedKmh: 135, maxSpeedAltM: 0, ceilingM: 4000, climbTo3000mMin: 42, enduranceHours: 2.3, rollRate: 0.3, pitchRate: 0.4, structuralStrength: 0.7, fuelCapacityL: 140 }),
+    guns: [frontGun([0, 0.7, -2.6])],
   },
 ];
 

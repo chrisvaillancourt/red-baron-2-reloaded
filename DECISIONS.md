@@ -612,3 +612,16 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - the player was threatened in the last 8 s: hit, silently damaged by trench fire, a flak burst within 200 m, or an enemy round within 40 m;
 - the player is below 300 m AGL over enemy ground, or within 2.5 km of a live enemy ground target (4 km for AA).
 **Consequences.** Low strafing runs and balloon attacks fly at x1 automatically. High transit over the lines is still compressible until flak bursts close.
+## D-066 — Early-war two-seaters: B.E.2c, F.E.2b, Farman F.40, Albatros C.III (models wave 6; amends D-010)
+**Context.** The roster had no two-seater before the Rumpler C.IV (Jan 1917) and R.E.8 (Nov 1916), so 1915–16 escorts and intercepts flew those types a year early (PLAYTEST #15).
+**Decision.**
+- **Four AI types, historically specified:** the B.E.2c (Apr 1915 – Jun 1917), the F.E.2b (Jan 1916 – Aug 1917, day operations), the Farman F.40 (Sep 1915 – Mar 1917) and the Albatros C.III (Dec 1915 – Jun 1917). The Farman was chosen over the Caudron G.4 because it is single-engined, like everything else the flight model and generator handle.
+- **Crew positions:**
+  - The B.E.2c observer sits in front, under the upper wing.
+  - The pusher observers ride in the nose.
+  - The C.III observer sits behind the pilot, with a fixed Spandau for the pilot as on later machines.
+  - The British and French types carry an early 47-round Lewis drum.
+- **Pusher nose gunner:** a new field of fire, open ahead and below and blanked aft by the engine and propeller except high over the top wing. It is `gunnerFacesForward`/`observerForward` in `src/sim/hitboxes.ts`. The AI's gunner watches that cone instead of the tail, and crew hit boxes follow each seat.
+- **Escorts guard their own nation:** a French career escorts Farmans and a British one escorts B.E.2cs or F.E.2bs.
+- **The one remaining stand-in:** German two-seaters before December 1915 use the C.III, and briefings then name it generically ("observation two-seaters", `chargeNames`).
+**Consequences.** All 1916 escorts and intercepts now fly types that were in service. The Farman keeps a single fin and rudder, and its booms converge less than the F.E.2b's; it is not an exact copy of any one sub-type.

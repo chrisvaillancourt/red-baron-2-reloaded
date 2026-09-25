@@ -48,6 +48,7 @@ import { makeSkillProfile, skillValue, type SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
 import { getCoefficients } from '../sim/coefficients';
 import { getSimInternal } from '../sim/flightModel';
+import { gunnerFacesForward } from '../sim/hitboxes';
 
 export interface AIControllerOptions {
   role: FlightRole;
@@ -1271,7 +1272,9 @@ export class AIPilot implements AIController {
     if (!hook || !this.traits.hasFlexibleGun) return;
     let pick: number | null = null;
     if (self.damage.zones.gunner < 1) {
-      const back = forwardOf(self.state.orientation, new Vector3()).negate();
+      // Rear gunners watch the tail; a pusher's nose gunner watches ahead.
+      const back = forwardOf(self.state.orientation, new Vector3());
+      if (!gunnerFacesForward(self.spec)) back.negate();
       let best = Infinity;
       for (const e of world.aircraft) {
         if (e.side === self.side || !isAlive(e)) continue;
