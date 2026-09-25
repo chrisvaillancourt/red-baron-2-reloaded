@@ -7,7 +7,7 @@
  *
  * AI_FAIR_SET: `default` (the Quick Mission screen's setup), `mirror` (same type and skill
  * both sides: checks the AI itself is even), `matrix` (common 1917-18 matchups), `survey`
- * (the autoplay survey's quick setups). AI_FAIR_SKILL forces every pilot, player included,
+ * (the autoplay survey's quick setups), `vet` (the default fight against veterans). AI_FAIR_SKILL forces every pilot, player included,
  * to one skill.
  */
 import { describe, it } from 'vitest';
@@ -42,6 +42,10 @@ const base = (player: AircraftId, enemy: AircraftId, extra: Partial<QuickMission
 
 const SETS: Record<string, Setup[]> = {
   default: [base('sopwith_camel', 'albatros_dv')],
+  // The default fight with veteran enemies (the Quick Mission screen's harder setting).
+  vet: [{ ...base('sopwith_camel', 'albatros_dv', { enemySkill: 'veteran' }), label: 'camel v 2 vet d.v' }, { ...base('sopwith_camel', 'fokker_dri', { enemySkill: 'veteran' }), label: 'camel v 2 vet dr.i' }],
+  // Candidate even defaults once the D.V is ruled out (it can't turn with a Camel).
+  even: [{ ...base('sopwith_camel', 'fokker_dvii', { enemySkill: 'veteran' }), label: 'camel v 2 vet d.vii' }, { ...base('sopwith_camel', 'fokker_dri', { enemySkill: 'novice' }), label: 'camel v 2 novice dr.i' }],
   mirror: [base('sopwith_camel', 'sopwith_camel'), base('albatros_dv', 'albatros_dv'), base('fokker_dri', 'fokker_dri'), base('spad_xiii', 'spad_xiii'), base('fokker_dvii', 'fokker_dvii')],
   matrix: [
     base('sopwith_camel', 'albatros_dv'),
