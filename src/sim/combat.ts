@@ -273,7 +273,9 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         z[zone] = Math.min(1, z[zone] + amount);
         if (zone === 'pilot') {
           const wasWounded = d.pilotWounded;
-          const killed = z.pilot >= 1 || rng() < (wasWounded ? 0.35 : 0.18);
+          // Splinters (flak, ground fire) mostly wound; a full bullet strike is likelier to kill.
+          const severity = 0.3 + 0.7 * Math.min(1, amount / ZONE_DAMAGE.pilot);
+          const killed = z.pilot >= 1 || rng() < (wasWounded ? 0.35 : 0.18) * severity;
           if (killed) {
             z.pilot = 1;
             d.pilotKilled = true;
@@ -672,6 +674,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
   }
 
   // --------------------------------------------------------- collisions
+  const collidedAt = new Map<number, number>();
   function updateCollisions(world: WorldQuery) {
     if (!getRealism().midairCollisions) return;
     const list = world.aircraft;
@@ -685,6 +688,11 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         const rb = getHitModel(b.spec).collisionRadius;
         const r = ra + rb;
         if (a.state.position.distanceToSquared(b.state.position) > r * r) continue;
+        // Two wrecks tumbling down together don't collide again; any pair reports at most once a second.
+        if (a.damage.destroyed && b.damage.destroyed) continue;
+        const pairKey = a.id < b.id ? a.id * 100_000 + b.id : b.id * 100_000 + a.id;
+        if (now - (collidedAt.get(pairKey) ?? -Infinity) < 1) continue;
+        collidedAt.set(pairKey, now);
         const relSpeed = tmpA.copy(a.state.velocity).sub(b.state.velocity).length();
         const pos = tmpB.copy(a.state.position).lerp(b.state.position, 0.5).clone();
         bus.emit({ type: 'collision', aId: a.id, bId: b.id, position: pos });
@@ -764,10 +772,10 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       let interval = 0;
       let sigma = 75 + agl * 0.02;
       if (t.balloon) {
-        interval = 1.5 + rng() * 1.5;
-        sigma *= 0.6;
+        interval = 2.5 + rng() * 2;
+        sigma *= 0.75;
       } else if (t.aaGuns > 0) {
-        interval = (2 + rng() * 2) / Math.min(3, t.aaGuns);
+        interval = (3 + rng() * 2) / Math.min(2, t.aaGuns);
       } else if (t.nearFront) {
         interval = 4 + rng() * 3;
       } else if (t.enemyGround) {

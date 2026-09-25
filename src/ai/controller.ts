@@ -579,6 +579,19 @@ export class AIPilot implements AIController {
     // Leader: escort station, else waypoints.
     if (this.opts.task === 'escort') {
       const es = this.escortees(self, world);
+      // Job done once the charges are back over our lines and their leader is heading in to land
+      // (his wingmen stay in formation on him until he's down).
+      const chargesHome =
+        es.length > 0 &&
+        es.every((e) => world.sideOfFrontAt(e.state.position.x, e.state.position.z) === self.side) &&
+        es.some((e) => {
+          const ph = REGISTRY.get(e)?.phase;
+          return ph === 'rtb' || ph === 'landing' || ph === 'landed';
+        });
+      if (chargesHome) {
+        this.startRtb('escort complete');
+        return;
+      }
       if (es.length) {
         const lead = es.reduce((a, b) => (a.id < b.id ? a : b));
         const fs = formationSteer(self, lead, new Vector3(0, 300, 250), maxSpd);

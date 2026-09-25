@@ -262,7 +262,8 @@ describe('gunners, collisions and flak', () => {
     const a = s.add(1, 'sopwith_camel', 0, 0, 1000, 0);
     const b = s.add(2, 'albatros_dv', 0, -60, 1000, Math.PI, 'germany');
     s.step(2);
-    expect(count(s.events, 'collision')).toBeGreaterThan(0);
+    // One report per collision, not one per step while the wrecks fall together.
+    expect(count(s.events, 'collision')).toBe(1);
     expect(a.outcome).toBe('collided');
     expect(b.outcome).toBe('collided');
   });

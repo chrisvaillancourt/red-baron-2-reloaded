@@ -310,7 +310,12 @@ export class MissionDirector {
     const wounded = d.pilotWounded;
     switch (p.outcome) {
       case null:
-        if (this.aborted && !friendlyGround) return 'captured';
+        if (this.aborted) {
+          // Abandoned mid-flight: over enemy ground he comes down a prisoner; over our own
+          // lines he puts down wherever he can - not a safe return to the squadron.
+          if (!friendlyGround) return 'captured';
+          return wounded ? 'wounded' : 'landed-elsewhere';
+        }
         return wounded ? 'wounded' : 'returned';
       case 'landed-friendly': {
         if (wounded) return 'wounded';
@@ -340,7 +345,7 @@ export class MissionDirector {
       completed: this.completedObjectives.has(o.id) || evaluateObjective(o, w, true, player ? this.playerFate() : undefined),
     }));
     const primary = w.mission.objectives.filter((o) => o.primary);
-    const missionSuccess = primary.every((o) => objectives.find((x) => x.id === o.id)!.completed);
+    const missionSuccess = !this.aborted && primary.every((o) => objectives.find((x) => x.id === o.id)!.completed);
     const all = w.allAircraft();
     const friendlyLosses = player
       ? all
@@ -362,6 +367,10 @@ export class MissionDirector {
       roundsFired: this.roundsFired,
       hits: this.hits,
       wingmanClaims: [...this.wingmanKills].map(([pilotName, count]) => ({ pilotName, count })),
+      aborted: this.aborted || undefined,
+      acesDown: all
+        .filter((a) => a.aceId && a !== player && isLost(a))
+        .map((a) => ({ aceId: a.aceId!, side: a.side, fate: lossFate(a, w) })),
     };
   }
 }
@@ -414,10 +423,14 @@ export function evaluateObjective(o: MissionObjective, w: SessionWorld, final: b
     case 'reach-waypoint': {
       const p = w.player;
       if (!p) return false;
-      const flight = w.getFlight(p.flightId);
+      // Campaign convention: "<flightId>:<waypointIndex>" (docs/campaign.md); also accept a
+      // bare index or a waypoint label on the player's own flight.
+      const key = o.targetIds[0] ?? '';
+      const sep = key.lastIndexOf(':');
+      const flight = w.getFlight(sep > 0 ? key.slice(0, sep) : p.flightId);
       if (!flight) return false;
-      const key = o.targetIds[0];
-      const idx = Number.isFinite(Number(key)) ? Number(key) : flight.waypoints.findIndex((wp) => wp.label === key);
+      const ref = sep > 0 ? key.slice(sep + 1) : key;
+      const idx = ref !== '' && Number.isFinite(Number(ref)) ? Number(ref) : flight.waypoints.findIndex((wp) => wp.label === ref);
       const wp = flight.waypoints[idx];
       if (!wp) return false;
       return Math.hypot(p.state.position.x - wp.x, p.state.position.z - wp.z) < 1500;

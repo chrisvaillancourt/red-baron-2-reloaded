@@ -4,7 +4,7 @@ import { Autopilot } from './autopilot';
 import { getCoefficients } from './coefficients';
 import { SIM_DT, getSimInternal, pitchAngle, headingOf, isStoppedOnGround, orientationFrom, stepFlight } from './flightModel';
 import { makeAircraft, realism } from './testUtil';
-import type { SimFlightEnvironment } from './atmosphere';
+import { createFlightEnvironment, type SimFlightEnvironment } from './atmosphere';
 
 function run(ac: AircraftEntity, env: SimFlightEnvironment, r: RealismSettings, seconds: number, each?: (t: number) => void) {
   for (let t = 0; t < seconds; t += SIM_DT) {
@@ -157,6 +157,17 @@ describe('ground handling', () => {
     expect(ac.outcome).toBeNull();
     expect(isStoppedOnGround(ac)).toBe(true);
     expect(ac.state.onGround).toBe(true);
+  });
+
+  it('counts as stopped when parked in a breeze (ground speed, not airspeed)', () => {
+    const { ac } = makeAircraft('rumpler_civ', { onGround: true });
+    const windy = createFlightEnvironment(() => 50, { wind: [0, 0, 16], turbulence: 0 });
+    ac.state.velocity.set(0, 0, -10);
+    Object.assign(ac.controls, { throttle: 0, pitch: 0.3 });
+    run(ac, windy, realism(), 40);
+    expect(ac.outcome).toBeNull();
+    expect(ac.state.airspeed).toBeGreaterThan(3);
+    expect(isStoppedOnGround(ac)).toBe(true);
   });
 
   it('crashes when flown into the ground', () => {

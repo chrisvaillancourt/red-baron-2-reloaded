@@ -396,3 +396,34 @@ the scene's sun (`patchGroundBounce` in `aircraftVisual.ts`), instead of changin
 environment map.
 **Consequences.** Undersides read as their doped colours. The fix only affects aircraft; other
 down-facing surfaces (hangar eaves, balloons) are unchanged.
+## D-043 — Headless SimCore, terrain height cache, and the autoplayer (polish-missions)
+**Context.** Mission QA needs hundreds of full missions flown end to end; the browser loop
+and any test harness must not drift apart. Profiling showed the analytic terrain
+(`terrainHeightAt`, ~20 µs/call) queried by sim, AI look-ahead, bullets and wind on every
+step made the flight loop run only ~5x real time — too slow for x8 time compression.
+**Decision.** `src/game/simCore.ts` owns world/combat/AI/director and the fixed step; the
+browser `FlightSession` and the Node autoplayer (`src/game/autoplay.ts`) both use it. All
+flight ground queries go through a tiled bilinear cache (32 m cells, 1 km tiles, LRU),
+giving ~200x real time headless with sub-metre error (tested). The autoplayer flies the
+player's aircraft with an AI controller and "ends flight" when safe on the way home.
+**Consequences.** Balance can be measured, not guessed (docs/game.md "Autoplayer"). Tiles
+build lazily (~20 ms each); a renderer-side prefetch could hide the rare hitch.
+
+## D-044 — Mission pacing and fightable odds (polish-missions)
+**Context.** The first autoplay survey found first contact at a median 6–7 minutes (enemy
+flights spawned 60–360 s late, 9+ km out, heading for a waypoint the player might not be
+at), a 44% player death rate per career mission, and gangs of aces.
+**Decision.** Enemy spawn delays are computed (`meetDelay`) so flights reach the player's
+objective about when he does; the player starts 2–5 km short of the lines. Enemy fighter
+numbers are capped at the player's flight size +1 (+2 on 'ace'); generic skill leans
+novice/regular; named aces appear less often; flak splinters wound more than they kill;
+soft ground targets take fewer hits; ground-attack objective = a third of the targets.
+**Consequences.** Contact now comes in ~3–4 sim minutes (half a minute of real time at x8),
+and success/death rates are in a playable band (see the table in the final polish report).
+
+## D-045 — Abandoning is an aborted mission, never a safe return (polish-missions)
+**Decision.** "Abandon mission" over our lines records `landed-elsewhere` with
+`MissionResult.aborted` (always a failure, own CO remark); over enemy lines, capture. A
+safe "End flight" (no enemy within 5 km, friendly ground below) remains a normal return.
+Every ace lost in a fight is reported in `MissionResult.acesDown` so the campaign retires
+him even when someone other than the player brought him down.

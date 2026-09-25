@@ -113,6 +113,20 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
       if (ace) narrative.push(`${ace.displayName} failed to return from the patrol. The whole squadron feels his loss.`);
     }
   }
+  // Any other ace brought down in the fight (by a wingman, a gunner, flak) is out of the war too.
+  for (const down of result.acesDown ?? []) {
+    if ((down.fate !== 'killed' && down.fate !== 'captured') || p.alteredAces?.[down.aceId]) continue;
+    p.alteredAces = { ...(p.alteredAces ?? {}), [down.aceId]: { fate: down.fate, date: missionDate } };
+    const ace = getAce(down.aceId);
+    if (!ace) continue;
+    narrative.push(
+      down.side === p.side
+        ? `${ace.displayName} was lost in the fighting today.`
+        : down.fate === 'captured'
+          ? `${ace.displayName} came down on our side of the lines today and is now a prisoner.`
+          : `The squadron is saying that ${ace.displayName} fell in today's fight.`,
+    );
+  }
 
   const confirmedNow = claims.filter((c) => c.confirmed).length;
   const total = confirmedVictories(p);
@@ -133,7 +147,9 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
   // ------------------------------------------------------------ mission outcome & CO remarks
   if (fate !== 'killed' && fate !== 'captured') {
     narrative.unshift(
-      result.missionSuccess
+      result.aborted
+        ? rng.pick(['You broke off and came home before the job was done. The CO wants a written explanation.', 'The patrol was abandoned. There will be questions from Wing.'])
+        : result.missionSuccess
         ? rng.pick(['The CO was pleased with the day\'s work.', 'A good show, the CO said - the mission was carried out as ordered.', 'Headquarters has signalled its satisfaction with the patrol.'])
         : rng.pick(['The mission was not accomplished. The CO said little, which was worse than a dressing-down.', 'The objective was not achieved; we shall have to go again.', 'A bad day. The squadron failed in its task.']),
     );

@@ -132,6 +132,35 @@ describe('MissionDirector', () => {
     expect(t.director.playerFate()).toBe('killed');
   });
 
+  it('treats abandoning over our own lines as a failed, aborted mission (not a safe return)', () => {
+    const t = setup((m) => m.objectives.push({ id: 'survive', kind: 'survive', description: 'Survive', targetIds: [], count: 1, primary: true }));
+    for (const e of t.enemies) e.outcome = 'shot-down';
+    t.player.state.position.set(-15000, 1500, 0);
+    t.director.abort();
+    const r = t.director.buildResult();
+    expect(r).toMatchObject({ aborted: true, missionSuccess: false, playerFate: 'landed-elsewhere' });
+    const t2 = setup();
+    t2.player.state.position.set(15000, 1500, 0);
+    t2.director.abort();
+    expect(t2.director.buildResult()).toMatchObject({ aborted: true, playerFate: 'captured' });
+  });
+
+  it('completes reach-waypoint objectives using the "<flightId>:<index>" convention', () => {
+    const t = setup((m) => {
+      const f = m.flights.find((x) => x.role === 'player-flight')!;
+      f.waypoints = [
+        { x: 0, z: -2000, altitude: 1500, action: 'fly' },
+        { x: 3000, z: -4000, altitude: 1500, action: 'patrol' },
+      ];
+      m.objectives = [{ id: 'wp', kind: 'reach-waypoint', description: 'Fly the line', targetIds: [`${f.id}:1`], count: 1, primary: true }];
+    });
+    t.director.update(0.01);
+    expect(t.director.completedObjectives.has('wp')).toBe(false);
+    t.player.state.position.set(3200, 1500, -3900);
+    t.director.update(0.01);
+    expect(t.director.completedObjectives.has('wp')).toBe(true);
+  });
+
   it('ends the mission after the player crashes, emitting a destroyed event once', () => {
     const t = setup();
     let destroyed = 0;

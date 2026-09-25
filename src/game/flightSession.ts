@@ -7,7 +7,6 @@
 import { Vector3, type Object3D } from 'three';
 import { createEventBus } from '../core/events';
 import type {
-  AIController,
   AircraftVisual,
   AudioEngine,
   CombatSystem,
@@ -18,19 +17,22 @@ import type {
   WorldRenderer,
 } from '../core/interfaces';
 import type { AircraftEntity, GameEvent, GameSettings, MissionDefinition, MissionResult } from '../core/types';
+import { getAerodrome } from '../data/aerodromes';
 import { CameraRig, type CameraMode } from './cameras';
 import { RenderInterpolator } from './renderInterp';
 import { advanceWaypoint, buildHudView } from './hudView';
 import { InputManager, type EdgeAction } from './input';
-import { MissionDirector } from './missionDirector';
+import type { MissionDirector } from './missionDirector';
 import type { GameModules } from './moduleTypes';
 import type { Hud } from '../ui/hud/types';
 import type { MapMarker, MapView } from '../ui/map/mapRenderer';
 import { resolveUnits } from '../ui/format';
-import { buildWorld, type SessionWorld } from './world';
+// Read-only gunner state for the rear-gun visuals (pure sim helper, no composition needed).
+import { getGunnerTarget } from '../sim';
+import { SimCore, SIM_HZ } from './simCore';
+import type { SessionWorld } from './world';
 
-export const SIM_HZ = 120;
-export const AI_EVERY_N_STEPS = 4; // 30 Hz
+export { SIM_HZ, AI_EVERY_N_STEPS } from './simCore';
 export const TIME_SCALES = [1, 2, 4, 8] as const;
 const MAX_FRAME_DT = 0.1;
 const COMPRESSION_SAFE_RANGE = 4000;
@@ -61,6 +63,10 @@ export interface SessionDebug {
   readonly rig: CameraRig;
   readonly visuals: Map<number, AircraftVisual>;
   freeze(frozen: boolean): void;
+  /** AI behaviour label of an aircraft ("formation", "engage #4"...), for tests. */
+  aiState(id: number): string | undefined;
+  /** Test hook: set the player down, stopped, on the home aerodrome (to exercise landing rules). */
+  placeAtHome(): boolean;
 }
 
 declare global {
@@ -80,6 +86,7 @@ export function createFlightLauncher(modules: GameModules, audio: AudioEngine): 
 
 export class FlightSession {
   private bus: EventBus = createEventBus();
+  private core!: SimCore;
   private world!: SessionWorld;
   private renderer!: WorldRenderer;
   private combat!: CombatSystem;
@@ -92,7 +99,6 @@ export class FlightSession {
   private ordersOpen = false;
   private waypointIndex = 0;
   private wingmanOrders = new Map<number, string>();
-  private ai = new Map<number, AIController>();
   private visuals = new Map<number, AircraftVisual>();
   private interp = new RenderInterpolator();
   private entityObjects = new Map<number, Object3D>();
@@ -101,13 +107,11 @@ export class FlightSession {
   private raf = 0;
   private lastT = 0;
   private accumulator = 0;
-  private stepCount = 0;
   private timeScaleIdx = 0;
   private paused = false;
   private hudVisible = true;
   private gEffect = 0;
   private frames = 0;
-  private wasAirborne = new Set<number>();
   private pixelRequests: ((s: { distinctColors: number; nonBlack: number; total: number }) => void)[] = [];
   private unsubs: (() => void)[] = [];
   private resolve!: (r: MissionResult) => void;
@@ -150,24 +154,13 @@ export class FlightSession {
     this.canvas.tabIndex = 0;
     this.root.appendChild(this.canvas);
 
-    const env = modules.createFlightEnvironment(modules.terrainHeightAt, mission.weather);
-    this.world = buildWorld({ mission, modules, env, realism: settings.realism });
+    this.core = new SimCore(modules, mission, () => settings.realism, { bus: this.bus });
+    this.world = this.core.world;
+    this.combat = this.core.combat;
+    this.director = this.core.director;
     this.renderer = modules.createWorldRenderer(this.canvas, { quality: settings.graphics, date: mission.date });
     this.renderer.setEnvironment(mission.date, mission.timeOfDay, mission.weather);
-    this.combat = modules.createCombatSystem(this.bus, () => settings.realism);
     this.hud = modules.createHud(this.root, settings);
-    this.director = new MissionDirector(this.world, this.bus, (from, text) => this.bus.emit({ type: 'radio', from, text }));
-
-    // AI controllers for every non-player aircraft, including pending spawns.
-    for (const [flightId, members] of this.world.flightMembers) {
-      const flight = this.world.getFlight(flightId)!;
-      const leaderId = members[0].id;
-      members.forEach((ac, slot) => {
-        if (ac.controller !== 'ai') return;
-        const homeAerodromeId = flight.role === 'enemy' ? undefined : mission.homeAerodromeId;
-        this.ai.set(ac.id, modules.createAIController(ac, { skill: ac.skill, flight, slot, leaderId, realism: settings.realism, homeAerodromeId }));
-      });
-    }
 
     // Visuals.
     const all = this.world.allAircraft();
@@ -259,6 +252,8 @@ export class FlightSession {
       freeze: (f: boolean) => {
         self.paused = f;
       },
+      aiState: (id) => self.core.ai.get(id)?.debugState,
+      placeAtHome: () => self.placeAtHome(),
     };
   }
 
@@ -305,6 +300,29 @@ export class FlightSession {
       },
       onCancel: () => (fromPause ? this.setPaused(true) : this.setPaused(false)),
     });
+  }
+
+  /** Debug/test hook: park the player on the home aerodrome's strip, stopped. */
+  private placeAtHome(): boolean {
+    const p = this.world.player;
+    const home = getAerodrome(this.mission.homeAerodromeId);
+    if (!p || !home || p.outcome !== null) return false;
+    const heading = (home.runwayHeadingDeg * Math.PI) / 180;
+    const parked = this.modules.sim.createFlightState(p.spec, { x: home.x, z: home.z, altitude: this.world.groundHeightAt(home.x, home.z), heading, airspeed: 0 }, this.world.env, true);
+    Object.assign(p.state, parked);
+    p.controls.throttle = 0;
+    this.input.setThrottle(0);
+    return true;
+  }
+
+  /** Swing a two-seater's rear gun (visual only) toward whatever its gunner is engaging. */
+  private aimGunnerVisual(ac: AircraftEntity, v: AircraftVisual): void {
+    const ext = v as AircraftVisual & { aimFlexibleGun?: (p: Vector3 | null) => void };
+    if (!ext.aimFlexibleGun) return;
+    const tid = ac.outcome === null ? getGunnerTarget(ac) : null;
+    const t = tid !== null ? this.world.getEntity(tid) : undefined;
+    const live = t?.kind === 'aircraft' && t.outcome === null && t.state.position.distanceTo(ac.state.position) < 1200;
+    ext.aimFlexibleGun(live ? t.state.position : null);
   }
 
   /** Stream terrain around the start position behind the loading screen (max ~12 s). */
@@ -461,7 +479,7 @@ export class FlightSession {
   private orderWingmen(cmd: WingmanCommand, ack: string): void {
     const p = this.world.player;
     if (!p) return;
-    const mates = (this.world.flightMembers.get(p.flightId) ?? []).filter((a) => a.id !== p.id && a.outcome === null);
+    const mates = this.core.playerWingmen();
     if (mates.length === 0) {
       this.hud.showMessage('You have no wingmen with you.');
       return;
@@ -472,10 +490,8 @@ export class FlightSession {
       return;
     }
     const label = ORDER_LABELS[cmd];
-    for (const m of mates) {
-      this.ai.get(m.id)?.command(cmd, target);
-      this.wingmanOrders.set(m.id, label);
-    }
+    this.core.orderWingmen(cmd, target);
+    for (const m of mates) this.wingmanOrders.set(m.id, label);
     if (this.ordersOpen) {
       this.ordersOpen = false;
       this.hud.showWingmanMenu(false);
@@ -538,6 +554,7 @@ export class FlightSession {
       if (!v) continue;
       v.object.visible = true;
       v.update(ac, this.paused ? 0 : dtReal);
+      if (ac.spec.guns.some((g) => g.mount === 'flexible')) this.aimGunnerVisual(ac, v);
     }
     for (const b of world.balloons) this.entityObjects.get(b.id)?.position.copy(b.position);
 
@@ -581,41 +598,10 @@ export class FlightSession {
   }
 
   private step(h: number): void {
-    const world = this.world;
-    world.time += h;
-    for (const ac of world.spawnDue()) {
+    for (const ac of this.core.step(h)) {
       const v = this.visuals.get(ac.id);
       if (v) v.object.visible = true;
     }
-    const runAi = this.stepCount % AI_EVERY_N_STEPS === 0;
-    this.stepCount++;
-    if (runAi) {
-      for (const ac of world.aircraft) {
-        if (ac.outcome !== null) continue;
-        const c = this.ai.get(ac.id);
-        if (c) c.update(ac, world, h * AI_EVERY_N_STEPS);
-      }
-    }
-    for (const ac of world.aircraft) {
-      if (ac.outcome !== null && ac.state.onGround) continue;
-      if (ac.outcome === 'disengaged') continue;
-      this.modules.sim.stepFlight(ac, world.env, this.settings.realism, h);
-      this.detectLanding(ac);
-    }
-    this.combat.update(world, h);
-    this.director.update(h);
-  }
-
-  private detectLanding(ac: AircraftEntity): void {
-    const s = ac.state;
-    if (!s.onGround) {
-      if (s.heightAboveGround > 5) this.wasAirborne.add(ac.id);
-      return;
-    }
-    if (ac.outcome !== null || !this.wasAirborne.has(ac.id) || s.airspeed > 2) return;
-    const friendly = this.world.sideOfFrontAt(s.position.x, s.position.z) === ac.side;
-    ac.outcome = friendly ? 'landed-friendly' : 'landed-enemy';
-    this.bus.emit({ type: 'aircraft-landed', aircraftId: ac.id, friendlyTerritory: friendly });
   }
 
   private updateGEffect(dt: number): void {

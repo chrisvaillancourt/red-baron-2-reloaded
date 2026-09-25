@@ -34,7 +34,16 @@ their aces appear with a probability scaled by the historical event's
 intensity. Aces the career has killed/captured (`pilot.alteredAces`) never
 reappear.
 
-Default start: airborne 2.5–7 km short of the lines at patrol altitude.
+Default start: airborne 2–5 km short of the lines at patrol altitude.
+
+**Pacing and odds** (tuned with the autoplayer, docs/game.md). Enemy flights
+get a `meetDelay` spawn delay so they reach the player's first patrol point,
+escort target, interception area or balloon line about when he does (first
+contact typically 3–4 sim minutes in, ~30 s real time at x8). The player's
+flight size is rolled before planning (`ctx.playerFlightSize`) and
+`enemyCount` never exceeds it by more than one (two on 'ace' difficulty).
+Generic enemy skill is mostly novice/regular on 'pilot'; named aces lead a
+flight with probability ~0.22 × event intensity (×0.5 recruit, ×1.3 ace).
 `startOnGround` parks the flight on the home aerodrome's runway heading.
 
 ### Objective `targetIds`

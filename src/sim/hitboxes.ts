@@ -88,13 +88,13 @@ export function getHitModel(spec: AircraftSpec): AircraftHitModel {
 
 /** Ground target box half-extents (x, y height full, z) and damage per round. */
 export const GROUND_TARGET_BOXES: Record<GroundTargetType, { hx: number; h: number; hz: number; damagePerHit: number; blast: number }> = {
-  'aa-gun': { hx: 1.5, h: 2.2, hz: 1.5, damagePerHit: 0.05, blast: 1 },
-  truck: { hx: 1.1, h: 2.6, hz: 3, damagePerHit: 0.08, blast: 1 },
-  artillery: { hx: 1.3, h: 2, hz: 2.5, damagePerHit: 0.05, blast: 1.2 },
+  'aa-gun': { hx: 1.5, h: 2.2, hz: 1.5, damagePerHit: 0.08, blast: 1 },
+  truck: { hx: 1.1, h: 2.6, hz: 3, damagePerHit: 0.12, blast: 1 },
+  artillery: { hx: 1.3, h: 2, hz: 2.5, damagePerHit: 0.08, blast: 1.2 },
   hangar: { hx: 9, h: 8, hz: 10, damagePerHit: 0.012, blast: 2 },
   'tent-hangar': { hx: 6, h: 6, hz: 7, damagePerHit: 0.03, blast: 1.5 },
   'supply-dump': { hx: 5, h: 3, hz: 5, damagePerHit: 0.02, blast: 3 },
-  'trench-mg': { hx: 1, h: 1.2, hz: 1, damagePerHit: 0.07, blast: 0.6 },
+  'trench-mg': { hx: 1, h: 1.2, hz: 1, damagePerHit: 0.12, blast: 0.6 },
   train: { hx: 1.6, h: 4, hz: 20, damagePerHit: 0.012, blast: 2.5 },
 };
 
