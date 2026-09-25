@@ -38,20 +38,27 @@ are less accurate"):
   - Seeded quick repetitions (`AUTOPLAY_QUICK_REPS`) and `AUTOPLAY_DIFFICULTY`.
   - A passive-recruit regression test.
 
+**Done (wave 5) — AI and sim survivability** (docs/ai.md "Wave 5"; DECISIONS ai-sim wave 5)
+- Stall overshoot fixed at the root: the pitch law settles on the tail's AoA, and
+  slipstream made the wing overshoot. The AI and the sim's relaxed caps now divide
+  by `tailPressureRatio`. Low-level survey: stalled time 1,880 → ~590 s, ground
+  impacts 19 → 5, recovery share of engage time ~11.5% → ~4–5%.
+- Low-level defence: energy-aware g, faster recovery, level breaks and deck
+  extensions below 350 m (scissors measured worse and were dropped).
+- Wounds before deaths: a softer pilot-kill roll, wounds degrade pull, roll and aim,
+  wider target spreading, and wreck avoidance. Veteran career deaths 31% → 18%.
+- Strafers: pass and ammo limits, leaving when scouts close, energy floors, and
+  RTB flights that fight back. Quick ground attack returned 13% → 25%.
+
 Remaining:
-- **Do:** defended quick ground attacks now succeed (100%), but the
-  autoplayer still dies in about 88% of them. The defending scouts arrive after
-  the strafing and win the low-level fight that follows (the player's flight is
-  slow and low). Look at the AI's low-altitude defensive manoeuvres and energy in
-  turning fights; the dogfight AI also spends 2–11% of engage time in stall
-  recovery. A "run home when outnumbered low" rule was tried and made things
-  worse.
-- **Do:** career patrol deaths vary from 25% to 50% by run for the veteran
-  autoplayer, often with the player killed early by the pilot-hit roll.
-  Consider softening the per-round pilot-kill chance (`src/sim/combat.ts`
-  pilot case) or enemy focus on flight leaders.
+- **Defer (mission balance, not AI):** defended quick ground attacks still kill
+  the autoplayer ~67% (+8% captured), with success 58%. Veteran SPADs arrive with
+  height and speed over low, slow strafers. Levers: defender scramble delay or
+  altitude in `src/campaign` quick builder.
 - **Defer:** quick dogfight survey setups (D.VII against two veteran SPADs)
-  are hard by construction; not a bug.
+  are hard by construction (~75% killed); not a bug.
+- **Do:** career collisions (2 wingman, 2 enemy in 56 missions) are now a large
+  share of losses; formation and head-on pass separation are the next place to look.
 
 **Done (wave 4) — flight and HUD**
 - HUD centre declutter (`src/ui/hud/declutter.ts`; DECISIONS "HUD declutter by priority"): the waypoint fades
@@ -68,15 +75,21 @@ Remaining:
   5/6 kills, 56% on target) and loses turning fights to the D.H.2, as it
   historically did.
 
+**Done (wave 5) — flight and HUD**
+- Mouse-aim fine aim: within 10° the lateral demand is softened and the rudder
+  takes up the rest. E.III bank rate near the aim ~20 → ~14°/s
+  (`aimDither.realsim.test.ts`).
+- `Autopilot.stallMarginDeg` is split from `diveCaution`. `INSTRUCTOR` margins are relaxed
+  3.2°, standard 1.8°, authentic 1.3°; relaxed never stalls a Camel/D.V in a max
+  turn (`instructorMargin.realsim.test.ts`).
+- `pilotGTolerance(ac)` (src/sim) is exported for a wound-aware grey-out.
+
 **Do — flight and HUD (remaining)**
-- Mouse-aim roll dithers on slow-rolling types (E.III bank ±20° while the aim
-  error is 3–7°). The fix belongs in the aim mode of `src/ai/autopilot.ts`:
-  bank demand for small errors is about 30° for a 5° error. An
-  instructor-side rudder blend was tried and made things worse (see the E.III decision).
-- The instructor's `caution` presets pass the AI's skill value as
-  `diveCaution`, which *lowers* the stall margin (relaxed gets the ace's 1.0°).
-  Split the stall margin from the dive governor in the autopilot, then
-  retune `INSTRUCTOR`.
+- Wire `pilotGTolerance` into `FlightSession.updateGEffect` (src/game, fixed 4.5 g
+  onset today) so a wounded player greys out sooner. It returns 5.5 g unwounded, so
+  use `pilotGTolerance(p) - 1` to keep today's onset.
+- E.III still rocks a little near the aim (~14°/s bank activity); acceptable,
+  revisit only if playtests complain.
 
 **Visuals — done (wave 4)**
 - Showcase set `docs/screenshots/game-*.png` (7 shots) is in the README gallery.

@@ -30,7 +30,12 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
 * **Moments** (acceleration form, per unit dynamic pressure): the stick commands an angle
   of attack about a hands-off trim (level at ~75% Vmax, 1000 m) — natural speed stability
   and phugoid; roll authority/damping from `rollRate`; weathercock, dihedral, adverse yaw,
-  side force. Slipstream over the tail gives elevator/rudder authority on the ground.
+  side force. Slipstream over the tail gives elevator/rudder authority on the ground, and
+  in flight the law settles where the *tail* AoA (wing AoA × q̄ / (q̄ + q_slip)) meets the
+  command: under power at low speed the wing sits above the commanded AoA by
+  `tailPressureRatio(ac, env)`. Controllers inverting `stickForAlpha` must divide their
+  desired wing AoA by it (the AI autopilot does); the relaxed stall cap and the relaxed /
+  standard g caps are scaled by it internally.
 * **Torque** (`realism.engineTorque`, not in relaxed): reaction roll to the left, gyroscopic
   precession `M = H × ω` (yaw right → nose down; pull up → yaw right), and a rotary
   power-on right-yaw bias. Result: a Camel turns ~12% faster right than left and needs
@@ -49,7 +54,9 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
   power dive after ~8 s; a SPAD XIII survives it.
 * **Damage effects.** Engine damage reduces power (misfiring > 50%); wing damage → lost
   and asymmetric lift + drag; tail/controls damage → reduced authority; failed parts tumble.
-  A killed pilot slumps on the controls.
+  A killed pilot slumps on the controls; a wounded one pulls (−35% × wound) and rolls
+  (−25% × wound) less. `pilotGTolerance(ac)` (5.5 g fit → 2.5 g badly wounded) is the
+  intended grey-out limit for a wound-aware g-effect overlay (not yet wired into src/game).
 * **Ground.** Two wheels + tailskid spring/damper contacts with rolling/lateral/skid friction;
   hard points (wingtips, nose, top, fin). Crash on sink > 4.8 m/s (3.8 authentic, 7 relaxed),
   nose/inverted contact above 9 m/s, wingtip scrape above 22 m/s. Ground height ≤ 0.3 m
@@ -102,8 +109,10 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   health; each hit may ignite the hydrogen; ignition = `balloon-destroyed`). Ground targets
   are oriented boxes (`GROUND_TARGET_BOXES`).
 * **Damage.** Engine (smoke > 0.4, dead at 1, small fire chance), fuel tank (leaks, fire),
-  pilot/gunner (not every round in the box finds the man; wounds, deaths), wings/tail/fuselage
-  (structural failure at 1), controls, guns (random jam). Fire burns 8–20 s before the aircraft
+  pilot/gunner (not every round in the box finds the man; each pilot hit adds 0.22 wound and
+  kills with probability (0.07 + 0.25 × wounds) × severity, the fifth hit certainly), wings/tail/fuselage
+  (structural failure at 1), controls, guns (random jam). Engine/fuel-tank fire chances scale
+  with the hit size, so flak/ground-fire splinters start fewer fires than bullets. Fire burns 8–20 s before the aircraft
   is lost; side-slipping helps blow it out. `realism.invulnerable` protects only `controller === 'player'`.
 * **Kill credit.** `aircraft-destroyed.killerId` = the last attacker when the loss follows a hit
   within 30 s — including structural failure and crashes/ditching ("forced down"). Collisions
