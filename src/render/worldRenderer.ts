@@ -433,7 +433,9 @@ export class WorldRendererImpl implements WorldRenderer {
     this.mask.texture.dispose();
     this.effects.dispose();
     this.clouds.dispose();
+    const lost = this.renderer.getContext().isContextLost();
     this.renderer.dispose();
+    if (lost) return;
     // Each flight gets a fresh canvas + context. Release the GPU context now rather than
     // whenever the canvas is garbage-collected: browsers cap live contexts (~16) and
     // evict the oldest with a warning, and the GPU memory is held meanwhile.

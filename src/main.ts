@@ -1,8 +1,7 @@
-import { showFatalError, startApp } from './game/app';
+import { installGlobalErrorHandlers, showFatalError, startApp } from './game/app';
 import { modules } from './game/modules';
 
-window.addEventListener('error', (e) => showFatalError(e.error ?? e.message));
-window.addEventListener('unhandledrejection', (e) => showFatalError(e.reason));
+installGlobalErrorHandlers();
 
 const root = document.getElementById('app')!;
 try {
