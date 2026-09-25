@@ -255,7 +255,13 @@ every gain with dynamic pressure automatically.
   boom-and-zoom loses). `gundiag` also reports entry geometry per side: passes, share
   from above (> 100 m), up-sun (< 15°), unseen (not in the target's contacts), height
   advantage, and time in a sustained flat turn. `AI_TACTICS=stalk=0,...` flips
-  `TACTICS_FLAGS` in the fairness, gundiag and autoplay soaks.
+  `TACTICS_FLAGS` in the fairness, gundiag, ambush and autoplay soaks.
+- `AI_SOAK=ambush AI_AMBUSH_REPS=14 pnpm vitest run src/ai/ambush.soak.test.ts`: attack entry
+  by skill where stalking can apply (the stalk test's geometry, 7 start bearings), for
+  novice, regular, veteran, ace and a stalker-signature ace: first passes from above,
+  up-sun and unseen. It takes ~4 min.
+- In-engine proof: `node tools/playtest/ai-depth-shots.mjs <out> <port> sun|cloud` (dev
+  server, seeded with `SEED=n`) logs each shot's AI state, range, sun angle and cloud density.
 - `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
   at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
   the flak gun at the waypoint.
@@ -345,6 +351,7 @@ setup, about ±10% noise.
 |---|---|---|
 | Default dogfight (Camel+1 v 2 regular D.V): player down (fairness, 24) | 4% | 4% |
 | Mirror, player down (Camel / D.V / Dr.I / SPAD XIII / D.VII; 24 each) | 33 / 21 / 25 / 29 / 29% | 13 / 38 / 42 / 29 / 21% |
+| Camel mirror re-run (lead, 48 each) | 44% | 35% |
 | Camel v D.VII / D.VII v Camel (24) | 29 / 71% | 8 / 88% |
 | Dr.I v SPAD / SPAD v Dr.I (24) | 8 / 83% | 8 / 83% |
 | Dr.I v S.E.5a / S.E.5a v Dr.I (24) | 4 / 88% | 4 / 83% |
@@ -352,19 +359,31 @@ setup, about ±10% noise.
 | Quick default ground attack (autoplay, 24): success / killed+captured | 96% / 8% | 96% / 8% |
 | Collisions in those 48 quick missions | 0 | 0 |
 | Enemy entries from above or up-sun, head-on quick fight (`gundiag`, 24): regular / novice / ace D.V | 7 / 7 / 16% | 11 / 5 / 19% |
-| Stalker ace v unaware patrol, low sun (`stalk.realsim`, 5 seeds): entries up-sun / unseen | 0 / 0 of 5 | 5 / 3 of 5 |
+| Stalker ace v unaware patrol, low sun (`stalk.realsim`, 5 seeds): entries up-sun / unseen | 0 / 0 of 5 | 5 / 5 of 5, 2–4° off the sun (after the lead's constant-bearing fix; 5 / 3 before) |
+| First passes from above or up-sun where stalking can apply (`AI_SOAK=ambush`, 14 each): novice / regular / veteran / ace / stalker ace | 0 / 0 / 43 / 38 / 38% | 0 / 0 / 57 / 62 / 100% |
+| Same, unseen by the target: stalker ace | 0% | 100% |
 | Wounded pilot, cumulus 900 m ahead (`cloudEscape.realsim`, 6 seeds): s in cloud / s out of pursuer's sight / hits taken | 46 / 57 / 213 | 126 / 151 / 227 |
-| Veteran career killed+captured (`AUTOPLAY_MISSIONS=10`) | 24% (19 of 78 missions) | 16% (15 of 91) |
-| Career collisions per 100 missions | 5.1 (4 of 78) | 3.3 (3 of 91) |
+| Veteran career killed+captured (`AUTOPLAY_MISSIONS=10`) | 24% (19 of 78 missions) | 16% (15 of 91); 21% (17 of 80) after the constant-bearing fix |
+| Career collisions per 100 missions | 5.1 (4 of 78) | 3.3 (3 of 91); 3.8 (3 of 80) after the fix |
 
 The mirror swings (Camel 33→13%, D.V 21→38%, Dr.I 25→42%) go both ways and sit inside
-the noise for 24 runs of a 2v2. Read them as no net change. None of the quick setups tests
+the noise for 24 runs of a 2v2. Read them as no net change. A 48-run re-run of the Camel
+mirror put it at 35% on against 44% off, inside the 30–70% target. None of the quick setups tests
 stalking. In the head-on start both flights see each other before 2.6 km, so a stalker is
 spotted before he can set up and the entry shares barely move. The stalk and cloud effects
 show in the real-sim tests, and should show in career patrols and intercepts, where
 flights meet beyond spotting range, and in a quick dogfight with
 `startPosition: 'disadvantage'` (enemy 1.6 km behind and 500 m above, in the player's
 blind cone) against a named ace in a low sun.
+
+In-engine proof (`tools/playtest/ai-depth-shots.mjs`):
+- `docs/screenshots/ai-out-of-the-sun.jpg` (seed 3): René Fonck (stalker signature) comes
+  down the sun line at a crossing D.V. He holds 3–4° off the sun from 2.3 km to 800 m. In the
+  victim's view there is only glare, with no HUD box or threat cue. From behind the victim he
+  is a speck beside the sun disc. The HUD first boxes him at 540 m.
+- `docs/screenshots/ai-cloud-escape.jpg` (seed 1): a wounded D.V heading home with a Camel
+  1.3 km behind turns into a cumulus at his own height. He is inside the core (density
+  1.0) for about 15 s and comes out 2 km further on.
 
 The career survey (`AUTOPLAY=career AUTOPLAY_MISSIONS=10 AUTOPLAY_OUT=<scratch>/career.txt
 pnpm vitest run src/game/autoplay.soak.test.ts`, off with the `AI_TACTICS=...` prefix) is
@@ -384,8 +403,11 @@ start, so a combined run keeps only the quick table.
   a flight-model change or a different default enemy (D-071).
 - **Stalking only fires where the attacker starts unseen.** In head-on quick fights both
   sides spot each other first, so entries from above or up-sun stay near 10% for regulars
-  (19% for aces). The acceptance metric needs a setup where flights meet beyond spotting
-  range (see Wave 8).
+  (19% for aces). Where it can apply (`AI_SOAK=ambush`), aces enter 62% of first passes from
+  above or up-sun against novices' 0%, and a stalker ace 100%, all unseen. Generic veterans
+  and aces (no signature) are never unseen at the merge. Their patience (≤ 60 s) runs out
+  before they reach the sun line, so only signature stalkers, leaders and calculated
+  pilots really ambush.
 - **Cloud escape hides a pilot but doesn't save him.** A pursuer within ~200 m still sees
   into cloud (perception's `range × transmittance` model is lenient at short range), and
   the refuge lasts 12–20 s before he heads home again. A wounded pilot takes as many hits

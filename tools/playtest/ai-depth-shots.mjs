@@ -41,9 +41,9 @@ const SCENES = {
     opts: { playerAircraft: 'sopwith_camel', enemyAircraft: 'albatros_dv', enemyCount: 1, wingmen: 1, enemySkill: 'regular', wingmanSkill: 'ace', altitudeM: 1800, startPosition: 'advantage', timeOfDay: 'afternoon', cloudCover: 0.55, type: 'dogfight', date: '1917-08-20' },
     patch: `mission.weather.cloudBaseM = 1500; mission.weather.cloudTopM = 2400;`,
     wound: true,
-    shots: [6, 10, 14, 18, 22, 26, 30, 35, 40, 45, 50, 60, 70, 80, 90],
-    cams: ['escape', 'escape-wide'],
-    noHud: ['escape', 'escape-wide'],
+    shots: [8, 11, 14, 16, 18, 20, 23, 27, 32, 38, 44, 50],
+    cams: ['escape-far'],
+    noHud: ['escape-far'],
   },
 };
 
@@ -113,6 +113,22 @@ for (const [name, sc] of Object.entries(SCENES)) {
           const cp = chaser.state.position;
           const back = cp.clone().sub(ep).normalize();
           place(cp.clone().addScaledVector(back, 30).add(new P(0, 8, 0)), ep);
+          break;
+        }
+        case 'escape-far': {
+          // Outside the cloud: behind the fugitive on his pursuer's side, at the nearest of
+          // 500-900 m that is clear of cloud (fixed once chosen), through a 22° lens, so the
+          // cloud swallowing him is in frame.
+          const chaser = w.aircraft.filter((a) => a.side === player.side && !a.outcome).sort((a, b) => a.state.position.distanceTo(ep) - b.state.position.distanceTo(ep))[0] ?? player;
+          const back = chaser.state.position.clone().sub(ep).setY(0).normalize();
+          let pos = null;
+          for (const d of [500, 600, 700, 800, 900]) {
+            const c = ep.clone().addScaledVector(back, d).add(new P(0, 60, 0));
+            if ((w.cloudDensityAt?.(c.x, c.y, c.z) ?? 0) < 0.01) { pos = c; break; }
+          }
+          st.fixed = st.fixed ?? pos ?? ep.clone().addScaledVector(back, 900).add(new P(0, 60, 0));
+          place(st.fixed, ep);
+          if (cam.fov !== 22) { cam.fov = 22; cam.updateProjectionMatrix(); }
           break;
         }
         case 'escape-wide': {

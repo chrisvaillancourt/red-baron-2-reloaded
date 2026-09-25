@@ -10,8 +10,8 @@ The wave-7 release check (docs/PLAYTEST.md, top section) gave a **GO**: a fan
 can play for an evening without hitting a blocker. Everything still open below
 is minor or polish, and each item carries a disposition.
 
-Verified on `main` after the wave-7 merges: `npx tsc --noEmit` clean, `pnpm test`
-334 passed (21 env-gated soak tests skipped), `pnpm e2e` 16 passed (1 gated
+Verified on `main` after the wave-8 merges: `npx tsc --noEmit` clean, `pnpm test`
+357 passed (23 env-gated soak tests skipped), `pnpm e2e` 16 passed (1 gated
 soak skipped), `pnpm build` OK.
 
 ## Deployment
@@ -24,10 +24,52 @@ soak skipped), `pnpm build` OK.
 - **After a deploy:** `pnpm prodcheck https://chrisvaillancourt.github.io/red-baron-2-reloaded/`
   runs a cold-cache load, a flight, GLBs and workers, and fails on any error.
 
+## AI depth — wave 8 (sun, cloud, stalking, ace signatures)
+Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073..D-076.
+- **Done:**
+  - **Shared sky:** one sun and one cloud field in src/world, used by both the renderer
+    and the AI.
+  - **Perception:** sun glare (the core is within 5° of the sun), cloud line of sight,
+    and last-seen memory. The player's threat triangles and automatic target box follow
+    the same rules; padlock is unchanged. The HUD draws a glare wash-out so the sun hides
+    a diving enemy from humans too.
+  - **Tactics:** stalking down the sun line on a constant-bearing course, veterans and
+    aces turning up into a bounce, cloud refuge for pilots forced home, and hunting from
+    the last-seen position.
+  - **Ace signatures:** `Ace.tactics`, with sources in D-074. The ace id reaches the AI
+    through one shared adapter (`src/game/aiOptions.ts`) for both the game and the
+    autoplayer.
+- **Measured** (on / off, with run counts in docs/ai.md):
+  - Where stalking can apply, aces enter 62% of first passes from above or up-sun
+    against 0% for novices. A stalker-signature ace enters 100% of them, every one unseen.
+  - Default quick fight: 4% player down, unchanged.
+  - Camel mirror: 35% player down (48 runs).
+  - Veteran career: 21% killed or captured, and 3.8 collisions per 100 missions (80
+    missions).
+  - Quick ground attack: 96% success, 8% killed or captured.
+  - Screenshots: `docs/screenshots/ai-out-of-the-sun.jpg` and `ai-cloud-escape.jpg`.
+- **Skip (measured, D-075):** boom-and-zoom for out-turned types. It lost more fights in
+  every matchup, because the D.V is dive-limited in the flight model. The code stays
+  behind `TACTICS_FLAGS`.
+- **Keep (D-076, revisits D-071):** the Camel v D.V quick default. The 20–40% target for
+  it isn't reachable with AI alone.
+- **Defer (sim owner):** making the D.V dangerous by default. It needs a flight-model
+  change (D.V dive limit or drag) or a different default enemy. Decide from human
+  playtests.
+- **Defer (perception):** a pursuer within ~200 m still sees into cloud, so cloud refuge
+  hides a wounded pilot but doesn't cut the hits he takes.
+- **Defer:** generic veterans and aces (no signature) never reach the merge unseen, because
+  their ≤ 60 s patience runs out first. Raise it only if career playtests want more
+  ambushes.
+- **Defer:** the HUD glare overlay ignores the player's own wing blocking the sun.
+- **Don't bundle (untried ideas):** refuge taking priority over defensive breaks when a
+  cloud is close; signature straggler-hunting tuned for career missions; wingmen
+  positioning up-sun on a leader's stalk.
+
 ## How it was built
 Parallel agents in git worktrees, one subsystem each, merged by the lead over
-seven waves. Rationale for every significant choice is in `DECISIONS.md`
-(D-001..D-071); module docs are in `docs/*.md`; playtest findings are in
+eight waves. Rationale for every significant choice is in `DECISIONS.md`
+(D-001..D-076); module docs are in `docs/*.md`; playtest findings are in
 `docs/PLAYTEST.md`.
 
 ## Wave 7 release-check leftovers (docs/PLAYTEST.md)
@@ -223,8 +265,6 @@ Remaining:
 **Defer**
 - Gamepad support is implemented but untested on a real device. Test when one
   is available.
-- AI doesn't use the sun or clouds, and aces make little use of the vertical.
-  This is a depth improvement, not a bug.
 - Squadron mates are regenerated each quarter rather than persisted. Mates killed or captured in your flight are now remembered (`CareerPilot.lostMates`) and never fly again (wave 7); the rest of the roster still turns over quarterly. Defer.
 
 **Skip**
