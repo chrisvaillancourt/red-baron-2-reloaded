@@ -45,6 +45,5 @@ Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`:
 
 ## Known gaps
 * Front-line trench network is drawn in the shader around the *current* line only; abandoned trench systems appear as craters.
-* Rivers narrower than the mask texel (~50 m on high) look slightly wide beyond ribbon range (5 km).
-* Winter trees are drawn as brown canopies rather than bare branches.
+* Rivers narrower than the mask texel are drawn as partial-coverage water beyond ribbon range (~2.6 km), so they read slightly wide but no longer bead.
 * No snow cover or wet-weather ground darkening.

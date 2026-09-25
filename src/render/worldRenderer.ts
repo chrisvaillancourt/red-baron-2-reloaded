@@ -57,6 +57,7 @@ export interface WorldRendererStats {
   terrainPending: number;
   particles: number;
   cpu: Record<string, number>;
+  trees?: Record<string, number>;
 }
 
 function supportsClipControl(): boolean {
@@ -397,6 +398,7 @@ export class WorldRendererImpl implements WorldRenderer {
       terrainPending: this.terrain.pendingCount,
       particles: this.effects.activeCount,
       cpu: Object.fromEntries(Object.entries(this.timings).map(([k, v]) => [k, Math.round(v * 100) / 100])),
+      trees: { ...this.trees.takePerf(), townBuildMax: this.towns.buildMaxMs, frameMax: this.frameTimes.length ? Math.max(...this.frameTimes) : 0 },
     };
   }
 
@@ -407,6 +409,8 @@ export class WorldRendererImpl implements WorldRenderer {
 
   dispose(): void {
     this.terrain.dispose();
+    this.trees.dispose();
+    this.towns.dispose();
     this.envTarget?.dispose();
     this.pmrem.dispose();
     this.mask.texture.dispose();
