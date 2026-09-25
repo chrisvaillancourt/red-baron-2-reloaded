@@ -3,7 +3,8 @@
  * drifting 3 km cell grid around the camera, plus an optional stratus deck
  * for heavy overcast. Puffs fade out as the camera approaches, so flying
  * through a cloud becomes a fog white-out (see densityAt) rather than an
- * overdraw storm.
+ * overdraw storm. Cloud placement and density come from src/world/clouds.ts,
+ * which the AI also reads, so both see the same clouds at the same mission time.
  */
 import {
   AdditiveBlending,
@@ -21,9 +22,8 @@ import {
   type Camera,
 } from 'three';
 import type { Weather } from '../core/types';
+import { CLOUD_CELL as CELL, CloudField, cloudHash as hash, type CloudBody } from '../world/clouds';
 import type { QualityPreset } from './quality';
-
-const CELL = 3000;
 
 interface Puff {
   x: number;
@@ -34,21 +34,8 @@ interface Puff {
   seed: number;
 }
 
-interface Cloud {
-  cx: number;
-  cz: number;
-  base: number;
-  top: number;
-  rx: number;
-  rz: number;
+interface Cloud extends CloudBody {
   puffs: Puff[];
-}
-
-function hash(a: number, b: number, k: number): number {
-  let h = Math.imul(a | 0, 0x27d4eb2d) ^ Math.imul(b | 0, 0x165667b1) ^ Math.imul(k, 0x9e3779b1);
-  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
-  h ^= h >>> 13;
-  return (h >>> 0) / 4294967296;
 }
 
 const PUFF_VERT = /* glsl */ `
@@ -185,11 +172,13 @@ export class CloudLayer {
   private readonly deckTop: Mesh;
   private readonly cells = new Map<string, Cloud[]>();
   private weather: Weather = { cloudCover: 0, cloudBaseM: 1500, cloudTopM: 2200, wind: [0, 0, 0], visibilityM: 30000, turbulence: 0 };
+  private field = new CloudField(this.weather);
+  /** Mission time of the last update (the drift is wind × time). */
+  private time = 0;
   private readonly windOffset = new Vector3();
   private lastBuild = new Vector3(1e9, 0, 0);
   private sortTimer = 0;
   private visible: Puff[] = [];
-  private nearClouds: Cloud[] = [];
 
   constructor(private readonly q: QualityPreset) {
     this.group.name = 'clouds';
@@ -261,6 +250,7 @@ export class CloudLayer {
   setWeather(w: Weather, sunDir: Vector3, fogDisplay: Color, overcast: number): void {
     const changed = w.cloudCover !== this.weather.cloudCover || w.cloudBaseM !== this.weather.cloudBaseM || w.cloudTopM !== this.weather.cloudTopM;
     this.weather = w;
+    if (changed || w.wind.some((v, i) => v !== this.field.weather.wind[i])) this.field = new CloudField(w);
     const u = this.mat.uniforms;
     u.uSunDir.value.copy(sunDir);
     const el = Math.max(0, sunDir.y);
@@ -292,18 +282,8 @@ export class CloudLayer {
     let list = this.cells.get(key);
     if (list) return list;
     list = [];
-    const w = this.weather;
-    const cover = w.cloudCover;
-    const n = Math.floor(cover * 2.2 + hash(ix, iz, 1));
-    const thick = Math.max(200, w.cloudTopM - w.cloudBaseM);
-    for (let c = 0; c < n; c++) {
-      const cx = (ix + 0.1 + 0.8 * hash(ix, iz, 10 + c)) * CELL;
-      const cz = (iz + 0.1 + 0.8 * hash(ix, iz, 20 + c)) * CELL;
-      const size = (500 + 1300 * hash(ix, iz, 30 + c)) * (0.7 + cover * 0.6);
-      const rx = size * (0.8 + 0.4 * hash(ix, iz, 40 + c));
-      const rz = size * (0.8 + 0.4 * hash(ix, iz, 50 + c));
-      const base = w.cloudBaseM + (hash(ix, iz, 60 + c) - 0.5) * 120;
-      const top = base + thick * (0.35 + 0.65 * hash(ix, iz, 70 + c)) * Math.min(1, size / 1200 + 0.3);
+    for (const body of this.field.bodiesInCell(ix, iz)) {
+      const { c, cx, cz, size, rx, rz, base, top } = body;
       const puffs: Puff[] = [];
       const count = Math.round(8 + 22 * Math.min(1, size / 1600));
       for (let p = 0; p < count; p++) {
@@ -322,16 +302,17 @@ export class CloudLayer {
         const a = (p / 5) * Math.PI * 2;
         puffs.push({ x: cx + Math.cos(a) * rx * 0.35, y: base + size * 0.12, z: cz + Math.sin(a) * rz * 0.35, r: size * 0.42, shade: 0, seed: hash(p, c, 85) });
       }
-      list.push({ cx, cz, base, top, rx, rz, puffs });
+      list.push({ ...body, puffs });
     }
     this.cells.set(key, list);
     return list;
   }
 
-  update(dt: number, camera: Camera): void {
+  /** `time` is mission time: the clouds sit where src/world/clouds.ts says they are. */
+  update(dt: number, camera: Camera, time: number): void {
     const w = this.weather;
-    this.windOffset.x += w.wind[0] * dt;
-    this.windOffset.z += w.wind[2] * dt;
+    this.time = time;
+    this.windOffset.set(w.wind[0] * time, 0, w.wind[2] * time);
     const cam = camera.position;
     const u = this.mat.uniforms;
     camera.matrixWorld.extractBasis(u.uCamRight.value, u.uCamUp.value, u.uCamFwd.value);
@@ -342,7 +323,6 @@ export class CloudLayer {
     }
     if (w.cloudCover <= 0.02) {
       this.geo.instanceCount = 0;
-      this.nearClouds = [];
       return;
     }
     // Cells in the drifting frame.
@@ -355,7 +335,6 @@ export class CloudLayer {
       const rc = Math.ceil(R / CELL);
       const cx = Math.floor(lx / CELL), cz = Math.floor(lz / CELL);
       const vis: Puff[] = [];
-      const near: Cloud[] = [];
       const all: { cl: Cloud; d: number }[] = [];
       for (let i = -rc; i <= rc; i++)
         for (let j = -rc; j <= rc; j++) {
@@ -363,7 +342,6 @@ export class CloudLayer {
           if (Math.hypot(ccx - lx, ccz - lz) > R + CELL) continue;
           for (const cl of this.cloudsInCell(cx + i, cz + j)) {
             const d = Math.hypot(cl.cx - lx, cl.cz - lz);
-            if (d < 6000) near.push(cl);
             if (d < R) all.push({ cl, d });
           }
         }
@@ -382,7 +360,6 @@ export class CloudLayer {
       // Drop old cells far away.
       if (this.cells.size > 1500) this.cells.clear();
       this.visible = vis;
-      this.nearClouds = near;
       this.sortTimer = 0;
     }
     this.sortTimer -= dt;
@@ -415,22 +392,7 @@ export class CloudLayer {
 
   /** 0..1 cloud density at a world position (for in-cloud fog). */
   densityAt(p: Vector3): number {
-    const w = this.weather;
-    if (w.cloudCover > 0.6 && p.y > w.cloudBaseM + 40 && p.y < w.cloudBaseM + (w.cloudTopM - w.cloudBaseM) * 0.6) {
-      return Math.min(1, (w.cloudCover - 0.6) * 3);
-    }
-    if (w.cloudCover <= 0.02 || p.y < w.cloudBaseM - 50 || p.y > w.cloudTopM + 100) return 0;
-    const lx = p.x - this.windOffset.x;
-    const lz = p.z - this.windOffset.z;
-    let best = 0;
-    for (const c of this.nearClouds) {
-      const dx = (lx - c.cx) / (c.rx * 0.75);
-      const dz = (lz - c.cz) / (c.rz * 0.75);
-      const dy = (p.y - (c.base + c.top) / 2) / Math.max(80, (c.top - c.base) / 2);
-      const d2 = dx * dx + dz * dz + dy * dy;
-      if (d2 < 1) best = Math.max(best, 1 - d2);
-    }
-    return Math.min(1, best * 1.5);
+    return this.field.densityAt(p.x, p.y, p.z, this.time);
   }
 
   dispose(): void {

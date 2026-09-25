@@ -321,7 +321,7 @@ export class WorldRendererImpl implements WorldRenderer {
     T("rivers", () => this.rivers.update(cam));
     T("roads", () => this.roads.update(cam));
     this.aerodromes.update(dt, this.weather);
-    T("clouds", () => this.clouds.update(dt, camera));
+    T("clouds", () => this.clouds.update(dt, camera, world.time));
     T("effects", () => this.effects.update(dt, camera, world, bullets));
     this.syncBalloons(world, dt);
     // In-cloud whiteout: thicken fog when the camera is inside a cloud.

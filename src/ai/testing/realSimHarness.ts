@@ -16,6 +16,7 @@ import type {
   GroundTargetEntity,
   GroundTargetType,
   MissionFlight,
+  Weather,
   Nation,
   RealismSettings,
   Side,
@@ -37,6 +38,7 @@ import {
   type SimCombatSystem,
   type SimFlightEnvironment,
 } from '../../sim';
+import { CloudField } from '../../world/clouds';
 import { sideOfFrontAt } from '../../world/frontline';
 import { createAIController, type AIControllerOptions, type AIPilot } from '../controller';
 
@@ -55,6 +57,10 @@ export interface SimWorldOpts {
   flak?: boolean;
   groundFire?: boolean;
   seed?: number;
+  /** Sun for glare and up-sun tactics, e.g. `sunDirectionFor(date, 'morning')`. Default: none. */
+  sunDirection?: Vector3;
+  /** Weather; its clouds become `cloudDensityAt` / `cloudTransmittance`. Default: none (clear). */
+  weather?: Weather;
 }
 
 export interface SimAircraftOpts {
@@ -76,6 +82,10 @@ export interface SimAircraftOpts {
 export class SimWorld implements WorldQuery {
   time = 0;
   date: string;
+  readonly sunDirection?: Vector3;
+  readonly weather?: Weather;
+  readonly cloudDensityAt?: (x: number, y: number, z: number) => number;
+  readonly cloudTransmittance?: (from: Vector3, to: Vector3) => number;
   aircraft: AircraftEntity[] = [];
   balloons: BalloonEntity[] = [];
   groundTargets: GroundTargetEntity[] = [];
@@ -97,6 +107,13 @@ export class SimWorld implements WorldQuery {
     this.frontX = o.frontX ?? 0;
     this.realFront = o.realFront ?? false;
     this.date = o.date ?? '1917-09-01';
+    this.sunDirection = o.sunDirection;
+    if (o.weather) {
+      const clouds = new CloudField(o.weather);
+      this.weather = o.weather;
+      this.cloudDensityAt = (x, y, z) => clouds.densityAt(x, y, z, this.time);
+      this.cloudTransmittance = (a, b) => clouds.transmittance(a.x, a.y, a.z, b.x, b.y, b.z, this.time);
+    }
     this.realism = o.realism ?? STANDARD_REALISM;
     for (const f of o.flights ?? []) this.flights.set(f.id, f);
     this.env = createFlightEnvironment((x, z) => this.ground(x, z), { wind: [0, 0, 0], turbulence: 0 });

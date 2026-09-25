@@ -74,6 +74,20 @@ export interface WorldQuery {
   /** Mission flight definition by id (waypoints, task, escort target...). */
   getFlight(flightId: string): MissionFlight | undefined;
   readonly env: FlightEnvironment;
+  /**
+   * Unit vector toward the sun (world frame) for the mission's date and time of day
+   * (src/world/sun.ts). Optional: test worlds may have no sun.
+   */
+  readonly sunDirection?: Vector3;
+  /** Mission weather (cloud layer, visibility, wind). Optional. */
+  readonly weather?: Weather;
+  /**
+   * 0..1 cloud density at a point at the current mission time: the same clouds the
+   * renderer draws (src/world/clouds.ts). Optional: absent means no clouds.
+   */
+  cloudDensityAt?(x: number, y: number, z: number): number;
+  /** Fraction of the line of sight between two points that gets through cloud (1 = clear). */
+  cloudTransmittance?(from: Vector3, to: Vector3): number;
 }
 
 // ---------------------------------------------------------------------------

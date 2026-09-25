@@ -20,6 +20,8 @@ import type {
 } from '../core/types';
 import { NATION_SIDE } from '../core/types';
 import { getAircraft } from '../data/aircraft';
+import { CloudField } from '../world/clouds';
+import { sunDirectionFor } from '../world/sun';
 import type { GameModules } from './moduleTypes';
 
 export interface PendingSpawn {
@@ -213,9 +215,15 @@ export function buildWorld(opts: BuildWorldOptions): SessionWorld {
     missionIdToEntity.set(g.id, e.id);
   }
 
+  // The AI's sun and clouds: the same sources the renderer draws from.
+  const clouds = new CloudField(mission.weather);
   const world: SessionWorld = {
     time: 0,
     date: mission.date,
+    sunDirection: sunDirectionFor(mission.date, mission.timeOfDay),
+    weather: mission.weather,
+    cloudDensityAt: (x, y, z) => clouds.densityAt(x, y, z, world.time),
+    cloudTransmittance: (a, b) => clouds.transmittance(a.x, a.y, a.z, b.x, b.y, b.z, world.time),
     aircraft,
     balloons,
     groundTargets,
