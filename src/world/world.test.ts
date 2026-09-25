@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { latLonToWorld } from '../core/geo';
 import { AERODROMES } from '../data/aerodromes';
-import { craterIntensityAt, frontLineAt, sideOfFrontAt, signedDistanceToFront } from './frontline';
+import { craterGridsForDate, craterIntensityAt, frontLineAt, hasCraterGrids, installCraterGrids, sideOfFrontAt, signedDistanceToFront } from './frontline';
 import { landUseAt } from './landuse';
 import { coastDistance, terrainHeightAt } from './terrain';
 
@@ -119,5 +119,19 @@ describe('land use', () => {
     expect(['trench-zone', 'shell-cratered']).toContain(landUseAt(somme.x, somme.z, '1916-10-01'));
     const rear = at(50.2, 2.1);
     expect(craterIntensityAt(rear.x, rear.z, '1918-01-01')).toBe(0);
+  });
+});
+
+describe('crater grid handoff (worker -> main thread)', () => {
+  it('installed grids are used without rebuilding', () => {
+    const date = '1916-02-03';
+    expect(hasCraterGrids(date)).toBe(false);
+    const g = craterGridsForDate('1916-02-04')!;
+    // A marked copy proves queries read the installed arrays.
+    installCraterGrids(date, g[0].map(() => 0.42), g[1].slice());
+    expect(hasCraterGrids(date)).toBe(true);
+    const p = at(50.29, 2.8);
+    expect(craterIntensityAt(p.x, p.z, date)).toBeCloseTo(0.42, 5);
+    expect(hasCraterGrids('1914-01-01')).toBe(true); // pre-war: nothing to build
   });
 });

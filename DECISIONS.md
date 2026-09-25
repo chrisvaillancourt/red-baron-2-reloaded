@@ -489,3 +489,14 @@ him even when someone other than the player brought him down.
 **Context.** Wave 3 reported the E.III at 1–5% on target against a D.H.2. `MOUSEAIM_SEEDS` averaged identical runs, because the sim and AI are deterministic, so single fights were being read as trends.
 **Decision.** Seeds above 1 now vary the start geometry. `MOUSEAIM_PAIRS` narrows a soak to chosen matchups. Three changes were measured over 6 starts each and rejected: an instructor-side rudder fine-aim blend (E.III vs N.11 dropped from 5/6 kills to 1/6, and wing failures appeared), roll 0.55 / pitch 0.85 (no gain, time on target fell), and lower instructor `caution` (noise-level changes). The E.III data is unchanged.
 **Consequences.** The E.III wins against a Nieuport 11 (5/6 kills at standard) and loses the turning fight to the D.H.2 (1–2 of 6), which is how the Fokker Scourge ended. The real remaining defect, roll dithering on slow rollers, belongs in the autopilot's aim mode (docs/STATUS.md).
+## D-054 — Crater grids built in a worker and handed to the main thread (visuals wave 4)
+**Context.** The dated crater/freshness history grid (~0.5 s to build) was built lazily on
+first query. The terrain workers built their own copies, but on the main thread the first
+query came from the effects system classifying a bullet impact, i.e. mid-combat.
+**Decision.** `frontline.ts` exposes `craterGridsForDate` / `installCraterGrids` /
+`hasCraterGrids`. The renderer's `CraterGridLoader` builds a date's grids in a dedicated
+worker whenever it is given a date and installs them on the main thread; `whenReady()` waits
+for them behind the loading screen. In Node (tests, autoplayer) there is no worker and the
+lazy build still applies.
+**Consequences.** No main-thread grid build during flight. Costs ~4 MB of transfer per date,
+which is negligible.

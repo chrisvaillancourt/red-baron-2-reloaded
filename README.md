@@ -149,4 +149,15 @@ More reading:
 | ![Newspaper](docs/screenshots/menu-debrief-newspaper.png) | ![Medal](docs/screenshots/menu-debrief-medal.png) |
 | ![In flight](docs/screenshots/world-arras-front-1917.png) | ![Quick Mission](docs/screenshots/menu-quick-mission.png) |
 
+### In the air
+
+Captured in real missions (HUD hidden) at the Ultra preset.
+
+| | |
+|---|---|
+| ![A Camel closes on a Fokker Dr.I, March 1918](docs/screenshots/game-dogfight.png) | ![A kite balloon goes up in a hydrogen fireball; the observer takes to his parachute](docs/screenshots/game-balloon-flamed.png) |
+| ![A Nieuport 17 low over the Somme trenches, September 1916](docs/screenshots/game-trench-strafe.png) | ![Dawn patrol of Fokker triplanes, March 1918](docs/screenshots/game-dawn-patrol.png) |
+| ![An Albatros D.V above the cumulus](docs/screenshots/game-above-clouds.png) | ![An Albatros falls in flames](docs/screenshots/game-burning.png) |
+| ![An S.E.5a on the field at Vert Galand at dusk](docs/screenshots/game-aerodrome-dusk.png) | |
+
 *To the airmen of all nations, 1914–1918.*

@@ -303,6 +303,36 @@ function craterGrids(day: number): [Float32Array, Float32Array] {
   return g;
 }
 
+function gridDay(date: string): number | null {
+  const day = dayNumber(date);
+  if (day < KEY_DAYS[0]) return null;
+  return Math.min(day, KEY_DAYS[KEY_DAYS.length - 1]);
+}
+
+/**
+ * Crater + freshness grids for `date` (built on first use, ~0.5 s), or null
+ * before the war. Exposed so a worker can build them and ship them to the
+ * main thread with `installCraterGrids`, keeping the build off the frame loop.
+ */
+export function craterGridsForDate(date: string): [Float32Array, Float32Array] | null {
+  const day = gridDay(date);
+  return day === null ? null : craterGrids(day);
+}
+
+/** True when `date`'s grids are already cached (or no grid is needed), i.e. queries are cheap. */
+export function hasCraterGrids(date: string): boolean {
+  const day = gridDay(date);
+  return day === null || craterCache.has(day);
+}
+
+/** Install grids built elsewhere (a worker) for `date`. */
+export function installCraterGrids(date: string, grid: Float32Array, fresh: Float32Array): void {
+  const day = gridDay(date);
+  if (day === null || grid.length !== CR_W * CR_H || fresh.length !== CR_W * CR_H) return;
+  if (craterCache.size > 3) craterCache.delete(craterCache.keys().next().value!);
+  craterCache.set(day, [grid, fresh]);
+}
+
 function sampleGrid(g: Float32Array, x: number, z: number): number {
   const fx = (x - CR_X0) / CR_CELL;
   const fz = (z - CR_Z0) / CR_CELL;
