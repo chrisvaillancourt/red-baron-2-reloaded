@@ -148,11 +148,12 @@ describe('AI on the real flight model', { timeout: 60_000 }, () => {
   });
 
   it('a defending AI survives an ace far longer than a straight-flying target', () => {
-    const survival = (defend: boolean): number => {
-      const world = new SimWorld({ frontX: 1e9, seed: 3 });
+    // Averaged over seeds: single duels swing from 30 s to 3 min either way.
+    const survival = (defend: boolean, seed: number): number => {
+      const world = new SimWorld({ frontX: 1e9, seed });
       const tgt = world.addAircraft({ aircraftId: 'albatros_dv', side: 'central', x: 0, z: 0, alt: 1500, heading: 0, flightId: 't', skill: 'veteran' });
       const att = world.addAircraft({ aircraftId: 'sopwith_camel', side: 'allied', x: 20, z: 450, alt: 1520, heading: 0, flightId: 'a', skill: 'ace' });
-      world.addAI(att, 'ace', { seed: 5 });
+      world.addAI(att, 'ace', { seed: seed + 4 });
       if (defend) world.addAI(tgt, 'veteran', { seed: 6, task: 'recon' });
       let died = 240;
       runSim(world, 240, {
@@ -166,8 +167,9 @@ describe('AI on the real flight model', { timeout: 60_000 }, () => {
       });
       return died;
     };
-    const straight = survival(false);
-    const defended = survival(true);
+    const seeds = [1, 2, 3, 4];
+    const straight = seeds.reduce((t, s) => t + survival(false, s), 0) / seeds.length;
+    const defended = seeds.reduce((t, s) => t + survival(true, s), 0) / seeds.length;
     expect(straight).toBeLessThan(60);
     expect(defended).toBeGreaterThan(straight * 2);
   });
