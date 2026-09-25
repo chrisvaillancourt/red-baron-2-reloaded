@@ -28,16 +28,18 @@ import type { Hud } from '../ui/hud/types';
 import type { MapMarker, MapView } from '../ui/map/mapRenderer';
 import { resolveUnits } from '../ui/format';
 // Read-only gunner state for the rear-gun visuals (pure sim helper, no composition needed).
-import { getGunnerTarget } from '../sim';
+import { getGunnerTarget, pilotGTolerance } from '../sim';
+import { stepGEffect } from './gEffect';
+import { COMPRESSION_BLOCK_MESSAGES, COMPRESSION_SAFE_RANGE, compressionBlock, ThreatWatch, type CompressionBlock } from './timeCompression';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
 import { showFlightInterrupted } from './errorOverlay';
+import { markErrorReported } from '../core/flightErrors';
 import { getActiveFlight, setActiveFlight } from './activeFlight';
 
 export { SIM_HZ, AI_EVERY_N_STEPS } from './simCore';
 export const TIME_SCALES = [1, 2, 4, 8] as const;
 const MAX_FRAME_DT = 0.1;
-const COMPRESSION_SAFE_RANGE = 4000;
 const DEFAULT_EYE = new Vector3(0, 1, 0);
 const START_HINT = 'Mouse to steer · Space fire · +/− throttle · F1–F5 views · P padlock · O orders · M map · Esc menu';
 const ORDER_LABELS: Record<WingmanCommand, string> = {
@@ -115,9 +117,12 @@ export class FlightSession {
   private root!: HTMLDivElement;
   private canvas!: HTMLCanvasElement;
   private raf = 0;
+  /** Set when setup is done and the first frame is scheduled (errors after this interrupt a flight). */
+  private started = false;
   private lastT = 0;
   private accumulator = 0;
   private timeScaleIdx = 0;
+  private readonly threats = new ThreatWatch();
   private paused = false;
   private hudVisible = true;
   private gEffect = 0;
@@ -245,6 +250,7 @@ export class FlightSession {
     window.__rb2 = { ...window.__rb2, session: this.debugHandle() };
     this.bus.emit({ type: 'radio', from: '', text: `${mission.title}. Esc for the menu, M for the map.` });
     this.lastT = performance.now();
+    this.started = true;
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -392,6 +398,7 @@ export class FlightSession {
     this.renderer.handleEvent(e);
     this.guardAudio(() => this.audio.handleEvent(e, this.rig.camera.position));
     const player = this.world.player;
+    if (player) this.threats.onEvent(e, player, this.world.time);
     if (e.type === 'radio') this.hud.showMessage(e.text, { from: e.from || undefined, kind: e.from ? 'radio' : 'info' });
     else if (e.type === 'bullet-hit' && player && e.targetId === player.id) this.hud.setDamageFlash(0.35);
     else if (e.type === 'ground-destroyed') {
@@ -438,8 +445,21 @@ export class FlightSession {
     };
   }
 
-  private enemiesNear(): boolean {
-    return this.director.nearestEnemyDistance() < COMPRESSION_SAFE_RANGE;
+  /** Why time compression must be off right now, or null (see timeCompression.ts). */
+  private compressionBlock(): CompressionBlock {
+    const p = this.world.player;
+    const nearestEnemyAir = this.director.nearestEnemyDistance();
+    if (!p || p.outcome !== null) return nearestEnemyAir < COMPRESSION_SAFE_RANGE ? 'enemy-air' : null;
+    const pos = p.state.position;
+    return compressionBlock({
+      playerSide: p.side,
+      position: pos,
+      agl: p.state.heightAboveGround,
+      sideOfGround: this.world.sideOfFrontAt(pos.x, pos.z),
+      groundTargets: this.world.groundTargets,
+      nearestEnemyAir,
+      secondsSinceThreat: this.threats.secondsSince(this.world.time),
+    });
   }
 
   private handleCommands(cmds: EdgeAction[]): void {
@@ -477,8 +497,11 @@ export class FlightSession {
           }
           break;
         case 'timeCompress':
-          if (this.enemiesNear()) this.hud.showMessage('Enemy aircraft nearby: time compression unavailable.');
-          else this.timeScaleIdx = Math.min(TIME_SCALES.length - 1, this.timeScaleIdx + 1);
+          {
+            const block = this.compressionBlock();
+            if (block) this.hud.showMessage(COMPRESSION_BLOCK_MESSAGES[block].refused);
+            else this.timeScaleIdx = Math.min(TIME_SCALES.length - 1, this.timeScaleIdx + 1);
+          }
           break;
         case 'timeNormal':
           this.timeScaleIdx = 0;
@@ -583,9 +606,13 @@ export class FlightSession {
       Object.assign(player.controls, inp.controls);
     }
 
-    if (this.timeScale > 1 && this.enemiesNear()) {
-      this.timeScaleIdx = 0;
-      this.hud.showMessage('Enemy aircraft sighted: time compression off.');
+    if (player && player.outcome === null) this.threats.update(player, this.combat.bullets, world.time);
+    if (this.timeScale > 1) {
+      const block = this.compressionBlock();
+      if (block) {
+        this.timeScaleIdx = 0;
+        this.hud.showMessage(COMPRESSION_BLOCK_MESSAGES[block].cut);
+      }
     }
 
     if (!this.paused) {
@@ -668,10 +695,7 @@ export class FlightSession {
       this.gEffect = 0;
       return;
     }
-    const g = p.state.gLoad;
-    if (g > 4.5) this.gEffect = Math.min(1, this.gEffect + (g - 4.5) * 0.25 * dt);
-    else if (g < -1.5) this.gEffect = Math.max(-1, this.gEffect - (-1.5 - g) * 0.4 * dt);
-    else this.gEffect += (0 - this.gEffect) * Math.min(1, dt * 0.8);
+    this.gEffect = stepGEffect(this.gEffect, p.state.gLoad, pilotGTolerance(p), dt);
   }
 
   private samplePixels(): void {
@@ -716,7 +740,10 @@ export class FlightSession {
     if (this.finished) return;
     console.error('Flight session failed', e);
     this.teardown();
-    if (!silent) showFlightInterrupted(e);
+    if (!silent) {
+      showFlightInterrupted(e, this.started ? 'flight' : 'setup');
+      e = markErrorReported(e);
+    }
     this.reject(e);
   }
 

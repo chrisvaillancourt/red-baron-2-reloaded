@@ -7,6 +7,7 @@
 import './styles/ui.css';
 import type { GameServices } from '../core/interfaces';
 import type { GameSettings, MissionDefinition, MissionResult } from '../core/types';
+import { wasErrorReported } from '../core/flightErrors';
 import type { ConfirmOptions, Router, Screen, ScreenFactory, ScreenId, ScreenParams, UiContext } from './context';
 import { h } from './dom';
 import { createNav } from './nav';
@@ -200,7 +201,9 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       return await services.launcher.fly(mission, services.getSettings(), host);
     } catch (err) {
       console.error('[ui] flight failed', err);
-      toast('The flight could not be started.');
+      // The session shows its own card for failures it caught (in setup or in the air);
+      // the toast covers the rest, e.g. the flight code failing to download.
+      if (!wasErrorReported(err)) toast('The flight could not be started.');
       return null;
     } finally {
       host.remove();

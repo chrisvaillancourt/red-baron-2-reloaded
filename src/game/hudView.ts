@@ -9,6 +9,7 @@ import { GUNS } from '../data/aircraft';
 import { getCoefficients } from '../sim';
 import type { HudCameraView, HudGun, HudScreenPoint, HudTarget, HudThreat, HudView, HudWingman, WingmanStatus } from '../ui/hud/types';
 import type { CameraMode } from './cameras';
+import { wingmanLabels } from './wingmanNames';
 
 const tmp = new Vector3();
 const tmp2 = new Vector3();
@@ -26,6 +27,13 @@ export function toScreen(camera: PerspectiveCamera, world: Vector3): HudScreenPo
   }
   const onScreen = !behind && Math.abs(x) <= 1 && Math.abs(y) <= 1;
   return { x: (x + 1) / 2, y: (1 - y) / 2, onScreen, edgeAngle: onScreen ? undefined : Math.atan2(x, y) };
+}
+
+/** An off-screen point moved onto the screen edge along its edge angle (on-screen points unchanged). */
+export function pinToEdge(p: HudScreenPoint): HudScreenPoint {
+  if (p.onScreen || p.edgeAngle === undefined) return p;
+  const a = p.edgeAngle;
+  return { x: 0.5 + Math.sin(a) * 0.46, y: 0.5 - Math.cos(a) * 0.4, onScreen: true };
 }
 
 const GUN_NAMES: Record<GunType, string> = { spandau: 'Spandau', parabellum: 'Parabellum', vickers: 'Vickers', lewis: 'Lewis' };
@@ -150,16 +158,15 @@ function wingmen(i: HudBuildInput): HudWingman[] {
   const flight = world.getFlight(player.flightId);
   if (!flight) return [];
   const mates = world.aircraft.filter((a) => a.flightId === player.flightId && a.id !== player.id);
-  return mates.map((a) => {
+  const names = wingmanLabels(mates);
+  return mates.map((a, idx) => {
     let status: WingmanStatus = 'ok';
     if (a.outcome === 'landed-friendly') status = 'landed';
     else if (a.outcome !== null) status = 'down';
     else if (Math.max(...Object.values(a.damage.zones)) > 0.4 || a.damage.smoking) status = 'damaged';
     else if (world.aircraft.some((e) => e.side !== a.side && e.outcome === null && e.state.position.distanceTo(a.state.position) < 1200))
       status = 'engaged';
-    const last = a.callsign.split(' ').slice(-1)[0] ?? a.callsign;
-    const surname = last.startsWith('#') ? a.callsign : last;
-    return { name: surname, status, order: i.wingmanOrders.get(a.id) };
+    return { name: names[idx], status, order: i.wingmanOrders.get(a.id) };
   });
 }
 
@@ -209,7 +216,9 @@ export function buildHudView(i: HudBuildInput): HudView {
   let mouseAim: HudView['mouseAim'] = null;
   if (i.aimDirection) {
     const aimPt = tmp.copy(i.aimDirection).multiplyScalar(1000).add(camera.position);
-    const aim = toScreen(camera, aimPt);
+    // The cockpit head only leads the aim a little (cameras.ts), so in hard turns the aim
+    // point leaves the view: pin the ring to the screen edge in its direction instead.
+    const aim = pinToEdge(toScreen(camera, aimPt));
     const nose = toScreen(camera, fwd.clone().multiplyScalar(1000).add(s.position));
     mouseAim = { aim, nose };
   }

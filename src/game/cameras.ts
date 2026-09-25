@@ -14,6 +14,32 @@ export const NECK_PITCH_MIN = MathUtils.degToRad(-40);
 export const NECK_PITCH_MAX = MathUtils.degToRad(88);
 const PADLOCK_DROP_RANGE = 9000;
 
+/**
+ * Mouse-aim cockpit view (PLAYTEST #4): the head leads toward the aim point
+ * only this far, so the view stays mostly forward like RB2's fixed cockpit
+ * and the horizon and nose stay in sight in hard manoeuvres. Upward lead is
+ * smallest because the upper wing fills the view above the nose.
+ */
+export const AIM_LEAD_YAW_MAX = MathUtils.degToRad(25);
+export const AIM_LEAD_PITCH_UP = MathUtils.degToRad(12);
+export const AIM_LEAD_PITCH_DOWN = MathUtils.degToRad(10);
+/** Head easing toward the aim lead (1/s): slower than free-look so the view doesn't twitch. */
+const AIM_LEAD_RATE = 4;
+
+/**
+ * Head angles for the mouse-aim lead: about 0.9x the aim offset when it is
+ * small, saturating smoothly at the elliptical limits above.
+ */
+export function aimHeadLead(yaw: number, pitch: number): { yaw: number; pitch: number } {
+  const py = pitch >= 0 ? AIM_LEAD_PITCH_UP : AIM_LEAD_PITCH_DOWN;
+  const u = yaw / AIM_LEAD_YAW_MAX;
+  const v = pitch / py;
+  const r = Math.hypot(u, v);
+  if (r < 1e-9) return { yaw: 0, pitch: 0 };
+  const k = Math.tanh(0.9 * r) / r;
+  return { yaw: u * k * AIM_LEAD_YAW_MAX, pitch: v * k * py };
+}
+
 export function entityPosition(e: Entity): Vector3 {
   return e.kind === 'aircraft' ? e.state.position : e.position;
 }
@@ -56,6 +82,8 @@ export class CameraRig {
   padlockObstructed = false;
   headYaw = 0;
   headPitch = 0;
+  /** Angle between the mouse-aim point and the nose (rad), from the last cockpit update; null without mouse-aim. */
+  aimOffNose: number | null = null;
   private chaseQuat = new Quaternion();
   private chaseInit = false;
   private flybyPos: Vector3 | null = null;
@@ -150,7 +178,9 @@ export class CameraRig {
       case 'padlock': {
         let tYaw: number;
         let tPitch: number;
+        let rate = 30;
         this.padlockObstructed = false;
+        this.aimOffNose = input?.aimDirection ? input.aimDirection.angleTo(new Vector3(0, 0, -1).applyQuaternion(q)) : null;
         if (input && (input.lookDelta.yaw !== 0 || input.lookDelta.pitch !== 0)) {
           this.freeYaw = MathUtils.clamp(this.freeYaw + input.lookDelta.yaw, -NECK_YAW_LIMIT, NECK_YAW_LIMIT);
           this.freePitch = MathUtils.clamp(this.freePitch + input.lookDelta.pitch, NECK_PITCH_MIN, NECK_PITCH_MAX);
@@ -162,24 +192,27 @@ export class CameraRig {
           this.padlockObstructed = isObstructed(player, a.yaw, a.pitch);
           tYaw = a.yaw;
           tPitch = a.pitch;
+          rate = 10;
         } else if (input?.snapLook) {
           tYaw = input.snapLook.yaw;
           tPitch = input.snapLook.pitch;
+          rate = 10;
         } else if (this.freeLookActive) {
           tYaw = this.freeYaw;
           tPitch = this.freePitch;
         } else if (input?.aimDirection) {
           const target = input.aimDirection.clone().multiplyScalar(2000).add(s.position);
           const a = headAnglesTo(player, target, eye);
-          tYaw = a.yaw * 0.9;
-          tPitch = a.pitch * 0.9;
+          const lead = aimHeadLead(a.yaw, a.pitch);
+          tYaw = lead.yaw;
+          tPitch = lead.pitch;
+          rate = AIM_LEAD_RATE;
         } else {
           tYaw = 0;
           tPitch = 0;
         }
         tYaw = MathUtils.clamp(tYaw, -NECK_YAW_LIMIT, NECK_YAW_LIMIT);
         tPitch = MathUtils.clamp(tPitch, NECK_PITCH_MIN, NECK_PITCH_MAX);
-        const rate = this.mode === 'padlock' || input?.snapLook ? 10 : 30;
         const k = 1 - Math.exp(-rate * dt);
         this.headYaw += (tYaw - this.headYaw) * k;
         this.headPitch += (tPitch - this.headPitch) * k;

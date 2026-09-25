@@ -102,11 +102,14 @@ export function showFatalError(err: unknown): void {
   );
 }
 
-export function showFlightInterrupted(err: unknown): void {
+/** `phase` 'setup': the flight failed before take-off; 'flight': an error stopped it in the air. */
+export function showFlightInterrupted(err: unknown, phase: 'setup' | 'flight' = 'flight'): void {
   card(
     'rb-flight-error',
-    'Flight interrupted',
-    'An error stopped the flight. Nothing was recorded: your career is exactly as it was before take-off, and you can fly the mission again.',
+    phase === 'setup' ? 'The flight could not start' : 'Flight interrupted',
+    phase === 'setup'
+      ? 'An error stopped the flight while it was being prepared. Nothing was recorded: your career is exactly as it was, and you can try the mission again.'
+      : 'An error stopped the flight. Nothing was recorded: your career is exactly as it was before take-off, and you can fly the mission again.',
     err,
     [{ label: 'Return to menu', primary: true, onClick: (close) => close() }],
   );
