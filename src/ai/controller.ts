@@ -1,3 +1,10 @@
+
+/** Fixed-gun rounds left as a fraction of a full load (1 = full). */
+export function fixedAmmoFraction(ac: AircraftEntity): number {
+  let full = 0;
+  for (const m of ac.spec.guns) if (m.mount !== 'flexible') full += m.rounds * (1 + m.spareDrums);
+  return full > 0 ? fixedAmmo(ac) / full : 0;
+}
 /**
  * AIPilot: the per-aircraft AI controller.
  *
@@ -95,6 +102,9 @@ export interface AIStats {
 /** Controllers by entity, so wingmen can see what their leader is doing. */
 const REGISTRY = new WeakMap<AircraftEntity, AIPilot>();
 
+/** RTB reasons that are a choice, not a necessity: a fit fighter still fights back. */
+const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort complete']);
+
 export function getAIPilot(ac: AircraftEntity): AIPilot | undefined {
   return REGISTRY.get(ac);
 }
@@ -139,10 +149,14 @@ export class AIPilot implements AIController {
   private hitAt = -100;
   private extendUntil = 0;
   private rtbReason = '';
+  /** RTB reason to resume after fighting off an attacker on the way home. */
+  private resumeRtb = '';
   private landing: LandingPlan | null = null;
   landingStage: LandingStage = 'approach';
   private gunnerTarget: number | null = null;
   private attackStage: AttackStage = 'approach';
+  /** Strafing / balloon passes made at the current attack waypoint. */
+  private attackPasses = 0;
   private attackStageUntil = 0;
   /** +1 / -1: which way a balloon pull-out breaks. */
   private pulloutSide = 1;
@@ -442,7 +456,26 @@ export class AIPilot implements AIController {
       if (attacker && this.canEngage() && this.traits.hasFixedGuns) this.targetId = attacker.id;
     }
 
-    if (this.phase === 'rtb' || this.phase === 'landing') return;
+    if (this.phase === 'landing') return;
+    if (this.phase === 'rtb') {
+      // Going home because the job is done (or ordered home) is no reason not to fight
+      // back: a healthy fighter with ammunition turns on a scout that is attacking it or
+      // its flight, instead of being shot in the back all the way to the lines.
+      if (!VOLUNTARY_RTB.has(this.rtbReason) || !this.canFightBack(self)) return;
+      const leader = this.resolveLeader(self, world);
+      const threat = known.find(
+        (e) =>
+          e.spec.role === 'fighter' &&
+          e.state.position.distanceTo(self.state.position) < 1200 &&
+          (isAttacking(e, self, 1000) || (leader !== null && isAttacking(e, leader, 1000))),
+      );
+      if (!threat) return;
+      this.resumeRtb = this.rtbReason;
+      this.rtbReason = '';
+      this.targetId = threat.id;
+      this.phase = 'engage';
+      return;
+    }
 
     // ---- engagement ------------------------------------------------------
     if (this.phase === 'extend' && this.now < this.extendUntil) return;
@@ -453,7 +486,22 @@ export class AIPilot implements AIController {
       return;
     }
     this.targetId = null;
-    if (this.phase === 'engage' || this.phase === 'extend') this.phase = 'mission';
+    if (this.phase === 'engage' || this.phase === 'extend') {
+      this.phase = 'mission';
+      // Fought off an attacker on the way home: carry on home.
+      if (this.resumeRtb) {
+        const reason = this.resumeRtb;
+        this.resumeRtb = '';
+        this.startRtb(reason);
+      }
+    }
+  }
+
+  /** Fit to turn and fight: ammunition, airframe and pilot in reasonable shape. */
+  private canFightBack(self: AircraftEntity): boolean {
+    if (!this.canEngage()) return false;
+    if (self.damage.pilotWounded || self.damage.smoking || self.damage.onFire) return false;
+    return fixedAmmoFraction(self) > 0.2 && damageSum(self) < 0.6;
   }
 
   private canEngage(): boolean {
@@ -698,6 +746,7 @@ export class AIPilot implements AIController {
     this.attackPhaseStarted = -1;
     this.attackObjId = null;
     this.attackStage = 'approach';
+    this.attackPasses = 0;
   }
 
   /** Pursuit & gunnery against the current air target. Returns false if no target. */
@@ -829,7 +878,17 @@ export class AIPilot implements AIController {
   private steerTargetAttack(self: AircraftEntity, world: WorldQuery, wp: Waypoint, steer: SteerCommand): boolean {
     const balloon = wp.action === 'attack-balloon';
     if (this.attackPhaseStarted > 0 && this.now - this.attackPhaseStarted > 300) return false;
-    if (fixedAmmo(self) === 0) return false;
+    // A few passes, then leave with ammunition for the fight home: strafers that shoot
+    // themselves dry over the lines are helpless when the defending scouts arrive.
+    if (this.attackPasses >= (balloon ? 4 : 3) || fixedAmmoFraction(self) < (balloon ? 0.2 : 0.45)) return false;
+    // Enemy scouts coming (between runs, with at least one pass made): leave for home at
+    // speed rather than zoom up for another slow pass in front of them.
+    if (this.attackStage !== 'run' && this.attackPasses > 0) {
+      for (const e of world.aircraft) {
+        if (e.side === self.side || !isAlive(e) || e.spec.role !== 'fighter') continue;
+        if (e.state.position.distanceTo(self.state.position) < 3500) return false;
+      }
+    }
     let obj: BalloonEntity | GroundTargetEntity | undefined;
     if (this.attackObjId != null) {
       const e = world.getEntity(this.attackObjId);
@@ -858,7 +917,7 @@ export class AIPilot implements AIController {
     const r = _rel.length();
     const horiz = Math.hypot(_rel.x, _rel.z);
     const gy = world.groundHeightAt(tp.x, tp.z);
-    const setupAlt = balloon ? tp.y + 350 : gy + 320;
+    const setupAlt = balloon ? tp.y + 350 : gy + 250;
     const diveStart = balloon ? 1500 : 1300;
     steer.speed = Infinity;
     // Never pull harder than the wing can give at this speed (80% of the accelerated-stall
@@ -884,7 +943,8 @@ export class AIPilot implements AIController {
           const perp = new Vector3(-_rel.z * side, 0, _rel.x * side).normalize();
           steer.dir.copy(away).add(perp).normalize().add(new Vector3(0, 0.25, 0));
           steer.maxG = Math.min(3.5, gCap);
-          steer.minSpeed = this.traits.stallSpeed * 1.4;
+          // Keep fighting speed between passes: the defending scouts arrive mid-attack.
+          steer.minSpeed = this.traits.stallSpeed * 1.6;
         }
         steer.lowLevel = true;
         return true;
@@ -894,12 +954,12 @@ export class AIPilot implements AIController {
     if (this.attackStage === 'approach') {
       // Re-position for the next run without bleeding off speed: a low, slow strafer is the
       // easiest kill there is. Climb only as steeply as the airspeed margin allows.
-      steer.minSpeed = this.traits.stallSpeed * 1.5;
+      steer.minSpeed = this.traits.stallSpeed * (balloon ? 1.5 : 1.7);
       // Low-level terrain rules, as in the run: the normal ground margin (90-160 m) would force
       // a steep climb out of every pull-out and stall the aircraft.
       steer.lowLevel = true;
       steer.minAgl = 50;
-      const margin = clamp((s.airspeed - this.traits.stallSpeed * 1.4) / (this.traits.stallSpeed * 0.6), 0, 1);
+      const margin = clamp((s.airspeed - this.traits.stallSpeed * (balloon ? 1.4 : 1.6)) / (this.traits.stallSpeed * 0.6), 0, 1);
       const maxClimb = 0.02 + 0.16 * margin;
       if (horiz < diveStart * 0.8) {
         // Too close to start a run: open the distance.
@@ -930,6 +990,7 @@ export class AIPilot implements AIController {
     if (r < (balloon ? 160 : 140) || agl < 45 || _rel.dot(forwardOf(s.orientation, _tmp)) < 0) {
       this.attackStage = 'pullout';
       this.attackStageUntil = this.now + (balloon ? 5 : 5);
+      this.attackPasses++;
       // Pull out toward whichever side the nose already points, so the turn starts at once.
       const rgt = rightOf(s.orientation, _tmp);
       this.pulloutSide = rgt.x * _rel.x + rgt.z * _rel.z > 0 ? -1 : 1;
