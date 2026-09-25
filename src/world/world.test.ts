@@ -6,6 +6,35 @@ import { landUseAt } from './landuse';
 import { coastDistance, terrainHeightAt } from './terrain';
 
 const at = (lat: number, lon: number) => latLonToWorld(lat, lon);
+
+/**
+ * Per-call cost in ms: median of several timed batches after a warm-up, so one
+ * batch stolen by a parallel test worker or agent doesn't fail the suite.
+ */
+function perCallMs(batch: (i: number) => number, calls: number, runs = 7): number {
+  let sink = 0;
+  for (let i = 0; i < calls / 4; i++) sink += batch(i); // JIT warm-up
+  const times: number[] = [];
+  for (let r = 0; r < runs; r++) {
+    const t0 = performance.now();
+    for (let i = 0; i < calls; i++) sink += batch(i);
+    times.push((performance.now() - t0) / calls);
+  }
+  if (Number.isNaN(sink)) throw new Error('timed function returned NaN');
+  times.sort((a, b) => a - b);
+  return times[runs >> 1];
+}
+/**
+ * Budgets (~2x an idle run) are the regression bar with PERF_STRICT=1. By default
+ * they get 3x headroom so machine load can't flake them, while an accidental
+ * order-of-magnitude slowdown still fails.
+ */
+const PERF_STRICT = typeof process !== 'undefined' && !!process.env.PERF_STRICT;
+function expectPerCallUnder(label: string, ms: number, budgetMs: number): void {
+  const limit = PERF_STRICT ? budgetMs : budgetMs * 3;
+  console.info(`[perf] ${label}: ${(ms * 1000).toFixed(1)} µs/call (budget ${(budgetMs * 1000).toFixed(0)} µs${PERF_STRICT ? ', strict' : ', 3x headroom'})`);
+  expect(ms).toBeLessThan(limit);
+}
 const h = (lat: number, lon: number) => {
   const p = at(lat, lon);
   return terrainHeightAt(p.x, p.z);
@@ -51,13 +80,8 @@ describe('terrain', () => {
     }
   });
   it('is fast enough for mesh generation', () => {
-    for (let i = 0; i < 2000; i++) terrainHeightAt(i * 13, -i * 7); // JIT warm-up
-    const t0 = performance.now();
-    let s = 0;
-    for (let i = 0; i < 20000; i++) s += terrainHeightAt((i % 141) * 37 - 2000, Math.floor(i / 141) * 41 - 30000);
-    const dt = performance.now() - t0;
-    expect(s).not.toBeNaN();
-    expect(dt / 20000).toBeLessThan(0.06); // < 60 µs per call; generous so parallel test load doesn't flake it
+    const ms = perCallMs((i) => terrainHeightAt((i % 141) * 37 - 2000, Math.floor(i / 141) * 41 - 30000), 20000);
+    expectPerCallUnder('terrainHeightAt', ms, 0.04);
   });
 });
 
@@ -103,9 +127,8 @@ describe('front lines', () => {
     expect(pts[pts.length - 1].z).toBeGreaterThan(78_000);
   });
   it('is fast per call', () => {
-    const t0 = performance.now();
-    for (let i = 0; i < 20000; i++) sideOfFrontAt((i % 200) * 500 - 50000, Math.floor(i / 200) * 1500 - 80000, '1917-06-01');
-    expect((performance.now() - t0) / 20000).toBeLessThan(0.02);
+    const ms = perCallMs((i) => (sideOfFrontAt((i % 200) * 500 - 50000, Math.floor(i / 200) * 1500 - 80000, '1917-06-01') === 'allied' ? 1 : 0), 20000);
+    expectPerCallUnder('sideOfFrontAt', ms, 0.03);
   });
 });
 

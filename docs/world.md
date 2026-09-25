@@ -40,6 +40,16 @@ Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`:
 
 `pnpm dev`, open `/dev/world.html?town=Arras&alt=800&date=1917-06-01&tod=dawn&cover=0.4` (params: `q, date, tod, cover, base, vis, town|x&z, back, alt, yaw, pitch, demo=1, ds, fx=flak|boom, hide=layer,...`). `node src/render/dev/shootWorld.mjs <outDir> [port] [shot...]` screenshots a fixed set of viewpoints; `probe.mjs` evaluates expressions in the page.
 
+`node src/render/dev/frontShots.mjs <outDir> [port] [croisilles|somme|ypres ...]` launches a real flight and parks a spectator camera over the trench line at 300 m, 1,000 m and 2,500 m (oblique) and 2,000 m (straight down), for judging the front at the distances players see it. `UNCAPPED=1 NOSHOT=1` prints a frame-interval p50 per view instead (use it for shader A/B timing).
+
+### Front line and woods from altitude
+The target is a period reconnaissance photograph, not a map (DECISIONS "Trenches drawn as energy-conserving lines").
+* Trench cuts, spoil banks and wire belts use box-filtered coverage (`bandCov`/`ringCov` in `terrainMaterial.ts`): a feature narrower than a pixel gets fainter, never wider. From 2 km the network is thin pale chalk lines with a faint dark core, not a black ribbon.
+* Fire and support trenches are crenellated (bays and traverses, `crenelDist`) with irregular bay lengths; the reserve line zig-zags. The pattern fades to a straight line once a bay is a few pixels long, and the cut widens by the path-length ratio so its tone is conserved.
+* Communication trenches wander (sine wiggle on a signed lane distance) and about a third of lanes have none.
+* No-man's-land is a ragged-edged, mottled brown-grey tint over the crater shading, so the pocking stays visible.
+* Woods: canopy tone varies at stand (~200 m), clump (~15 m) and crown (~5 m) scales, each fading to its mean when sub-pixel, over lighter seasonal palettes. Thresholded patches (chalk splashes, Flanders wet ground) use `tblob`, rotated noise octaves, so they are ragged rather than lattice-aligned squares.
+
 ## Performance (M3 Max, 1280×720, high, headless Chrome, steady state)
 
 ~2–3 ms/frame uncapped for typical views (arras 800 m, Somme battlefield 150 m, aerodrome 250 m), 250–450 draw calls, 0.8–1.5 M triangles. Streaming (tree cells, town tiles) is time-sliced; first seconds after a teleport show brief hitches while a city tile builds (~10 ms).
@@ -53,6 +63,8 @@ Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`:
 | ultra | 3.4–4.6 | 4.4–6.4 | ~40 |
 
 *Uncapped maxima are GPU-queue pacing stalls (renderer CPU was 2 ms on those frames, with no new shader programs). With vsync (how players run), all three presets hold 16.7 ms with zero frames over 25 ms.
+
+The wave-6 front-line shader measured +0.16 ms p50 on 'high' in big16 (A/B, 3.64 against 3.48 ms mean of five samples) and +0.0–0.3 ms in the `frontShots` views.
 
 The QA rig logs per-subsystem CPU (`WorldRendererImpl.lastCpu`) and the program count on every frame over 25 ms, which separates CPU, shader-compile and GPU stalls.
 

@@ -11,6 +11,7 @@ import {
   DirectionalLight,
   FogExp2,
   Group,
+  MathUtils,
   PCFShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
@@ -294,7 +295,12 @@ export class WorldRendererImpl implements WorldRenderer {
     };
     T("terrain", () => this.terrain.update(camera));
     this.sea.update(dt, camera);
-    this.terrainMaterial.userData.uniforms.uTime.value = this.time;
+    const tu = this.terrainMaterial.userData.uniforms;
+    tu.uTime.value = this.time;
+    if ((camera as PerspectiveCamera).isPerspectiveCamera) {
+      const fov = MathUtils.degToRad((camera as PerspectiveCamera).fov);
+      tu.uPxAngle.value = (2 * Math.tan(fov / 2)) / Math.max(1, this.renderer.domElement.height);
+    }
     // Shadow frustum follows the camera.
     this.sun.position.copy(cam).addScaledVector(this.sunDirection, 2000);
     this.sun.target.position.copy(cam);

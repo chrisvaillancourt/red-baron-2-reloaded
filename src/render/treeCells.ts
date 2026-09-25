@@ -40,7 +40,7 @@ const STUMP_TINT = new Color(1.25, 1.2, 1.15);
 export const SEASON_LEAF: Record<Season, string[]> = {
   spring: ['#5f8a3a', '#6d9442', '#557f35', '#79a04a'],
   summer: ['#3f5f2b', '#4a6a30', '#355426', '#56753a'],
-  autumn: ['#77683a', '#85613c', '#66683a', '#6f5433', '#56602f'],
+  autumn: ['#6c6a3a', '#7b6439', '#5c6634', '#6c5836', '#4f5f30'],
   // Bare winter crowns: twig-grey, drawn see-through via alpha-to-coverage (TreeLayer.bareUniform).
   winter: ['#5d5550', '#655b52', '#554e49', '#6b6158'],
 };
