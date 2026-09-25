@@ -31,6 +31,7 @@ import { resolveUnits } from '../ui/format';
 import { getGunnerTarget, pilotGTolerance } from '../sim';
 import { stepGEffect } from './gEffect';
 import { COMPRESSION_BLOCK_MESSAGES, COMPRESSION_SAFE_RANGE, compressionBlock, ThreatWatch, type CompressionBlock } from './timeCompression';
+import { PlayerAwareness } from './playerAwareness';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
 import { showFlightInterrupted } from './errorOverlay';
@@ -123,6 +124,7 @@ export class FlightSession {
   private accumulator = 0;
   private timeScaleIdx = 0;
   private readonly threats = new ThreatWatch();
+  private readonly awareness = new PlayerAwareness();
   private paused = false;
   private hudVisible = true;
   private gEffect = 0;
@@ -398,7 +400,10 @@ export class FlightSession {
     this.renderer.handleEvent(e);
     this.guardAudio(() => this.audio.handleEvent(e, this.rig.camera.position));
     const player = this.world.player;
-    if (player) this.threats.onEvent(e, player, this.world.time);
+    if (player) {
+      this.threats.onEvent(e, player, this.world.time);
+      this.awareness.onEvent(e, player, this.world.time);
+    }
     if (e.type === 'radio') this.hud.showMessage(e.text, { from: e.from || undefined, kind: e.from ? 'radio' : 'info' });
     else if (e.type === 'bullet-hit' && player && e.targetId === player.id) this.hud.setDamageFlash(0.35);
     else if (e.type === 'ground-destroyed') {
@@ -606,7 +611,10 @@ export class FlightSession {
       Object.assign(player.controls, inp.controls);
     }
 
-    if (player && player.outcome === null) this.threats.update(player, this.combat.bullets, world.time);
+    if (player && player.outcome === null) {
+      this.threats.update(player, this.combat.bullets, world.time);
+      this.awareness.update(player, world);
+    }
     if (this.timeScale > 1) {
       const block = this.compressionBlock();
       if (block) {
@@ -670,6 +678,7 @@ export class FlightSession {
           waypointIndex: this.waypointIndex,
           wingmanOrders: this.wingmanOrders,
           hint: this.settings.showTutorialHints && world.time < 20 ? START_HINT : null,
+          knowsEnemy: (id) => this.awareness.knows(id, world.time),
         }),
       );
       this.hud.setGEffect(this.gEffect);

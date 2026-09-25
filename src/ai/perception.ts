@@ -77,6 +77,12 @@ function sunVisibleFrom(p: Vector3, world: WorldQuery): number {
   return world.cloudTransmittance(p, _sunEnd);
 }
 
+/** 0..1 glare of the sun as seen from `p`: its elevation (haze at the horizon) and whether cloud hides it. */
+export function sunGlareStrength(world: WorldQuery, p: Vector3): number {
+  const k = sunStrength(world);
+  return k > 0 ? k * sunVisibleFrom(p, world) : 0;
+}
+
 /** 0..1 multiplier on the observer's spotting range for this target: sun glare × cloud transmittance (1 = unimpaired). */
 export function sightFactor(observer: AircraftEntity, target: AircraftEntity, world: WorldQuery, skillT: number): number {
   const from = observer.state.position;
@@ -229,6 +235,17 @@ const HUMAN_BLIND_CONE = 35 * DEG;
 const HUMAN_BLIND_RANGE = 400;
 /** An AI watcher that saw us this recently still has us. */
 const SEEN_RECENTLY_S = 4;
+
+/**
+ * Can a human pilot at `viewer` see `target` (ignoring where they are looking)? A
+ * veteran's spotting range (4 km), shortened by sun glare and cloud. Used to keep
+ * the player's HUD threat cues from revealing what the player couldn't see.
+ */
+export function humanSees(viewer: AircraftEntity, target: AircraftEntity, world: WorldQuery): boolean {
+  const r = viewer.state.position.distanceTo(target.state.position);
+  if (r > HUMAN_SPOT_RANGE) return false;
+  return r <= HUMAN_SPOT_RANGE * sightFactor(viewer, target, world, HUMAN_T);
+}
 
 /**
  * Best estimate of whether `watcher` has (or is about to have) seen `self`, for a
