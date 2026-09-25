@@ -432,12 +432,12 @@ him even when someone other than the player brought him down.
 **Decision.** Placement moved to pure modules (`src/render/treeCells.ts`, `townTiles.ts`) run by `treeWorker.ts`/`townWorker.ts`, the same pattern as terrain chunks. The worker returns packed instance matrices and colours, and results for a stale date or season are dropped. If `Worker` is unavailable, placement falls back to the main thread. `whenReady()` also waits for nearby tree cells and town tiles.
 **Consequences.** No hitches over 25 ms in in-game strafing and dogfight runs (previously 180–230 ms spikes).
 
-## D-XXX — Patrols are judged on time on station or combat, and objectives resolve early (balance)
+## D-047 — Patrols are judged on time on station or combat, and objectives resolve early (balance)
 **Context.** Patrol success meant reaching the second patrol waypoint, which a fight usually prevented (48% success). Escorts whose charges were all shot down, and intercepts whose targets escaped, kept the flight loitering until the time limit.
 **Decision.** New objective kind `patrol-area`: 150 s within 3 km of the patrol line, or the player's flight engaging the enemy (5 hits or a kill). The director fails objectives the moment they become impossible (`objective-failed` event). Escorts also complete early once the charges are back over our lines. When every primary objective is settled and no enemy is within 4 km, a flight whose job was tied to other aircraft or balloons is ordered home; patrols just fly out their route.
 **Consequences.** Patrol success is 100% in the survey. Missions end cleanly instead of timing out. `ObjectiveKind` and `GameEvent` gained additive members.
 
-## D-XXX — Contact within about two minutes; attack defenders scramble instead of waiting above (balance)
+## D-048 — Contact within about two minutes; attack defenders scramble instead of waiting above (balance)
 **Context.** Median first contact was 200–460 s of sim time. In quick balloon and ground attacks the defenders were already circling above the targets, so every low-level attacker was bounced (100% player loss for the veteran autoplayer).
 **Decision.**
 - Career air starts sit 3.5 km behind the lines, lined up with the crossing point.
@@ -449,7 +449,7 @@ him even when someone other than the player brought him down.
 
 **Consequences.** Median contact is 1.5–2.5 min by mission type, and there's less empty flying.
 
-## D-XXX — Low-level attack runs keep their energy and avoid the envelope (balance)
+## D-049 — Low-level attack runs keep their energy and avoid the envelope (balance)
 **Context.** The autoplayer showed the attack runs themselves were killing the attackers, not the ground fire.
 - A balloon run pulled out at 90 m and flew into the envelope in 3 of 8 missions.
 - Each strafing re-attack climbed back to 320 m on the normal 90–160 m ground-margin rule. That, plus 180° pull-through reversals, stalled the aircraft at 12–18 m/s over the enemy's guns.
@@ -467,7 +467,7 @@ him even when someone other than the player brought him down.
 - No balloon collisions in the survey.
 - Flak and ground fire now cause a minority of losses: 2 of 40 quick missions.
 
-## D-XXX — Rear gunners are less accurate (balance)
+## D-050 — Rear gunners are less accurate (balance)
 **Context.** In career intercepts a single two-seater gunner put 28–40 hits into the veteran autoplayer per sortie. Intercepts succeeded 29% of the time and killed the player in 43%. The gunner aimed with a near-perfect relative-velocity lead and 1.3° of error, however hard either aircraft was manoeuvring.
 **Decision.**
 - Base error is up about 35% (regular 0.03 rad).
