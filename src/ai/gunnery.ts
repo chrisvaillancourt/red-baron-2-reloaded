@@ -5,6 +5,7 @@
  * for the unit aim direction `dir` by fixed-point iteration on t.
  */
 import { Vector3 } from 'three';
+import { BULLET_DRAG_K } from '../sim/combat';
 import { G } from './math';
 
 export interface LeadSolution {
@@ -29,15 +30,23 @@ export function leadSolution(
   out: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() },
 ): LeadSolution {
   const mv = Math.max(muzzleVelocity, 100);
+  // Rounds slow under quadratic drag (src/sim/combat.ts): a round launched at speed V
+  // covers V*g(t) in time t, g(t) = ln(1 + kVt) / (kV). Solve for the "drag-free time" g
+  // the aim vector needs, then convert back to real time of flight - without this the
+  // solution under-leads by 10-20% at 200-400 m, which a hard-turning target punishes.
+  const V = mv + Math.max(0, shooterVel.length());
+  const kV = BULLET_DRAG_K * V;
   let t = shooterPos.distanceTo(targetPos) / mv;
-  for (let i = 0; i < 4; i++) {
+  let g = t;
+  for (let i = 0; i < 5; i++) {
     const tl = t * leadScale;
     _rel.copy(targetPos).sub(shooterPos);
-    _rel.addScaledVector(targetVel, tl).addScaledVector(shooterVel, -t);
+    _rel.addScaledVector(targetVel, tl).addScaledVector(shooterVel, -g);
     if (targetAcc) _rel.addScaledVector(targetAcc, 0.5 * tl * tl);
-    // Gravity drop: aim above by 0.5 g t^2 (plus a little for drag slowing the round).
-    _rel.y += 0.5 * G * t * t * 1.15;
-    t = _rel.length() / mv;
+    // Gravity drop: aim above by about 0.5 g t^2 (drag slows the fall a little too).
+    _rel.y += 0.5 * G * t * g;
+    g = _rel.length() / mv;
+    t = kV > 0 ? Math.expm1(kV * g) / kV : g;
   }
   out.dir.copy(_rel).normalize();
   out.tof = t;

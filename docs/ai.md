@@ -61,8 +61,9 @@ their leader is doing).
    sweep rate; threat = range × enemy nose-on × our aspect. Target scoring
    prefers enemies attacking friends, damaged enemies, two-seaters for
    intercepts, and spreads targets across a flight. Pursuit: intercept → pure →
-   lead (with target acceleration) → lag when overshooting, range-hold on the
-   six. Energy fighters (SPAD, S.E.5a, D.VII, Pfalz…) extend and zoom after a
+   lead (with target acceleration, and bullet drag in the time of flight:
+   `leadSolution` inverts the sim's quadratic round drag, `BULLET_DRAG_K`) → lag
+   when overshooting, range-hold on the six. Energy fighters (SPAD, S.E.5a, D.VII, Pfalz…) extend and zoom after a
    pass; turners stay in the turn. Aces climb for height before engaging and
    approach two-seaters from below. Defence: break, climbing turn, spiral,
    split-S, jinking, extension, chosen by skill, type and height. Below 350 m
@@ -205,8 +206,16 @@ every gain with dynamic pressure automatically.
   ground attack; `AI_Q=default` is the Quick Mission screen's setup).
   Wave-6 surveys: `AI_SOAK=collision AI_SEEDS=150` (`collision.soak.test.ts`: 4v4 furballs,
   the same with a human stand-in leader without avoidance, a 5-ship vic; collisions by pair
-  and geometry, plus kills and first-kill time) and `AI_SOAK=fairness AI_FAIR_SET=default|mirror|matrix|camel|survey
+  and geometry, plus kills and first-kill time) and `AI_SOAK=fairness AI_FAIR_SET=default|mirror|matrix|camel|survey|vet|even
   AI_FAIR_REPS=24` (`fairness.soak.test.ts`: quick-dogfight win %, player losses, exchange).
+  Wave 7: `AI_SOAK=gundiag AI_GD_SET=default|reverse|mirror AI_GD_REPS=8 [AI_GD_TRACE=200]`
+  (`gundiag.soak.test.ts`: per type and side, seconds within 500 m, nose within 30°/10°,
+  guns-solution and firing time, rounds, hits split head-on/tail, hit %, stalled and
+  defending time; logs every structural failure with its damage; optional 2 s trace).
+- `gunnery.test.ts` (CI): the lead solution against a target in a 35°/s level turn puts a
+  sim-integrated round (drag, gravity) within 1 / 1.5 / 2.5 m at 150 / 250 / 400 m for
+  both muzzle velocities; dropping the acceleration term misses by 3× more; a 400 m
+  Vickers round takes 0.55-0.7 s.
 - `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
   at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
   the flak gun at the waypoint.
@@ -270,16 +279,44 @@ the length of 1v1 fights between equal pilots (4–7 min); balance it in
 | Career killed+captured (veteran autoplayer) | 25.2% | 25.0% |
 | Quick dogfight, screen default (Camel+1 v 2 regular D.V): player down | — | 4% |
 
+### Wave 7 results (drag-aware lead)
+
+Fairness runs: 16 seeds per setup, veteran autoplayer plus one regular wingman against
+two enemies; ±12% noise.
+
+| Measure | Before | After |
+|---|---|---|
+| Default dogfight (Camel+1 v 2 regular D.V): player down | 0% | 6% (0–6% over three runs) |
+| Same, veteran D.Vs | 13% | 6% |
+| Camel v 2 veteran Dr.I | 56% | 69% |
+| Mirror fights, player down (Camel / D.V / Dr.I / SPAD XIII / D.VII) | 44 / 56 / 44 / 19 / 44% | 56 / 25 / 13 / 38 / 25% |
+| Quick ground attack, screen default (24 seeds): success / killed+captured | 100% / 13% (wave 6) | 96% / 8% |
+| Career killed+captured, veteran autoplayer | 25% (719 missions, wave 6) | 29% (113 missions, ±4%) |
+| Hits within the fight, D.V / veteran Camel / regular Camel (`gundiag`, 8 runs) | 38 / 277 / 417 | 27 / 270 / 220 |
+
 ### Known weaknesses
 
 - Quick ground attacks against *veteran* scouts remain very dangerous (63% killed or
   captured).
-- The Quick Mission default dogfight (Camel v D.V) is lopsided, not even: the player
-  goes down in ~4% (target 40–55%). The AI shoots a Camel badly: in 16 runs the D.Vs
-  landed 81 hits against the Camels' 1,287. Mirror matchups are fair: the player goes
-  down 21–50% (Camel v Camel 38%, D.V v D.V 50%, Dr.I v Dr.I 46%). So the gap comes
-  from the matchup (turn rate, and the AI's gunnery against a hard-turning target), not
-  from skill scaling. Skill was not changed.
+- The Quick Mission default dogfight (Camel v D.V) is lopsided: the player goes down in
+  0–8% of runs (target 35–55%), and 6–13% against *veteran* D.Vs. Wave 7 diagnosed it
+  (`gundiag`, 8 runs): within 500 m the D.Vs had their nose within 30° of a Camel for
+  about 10% of the time against the Camels' ~45%; their hits were almost all head-on
+  (23 of 25 head-on, 0–2 from the tail), while the Camels' were from the tail (~340 of
+  ~390). The D.Vs die from tail shots (structural failures are shot-away tails, not
+  overstress). The cause is the airframe: wing loading 44 against 31 kg/m² and equal
+  speed and climb, so the D.V can't reach a Camel's six or hold lead on it. Gunnery and
+  fire gates are not the limit. Three AI tactics were measured and made no difference:
+  a high yo-yo when out-turned, a diving extension instead of a flat break, and
+  "jousting" (extend and re-attack on the pass rather than circle). Mutual-support
+  targeting (going for the enemy on a friend's tail) helped the veteran player's side
+  instead and pushed mirror fights further off even, so it was dropped too. See
+  DECISIONS "Drag-aware lead".
+- Candidate defaults (16 runs unless noted; player down): Camel v 2 regular D.V 0–8%,
+  Pfalz 0% (12*), D.VII 17% (12*), veteran D.VII 13%, novice Dr.I 6%, regular Dr.I 75% (12),
+  veteran Dr.I 56–69%. Mirror (same type) fights run 13–56% with ±12% noise at 16 runs.
+  (*measured with the rejected out-turned tactics in place; they made no difference to
+  the D.V.)
 - The old survey setups (Camel+2 v 3 Dr.I at random start, D.VII+1 v 2 veteran SPADs)
   put the player down 83% and 50%. Both are hard by construction.
 
