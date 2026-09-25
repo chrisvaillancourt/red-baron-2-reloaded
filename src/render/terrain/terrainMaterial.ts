@@ -67,6 +67,7 @@ uniform vec3 uPasture, uForest, uForestDark, uHedge, uTownGround, uMud, uChalk, 
 uniform float uTime;
 uniform float uTrenches; // 1 = draw trench network
 uniform float uDetail;   // 0 = low quality (skip micro-detail)
+uniform float uPxAngle;  // radians per screen pixel (footprint floor, see FRAG_COLOR)
 float tWater;
 float tBump;
 
@@ -168,8 +169,10 @@ float ringCov(float dd, float h0, float h1, float w) {
 const FRAG_COLOR = /* glsl */ `
 {
   vec2 p = vWPos.xz;
-  // Pixel footprint in metres (for detail fade / anti-aliasing).
-  float px = length(fwidth(p)) + 1e-3;
+  // Pixel footprint in metres (for detail fade / anti-aliasing). Floored by
+  // distance x pixel angle: on vertical chunk skirts, p barely changes across
+  // a pixel, which would otherwise draw full-detail trenches in LOD seams.
+  float px = max(length(fwidth(p)), distance(vWPos, cameraPosition) * uPxAngle) + 1e-3;
   float forest = vLand.x;
   float town = vLand.y;
   float crater = vLand.z;
@@ -464,6 +467,7 @@ export function createTerrainMaterial(mask: Texture, maskRect: Vector4, detail =
     uTime: { value: 0 },
     uTrenches: { value: 1 },
     uDetail: { value: detail },
+    uPxAngle: { value: 0.0019 },
   };
   mat.userData.uniforms = u;
   mat.onBeforeCompile = (shader) => {
