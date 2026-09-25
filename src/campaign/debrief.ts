@@ -164,6 +164,7 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
   }
   if (result.missionSuccess) fame += 1;
   for (const loss of result.friendlyLosses.filter((l) => !l.aceId)) {
+    if (loss.fate === 'killed' || loss.fate === 'captured') p.lostMates = [...(p.lostMates ?? []), loss.name].slice(-80);
     if (loss.fate === 'killed') narrative.push(`${loss.name} was killed. We drank to him in the mess tonight.`);
     else if (loss.fate === 'captured') narrative.push(`${loss.name} was seen to land behind the enemy lines - a prisoner, we hope.`);
     else if (loss.fate === 'wounded') narrative.push(`${loss.name} came back wounded and has gone to hospital.`);

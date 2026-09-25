@@ -196,7 +196,7 @@ Remaining:
   is available.
 - AI doesn't use the sun or clouds, and aces make little use of the vertical.
   This is a depth improvement, not a bug.
-- Squadron mates are regenerated each quarter rather than persisted.
+- Squadron mates are regenerated each quarter rather than persisted. Mates killed or captured in your flight are now remembered (`CareerPilot.lostMates`) and never fly again (wave 7); the rest of the roster still turns over quarterly. Defer.
 
 **Skip**
 - Remotion or any video pipeline. Not needed for the game.

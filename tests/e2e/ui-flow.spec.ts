@@ -81,6 +81,8 @@ test('quick mission from the Quick Mission screen', async ({ page }) => {
   await expectScreen(page, 'debrief');
   await expect(page.locator('.rb-ui')).toBeVisible();
   await page.screenshot({ path: 'test-results/quick-debrief.png' });
+  // An abandoned flight says so, rather than a bare "failed" beside ticked objectives.
+  await expect(page.locator('.report .outcome')).toContainText(/abandoned/i);
   await leaveDebrief(page);
   await expectScreen(page, 'quick');
   expect(errors).toEqual([]);

@@ -26,6 +26,26 @@ serves it. Careers and settings are saved in the browser's local storage.
 On your first take-off, a one-page **Flying School** card explains the controls. You can
 open it again from the **Flying Manual** on the main menu.
 
+### Your first flight
+
+1. On the title screen choose **Quick Mission**. The default is a fair first fight: your
+   Camel and a wingman against two Albatros D.Vs, head-on, meeting in about 25 seconds.
+   Press **To the briefing**, then **Take off**.
+2. **Click the flight view** to capture the mouse. With mouse-aim (the default), move the
+   mouse to put the small circle where you want to go; the aircraft follows it. The view
+   stays mostly forward, as in the original, and leads a little toward the circle.
+3. **Space** or the left mouse button fires. Fire only when the target is close, inside
+   about 200 m. Tracers show where your rounds go. If a gun jams, press **U** repeatedly.
+4. **P** (or F4) padlocks your view on the nearest enemy; press it again, or **F1**, for
+   the cockpit. **T** cycles targets.
+5. **K** speeds up time on the way to the fight. It drops back to normal on its own when
+   enemies come near, when you are hit, or when you fly low over enemy guns.
+6. When no enemy is near, **N** ends the flight. **Esc** pauses and opens the flight menu;
+   abandoning a career flight over enemy lines means capture, and the game asks first.
+
+Then try a **Career**: enlist, read your orders at squadron HQ, and fly the sorties the
+squadron gives you. Hold on to your pilot: death and capture end a career.
+
 ## What's in it
 
 - **Career mode.** Enlist as a German, British, French or American pilot on any date from
@@ -49,10 +69,12 @@ open it again from the **Flying Manual** on the main menu.
 - **Quick Mission.** Pick your aircraft, the enemy, numbers, skill, altitude, start
   position, time of day and cloud. You can also face a named ace such as Richthofen or
   Fonck.
-- **23 aircraft.**
-  - Flyable: from the Fokker E.III, D.H.2 and Nieuport 11 to the Fokker D.VII, SPAD XIII,
-    S.E.5a, Camel and Bristol Fighter.
-  - AI only: Rumpler, Halberstadt, R.E.8 and D.H.4 two-seaters.
+- **27 aircraft.**
+  - Flyable: 19 types, from the Fokker E.III, D.H.2 and Nieuport 11 to the Fokker D.VII,
+    SPAD XIII, S.E.5a, Camel and Bristol Fighter.
+  - AI only: 8 two-seaters. Early in the war there are the B.E.2c, the F.E.2b and Farman
+    F.40 pushers and the Albatros C.III. Later come the Rumpler, Halberstadt, R.E.8 and
+    D.H.4.
   - Each type is tuned to its historical top speed and climb rate.
 - **Flight and combat.**
   - Rotary-engine torque, so the Camel snaps into right turns.

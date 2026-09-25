@@ -460,7 +460,12 @@ function playerMembers(ctx: GenCtx, s: PlayerSetup): MissionFlightMember[] {
   for (const ace of aces) {
     members.push({ pilotName: aceNamesOn(ace, ctx.date).short, aceId: ace.id, skill: 'ace', livery: composeLivery({ aircraftId, nation: pilot.nation, date: ctx.date, squadronId: squadron.id, aceId: ace.id }) });
   }
-  const roster = squadronRoster(pilot.rngSeed, squadron.id, pilot.nation, ctx.date, pilot.difficulty, 8, pilot.lastName);
+  // The fallen and the captured don't come back: draw a bigger roster and leave them out.
+  // Match without the rank: next quarter's roster may have promoted him.
+  const bare = (name: string) => /(?:^|\s)(\p{Lu}\. .+)$/u.exec(name)?.[1] ?? name;
+  const lost = new Set((pilot.lostMates ?? []).map(bare));
+  // The surname pool holds about 28 names per nation; stay well inside it.
+  const roster = squadronRoster(pilot.rngSeed, squadron.id, pilot.nation, ctx.date, pilot.difficulty, Math.min(8 + lost.size, 22), pilot.lastName).filter((r) => !lost.has(bare(r.name))).slice(0, 8);
   const picks = ctx.rng.shuffle(roster).slice(0, mates - aces.length);
   for (const r of picks) {
     members.push({ pilotName: r.name, skill: r.skill, livery: composeLivery({ aircraftId, nation: pilot.nation, date: ctx.date, squadronId: squadron.id, marking: markingFor(pilot.nation, members.length) }) });

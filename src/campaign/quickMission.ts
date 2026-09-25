@@ -155,10 +155,12 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
       break;
     }
     case 'intercept': {
-      const tgt = pointOnSide(fp, side, 5000, date);
+      // Both flights run about 4.5 km to the intercept point, so they meet there in a
+      // minute and a half rather than the player orbiting for two minutes first.
+      const tgt = pointOnSide(fp, side, 3000, date);
       const two = AIRCRAFT[o.enemyAircraft].role !== 'fighter';
-      addFlight(ctx, { role: 'enemy', side: enemySide, nation: enemyNation, aircraftId: o.enemyAircraft, members: enemyMembers, start: pointOnSide(fp, enemySide, 3000, date), altitude: alt, waypoints: [{ x: Math.round(tgt.x), z: Math.round(tgt.z), altitude: Math.round(alt), action: 'patrol', duration: 300 }], task: two ? 'recon' : 'fighter-sweep', idPrefix: 'enemy' });
-      pStart = pointOnSide(fp, side, 9000, date);
+      addFlight(ctx, { role: 'enemy', side: enemySide, nation: enemyNation, aircraftId: o.enemyAircraft, members: enemyMembers, start: pointOnSide(fp, enemySide, 1500, date), altitude: alt, waypoints: [{ x: Math.round(tgt.x), z: Math.round(tgt.z), altitude: Math.round(alt), action: 'patrol', duration: 300 }], task: two ? 'recon' : 'fighter-sweep', idPrefix: 'enemy' });
+      pStart = pointOnSide(fp, side, 7500, date);
       pAlt = Math.max(300, alt - 300);
       pHeading = heading(pStart, tgt);
       playerFlightWps.push({ x: Math.round(tgt.x), z: Math.round(tgt.z), altitude: Math.round(alt), action: 'patrol', duration: 300, label: 'Intercept' });

@@ -21,4 +21,25 @@ describe('quick missions', () => {
       }
     }
   });
+
+  it('quick intercept: the intruders and the player converge on the intercept point together', () => {
+    for (const [player, enemy] of [['fokker_eiii', 'fe2b'], ['albatros_dv', 'sopwith_camel'], ['sopwith_camel', 'rumpler_civ']] as const) {
+      for (let seed = 1; seed <= 4; seed++) {
+        const m = buildQuickMission(
+          { playerAircraft: player, enemyAircraft: enemy, enemyCount: 2, wingmen: 1, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.4, type: 'intercept' },
+          seed,
+        );
+        const pf = m.flights.find((f) => f.role === 'player-flight')!;
+        const ef = m.flights.find((f) => f.role === 'enemy')!;
+        const tgt = pf.waypoints[0];
+        const dP = Math.hypot(pf.start.x - tgt.x, pf.start.z - tgt.z);
+        const dE = Math.hypot(ef.start.x - tgt.x, ef.start.z - tgt.z);
+        // Instant action: the flights start within about 10 km of each other, and neither
+        // arrives at the intercept point minutes before the other.
+        expect(Math.hypot(pf.start.x - ef.start.x, pf.start.z - ef.start.z)).toBeLessThan(10_500);
+        expect(dE).toBeLessThan(5_500);
+        expect(Math.abs(dE - dP)).toBeLessThan(2_500);
+      }
+    }
+  });
 });
