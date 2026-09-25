@@ -116,11 +116,12 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
       const bs = [0, 1, 2].map((i) => addBalloon(ctx, enemySide, pointOnSide(fp, enemySide, 4000, date, (i - 1) * 2000)));
       for (const b of bs) addGround(ctx, 'aa-gun', enemySide, ensureSide(ctx, jitter(ctx, b, 300), enemySide, fp));
       const c = centroid(bs);
-      addFlight(ctx, { role: 'enemy', side: enemySide, nation: enemyNation, aircraftId: o.enemyAircraft, members: enemyMembers, start: add(c, eDir, 3000), altitude: 1800, waypoints: [{ x: Math.round(c.x), z: Math.round(c.z), altitude: 1800, action: 'patrol', duration: 900 }], task: 'defend', spawnDelay: 45, idPrefix: 'enemy' });
+      addFlight(ctx, { role: 'enemy', side: enemySide, nation: enemyNation, aircraftId: o.enemyAircraft, members: enemyMembers, start: add(c, eDir, 3000), altitude: 1800, waypoints: [{ x: Math.round(c.x), z: Math.round(c.z), altitude: 1800, action: 'patrol', duration: 900 }], task: 'defend', spawnDelay: 110, idPrefix: 'enemy' }); // defenders scramble as you arrive
       pStart = pointOnSide(fp, side, 5000, date);
       pHeading = heading(pStart, c);
       playerFlightWps.push({ x: Math.round(c.x), z: Math.round(c.z), altitude: Math.round(terrainHeightAt(c.x, c.z) + 1000), action: 'attack-balloon', targetIds: bs.map((b) => b.id), label: 'Balloons' });
-      addObjective(ctx, { kind: 'destroy-balloons', description: 'Destroy the enemy balloons.', targetIds: bs.map((b) => b.id), count: bs.length, primary: true });
+      addObjective(ctx, { kind: 'destroy-balloons', description: 'Flame at least one enemy balloon.', targetIds: bs.map((b) => b.id), count: 1, primary: true });
+      addObjective(ctx, { kind: 'destroy-balloons', description: 'Destroy all three balloons.', targetIds: bs.map((b) => b.id), count: bs.length, primary: false });
       title = `Balloon Attack ${describeLocation(c)}`;
       orders = 'Three observation balloons hang over the enemy lines. Flame them.';
       break;
