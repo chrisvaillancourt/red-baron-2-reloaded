@@ -85,9 +85,16 @@ Remaining:
 - `pilotGTolerance(ac)` (src/sim) is exported for a wound-aware grey-out.
 
 **Do — flight and HUD (remaining)**
-- Wire `pilotGTolerance` into `FlightSession.updateGEffect` (src/game, fixed 4.5 g
-  onset today) so a wounded player greys out sooner. It returns 5.5 g unwounded, so
-  use `pilotGTolerance(p) - 1` to keep today's onset.
+- **Done (game wave 6):** `pilotGTolerance` drives the g-effect overlay
+  (`src/game/gEffect.ts`): onset at tolerance − 1 g, so 4.5 g fit as before and
+  sooner when wounded.
+- **Done (game wave 6):** PLAYTEST #4, mouse-aim cockpit view: the head leads
+  the aim by at most ±25° yaw and +12° up, eased, and the aim ring pins to the
+  screen edge. PLAYTEST #11, clashing wingman surnames, get initials. Time
+  compression also drops when low over enemy ground, near targets/AA, or under
+  fire. The "could not be started" toast no longer follows mid-flight errors.
+- **Defer:** an Options toggle for the old full-follow cockpit view (needs a
+  src/ui control). Add it only if players ask.
 - E.III still rocks a little near the aim (~14°/s bank activity); acceptable,
   revisit only if playtests complain.
 

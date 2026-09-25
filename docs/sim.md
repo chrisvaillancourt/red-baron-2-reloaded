@@ -56,7 +56,7 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
   and asymmetric lift + drag; tail/controls damage → reduced authority; failed parts tumble.
   A killed pilot slumps on the controls; a wounded one pulls (−35% × wound) and rolls
   (−25% × wound) less. `pilotGTolerance(ac)` (5.5 g fit → 2.5 g badly wounded) is the
-  intended grey-out limit for a wound-aware g-effect overlay (not yet wired into src/game).
+  grey-out limit of the wound-aware g-effect overlay (`stepGEffect`, src/game/gEffect.ts).
 * **Ground.** Two wheels + tailskid spring/damper contacts with rolling/lateral/skid friction;
   hard points (wingtips, nose, top, fin). Crash on sink > 4.8 m/s (3.8 authentic, 7 relaxed),
   nose/inverted contact above 9 m/s, wingtip scrape above 22 m/s. Ground height ≤ 0.3 m

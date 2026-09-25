@@ -29,6 +29,13 @@ export function toScreen(camera: PerspectiveCamera, world: Vector3): HudScreenPo
   return { x: (x + 1) / 2, y: (1 - y) / 2, onScreen, edgeAngle: onScreen ? undefined : Math.atan2(x, y) };
 }
 
+/** An off-screen point moved onto the screen edge along its edge angle (on-screen points unchanged). */
+export function pinToEdge(p: HudScreenPoint): HudScreenPoint {
+  if (p.onScreen || p.edgeAngle === undefined) return p;
+  const a = p.edgeAngle;
+  return { x: 0.5 + Math.sin(a) * 0.46, y: 0.5 - Math.cos(a) * 0.4, onScreen: true };
+}
+
 const GUN_NAMES: Record<GunType, string> = { spandau: 'Spandau', parabellum: 'Parabellum', vickers: 'Vickers', lewis: 'Lewis' };
 
 const HUD_VIEW: Record<CameraMode, HudCameraView> = {
@@ -209,7 +216,9 @@ export function buildHudView(i: HudBuildInput): HudView {
   let mouseAim: HudView['mouseAim'] = null;
   if (i.aimDirection) {
     const aimPt = tmp.copy(i.aimDirection).multiplyScalar(1000).add(camera.position);
-    const aim = toScreen(camera, aimPt);
+    // The cockpit head only leads the aim a little (cameras.ts), so in hard turns the aim
+    // point leaves the view: pin the ring to the screen edge in its direction instead.
+    const aim = pinToEdge(toScreen(camera, aimPt));
     const nose = toScreen(camera, fwd.clone().multiplyScalar(1000).add(s.position));
     mouseAim = { aim, nose };
   }

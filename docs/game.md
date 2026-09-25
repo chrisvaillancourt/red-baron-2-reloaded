@@ -132,6 +132,11 @@ It takes stick and rudder only; throttle and blip stay with the player.
 - **Landing:** throttle under 30% below 150 m switches to a landing law
   (no terrain-margin defence, gentle g), so pointing at the field lands.
 - Keyboard or gamepad input overrides it and re-syncs the aim to the nose.
+- **Cockpit view:** the head leads toward the aim point by at most ±25° yaw,
+  +12° / −10° pitch (`aimHeadLead`, `cameras.ts`), eased at 4/s, so the nose,
+  struts and horizon stay in view in hard manoeuvres. Free-look, snap views and
+  padlock keep the full neck range. When the aim point leaves the view the HUD
+  pins its ring to the screen edge (`pinToEdge`, `hudView.ts`).
 - `mouseAimControls` is the legacy PD law, kept as the fallback when no
   WorldQuery is available (unit tests, harnesses).
 
