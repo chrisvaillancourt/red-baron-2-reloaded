@@ -7,7 +7,7 @@ import type { CareerPilot, ConfirmedVictory, DebriefReport, MedalAward } from '.
 import type { AircraftId, MissionDefinition, MissionResult, PilotFate, VictoryClaim } from '../core/types';
 import { NATION_SIDE } from '../core/types';
 import { AIRCRAFT } from '../data/aircraft';
-import { ACES, getAce } from '../data/aces';
+import { ACES, aceNamesOn, getAce } from '../data/aces';
 import { getMedal } from '../data/medals';
 import { getRank } from '../data/ranks';
 import { getSquadronInfo } from '../data/squadrons';
@@ -97,7 +97,7 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
         const captured = sideOfFrontAt(c.x, c.z, missionDate) === p.side && rng.chance(0.35);
         p.alteredAces = { ...(p.alteredAces ?? {}), [c.victimAceId]: { fate: captured ? 'captured' : 'killed', date: missionDate } };
         if (ace) {
-          narrative.push(captured ? `Your victim came down alive on our side of the lines. He was ${ace.displayName} - and he is now a prisoner of war.` : `Word came through tonight from across the lines: the pilot you brought down was ${ace.displayName}. He did not survive.`);
+          narrative.push(captured ? `Your victim came down alive on our side of the lines. He was ${aceNamesOn(ace, missionDate).display} - and he is now a prisoner of war.` : `Word came through tonight from across the lines: the pilot you brought down was ${aceNamesOn(ace, missionDate).display}. He did not survive.`);
           headline = `${ace.nickname ? ace.nickname.toUpperCase() : ace.lastName.toUpperCase()} ${captured ? 'TAKEN PRISONER' : 'FALLS'} - ${p.lastName.toUpperCase()} VICTORIOUS`;
         }
       }
@@ -110,7 +110,7 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
     if (loss.aceId && (loss.fate === 'killed' || loss.fate === 'captured')) {
       p.alteredAces = { ...(p.alteredAces ?? {}), [loss.aceId]: { fate: loss.fate, date: missionDate } };
       const ace = getAce(loss.aceId);
-      if (ace) narrative.push(`${ace.displayName} failed to return from the patrol. The whole squadron feels his loss.`);
+      if (ace) narrative.push(`${aceNamesOn(ace, missionDate).display} failed to return from the patrol. The whole squadron feels his loss.`);
     }
   }
   // Any other ace brought down in the fight (by a wingman, a gunner, flak) is out of the war too.
@@ -121,10 +121,10 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
     if (!ace) continue;
     narrative.push(
       down.side === p.side
-        ? `${ace.displayName} was lost in the fighting today.`
+        ? `${aceNamesOn(ace, missionDate).display} was lost in the fighting today.`
         : down.fate === 'captured'
-          ? `${ace.displayName} came down on our side of the lines today and is now a prisoner.`
-          : `The squadron is saying that ${ace.displayName} fell in today's fight.`,
+          ? `${aceNamesOn(ace, missionDate).display} came down on our side of the lines today and is now a prisoner.`
+          : `The squadron is saying that ${aceNamesOn(ace, missionDate).display} fell in today's fight.`,
     );
   }
 
@@ -251,7 +251,7 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
     if (p.alteredAces?.[ace.id]) continue;
     const same = NATION_SIDE[ace.nation] === p.side;
     if (narrative.filter((n) => n.startsWith('News')).length >= 2) break;
-    narrative.push(`News ${same ? 'reached the mess' : 'came from across the lines'}: ${ace.displayName} has been ${ace.fate.kind === 'killed' ? 'killed' : 'taken prisoner'}. ${ace.fate.note}`);
+    narrative.push(`News ${same ? 'reached the mess' : 'came from across the lines'}: ${aceNamesOn(ace, missionDate).display} has been ${ace.fate.kind === 'killed' ? 'killed' : 'taken prisoner'}. ${ace.fate.note}`);
   }
 
   let transferToSquadronId: string | undefined;

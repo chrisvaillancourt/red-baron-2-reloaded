@@ -30,7 +30,7 @@ import type {
 import { NATION_SIDE } from '../core/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { aerodromesActiveOn, type AerodromeWorld } from '../data/aerodromes';
-import { ACES, aceServiceOn, type Ace } from '../data/aces';
+import { ACES, aceNamesOn, aceServiceOn, type Ace } from '../data/aces';
 import { eventOn, type HistoricalEvent } from '../data/history';
 import { composeLivery } from '../data/liveries';
 import { getRank } from '../data/ranks';
@@ -245,7 +245,7 @@ export function fighterFlight(
       const t = aceAircraft(ace, date, types);
       if (members.length === 0 && t) aircraftId = t;
       members.push({
-        pilotName: ace.shortName,
+        pilotName: aceNamesOn(ace, date).short,
         aceId: ace.id,
         skill: 'ace',
         livery: composeLivery({ aircraftId, nation, date, squadronId: squadron.id, aceId: ace.id }),
@@ -278,6 +278,19 @@ export function fighterFlight(
 }
 
 /** Two-seater reconnaissance or bomber flight. */
+/**
+ * How briefings name a two-seater flight. Before late 1916 the roster has no two-seaters in
+ * service, so a later type stands in (DECISIONS D-010); name those generically rather than
+ * send an R.E.8 to the Somme in July 1916 on paper.
+ */
+export function chargeNames(aircraftId: AircraftId, date: string): { plural: string; long: string; inService: boolean } {
+  const spec = AIRCRAFT[aircraftId];
+  const inService = spec.introduced <= date && date <= spec.retired;
+  if (inService) return { plural: `${spec.shortName}s`, long: `${spec.name} machines`, inService };
+  const kind = spec.role === 'bomber' ? 'bombers' : 'two-seaters';
+  return { plural: kind, long: `observation ${kind}`, inService };
+}
+
 export function twoSeaterFlight(
   ctx: GenCtx,
   opts: { side: Side; role: FlightRole; count: number; start: XZ; altitude: number; waypoints: Waypoint[]; task: 'recon' | 'bomb'; spawnDelay?: number; preferNation?: Nation },
@@ -442,7 +455,7 @@ function playerMembers(ctx: GenCtx, s: PlayerSetup): MissionFlightMember[] {
   ];
   const aces = acesWith(ctx, squadron.id).filter(() => ctx.rng.chance(0.7)).slice(0, Math.min(2, mates));
   for (const ace of aces) {
-    members.push({ pilotName: ace.shortName, aceId: ace.id, skill: 'ace', livery: composeLivery({ aircraftId, nation: pilot.nation, date: ctx.date, squadronId: squadron.id, aceId: ace.id }) });
+    members.push({ pilotName: aceNamesOn(ace, ctx.date).short, aceId: ace.id, skill: 'ace', livery: composeLivery({ aircraftId, nation: pilot.nation, date: ctx.date, squadronId: squadron.id, aceId: ace.id }) });
   }
   const roster = squadronRoster(pilot.rngSeed, squadron.id, pilot.nation, ctx.date, pilot.difficulty);
   const picks = ctx.rng.shuffle(roster).slice(0, mates - aces.length);
@@ -554,8 +567,11 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
         fighterFlight(ctx, { side: enemySide, role: 'enemy', near: target, count: enemyCount(ctx, 2), start: s2, altitude: eAlt(), waypoints: [wp(egress, eAlt(), 'patrol', { duration: 200 }), wp(s2, eAlt(), 'fly')], task: 'fighter-sweep', spawnDelay: meetDelay(ctx, [start2, rendezvous, target], egress, s2) });
       }
       const n = ts.members.length;
-      addObjective(ctx, { kind: 'protect-flight', description: `See at least ${Math.ceil(n / 2)} of the ${n} ${AIRCRAFT[ts.aircraftId].shortName}s safely home.`, targetIds: [ts.id], count: Math.ceil(n / 2), primary: true });
-      const orders = `Rendezvous with ${n} ${AIRCRAFT[ts.aircraftId].name} machines ${describeLocation(rendezvous)} at ${fmtAlt(ctx, alt)} and escort them to their objective ${describeLocation(target)}. ${bomb ? 'They carry bombs for the enemy\'s billets and dumps.' : 'They are to photograph the enemy\'s rear areas.'} Stay with your charges - they are your only concern.`;
+      const charge = chargeNames(ts.aircraftId, date);
+      addObjective(ctx, { kind: 'protect-flight', description: `See at least ${Math.ceil(n / 2)} of the ${n} ${charge.plural} safely home.`, targetIds: [ts.id], count: Math.ceil(n / 2), primary: true });
+      const meetAt = describeLocation(rendezvous);
+      const objectiveAt = describeLocation(target) === meetAt ? `${Math.round(dist(rendezvous, target) / 1000)} km beyond the lines` : describeLocation(target);
+      const orders = `Rendezvous with ${n} ${charge.long} ${meetAt} at ${fmtAlt(ctx, alt)} and escort them to their objective ${objectiveAt}. ${bomb ? 'They carry bombs for the enemy\'s billets and dumps.' : 'They are to photograph the enemy\'s rear areas.'} Stay with your charges - they are your only concern.`;
       return {
         type, title: title(target), orders, playerStart: start2, playerAltitude: alt, playerTask: 'escort', escortFlightId: ts.id,
         playerWaypoints: [wp(rendezvous, alt, 'rendezvous', { label: 'Rendezvous' }), wp(target, alt, 'fly', { label: 'Objective' }), wp(egress, alt, 'fly', { label: 'The lines' }), home],
@@ -576,7 +592,8 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
       if (rng.chance(escortChance)) {
         fighterFlight(ctx, { side: enemySide, role: 'enemy', near: tgt, count: enemyCount(ctx, 2), start: add(eStart, { x: 0, z: 1 }, 600), altitude: a + 400, waypoints: [wp(tgt, a + 400, 'patrol', { duration: 150 }), wp(eBack, a + 400, 'fly')], task: 'escort', escortFlightId: ts.id, spawnDelay: ts.spawnDelay });
       }
-      addObjective(ctx, { kind: 'destroy-aircraft', description: `Destroy the enemy ${AIRCRAFT[ts.aircraftId].shortName} two-seater${ts.members.length > 1 ? 's' : ''}.`, targetIds: [ts.id], count: 1, primary: true });
+      const quarry = chargeNames(ts.aircraftId, date);
+      addObjective(ctx, { kind: 'destroy-aircraft', description: `Destroy the enemy ${quarry.inService ? `${AIRCRAFT[ts.aircraftId].shortName} ` : ''}two-seater${ts.members.length > 1 ? 's' : ''}.`, targetIds: [ts.id], count: 1, primary: true });
       const orders = `Our observers report enemy two-seaters ranging for their artillery ${describeLocation(tgt)}. Climb to ${fmtAlt(ctx, a)}, find them, and bring them down before they can take their photographs home.`;
       return { type, title: title(tgt), orders, playerStart: iStart, playerAltitude: alt, playerTask: 'fighter-sweep', playerWaypoints: [wp(tgt, a, 'patrol', { duration: 240, label: 'Interception area' }), home] };
     }
@@ -688,7 +705,7 @@ function intelParagraph(ctx: GenCtx): string {
   const sq = ctx.intel.squadrons[0];
   if (sq) parts.push(`Intelligence reports the machines of ${sq.shortName} active in this sector${sq.motto && ctx.side === 'allied' && sq.nation === 'germany' ? ` - ${sq.motto.toLowerCase()}` : ''}.`);
   const ace = ctx.intel.aces[0];
-  if (ace && ctx.rng.chance(0.7)) parts.push(`Be warned: ${ace.displayName}${ace.nickname ? `, "${ace.nickname}",` : ''} has been seen over this part of the front.`);
+  if (ace && ctx.rng.chance(0.7)) parts.push(`Be warned: ${aceNamesOn(ace, ctx.date).display}${ace.nickname ? `, "${ace.nickname}",` : ''} has been seen over this part of the front.`);
   return parts.join(' ');
 }
 

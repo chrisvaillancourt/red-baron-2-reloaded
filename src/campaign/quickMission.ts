@@ -3,7 +3,7 @@ import type { QuickMissionOptions } from '../core/campaignTypes';
 import type { AircraftId, MissionDefinition, MissionFlightMember, MissionType, Nation, Side, Weather } from '../core/types';
 import { NATION_SIDE } from '../core/types';
 import { AIRCRAFT } from '../data/aircraft';
-import { getAce } from '../data/aces';
+import { aceNamesOn, getAce } from '../data/aces';
 import { composeLivery } from '../data/liveries';
 import { terrainHeightAt } from '../world/terrain';
 import { midDate } from './dates';
@@ -96,7 +96,7 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
   const enemyMembers = members(ctx, enemyCount, o.enemyAircraft, enemyNation, o.enemySkill, false);
   if (aceId) {
     const ace = getAce(aceId)!;
-    enemyMembers[0] = { pilotName: ace.shortName, aceId, skill: 'ace', livery: composeLivery({ aircraftId: o.enemyAircraft, nation: enemyNation, date, aceId }) };
+    enemyMembers[0] = { pilotName: aceNamesOn(ace, date).short, aceId, skill: 'ace', livery: composeLivery({ aircraftId: o.enemyAircraft, nation: enemyNation, date, aceId }) };
   }
   const home = nearestAerodrome(ctx, side, pStart);
   const homeWp = home ? [{ x: Math.round(home.x), z: Math.round(home.z), altitude: Math.round(terrainHeightAt(home.x, home.z) + 300), action: 'land' as const, label: home.name }] : [];
@@ -213,7 +213,7 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
   const ace = aceId ? getAce(aceId) : undefined;
   const briefing = [
     orders,
-    ace ? `Your opponent: ${ace.displayName}${ace.nickname ? ` - "${ace.nickname}"` : ''}. ${ace.bio}` : '',
+    ace ? `Your opponent: ${aceNamesOn(ace, date).display}${ace.nickname ? ` - "${ace.nickname}"` : ''}. ${ace.bio}` : '',
     `You fly the ${playerSpec.name}${wingmen ? ` with ${wingmen} wingm${wingmen > 1 ? 'en' : 'an'}` : ''} against ${enemyCount} ${AIRCRAFT[o.enemyAircraft].name}${enemyCount > 1 ? 's' : ''}.`,
     `Weather: ${describeWeather(weather, nation === 'britain' || nation === 'usa')}`,
   ].filter(Boolean);

@@ -1,6 +1,6 @@
 /** Ace standings: historical aces' tallies on the pilot's date, plus the player. */
 import type { AceStanding, CareerPilot } from '../core/campaignTypes';
-import { ACES, aceVictoriesOn } from '../data/aces';
+import { ACES, aceNamesOn, aceVictoriesOn } from '../data/aces';
 import { getRank } from '../data/ranks';
 import { confirmedVictories } from './awards';
 import { ARMISTICE } from './dates';
@@ -18,7 +18,7 @@ export function aceStandings(p: CareerPilot, date = p.date): AceStanding[] {
       status = ace.fate.kind === 'killed' ? 'killed' : ace.fate.kind === 'captured' ? 'captured' : 'survived';
     }
     if (status === 'active' && date >= ARMISTICE) status = 'survived';
-    rows.push({ name: ace.displayName, aceId: ace.id, nation: ace.nation, victories, isPlayer: false, status });
+    rows.push({ name: aceNamesOn(ace, date).display, aceId: ace.id, nation: ace.nation, victories, isPlayer: false, status });
   }
   const rank = getRank(p.rankId);
   rows.push({
