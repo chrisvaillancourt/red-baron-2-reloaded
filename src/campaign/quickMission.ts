@@ -27,6 +27,13 @@ import { seedFrom } from './rng';
 import { nationForAircraft } from './squadronUtil';
 import { describeWeather } from './weather';
 
+/** Quick ground attack: defenders' scramble point beyond the target (m) and cruise height (m AGL). */
+const GA_DEFENDER_RANGE = 7000;
+const GA_DEFENDER_AGL = 350;
+/** Seconds after the player reaches the target that the lead element arrives, and the gap to the next. */
+const GA_FIRST_ARRIVAL = 150;
+const GA_ELEMENT_GAP = 90;
+
 function quickDate(a: AircraftId, b: AircraftId): string {
   const A = AIRCRAFT[a];
   const B = AIRCRAFT[b];
@@ -175,10 +182,16 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
       pStart = pointOnSide(fp, side, 4000, date);
       pAlt = Math.min(alt, 1200);
       pHeading = heading(pStart, c);
-      // A patrol called down on the strafers arrives about two minutes into the attack, at low level.
-      const dStart = add(c, eDir, 6000);
+      // Scouts are called down on the strafers once the attack is seen. They scramble in
+      // elements from behind the target and climb in low, so they arrive with no height to
+      // spare: the lead element about when a quick attack is finished, the rest a minute and
+      // a half later. Fight the first pair or run for the lines before the second arrives.
       const gyC = terrainHeightAt(c.x, c.z);
-      if (enemyCount > 0) addFlight(ctx, { role: 'enemy', side: enemySide, nation: enemyNation, aircraftId: o.enemyAircraft, members: enemyMembers, start: dStart, altitude: terrainHeightAt(dStart.x, dStart.z) + 500, waypoints: [{ x: Math.round(c.x), z: Math.round(c.z), altitude: Math.round(gyC + 500), action: 'patrol', duration: 600 }], task: 'fighter-sweep', spawnDelay: meetDelay(ctx, [pStart], c, dStart, 120, [0, 30]), idPrefix: 'enemy' });
+      const elements = enemyCount >= 2 ? [enemyMembers.slice(0, Math.ceil(enemyCount / 2)), enemyMembers.slice(Math.ceil(enemyCount / 2))] : [enemyMembers];
+      elements.forEach((mem, i) => {
+        const dStart = add(c, eDir, GA_DEFENDER_RANGE + i * 1500);
+        addFlight(ctx, { role: 'enemy', side: enemySide, nation: enemyNation, aircraftId: o.enemyAircraft, members: mem, start: add(dStart, along, (i ? -1 : 1) * 800), altitude: terrainHeightAt(dStart.x, dStart.z) + GA_DEFENDER_AGL, waypoints: [{ x: Math.round(c.x), z: Math.round(c.z), altitude: Math.round(gyC + GA_DEFENDER_AGL), action: 'patrol', duration: 600 }], task: 'fighter-sweep', spawnDelay: meetDelay(ctx, [pStart], c, dStart, GA_FIRST_ARRIVAL + i * GA_ELEMENT_GAP, [0, 30]), idPrefix: 'enemy' });
+      });
       playerFlightWps.push({ x: Math.round(c.x), z: Math.round(c.z), altitude: Math.round(terrainHeightAt(c.x, c.z) + 300), action: 'attack-ground', targetIds: ids, label: 'Targets' });
       addObjective(ctx, { kind: 'destroy-ground', description: 'Destroy at least three ground targets.', targetIds: ids, count: 3, primary: true });
       title = `Ground Attack ${describeLocation(c)}`;

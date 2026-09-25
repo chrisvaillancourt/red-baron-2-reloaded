@@ -896,10 +896,12 @@ export class AIPilot implements AIController {
     }
     if (!obj) {
       const list: (BalloonEntity | GroundTargetEntity)[] = balloon ? world.balloons.filter((b) => !b.destroyed && !b.burning) : world.groundTargets.filter((g) => !g.destroyed);
-      let bd = 5000;
+      let bd = 9000;
       for (const o of list) {
         if (o.side === self.side) continue;
-        const d = Math.hypot(o.position.x - wp.x, o.position.z - wp.z);
+        // Flak positions are there to defend the target, not to be the target: strafe them
+        // only when nothing else is left (they are never a mission objective).
+        const d = Math.hypot(o.position.x - wp.x, o.position.z - wp.z) + (o.kind === 'ground' && o.type === 'aa-gun' ? 4000 : 0);
         if (d < bd) {
           bd = d;
           obj = o;
