@@ -86,6 +86,7 @@ export class SimWorld implements WorldQuery {
   readonly weather?: Weather;
   readonly cloudDensityAt?: (x: number, y: number, z: number) => number;
   readonly cloudTransmittance?: (from: Vector3, to: Vector3) => number;
+  readonly nearestCloud?: (p: Vector3, maxR: number) => { position: Vector3; radius: number } | null;
   aircraft: AircraftEntity[] = [];
   balloons: BalloonEntity[] = [];
   groundTargets: GroundTargetEntity[] = [];
@@ -113,6 +114,10 @@ export class SimWorld implements WorldQuery {
       this.weather = o.weather;
       this.cloudDensityAt = (x, y, z) => clouds.densityAt(x, y, z, this.time);
       this.cloudTransmittance = (a, b) => clouds.transmittance(a.x, a.y, a.z, b.x, b.y, b.z, this.time);
+      this.nearestCloud = (p, maxR) => {
+        const c = clouds.nearestCloud(p.x, p.y, p.z, this.time, maxR);
+        return c ? { position: new Vector3(c.x, c.y, c.z), radius: c.radius } : null;
+      };
     }
     this.realism = o.realism ?? STANDARD_REALISM;
     for (const f of o.flights ?? []) this.flights.set(f.id, f);

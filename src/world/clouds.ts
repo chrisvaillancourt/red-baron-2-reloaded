@@ -116,6 +116,37 @@ export class CloudField {
   }
 
   /**
+   * Centre of the nearest cloud a pilot at (x, y, z) could hide in, within `maxR`
+   * metres horizontally, at mission time t: a cumulus body's core, or, under a solid
+   * overcast, the deck straight above or below. Null when there is none in reach.
+   */
+  nearestCloud(x: number, _y: number, z: number, t: number, maxR: number): { x: number; y: number; z: number; radius: number } | null {
+    const w = this.weather;
+    if (this.clear) return null;
+    if (w.cloudCover > 0.6) return { x, y: w.cloudBaseM + (w.cloudTopM - w.cloudBaseM) * 0.3, z, radius: Infinity };
+    const lx = x - w.wind[0] * t;
+    const lz = z - w.wind[2] * t;
+    const ix = Math.floor(lx / CLOUD_CELL);
+    const iz = Math.floor(lz / CLOUD_CELL);
+    const rc = Math.ceil(maxR / CLOUD_CELL) + 1;
+    let best: CloudBody | null = null;
+    let bestD = Infinity;
+    for (let i = -rc; i <= rc; i++)
+      for (let j = -rc; j <= rc; j++)
+        for (const c of this.bodiesInCell(ix + i, iz + j)) {
+          // Too thin to hide in.
+          if (c.top - c.base < 250 || Math.min(c.rx, c.rz) < 450) continue;
+          const d = Math.hypot(c.cx - lx, c.cz - lz);
+          if (d < bestD && d <= maxR) {
+            bestD = d;
+            best = c;
+          }
+        }
+    if (!best) return null;
+    return { x: best.cx + w.wind[0] * t, y: (best.base + best.top) / 2, z: best.cz + w.wind[2] * t, radius: Math.min(best.rx, best.rz) * 0.75 };
+  }
+
+  /**
    * Fraction of light that gets through the cloud between two points (1 = clear,
    * → 0 through a cloud core). Beer–Lambert over the sampled density, with ~80 m of
    * full density treated as one optical depth (the renderer's in-cloud fog).

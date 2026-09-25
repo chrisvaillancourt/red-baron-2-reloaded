@@ -224,6 +224,10 @@ export function buildWorld(opts: BuildWorldOptions): SessionWorld {
     weather: mission.weather,
     cloudDensityAt: (x, y, z) => clouds.densityAt(x, y, z, world.time),
     cloudTransmittance: (a, b) => clouds.transmittance(a.x, a.y, a.z, b.x, b.y, b.z, world.time),
+    nearestCloud: (p, maxR) => {
+      const c = clouds.nearestCloud(p.x, p.y, p.z, world.time, maxR);
+      return c ? { position: new Vector3(c.x, c.y, c.z), radius: c.radius } : null;
+    },
     aircraft,
     balloons,
     groundTargets,

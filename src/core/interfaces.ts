@@ -88,6 +88,11 @@ export interface WorldQuery {
   cloudDensityAt?(x: number, y: number, z: number): number;
   /** Fraction of the line of sight between two points that gets through cloud (1 = clear). */
   cloudTransmittance?(from: Vector3, to: Vector3): number;
+  /**
+   * Centre (and core radius, m) of the nearest cloud big enough to hide in within
+   * `maxR` m horizontally of `p`, or null. Under a solid overcast: the deck above/below.
+   */
+  nearestCloud?(p: Vector3, maxR: number): { position: Vector3; radius: number } | null;
 }
 
 // ---------------------------------------------------------------------------

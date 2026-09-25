@@ -49,6 +49,16 @@ describe('cloud field', () => {
     expect(up).toBeGreaterThan(through);
   });
 
+  it('finds the nearest cloud to hide in, where the wind has taken it', () => {
+    const f = new CloudField(CUMULUS);
+    const t = 300;
+    const c = f.nearestCloud(0, 1200, 0, t, 8000);
+    expect(c).not.toBeNull();
+    expect(Math.hypot(c!.x, c!.z)).toBeLessThanOrEqual(8000);
+    expect(f.densityAt(c!.x, c!.y, c!.z, t)).toBeGreaterThan(0.5);
+    expect(new CloudField({ ...CUMULUS, cloudCover: 0 }).nearestCloud(0, 1200, 0, t, 8000)).toBeNull();
+  });
+
   it('treats an overcast deck as solid inside its core band', () => {
     const f = new CloudField({ ...CUMULUS, cloudCover: 0.95 });
     expect(f.densityAt(12_345, 1700, -777, 0)).toBe(1);
