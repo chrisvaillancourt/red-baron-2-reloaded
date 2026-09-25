@@ -61,10 +61,18 @@ step of the frame. Flexible (rear) guns are driven by the AI via
 The session builds the UI's `HudView` directly (no adapter layer):
 
 - **Target box**: the padlocked entity, else the one selected with T, else
-  the nearest live enemy aircraft within 2.5 km. Lead point is drawn only on
-  the relaxed flight model (HUD rule).
-- **Threat ring**: enemies within 3 km; `danger` when behind, closing and
-  under 800 m.
+  the nearest live enemy aircraft within 2.5 km that the player could know
+  about (below). Lead point is drawn only on the relaxed flight model (HUD rule).
+- **Threat ring**: enemies within 3 km that the player could know about;
+  `danger` when behind, closing and under 800 m.
+- **What the player could know** (`PlayerAwareness`, `src/game/playerAwareness.ts`):
+  an enemy a human could see (4 km, shortened by sun glare and cloud, as the AI's
+  perception), one shooting at the player within 900 m, or one that hit the player,
+  within the last 8 s. An enemy diving out of the sun or hiding in cloud gets no
+  triangle and no auto box. Padlock and a T-selected target are not filtered.
+- **Sun glare** (`HudView.sunGlare`): a wash-out 15° around the sun, full in the
+  core 5°, fading with low sun and gone when cloud covers it, so an enemy close to
+  the sun is hard to see on screen too.
 - **Waypoint**: the player's next waypoint; advances within 1.5 km.
 - **Wingmen**: flight-mates with status (ok / engaged / damaged / down /
   landed) and the last acknowledged order.

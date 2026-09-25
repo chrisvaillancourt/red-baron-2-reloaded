@@ -206,5 +206,5 @@ describe('perception cost', () => {
     const budget = 1.5; // ms for 16 sweeps (256 pairs); an aircraft sweeps every 0.2-0.9 s
     console.info(`[perf] perception round, 16 aircraft in cumulus: ${(ms * 1000).toFixed(0)} µs (budget ${budget * 1000} µs${PERF_STRICT ? ', strict' : ', 3x headroom'})`);
     expect(ms).toBeLessThan(PERF_STRICT ? budget : budget * 3);
-  });
+  }, 60_000); // ~70 ms of work locally; slow CI runners need headroom over Vitest's 5 s default
 });

@@ -58,7 +58,18 @@ their leader is doing).
    protection (6 s look-ahead plus a dive-recovery emergency pull-up).
 2. **Tactics** (`controller.ts`, `perception.ts`, `gunnery.ts`, `maneuvers.ts`).
    Visual perception with range, a rear blind cone, memory and skill-based
-   sweep rate; threat = range × enemy nose-on × our aspect. Target scoring
+   sweep rate; threat = range × enemy nose-on × our aspect. Sight is impaired
+   by the sun and by cloud (`perception.ts`; DECISIONS "Perception: sun glare,
+   cloud and memory"): within 15° of the sun (full inside 5°, ramping in as the
+   sun climbs from 2° to 6° and gone when cloud hides it) the spotting range
+   falls to 12% (novice) – 30% (ace), and cloud on the line of sight
+   (`WorldQuery.cloudTransmittance`, the clouds the renderer draws) scales it by
+   the light that gets through. A regular sees a D.V diving straight out of the
+   sun at ~600 m instead of ~3.4 km (`perception.realsim.test.ts`). Contacts keep
+   the last-seen position and velocity and a `visible` flag; an enemy in cloud
+   is forgotten after `memory` s. `likelySpottedBy(self, watcher)` estimates
+   whether a watcher has seen us (an AI's real contacts, or for the player a
+   veteran's range, a 35° blind cone below the tail, sun and cloud). Target scoring
    prefers enemies attacking friends, damaged enemies, two-seaters for
    intercepts, and spreads targets across a flight. Pursuit: intercept → pure →
    lead (with target acceleration, and bullet drag in the time of flight:
@@ -216,6 +227,11 @@ every gain with dynamic pressure automatically.
   sim-integrated round (drag, gravity) within 1 / 1.5 / 2.5 m at 150 / 250 / 400 m for
   both muzzle velocities; dropping the acceleration term misses by 3× more; a 400 m
   Vickers round takes 0.55-0.7 s.
+- `perception.test.ts` (CI): glare by skill and sun angle, glare gone under overcast or
+  with a low sun, cloud occlusion and memory expiry, `likelySpottedBy`, and the cost of a
+  16-aircraft sweep round in cumulus (~0.4 ms; strict budget 1.5 ms under PERF_STRICT=1).
+  `perception.realsim.test.ts`: a regular spots a D.V out of the sun at ~600 m against
+  ~3.4 km with the sun behind it (6 seeds).
 - `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
   at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
   the flak gun at the waypoint.
