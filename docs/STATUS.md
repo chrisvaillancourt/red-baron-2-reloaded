@@ -1,17 +1,36 @@
-# Project status — paused 2026-09-24
+# Project status — release candidate, 2026-09-25
 
-The game is playable end to end: `pnpm dev`, then open http://localhost:5173.
-Career (all four nations, 1915–1918), quick missions, the full flight/combat
-sim, AI, streamed Western Front terrain, Blender-built aircraft and procedural
-audio are all integrated on `main`.
+The game is playable end to end: `pnpm dev`, then open http://localhost:5173
+(README "Your first flight" walks a new player through it). Career (all four
+nations, 1915–1918), quick missions, the full flight/combat sim, AI, streamed
+Western Front terrain, 27 Blender-built aircraft and procedural audio are all
+integrated on `main`.
 
-Verified at pause: `pnpm typecheck` clean, `pnpm test` 240 passed (13
-env-gated soak tests skipped), `pnpm e2e` 6/6, `pnpm build` OK.
+The wave-7 release check (docs/PLAYTEST.md, top section) gave a **GO**: a fan
+can play for an evening without hitting a blocker. Everything still open below
+is minor or polish, and each item carries a disposition.
+
+Verified on `main` after the wave-7 merges: `npx tsc --noEmit` clean, `pnpm test`
+334 passed (21 env-gated soak tests skipped), `pnpm e2e` 16 passed (1 gated
+soak skipped), `pnpm build` OK.
 
 ## How it was built
-Parallel agents in git worktrees, one subsystem each, merged by the lead.
-Rationale for every significant choice is in `DECISIONS.md` (D-001..D-046);
-module docs are in `docs/*.md`.
+Parallel agents in git worktrees, one subsystem each, merged by the lead over
+seven waves. Rationale for every significant choice is in `DECISIONS.md`
+(D-001..D-071); module docs are in `docs/*.md`; playtest findings are in
+`docs/PLAYTEST.md`.
+
+## Wave 7 release-check leftovers (docs/PLAYTEST.md)
+- **Done:** escorts only count at the end if the charges have been out over the
+  lines (PLAYTEST #4). Quick intercept contact is about 90 s. Squadron mates who
+  are lost never fly again. Abandoned flights are stamped "Mission Abandoned".
+- **Defer:** a hint on the Quick Mission screen when the chosen aircraft never
+  met in service; Tab-order shortcuts on the Quick Mission screen; the CO's
+  drop cap splitting "Lt."; ace standings showing "Flying" for aces in hospital
+  (needs an additive `AceStanding` status); French ranks for Lafayette mates
+  before February 1918.
+- **Defer:** one tree-lined road that still reads near-black from 2 km (render).
+- **Skip:** SwiftShader 'low' at about 9 fps; the README asks for a real GPU.
 
 ## Next steps (disposition for each item)
 
@@ -126,7 +145,7 @@ Remaining:
   fire. The "could not be started" toast no longer follows mid-flight errors.
 - **Defer:** an Options toggle for the old full-follow cockpit view (needs a
   src/ui control). Add it only if players ask.
-- E.III still rocks a little near the aim (~14°/s bank activity); acceptable,
+- **Defer:** E.III still rocks a little near the aim (~14°/s bank activity); acceptable,
   revisit only if playtests complain.
 
 **Visuals — done (wave 4)**
