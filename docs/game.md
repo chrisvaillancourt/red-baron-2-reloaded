@@ -90,7 +90,9 @@ The session builds the UI's `HudView` directly (no adapter layer):
   always fails the mission (and gets its own CO remark in the debrief).
 - **Objectives** are checked every tick. Each one can complete early, fail
   early (`objective-failed` event plus a radio call and HUD warning), or be
-  judged only at the end (`survive`, `protect-balloons` success). The rules
+  judged only at the end (`survive`, `protect-balloons` success). An escort
+  (`protect-flight`) only counts at the end if its charges have been out over
+  the lines, so a player lost on the way out doesn't earn it. The rules
   for each kind are in docs/campaign.md. When every primary objective is
   decided, the radio says so. If the job was tied to other aircraft or
   balloons (escort, intercept, balloon defence) and no enemy is within 4 km,

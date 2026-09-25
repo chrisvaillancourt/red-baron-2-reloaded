@@ -443,7 +443,11 @@ export class MissionDirector {
     const objectives = w.mission.objectives.map((o) => ({
       id: o.id,
       completed:
-        this.completedObjectives.has(o.id) || (!this.failedObjectives.has(o.id) && evaluateObjective(o, w, true, fate, progress)),
+        this.completedObjectives.has(o.id) ||
+        (!this.failedObjectives.has(o.id) &&
+          // An escort only counts once its charges have been out over the lines.
+          (o.kind !== 'protect-flight' || o.targetIds.every((fid) => this.crossedLines.has(fid))) &&
+          evaluateObjective(o, w, true, fate, progress)),
     }));
     const primary = w.mission.objectives.filter((o) => o.primary);
     const missionSuccess = !this.aborted && primary.every((o) => objectives.find((x) => x.id === o.id)!.completed);

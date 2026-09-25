@@ -442,7 +442,7 @@ export interface MissionGroundTarget {
 
 export type ObjectiveKind =
   | 'destroy-aircraft' // destroy N aircraft of flight(s)
-  | 'protect-flight' // at least N members of flight survive
+  | 'protect-flight' // at least N members of flight survive, having been out over the lines
   | 'destroy-balloons'
   | 'protect-balloons'
   | 'destroy-ground'

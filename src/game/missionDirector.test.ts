@@ -192,6 +192,7 @@ describe('MissionDirector', () => {
     const t = setup((m) => {
       m.objectives.push({ id: 'prot', kind: 'protect-flight', description: 'Keep wingman alive', targetIds: ['player'], count: 2, primary: true });
     });
+    t.player.state.position.set(20000, 1500, 0); // the flight has been out over the German side
     t.director.update(0.01);
     expect(t.director.completedObjectives.has('prot')).toBe(false);
     expect(t.director.buildResult().objectives.find((o) => o.id === 'prot')!.completed).toBe(true);
@@ -269,6 +270,19 @@ describe('MissionDirector', () => {
     t.director.update(0.1);
     expect(t.director.completedObjectives.has('esc')).toBe(true);
     expect(recalled).toBe(1);
+  });
+
+  it('does not credit an escort whose charges never reached the lines before the mission ended', () => {
+    const t = setup((m) => {
+      // The 'enemy' flight stands in for the charges; it stays over its own side (never goes out).
+      m.objectives = [{ id: 'esc', kind: 'protect-flight', description: 'Bring them home', targetIds: ['enemy'], count: 2, primary: true }];
+    });
+    for (const e of t.enemies) e.state.position.set(60000, 1500, 0);
+    t.director.update(0.1);
+    t.player.outcome = 'shot-down'; // player dies on the way out
+    const r = t.director.buildResult();
+    expect(r.objectives.find((o) => o.id === 'esc')!.completed).toBe(false);
+    expect(r.missionSuccess).toBe(false);
   });
 
   it('fails an intercept when the targets escape over their own lines', () => {
