@@ -4,13 +4,17 @@
  * `career` flies consecutive missions for pilots of every nation across the war,
  * applying each result (promotions, medals, fates); `quick` flies every quick-mission
  * type. Writes one line per mission plus a summary table to AUTOPLAY_OUT (or stdout).
+ * AI_TACTICS=stalk=0,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.
  */
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildQuickMission, createCampaignService, memoryStorage } from '../campaign';
 import type { CareerDifficulty, QuickMissionOptions } from '../core/campaignTypes';
 import type { MissionDefinition, Nation } from '../core/types';
+import { applyTacticsFlagsFromEnv } from '../ai/tactics';
 import { runAutoplay, type AutoplayReport } from './autoplay';
+
+applyTacticsFlagsFromEnv(process.env);
 
 const MODES = (process.env.AUTOPLAY ?? '').split(',').filter(Boolean);
 const PER_PILOT = Number(process.env.AUTOPLAY_MISSIONS ?? 5);

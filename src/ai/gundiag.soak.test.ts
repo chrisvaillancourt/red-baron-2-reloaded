@@ -7,6 +7,7 @@
  *   AI_SOAK=gundiag AI_GD_REPS=8 AI_GD_SET=default pnpm vitest run src/ai/gundiag.soak.test.ts
  */
 import { describe, it } from 'vitest';
+import { applyTacticsFlagsFromEnv } from './tactics';
 import { Vector3 } from 'three';
 import { buildQuickMission } from '../campaign';
 import type { QuickMissionOptions } from '../core/campaignTypes';
@@ -15,21 +16,27 @@ import { headlessModules } from '../game/autoplay';
 import { SimCore, SIM_HZ } from '../game/simCore';
 import { DEFAULT_SETTINGS } from '../core/settings';
 import { forwardOf } from './math';
+import { EntryTracker, entryLine, type EntryAcc } from './testing/entryStats';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
+// AI_TACTICS=boomZoomOutTurned=1,stalk=0,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.
+applyTacticsFlagsFromEnv(process.env);
 const REPS = Number(process.env.AI_GD_REPS ?? 8);
 const SET = process.env.AI_GD_SET ?? 'default';
 /** Print a 2 s state trace of the first rep up to this mission time (s). */
 const TRACE = Number(process.env.AI_GD_TRACE ?? 0);
 
-const base = (player: AircraftId, enemy: AircraftId): QuickMissionOptions => ({
+const base = (player: AircraftId, enemy: AircraftId, extra: Partial<QuickMissionOptions> = {}): QuickMissionOptions => ({
   type: 'dogfight', playerAircraft: player, enemyAircraft: enemy, enemyCount: 2, wingmen: 1,
   enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.35,
+  ...extra,
 });
 const SETS: Record<string, QuickMissionOptions[]> = {
   default: [base('sopwith_camel', 'albatros_dv')],
   reverse: [base('albatros_dv', 'sopwith_camel')],
   mirror: [base('sopwith_camel', 'sopwith_camel'), base('albatros_dv', 'albatros_dv')],
+  // Entry geometry by enemy skill: aces should come from above / out of the sun far more than novices.
+  skill: [base('sopwith_camel', 'albatros_dv', { enemySkill: 'novice' }), base('sopwith_camel', 'albatros_dv', { enemySkill: 'ace' }), base('sopwith_camel', 'sopwith_camel', { enemySkill: 'novice' }), base('sopwith_camel', 'sopwith_camel', { enemySkill: 'ace' })],
 };
 
 interface Acc {
@@ -43,6 +50,7 @@ describe.skipIf(!SOAK.includes('gundiag'))('gunnery diag', () => {
     const lines: string[] = [];
     for (const q of SET.split(',').flatMap((s) => SETS[s] ?? [])) {
       const acc = new Map<string, Acc>();
+      const entry = new Map<string, EntryAcc>();
       const key = (a: AircraftEntity, pl: AircraftEntity) => `${a.side === pl.side ? 'P' : 'E'}:${a.spec.shortName}${a === pl ? '(pl)' : ''}`;
       for (let r = 0; r < REPS; r++) {
         const m = buildQuickMission(q, 5000 + r * 131);
@@ -50,10 +58,11 @@ describe.skipIf(!SOAK.includes('gundiag'))('gunnery diag', () => {
         const pl = core.world.player!;
         const byId = new Map(core.world.aircraft.map((a) => [a.id, a]));
         const lastHit = new Map<number, number>();
+        const et = new EntryTracker(core.world, (id) => core.ai.get(id), (a) => key(a, pl), entry);
         core.bus.onAny((e) => {
           if (e.type === 'structural-failure') { const a = byId.get(e.aircraftId); if (a) { const z = a.damage.zones; process.stdout.write(`STRUCT ${a.spec.shortName} ${e.part} v=${a.state.airspeed.toFixed(0)} g=${a.state.gLoad.toFixed(1)} wingL=${z.leftWing.toFixed(2)} wingR=${z.rightWing.toFixed(2)} tail=${z.tail.toFixed(2)} hitAgo=${(core.world.time - (lastHit.get(a.id) ?? -99)).toFixed(1)}\n`); } }
           if (e.type === 'bullet-hit') lastHit.set(e.targetId, core.world.time);
-          if (e.type === 'gun-fired') { const a = byId.get(e.shooterId); if (a) get(key(a, pl)).shots++; }
+          if (e.type === 'gun-fired') { const a = byId.get(e.shooterId); if (a) { get(key(a, pl)).shots++; et.onFired(a); } }
           if (e.type === 'bullet-hit') { const a = byId.get(e.shooterId); const t = byId.get(e.targetId); if (a && t && t.side !== a.side) { const g = get(key(a, pl)); g.hits++; const ang = a.state.velocity.angleTo(t.state.velocity) * 57.3; if (ang > 120) g.hitsHeadOn++; else if (ang < 45) g.hitsTail++; } }
         });
         function get(k: string): Acc { let v = acc.get(k); if (!v) acc.set(k, (v = zero())); return v; }
@@ -65,6 +74,7 @@ describe.skipIf(!SOAK.includes('gundiag'))('gunnery diag', () => {
           core.step(h);
           if (++tick % 12) continue; // sample at 10 Hz
           const dt = 12 * h;
+          et.sample(dt);
           if (TRACE && r === 0 && tick % 240 === 0 && core.world.time < TRACE) {
             const row = core.world.aircraft.filter((a) => !a.outcome).map((a) => {
               const ctl = core.ai.get(a.id) as unknown as { debugState?: string; targetId?: number | null } | undefined;
@@ -105,16 +115,19 @@ describe.skipIf(!SOAK.includes('gundiag'))('gunnery diag', () => {
             if (ang < 10) g.nose10 += dt;
           }
         }
+        et.finish();
         for (const a of core.world.aircraft) {
           const st = (core.ai.get(a.id) as unknown as { stats?: { gunsSolutionTime: number; firingTime: number } } | undefined)?.stats;
           if (st) { const g = get(key(a, pl)); g.solution += st.gunsSolutionTime; g.firing += st.firingTime; }
         }
       }
-      lines.push(`=== ${q.playerAircraft} v ${q.enemyAircraft} reps=${REPS}`);
+      lines.push(`=== ${q.playerAircraft} v ${q.enemySkill} ${q.enemyAircraft} reps=${REPS}`);
       lines.push('who | engage s | <500m s | nose<30 s | nose<10 s | solution s | firing s | shots | hits (head-on/tail) | hit% | mean v | alt-equiv lost m | stall s | recover s | defend s');
       for (const [k, g] of [...acc].sort()) {
         lines.push([k.padEnd(14), g.engage.toFixed(0), g.near.toFixed(0), g.nose30.toFixed(0), g.nose10.toFixed(0), g.solution.toFixed(1), g.firing.toFixed(0), g.shots, `${g.hits} (${g.hitsHeadOn}/${g.hitsTail})`, g.shots ? ((100 * g.hits) / g.shots).toFixed(1) : '-', g.speedN ? (g.speed / g.speedN).toFixed(0) : '-', g.energyLoss.toFixed(0), g.stall.toFixed(0), g.recover.toFixed(0), g.defend.toFixed(0)].join(' | '));
       }
+      lines.push('entry geometry (firing passes after a 4 s pause):');
+      for (const [k, g] of [...entry].sort()) lines.push(`  ${k.padEnd(14)} ${entryLine(g)}`);
     }
     process.stdout.write(lines.join('\n') + '\n');
   }, 3_600_000);

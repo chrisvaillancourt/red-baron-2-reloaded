@@ -76,7 +76,19 @@ their leader is doing).
    `leadSolution` inverts the sim's quadratic round drag, `BULLET_DRAG_K`) → lag
    when overshooting, range-hold on the six. Energy fighters (SPAD, S.E.5a, D.VII, Pfalz…) extend and zoom after a
    pass; turners stay in the turn. Aces climb for height before engaging and
-   approach two-seaters from below. Defence: break, climbing turn, spiral,
+   approach two-seaters from below. Tactical character (`tactics.ts`; DECISIONS
+   "Tactics: stalking out of the sun…") adds patience, a preferred height advantage,
+   sun use, straggler and two-seater bias, burst and range scale and a disengage
+   threshold, from skill and from a named ace's signature (`Ace.tactics`:
+   stalker, lone-hunter, leader, brawler, two-seater-hunter, calculated). A patient
+   pilot who hasn't been spotted *stalks*: he works round to the sun's bearing from
+   the target 1.5–3 km out, closes level at his height, then comes down the sun
+   line so the glare hides him. A pursuer who loses a target more than 350 m away
+   flies to where it was heading. A pilot going home hurt with a scout near makes
+   for the nearest cloud and wanders inside for 12–20 s. Veterans and aces turn up
+   into a bounce from above (Dicta Boelcke). Boom-and-zoom by matchup was built and
+   measured worse, so it is off (`TACTICS_FLAGS`; DECISIONS "Boom-and-zoom…").
+   Defence: break, climbing turn, spiral,
    split-S, jinking, extension, chosen by skill, type and height. Below 350 m
    AGL (`LOW_AGL`) everything is flown level: level breaks, flat jinks, and
    energy fighters with a lead extend along the deck toward home. Flat scissors
@@ -232,6 +244,18 @@ every gain with dynamic pressure automatically.
   16-aircraft sweep round in cumulus (~0.4 ms; strict budget 1.5 ms under PERF_STRICT=1).
   `perception.realsim.test.ts`: a regular spots a D.V out of the sun at ~600 m against
   ~3.4 km with the sun behind it (6 seeds).
+- `stalk.realsim.test.ts` (CI, < 1 s): a stalker-signature D.V ace against an unaware
+  patrolling Nieuport in a low November sun, 5 start bearings, against stalking off:
+  entries inside 600 m up-sun (< 16°) and unseen in at least 3 of 5, and more than
+  without. `cloudEscape.realsim.test.ts` (CI, < 1 s): a wounded D.V with a veteran Camel
+  1.3 km behind and a cumulus 900 m ahead, 6 seeds, against escape and memory pursuit
+  off: > 30 s more in cloud and > 1.5× the time out of the pursuer's sight.
+- `AI_SOAK=energy pnpm vitest run src/ai/energy.soak.test.ts`: each fighter dives 800 m
+  from cruise and zooms back; top speed and net height (the D.V's dive limit is why
+  boom-and-zoom loses). `gundiag` also reports entry geometry per side: passes, share
+  from above (> 100 m), up-sun (< 15°), unseen (not in the target's contacts), height
+  advantage, and time in a sustained flat turn. `AI_TACTICS=stalk=0,...` flips
+  `TACTICS_FLAGS` in the fairness, gundiag and autoplay soaks.
 - `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
   at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
   the flak gun at the waypoint.
@@ -310,35 +334,70 @@ two enemies; ±12% noise.
 | Career killed+captured, veteran autoplayer | 25% (719 missions, wave 6) | 29% (113 missions, ±4%) |
 | Hits within the fight, D.V / veteran Camel / regular Camel (`gundiag`, 8 runs) | 38 / 277 / 417 | 27 / 270 / 220 |
 
+### Wave 8 results (tactics: stalking, cloud refuge, memory pursuit, ace signatures)
+
+"Off" is the same code with `AI_TACTICS=stalk=0,cloudEscape=0,meetBounce=0,memoryPursuit=0`,
+on the same seeds (boom-and-zoom is off in both; DECISIONS "Boom-and-zoom measured and
+rejected"). Veteran autoplayer plus one regular wingman against two enemies; 24 runs per
+setup, about ±10% noise.
+
+| Measure | Off | On |
+|---|---|---|
+| Default dogfight (Camel+1 v 2 regular D.V): player down (fairness, 24) | 4% | 4% |
+| Mirror, player down (Camel / D.V / Dr.I / SPAD XIII / D.VII; 24 each) | 33 / 21 / 25 / 29 / 29% | 13 / 38 / 42 / 29 / 21% |
+| Camel v D.VII / D.VII v Camel (24) | 29 / 71% | 8 / 88% |
+| Dr.I v SPAD / SPAD v Dr.I (24) | 8 / 83% | 8 / 83% |
+| Dr.I v S.E.5a / S.E.5a v Dr.I (24) | 4 / 88% | 4 / 83% |
+| Quick default dogfight (autoplay, 24): success / killed+captured | 96% / 0% | 100% / 0% |
+| Quick default ground attack (autoplay, 24): success / killed+captured | 96% / 8% | 96% / 8% |
+| Collisions in those 48 quick missions | 0 | 0 |
+| Enemy entries from above or up-sun, head-on quick fight (`gundiag`, 24): regular / novice / ace D.V | 7 / 7 / 16% | 11 / 5 / 19% |
+| Stalker ace v unaware patrol, low sun (`stalk.realsim`, 5 seeds): entries up-sun / unseen | 0 / 0 of 5 | 5 / 3 of 5 |
+| Wounded pilot, cumulus 900 m ahead (`cloudEscape.realsim`, 6 seeds): s in cloud / s out of pursuer's sight / hits taken | 46 / 57 / 213 | 126 / 151 / 227 |
+| Veteran career killed+captured | pending | pending |
+
+The mirror swings (Camel 33→13%, D.V 21→38%, Dr.I 25→42%) go both ways and sit inside
+the noise for 24 runs of a 2v2. Read them as no net change. None of the quick setups tests
+stalking. In the head-on start both flights see each other before 2.6 km, so a stalker is
+spotted before he can set up and the entry shares barely move. The stalk and cloud effects
+show in the real-sim tests, and should show in career patrols and intercepts, where
+flights meet beyond spotting range, and in a quick dogfight with
+`startPosition: 'disadvantage'` (enemy 1.6 km behind and 500 m above, in the player's
+blind cone) against a named ace in a low sun.
+
+Career survey (pending, lead to run after merge; compare against the same command with the
+`AI_TACTICS=...` off switch above):
+`AUTOPLAY=career AUTOPLAY_MISSIONS=10 AUTOPLAY_OUT=<scratch>/career.txt pnpm vitest run src/game/autoplay.soak.test.ts`.
+Run `career` and `quick` as separate invocations: both write to `AUTOPLAY_OUT` from the
+start, so a combined run keeps only the quick table.
+
 ### Known weaknesses
 
+- **The default quick dogfight stays lopsided** (Camel+1 v 2 regular D.V: player down 4%,
+  24 runs). The target of 20–40% with no flight-model changes was not reachable, and it
+  is reset here. The D.V can't out-turn a Camel (44 against 31 kg/m²), can't out-dive it
+  (`AI_SOAK=energy`: 74 against 80 m/s, a low `vne` from structural strength 0.55) and
+  can't out-zoom it (net −221 against −247 m after a dive and zoom). Boom-and-zoom made
+  every matchup worse (DECISIONS "Boom-and-zoom measured and rejected"). Changing it takes
+  a flight-model change or a different default enemy (D-071).
+- **Stalking only fires where the attacker starts unseen.** In head-on quick fights both
+  sides spot each other first, so entries from above or up-sun stay near 10% for regulars
+  (19% for aces). The acceptance metric needs a setup where flights meet beyond spotting
+  range (see Wave 8).
+- **Cloud escape hides a pilot but doesn't save him.** A pursuer within ~200 m still sees
+  into cloud (perception's `range × transmittance` model is lenient at short range), and
+  the refuge lasts 12–20 s before he heads home again. A wounded pilot takes as many hits
+  as without it.
+- **The sun only helps against an unaware target.** Glare is a spotting penalty. A pilot
+  who already has you in sight keeps you through the sun. That matches perception's
+  contact model, but it means sun tactics never help in a turning fight.
 - Quick ground attacks against *veteran* scouts remain very dangerous (63% killed or
-  captured).
-- The Quick Mission default dogfight (Camel v D.V) is lopsided: the player goes down in
-  0–8% of runs (target 35–55%), and 6–13% against *veteran* D.Vs. Wave 7 diagnosed it
-  (`gundiag`, 8 runs): within 500 m the D.Vs had their nose within 30° of a Camel for
-  about 10% of the time against the Camels' ~45%; their hits were almost all head-on
-  (23 of 25 head-on, 0–2 from the tail), while the Camels' were from the tail (~340 of
-  ~390). The D.Vs die from tail shots (structural failures are shot-away tails, not
-  overstress). The cause is the airframe: wing loading 44 against 31 kg/m² and equal
-  speed and climb, so the D.V can't reach a Camel's six or hold lead on it. Gunnery and
-  fire gates are not the limit. Three AI tactics were measured and made no difference:
-  a high yo-yo when out-turned, a diving extension instead of a flat break, and
-  "jousting" (extend and re-attack on the pass rather than circle). Mutual-support
-  targeting (going for the enemy on a friend's tail) helped the veteran player's side
-  instead and pushed mirror fights further off even, so it was dropped too. See
-  DECISIONS "Drag-aware lead".
-- Candidate defaults (16 runs unless noted; player down): Camel v 2 regular D.V 0–8%,
-  Pfalz 0% (12*), D.VII 17% (12*), veteran D.VII 13%, novice Dr.I 6%, regular Dr.I 75% (12),
-  veteran Dr.I 56–69%. Mirror (same type) fights run 13–56% with ±12% noise at 16 runs.
-  (*measured with the rejected out-turned tactics in place; they made no difference to
-  the D.V.)
+  captured, wave 6).
+- Equal turn fights between regulars can still circle for minutes (up to 24% of a
+  Camel-mirror fight in a sustained flat turn, `gundiag`). The high yo-yo was measured with
+  no effect in wave 7 and was not rebuilt.
 - The old survey setups (Camel+2 v 3 Dr.I at random start, D.VII+1 v 2 veteran SPADs)
   put the player down 83% and 50%. Both are hard by construction.
-
-- Aces don't exploit the vertical (yo-yos, zoom climbs) beyond energy-fighter
-  extensions; equal turn fights between regulars can circle for minutes.
-- No use of sun or cloud.
 - Wingman formation keeping for the slowest types (Dr.I, Nieuport 17) can lag by
   a few hundred metres after a long climb; it holds < 40 m once joined.
 - Landing uses the aerodrome's runway heading, not the wind.

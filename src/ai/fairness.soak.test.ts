@@ -11,12 +11,15 @@
  * to one skill.
  */
 import { describe, it } from 'vitest';
+import { applyTacticsFlagsFromEnv } from './tactics';
 import { buildQuickMission } from '../campaign';
 import type { QuickMissionOptions } from '../core/campaignTypes';
 import type { AircraftId, SkillLevel } from '../core/types';
 import { runAutoplay } from '../game/autoplay';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
+// AI_TACTICS=boomZoomOutTurned=1,stalk=0,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.
+applyTacticsFlagsFromEnv(process.env);
 const REPS = Number(process.env.AI_FAIR_REPS ?? 16);
 const SET = process.env.AI_FAIR_SET ?? 'default';
 const FORCE = process.env.AI_FAIR_SKILL as SkillLevel | undefined;
@@ -59,6 +62,8 @@ const SETS: Record<string, Setup[]> = {
   ],
   // Candidate even first fights for the Quick Mission default (src/ui/screens/quick.ts).
   camel: [base('sopwith_camel', 'albatros_dv'), base('sopwith_camel', 'pfalz_diiia'), base('sopwith_camel', 'fokker_dri'), base('sopwith_camel', 'fokker_dvii'), base('se5a', 'albatros_dv'), base('se5a', 'pfalz_diiia'), base('spad_xiii', 'fokker_dvii')],
+  // Energy types against turners, both ways round: where boom-and-zoom should pay.
+  energy: [base('sopwith_camel', 'fokker_dvii'), base('fokker_dvii', 'sopwith_camel'), base('fokker_dri', 'spad_xiii'), base('spad_xiii', 'fokker_dri'), base('fokker_dri', 'se5a'), base('se5a', 'fokker_dri')],
   survey: [
     { ...base('sopwith_camel', 'fokker_dri', { enemyCount: 3, wingmen: 2, altitudeM: 2000, startPosition: 'random', timeOfDay: 'midday', cloudCover: 0.3 }), label: 'camel v 3 dr1 (survey)' },
     { ...base('fokker_dvii', 'spad_xiii', { enemySkill: 'veteran', startPosition: 'head-on', cloudCover: 0.5 }), label: 'dvii v 2 vet spad (survey)' },
