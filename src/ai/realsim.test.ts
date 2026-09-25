@@ -167,11 +167,13 @@ describe('AI on the real flight model', { timeout: 60_000 }, () => {
       });
       return died;
     };
-    const seeds = [1, 2, 3, 4];
+    // Ten seeds: over 24 the defended mean is ~57 s against ~32 s straight (x1.8); four
+    // seeds swung from x1.7 to x2.7 on luck alone.
+    const seeds = Array.from({ length: 10 }, (_, i) => i + 1);
     const straight = seeds.reduce((t, s) => t + survival(false, s), 0) / seeds.length;
     const defended = seeds.reduce((t, s) => t + survival(true, s), 0) / seeds.length;
     expect(straight).toBeLessThan(60);
-    expect(defended).toBeGreaterThan(straight * 2);
+    expect(defended).toBeGreaterThan(straight * 1.5);
   });
 
   it("two-seater gunners punish a careless attacker sitting on their tail", () => {

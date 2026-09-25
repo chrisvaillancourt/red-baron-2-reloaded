@@ -69,6 +69,8 @@ export interface AIControllerOptions {
    * `generic` is a model-agnostic PID law (used with the point-mass test model).
    */
   controlLaw?: 'sim' | 'generic';
+  /** Steer clear of other aircraft (default true). False stands in for a human pilot in tests. */
+  avoidCollisions?: boolean;
 }
 
 export type AIPhase =
@@ -104,6 +106,11 @@ const REGISTRY = new WeakMap<AircraftEntity, AIPilot>();
 
 /** RTB reasons that are a choice, not a necessity: a fit fighter still fights back. */
 const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort complete']);
+
+/** Seconds of closure at which an attacker breaks off a head-on or overtaking pass. */
+const BREAK_LEAD_S = 1.8;
+/** Seconds of full-g break away from the merge before the extension. */
+const BREAK_S = 0.8;
 
 export function getAIPilot(ac: AircraftEntity): AIPilot | undefined {
   return REGISTRY.get(ac);
@@ -157,6 +164,8 @@ export class AIPilot implements AIController {
   private attackStage: AttackStage = 'approach';
   /** Strafing / balloon passes made at the current attack waypoint. */
   private attackPasses = 0;
+  private breakDir = new Vector3(0, 1, 0);
+  private breakUntil = -1;
   private attackStageUntil = 0;
   /** +1 / -1: which way a balloon pull-out breaks. */
   private pulloutSide = 1;
@@ -251,7 +260,7 @@ export class AIPilot implements AIController {
     steer.landing = false;
     steer.speed = Infinity;
     this.computeSteer(self, world, dt, steer);
-    this.avoidCollisions(self, world, steer);
+    if (this.opts.avoidCollisions !== false) this.avoidCollisions(self, world, steer);
     this.autopilot.fly(self, steer, world, dt);
 
     this.weapons(self, world, dt);
@@ -770,6 +779,11 @@ export class AIPilot implements AIController {
     // Boom-and-zoom extension after a firing pass.
     if (this.phase === 'extend') {
       if (this.now < this.extendUntil) {
+        // First the break away from the merge, at full g; then extend level-ish.
+        if (this.now < this.breakUntil) {
+          steer.dir.copy(this.breakDir).addScaledVector(f, 0.35);
+          return true;
+        }
         const fh = _tmp2.set(f.x, 0, f.z).normalize();
         steer.dir.copy(fh).add(new Vector3(0, 0.35, 0));
         steer.maxG = 3;
@@ -783,10 +797,13 @@ export class AIPilot implements AIController {
     const angleOff = angleBetween(ts.velocity, s.velocity);
     const passed = _rel.dot(f) < 0 && r < 300;
 
-    // Too close: break off to avoid a collision.
-    if (r < 55 && closure > 3) {
+    // Too close: break off to avoid a collision. Head-on the two close at 100+ m/s, so the
+    // break comes about two seconds out, not at 55 m (half a second, too late to dodge a
+    // pilot who holds his line - as a human player shooting head-on does).
+    if (closure > 3 && r < Math.max(55, closure * BREAK_LEAD_S)) {
       this.startExtend(2.5);
-      steer.dir.copy(upOf(s.orientation, _tmp2)).addScaledVector(f, 0.5);
+      this.startBreak(self, tgt, BREAK_S);
+      steer.dir.copy(this.breakDir).addScaledVector(f, 0.35);
       return true;
     }
     // Energy fighters extend after a pass instead of turning.
@@ -841,6 +858,26 @@ export class AIPilot implements AIController {
   private startExtend(seconds: number): void {
     this.phase = 'extend';
     this.extendUntil = this.now + seconds;
+  }
+
+  /**
+   * Commit to a break away from `other`: away from where it will be at closest approach,
+   * or straight up the lift line (no roll needed) when it is coming right at us. A pair
+   * both flying straight at each other split by id, one up and one down.
+   */
+  private startBreak(self: AircraftEntity, other: AircraftEntity, seconds: number): void {
+    const s = self.state;
+    const rel = other.state.position.clone().sub(s.position);
+    const relV = other.state.velocity.clone().sub(s.velocity);
+    const vv = relV.lengthSq();
+    const t = vv > 1e-3 ? clamp(-rel.dot(relV) / vv, 0, 4) : 0;
+    const cpa = rel.addScaledVector(relV, t);
+    const up = upOf(s.orientation, new Vector3());
+    const fwd = forwardOf(s.orientation, new Vector3());
+    cpa.addScaledVector(fwd, -cpa.dot(fwd));
+    if (cpa.length() > 4) this.breakDir.copy(cpa).normalize().negate().addScaledVector(up, 0.5).normalize();
+    else this.breakDir.copy(up).multiplyScalar(other.controller === 'player' || self.id < other.id ? 1 : -1);
+    this.breakUntil = this.now + seconds;
   }
 
   private updateTargetAccel(tgt: AircraftEntity, dt: number): void {
@@ -1151,10 +1188,15 @@ export class AIPilot implements AIController {
       const tcpa = vv > 1e-3 ? clamp(-rel.dot(relV) / vv, 0, 4) : 0;
       const cpa = rel.clone().addScaledVector(relV, tcpa);
       const dcpa = cpa.length();
-      const radius = isAlive(o) ? 32 : 40;
+      // Wider berth for wrecks, for the human player (who won't dodge for us) and for a
+      // flight-mate chasing the same target: two pursuit curves converge on one tail.
+      const sameTarget = o.side === self.side && this.targetId != null && REGISTRY.get(o)?.targetId === this.targetId;
+      const radius = !isAlive(o) ? 40 : o.controller === 'player' || sameTarget ? 45 : 32;
       if (dcpa >= radius) continue;
       const w = (1 - dcpa / radius) * (1 - tcpa / 4.2);
-      if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).negate();
+      // Dead ahead: split by id (up / down the lift line, no roll needed); the AI always
+      // takes the up side against the player.
+      if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).multiplyScalar(o.controller === 'player' || self.id < o.id ? -1 : 1);
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
     }
@@ -1178,6 +1220,8 @@ export class AIPilot implements AIController {
     if (wsum > 0.05) {
       steer.dir.normalize().addScaledVector(avoid.normalize(), clamp(wsum * 3, 0, 3)).normalize();
       steer.aim = false;
+      // A real conflict overrides the manoeuvre's g cap (formation, extension: 3 g).
+      if (wsum > 0.25) steer.maxG = undefined;
     }
   }
 
