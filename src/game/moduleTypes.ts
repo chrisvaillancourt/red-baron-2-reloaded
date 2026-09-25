@@ -68,3 +68,8 @@ export interface GameModules {
   terrainHeightAt(x: number, z: number): number;
   sideOfFrontAt(x: number, z: number, date: string): Side;
 }
+
+/** Bound at boot: what the menus need (src/game/modules.ts `menuModules`). */
+export type MenuModules = Pick<GameModules, 'createAudioEngine' | 'createCampaignService' | 'createUi'>;
+/** Loaded with the flight chunk (src/game/flightModules.ts). */
+export type FlightOnlyModules = Omit<GameModules, keyof MenuModules>;

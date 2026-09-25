@@ -32,6 +32,7 @@ import { getGunnerTarget } from '../sim';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
 import { showFlightInterrupted } from './errorOverlay';
+import { getActiveFlight, setActiveFlight } from './activeFlight';
 
 export { SIM_HZ, AI_EVERY_N_STEPS } from './simCore';
 export const TIME_SCALES = [1, 2, 4, 8] as const;
@@ -79,20 +80,7 @@ declare global {
   }
 }
 
-/** The flight in progress, if any (one at a time). */
-let activeSession: FlightSession | null = null;
-
-/**
- * Stop the flight in progress with an error, if there is one: the session tears
- * down and its fly() promise rejects (the UI goes back to where it was and records
- * nothing). `silent` skips the "flight interrupted" card, e.g. when the app is
- * recovering from an error it is already reporting.
- */
-export function abortActiveFlight(err: unknown, opts: { silent?: boolean } = {}): boolean {
-  if (!activeSession) return false;
-  activeSession.abort(err, opts.silent ?? false);
-  return true;
-}
+export { abortActiveFlight } from './activeFlight';
 
 /** How long a lost WebGL context may stay lost before the flight is abandoned. */
 export const CONTEXT_RESTORE_TIMEOUT_MS = 8000;
@@ -170,8 +158,8 @@ export class FlightSession {
 
   run(): Promise<MissionResult> {
     return new Promise<MissionResult>((resolve, reject) => {
-      if (activeSession) activeSession.abort(new Error('A new flight replaced this one'), true);
-      activeSession = this;
+      getActiveFlight()?.abort(new Error('A new flight replaced this one'), true);
+      setActiveFlight(this);
       this.resolve = resolve;
       this.reject = reject;
       this.setup().catch((e) => this.fail(e));
@@ -760,7 +748,7 @@ export class FlightSession {
    */
   private teardown(): void {
     this.finished = true;
-    if (activeSession === this) activeSession = null;
+    if (getActiveFlight() === this) setActiveFlight(null);
     const step = (label: string, fn: () => void) => {
       try {
         fn();

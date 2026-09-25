@@ -1,11 +1,11 @@
 import { installGlobalErrorHandlers, showFatalError, startApp } from './game/app';
-import { modules } from './game/modules';
+import { menuModules } from './game/modules';
 
 installGlobalErrorHandlers();
 
 const root = document.getElementById('app')!;
 try {
-  startApp(root, modules);
+  startApp(root, menuModules);
 } catch (e) {
   showFatalError(e);
 }

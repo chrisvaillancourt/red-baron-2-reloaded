@@ -6,9 +6,10 @@ import type { GameServices } from '../core/interfaces';
 import { loadSettings, saveSettings } from '../core/settings';
 import type { GameSettings } from '../core/types';
 import { catalogFromCampaignData, setUiCatalog } from '../ui';
+import { abortActiveFlight } from './activeFlight';
 import { isBenignError, setRecoveryHandler, showFatalError } from './errorOverlay';
-import { abortActiveFlight, createFlightLauncher } from './flightSession';
-import type { GameModules, UiHandle } from './moduleTypes';
+import { createLazyFlightLauncher, prefetchFlightChunk } from './modules';
+import type { MenuModules, UiHandle } from './moduleTypes';
 
 export { showFatalError } from './errorOverlay';
 
@@ -19,14 +20,18 @@ export interface App {
   restart(): void;
 }
 
-export function startApp(root: HTMLElement, modules: GameModules): App {
+/**
+ * Boot the menus. The flight half of the composition point loads on the first
+ * take-off (prefetched once the browser is idle); see src/game/modules.ts.
+ */
+export function startApp(root: HTMLElement, modules: MenuModules): App {
   let settings: GameSettings = loadSettings();
   const audio = modules.createAudioEngine();
   audio.setVolumes(settings.masterVolume, settings.musicVolume, settings.effectsVolume);
   const services: GameServices = {
     campaign: modules.createCampaignService(),
     audio,
-    launcher: createFlightLauncher(modules, audio),
+    launcher: createLazyFlightLauncher(modules, audio),
     getSettings: () => settings,
     saveSettings(s) {
       settings = s;
@@ -57,6 +62,7 @@ export function startApp(root: HTMLElement, modules: GameModules): App {
     },
   };
   setRecoveryHandler(() => app.restart());
+  prefetchFlightChunk();
   return app;
 }
 
