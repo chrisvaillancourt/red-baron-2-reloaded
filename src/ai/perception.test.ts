@@ -3,7 +3,7 @@ import { Vector3 } from 'three';
 import type { Weather } from '../core/types';
 import { CloudField } from '../world/clouds';
 import { DEG } from './math';
-import { glareFactor, likelySpottedBy, Perception, sightFactor, sunAngle } from './perception';
+import { cloudHides, glareFactor, humanSees, likelySpottedBy, Perception, sightFactor, sunAngle } from './perception';
 import { makeSkillProfile } from './skill';
 import { makeAircraft, TestWorld } from './testing/testWorld';
 
@@ -136,6 +136,28 @@ describe('cloud line of sight and memory', () => {
     b.state.position.y = c.y + 2000; // well above the tops
     a.state.position.y = c.y + 2000;
     expect(sightFactor(a, b, world, 0.5)).toBe(1);
+  });
+
+  it('inside a cloud core an aircraft 110 m away is lost at any range; 30 m away he is not', () => {
+    const c = aCloud();
+    const world = new TestWorld({ weather: CUMULUS });
+    const profile = makeSkillProfile(0.85);
+    const self = makeAircraft({ side: 'allied', x: c.x - 55, z: c.z, alt: c.y, heading: EAST });
+    const enemy = makeAircraft({ side: 'central', x: c.x + 55, z: c.z, alt: c.y, heading: EAST });
+    world.aircraft.push(self, enemy);
+    // Range x transmittance alone (an ace's 4.6 km x ~0.25) would still see him.
+    expect(world.cloudTransmittance!(self.state.position, enemy.state.position)).toBeGreaterThan(110 / profile.spotRange);
+    const per = new Perception(profile, self);
+    per.sweep(self, world, NO_CHECK_SIX);
+    expect(per.contact(enemy.id)?.visible ?? false).toBe(false);
+    expect(humanSees(self, enemy, world)).toBe(false);
+    expect(cloudHides(self.state.position, enemy.state.position, world)).toBe(true);
+    enemy.state.position.x = c.x - 25;
+    world.time = 5;
+    per.sweep(self, world, NO_CHECK_SIX);
+    expect(per.contact(enemy.id)?.visible).toBe(true);
+    expect(humanSees(self, enemy, world)).toBe(true);
+    expect(cloudHides(self.state.position, enemy.state.position, world)).toBe(false);
   });
 
   it('notice() without an entity fills in the position from the world', () => {

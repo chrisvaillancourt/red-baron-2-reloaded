@@ -26,10 +26,11 @@ soak skipped), `pnpm build` OK.
      entry that supersedes D-076.
    - **Alternative: tune the D.V's dive limit or drag.** More authentic, but it touches
      the sim and every fight involving a D.V needs measuring again.
-3. **Do: make cloud cut hits, not just sight.** A pursuer within ~200 m still sees into
-   cloud, so wounded pilots spend nearly three times longer in cloud (126 s against 46 s)
-   but take about the same hits (227 against 213; `cloudEscape.realsim.test.ts`).
-   Tighten close-range transmittance in `src/ai/perception.ts`.
+3. **Done: cloud cuts hits, not just sight** (DECISIONS "Cloud blinds at close range").
+   A contrast limit on in-cloud sight, no blind pursuit or fire while cloud hides the
+   target, and a refuge that circles the core for 25–40 s. A wounded pilot takes 28 hits
+   with refuge against 195 without (was 196 against 213; `cloudEscape.realsim.test.ts`).
+   **Check** in the human playtest that a player who dives into cloud shakes a pursuer.
 4. **Housekeeping:**
    - **Decide: add a LICENSE.** The repo is public but has none, so no reuse is allowed.
      The original game's names and assets are a separate question.
@@ -83,8 +84,10 @@ Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073
 - **Defer (sim owner):** making the D.V dangerous by default. It needs a flight-model
   change (D.V dive limit or drag) or a different default enemy. Decide from human
   playtests.
-- **Defer (perception):** a pursuer within ~200 m still sees into cloud, so cloud refuge
-  hides a wounded pilot but doesn't cut the hits he takes.
+- **Done (perception, wave 9):** a pursuer ~100 m behind no longer sees into a cloud core,
+  follows the true position or fires blind, so cloud refuge now cuts the hits a wounded
+  pilot takes (28 against 195). A pursuer already within 30–80 m still sees him, as the
+  player would on screen.
 - **Defer:** generic veterans and aces (no signature) never reach the merge unseen, because
   their ≤ 60 s patience runs out first. Raise it only if career playtests want more
   ambushes.

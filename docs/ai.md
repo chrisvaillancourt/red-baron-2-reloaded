@@ -64,7 +64,8 @@ their leader is doing).
    sun climbs from 2° to 6° and gone when cloud hides it) the spotting range
    falls to 12% (novice) – 30% (ace), and cloud on the line of sight
    (`WorldQuery.cloudTransmittance`, the clouds the renderer draws) scales it by
-   the light that gets through. A regular sees a D.V diving straight out of the
+   the light that gets through; below 0.3 (~100 m of core) nothing is seen at
+   any range (DECISIONS "Cloud blinds at close range"). A regular sees a D.V diving straight out of the
    sun at ~600 m instead of ~3.4 km (`perception.realsim.test.ts`). Contacts keep
    the last-seen position and velocity and a `visible` flag; an enemy in cloud
    is forgotten after `memory` s. `likelySpottedBy(self, watcher)` estimates
@@ -85,7 +86,7 @@ their leader is doing).
    the target 1.5–3 km out, closes level at his height, then comes down the sun
    line so the glare hides him. A pursuer who loses a target more than 350 m away
    flies to where it was heading. A pilot going home hurt with a scout near makes
-   for the nearest cloud and wanders inside for 12–20 s. Veterans and aces turn up
+   for the nearest cloud and circles its core for 25–40 s. Veterans and aces turn up
    into a bounce from above (Dicta Boelcke). Boom-and-zoom by matchup was built and
    measured worse, so it is off (`TACTICS_FLAGS`; DECISIONS "Boom-and-zoom…").
    Defence: break, climbing turn, spiral,
@@ -392,6 +393,28 @@ missions (78 against 91), and the gap is about ±5%. Read it as "no worse", not 
 Run `career` and `quick` as separate invocations: both write to `AUTOPLAY_OUT` from the
 start, so a combined run keeps only the quick table.
 
+### Wave 9: cloud cuts hits (DECISIONS "Cloud blinds at close range")
+
+Instrumenting `cloudEscape.realsim` (per-hit: in cloud or not, seen or not) showed 162 of
+the wounded pilot's 196 hits landing inside cloud, all with the pursuer seeing him: sight was
+`range × transmittance`, so 4 km × 0.25 still reached 110 m into a core, and inside 350 m the
+pursuer steered (and aimed) at his true position. Now below a transmittance of 0.3 (~100 m
+of core) nothing is seen at any range. Memory pursuit also applies close in when cloud hides
+the target, the gun gate skips a target cloud hides, and the refuge circles the core for
+25–40 s instead of 12–20 s.
+
+| Measure (6 seeds unless noted) | Refuge off | Refuge on |
+|---|---|---|
+| Hits taken, before (re-measured on `main`) | 213 | 196 (162 inside cloud) |
+| Hits taken, after | 195 | 28 (none while unseen) |
+| s in cloud / s out of the pursuer's sight, after | 79 / 124 | 273 / 350 |
+| Default quick fight, player down (24 runs) | | 4%, unchanged |
+| Camel+1 v 2 regular D.VII, player down (24 runs) | | 8% (wave 8: 8%) |
+| Veteran career, 3 seed sets: killed+captured / collisions per 100 missions (before → after) | | 19.7% → 22.4% / 3.4 → 5.5 (264 and 237 missions; within noise) |
+
+A pursuer already 30–80 m behind as he enters still sees him (as a player would on screen),
+so one seed that reaches cloud with the pursuer on him still takes 27 hits.
+
 ### Known weaknesses
 
 - **The default quick dogfight stays lopsided** (Camel+1 v 2 regular D.V: player down 4%,
@@ -408,10 +431,8 @@ start, so a combined run keeps only the quick table.
   and aces (no signature) are never unseen at the merge. Their patience (≤ 60 s) runs out
   before they reach the sun line, so only signature stalkers, leaders and calculated
   pilots really ambush.
-- **Cloud escape hides a pilot but doesn't save him.** A pursuer within ~200 m still sees
-  into cloud (perception's `range × transmittance` model is lenient at short range), and
-  the refuge lasts 12–20 s before he heads home again. A wounded pilot takes as many hits
-  as without it.
+- **Cloud escape only saves a pilot who gets in with some room** (fixed in wave 9, above:
+  28 hits against 195). A pursuer already within 30–80 m as he enters still sees him.
 - **The sun only helps against an unaware target.** Glare is a spotting penalty. A pilot
   who already has you in sight keeps you through the sun. That matches perception's
   contact model, but it means sun tactics never help in a turning fight.
