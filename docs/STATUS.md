@@ -103,11 +103,13 @@ eight waves. Rationale for every significant choice is in `DECISIONS.md`
 - **Done:** escorts only count at the end if the charges have been out over the
   lines (PLAYTEST #4). Quick intercept contact is about 90 s. Squadron mates who
   are lost never fly again. Abandoned flights are stamped "Mission Abandoned".
-- **Defer:** a hint on the Quick Mission screen when the chosen aircraft never
-  met in service; Tab-order shortcuts on the Quick Mission screen; the CO's
-  drop cap splitting "Lt."; ace standings showing "Flying" for aces in hospital
-  (needs an additive `AceStanding` status); French ranks for Lafayette mates
-  before February 1918.
+- **Done (polish, wave 9):** a Quick Mission hint when the chosen aircraft never
+  met in service; one Tab stop per button group (Quick Mission takes 12 Tabs, not ~57);
+  no drop cap on a CO remark that opens with "Lt."; ace standings show "Off the front"
+  for aces between service spells (additive `AceStanding` status `'away'`); French
+  ranks for Lafayette mates (docs/PLAYTEST.md #5, #6, #8, #10, #11).
+- **Defer:** a Lafayette player's own rank still follows the US ladder among
+  French-ranked mates. Revisit only if Lafayette careers get attention.
 - **Defer:** one tree-lined road that still reads near-black from 2 km (render).
 - **Skip:** SwiftShader 'low' at about 9 fps; the README asks for a real GPU.
 
