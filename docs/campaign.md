@@ -13,7 +13,7 @@ const campaign = createCampaignService(); // localStorage, or memoryStorage() in
 | File | Contents |
 |---|---|
 | `squadrons.ts` | 29 squadrons (DE/GB/FR/US) with dated bases (aerodrome ids) and equipment; `SQUADRON_SUCCESSORS` for disbandments (FFA 62 → Jasta 2, Lafayette → 103rd Aero). |
-| `aces.ts` | 43 historical aces: service periods by squadron/aircraft, dated victory milestones (linear between points, frozen at fate), fate. `aceVictoriesOn`, `aceServiceOn`. |
+| `aces.ts` | 43 historical aces: service periods by squadron/aircraft, dated victory milestones (linear between points, frozen at fate), fate. `aceVictoriesOn`, `aceServiceOn`. A gap between service periods (hospital, a home posting) shows as `'away'` in the ace standings (`standings.ts`). |
 | `ranks.ts` | Rank ladders per nation; `requires` = victories OR missions to be promoted into a rank. |
 | `medals.ts` | Decorations with criteria (thresholds may depend on date, e.g. Pour le Mérite 8/16/20). |
 | `liveries.ts` | Factory finishes, squadron markings, ace colours, national insignia by date. `composeLivery()` layers them. |
@@ -27,7 +27,8 @@ base → front anchor near the base → weighted mission type (side, year,
 aircraft role, historical event emphasis) → plan (waypoints, enemy/friendly
 flights, balloons, ground targets, objectives) → player flight (player leads;
 historical aces serving in the squadron may fly as wingmen; generic mates from
-a quarterly roster) → weather/time of day → period-voice briefing.
+a quarterly roster, `names.ts`; the Lafayette's Americans carry French ranks) → weather/time
+of day → period-voice briefing.
 
 Enemy fighters are drawn from real enemy squadrons based within 70 km, and
 their aces appear with a probability scaled by the historical event's
@@ -97,4 +98,6 @@ Waypoint `altitude` is metres ASL; balloon `altitude` is metres above ground.
 ## Quick missions
 
 `buildQuickMission(opts, seed?)` honours every `QuickMissionOptions` field;
-the date defaults to the midpoint of both aircraft's overlapping service.
+the date defaults to the midpoint of both aircraft's overlapping service
+(`servedTogether` in `src/data/aircraft.ts`), or of the player's own type when the two never
+met; the Quick Mission screen says so beside To the briefing.

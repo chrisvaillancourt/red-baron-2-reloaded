@@ -156,3 +156,13 @@ export function prettifyId(id: string): string {
     .map((w) => w[0].toUpperCase() + w.slice(1))
     .join(' ');
 }
+
+/**
+ * Whether a paragraph can open with a one-letter drop cap. Not when its first word is an
+ * abbreviation ("Lt. Smith", "S/Lt. Moreau") or starts with a digit or mark ("2nd Lt.", a quote):
+ * the cap would split it into "L" and "t. Smith".
+ */
+export function takesDropCap(text: string): boolean {
+  const first = text.trimStart().split(/\s/, 1)[0] ?? '';
+  return /^\p{L}/u.test(first) && !first.endsWith('.');
+}

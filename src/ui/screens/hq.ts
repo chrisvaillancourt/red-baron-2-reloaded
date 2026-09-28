@@ -246,7 +246,7 @@ export const hqScreen: ScreenFactory = (ctx, params) => {
             h('td', null, a.name),
             h('td', null, NATION_INFO[a.nation].adjective),
             h('td', { class: 'num' }, String(a.victories)),
-            h('td', null, a.status === 'active' ? 'Flying' : a.status === 'killed' ? '✝ Killed' : a.status === 'captured' ? 'P.O.W.' : 'Survived'),
+            h('td', null, a.status === 'active' ? 'Flying' : a.status === 'away' ? 'Off the front' : a.status === 'killed' ? '✝ Killed' : a.status === 'captured' ? 'P.O.W.' : 'Survived'),
           ),
         ),
       ),

@@ -12,6 +12,7 @@ import {
   formatSpeed,
   ordinal,
   prettifyId,
+  takesDropCap,
   resolveUnits,
 } from './format';
 
@@ -77,5 +78,11 @@ describe('dates and times', () => {
   it('ordinals and ids', () => {
     expect([1, 2, 3, 4, 11, 12, 13, 21, 80].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '80th']);
     expect(prettifyId('pour-le-merite')).toBe('Pour Le Merite');
+  });
+
+  it('drop caps skip a paragraph that opens with an abbreviated rank', () => {
+    expect(takesDropCap('The CO was pleased with the day\'s work.')).toBe(true);
+    expect(takesDropCap('Écrasé au sol.')).toBe(true);
+    for (const t of ['Lt. Smith is missing.', 'S/Lt. Moreau went down in flames.', 'Ltn. H. Müller did not return.', '2nd Lt. J. Collins was killed.', '"Well done," said the CO.']) expect(takesDropCap(t), t).toBe(false);
   });
 });

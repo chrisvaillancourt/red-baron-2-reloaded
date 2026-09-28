@@ -61,6 +61,11 @@ one page per medal → memorial / prisoner-of-war record when the career ends.
 Arrow keys / D-pad / left stick move focus spatially; Enter/A activates;
 Esc/Backspace/B goes back; `[` `]` / PageUp/PageDown / LB/RB switch tabs. The
 router keeps a stack; `back()` re-creates the previous screen.
+Button groups (`segmented`, the Quick Mission ace list) are one Tab stop each:
+only the chosen button is in the Tab order (`roveTabStop` in `components.ts`),
+and left/right step through a group in order even where it wraps onto two rows.
+Quick Mission takes 12 Tabs from the aircraft list to "To the briefing"
+(`tests/e2e/quick-keyboard.spec.ts`).
 
 ## HudView contract
 

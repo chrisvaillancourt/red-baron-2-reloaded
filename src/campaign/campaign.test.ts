@@ -14,6 +14,7 @@ import { addDays } from './dates';
 import { createCampaignService, memoryStorage, STORAGE_KEY } from './index';
 import { Rng } from './rng';
 import { squadronAircraftOn } from './squadronUtil';
+import { aceStandings } from './standings';
 
 const inBounds = (x: number, z: number) => x >= SECTOR_BOUNDS.minX && x <= SECTOR_BOUNDS.maxX && z >= SECTOR_BOUNDS.minZ && z <= SECTOR_BOUNDS.maxZ;
 
@@ -244,6 +245,18 @@ describe('mission generator', () => {
     const standing = s.aceStandings(p).find((r) => r.aceId === 'mvr')!;
     expect(standing.status).toBe('killed');
     expect(standing.victories).toBe(aceVictoriesOn(getAce('mvr')!, '1917-04-09'));
+  });
+
+  it('ace standings: an ace between service spells is off the front, not flying', () => {
+    const s = newService();
+    const p = s.createPilot({ firstName: 'A', lastName: 'B', nation: 'britain', startDate: '1917-04-10', squadronId: 'rfc60', difficulty: 'pilot' });
+    const lothar = (date: string) => aceStandings(p, date).find((r) => r.aceId === 'lothar')!.status;
+    expect(lothar('1917-04-20')).toBe('active');
+    // Wounded 13 May 1917, back at Jasta 11 on 24 September.
+    expect(lothar('1917-06-01')).toBe('away');
+    expect(lothar('1917-10-01')).toBe('active');
+    p.status = 'hospital';
+    expect(aceStandings(p).find((r) => r.isPlayer)!.status).toBe('away');
   });
 
   it('never flies a squadron mate who was killed or captured', () => {

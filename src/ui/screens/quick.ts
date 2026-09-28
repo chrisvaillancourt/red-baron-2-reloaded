@@ -1,14 +1,14 @@
 import { composeLivery } from '../../data/liveries';
 import type { QuickMissionOptions } from '../../core/campaignTypes';
 import type { AircraftId, AircraftSpec, SkillLevel } from '../../core/types';
-import { AIRCRAFT, AIRCRAFT_LIST } from '../../data/aircraft';
+import { AIRCRAFT, AIRCRAFT_LIST, servedTogether } from '../../data/aircraft';
 import { QUICK_DEFAULTS } from '../../data/quickDefaults';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
 import { formatAltitude, resolveUnits } from '../format';
 import { getUiCatalog } from '../catalog';
 import { insigniaFor, nationalInsignia } from '../insignia';
-import { rangeInput, screenShell, segmented, withHints } from '../components';
+import { rangeInput, roveTabStop, screenShell, segmented, withHints } from '../components';
 import { specSheet } from '../aircraftCards';
 import { SKILL_LABEL } from '../labels';
 
@@ -120,6 +120,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
   );
 
   const acePick = h('div', { class: 'ace-pick' });
+  const anachronism = h('p', { class: 'quick-note', role: 'status' }, 'These machines never met in service; the flight is dated by yours.');
 
   // --- Mission column
   const altVal = h('span', { class: 'typed' });
@@ -210,12 +211,15 @@ export const quickScreen: ScreenFactory = (ctx) => {
   }
   function renderEnemy(): void {
     const s = AIRCRAFT[o.enemyAircraft];
+    // The mission is dated by the shared service window, or by the player's type if there is none.
+    anachronism.hidden = servedTogether(AIRCRAFT[o.playerAircraft], s);
     setChildren(enemyHead, svg(nationalInsignia(insigniaFor(s.nation, s.introduced), 28)), 'The enemy');
     setChildren(enemySpec, specSheet(s, units(), composeLivery({ aircraftId: s.id, nation: s.nation, date: s.introduced, aceId: o.enemyAceId })));
     const enemyGerman = s.nation === 'germany';
     const aces = getUiCatalog().aces.filter((a) => (a.nation === 'germany') === enemyGerman);
-    setChildren(
-      acePick,
+    // The list is rebuilt on every pick; keep keyboard focus on the chosen entry.
+    const hadFocus = acePick.contains(document.activeElement);
+    const choices = [
       h('button', { type: 'button', class: 'choice', 'aria-pressed': String(!o.enemyAceId), onClick: () => ((o.enemyAceId = undefined), renderEnemy(), save()) }, h('span', null, 'No named ace'), h('span', { class: 'muted' }, '')),
       ...aces.map((a) =>
         h(
@@ -225,7 +229,11 @@ export const quickScreen: ScreenFactory = (ctx) => {
           h('span', { class: 'muted typed' }, `${a.victories} victories`),
         ),
       ),
-    );
+    ];
+    const current = o.enemyAceId ? aces.findIndex((a) => a.id === o.enemyAceId) + 1 : 0;
+    roveTabStop(choices, current);
+    setChildren(acePick, ...choices);
+    if (hadFocus) choices[Math.max(0, current)].focus({ preventScroll: true });
   }
   rebuildEnemySelect();
   const enemyCol = h(
@@ -258,7 +266,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
     'To the briefing →',
   );
 
-  shell.content.append(h('div', { class: 'quick' }, playerCol, missionCol, enemyCol), h('div', { class: 'quick-foot' }, fly));
+  shell.content.append(h('div', { class: 'quick' }, playerCol, missionCol, enemyCol), h('div', { class: 'quick-foot' }, anachronism, fly));
   withHints(shell);
   return { el: shell.el, music: 'menu' };
 };

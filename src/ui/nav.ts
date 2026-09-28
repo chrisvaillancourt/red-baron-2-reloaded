@@ -93,6 +93,17 @@ export function createNav(opts: NavOptions): Nav {
       items[0].focus();
       return;
     }
+    // Left/right inside a segmented group steps through it in order, even where it wraps onto
+    // two rows (spatially the button below can be nearer than the next one along).
+    const seg = dir === 'left' || dir === 'right' ? cur.closest<HTMLElement>('.seg') : null;
+    if (seg && scope.contains(seg)) {
+      const btns = focusables(seg);
+      const sib = btns[btns.indexOf(cur) + (dir === 'right' ? 1 : -1)];
+      if (sib) {
+        sib.focus();
+        return;
+      }
+    }
     const cands = items.filter((e) => e !== cur).map((el) => ({ el, r: el.getBoundingClientRect() }));
     const next = pickSpatial(cur.getBoundingClientRect(), cands, dir);
     if (next) {

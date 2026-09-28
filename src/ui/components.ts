@@ -90,9 +90,18 @@ export function folderTabs(tabs: TabsSpec[], initial = 0, onChange?: (id: string
   };
 }
 
+/**
+ * Roving tab stop: only the chosen button of a group is in the Tab order, so Tab moves between
+ * groups. The others stay reachable with the arrow keys (menu nav is spatial and finds every button).
+ */
+export function roveTabStop(btns: HTMLElement[], current: number): void {
+  const stop = current >= 0 && current < btns.length ? current : 0;
+  btns.forEach((b, i) => (b.tabIndex = i === stop ? 0 : -1));
+}
+
 export function segmented<T extends string>(options: { value: T; label: string }[], value: T, onChange: (v: T) => void): HTMLElement {
   const el = h('div', { class: 'seg', role: 'group' });
-  const btns = options.map((o) =>
+  const btns = options.map((o, idx) =>
     h(
       'button',
       {
@@ -100,12 +109,14 @@ export function segmented<T extends string>(options: { value: T; label: string }
         'aria-pressed': String(o.value === value),
         onClick: () => {
           btns.forEach((b, i) => b.setAttribute('aria-pressed', String(options[i].value === o.value)));
+          roveTabStop(btns, idx);
           onChange(o.value);
         },
       },
       o.label,
     ),
   );
+  roveTabStop(btns, options.findIndex((o) => o.value === value));
   el.append(...btns);
   return el;
 }
