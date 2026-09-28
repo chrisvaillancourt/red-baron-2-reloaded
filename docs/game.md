@@ -291,6 +291,16 @@ can wrap any `SimCore` (`src/game/testing/recordedFlight.ts`).
 
 A recorder failure is logged and the debrief goes on without telemetry.
 
+**Replay.** `src/game/replay.soak.test.ts` (skipped unless `REPLAY=<report.json>`;
+wrapped by `node tools/playtest/replay-report.mjs <report.json>`) flies a report's
+mission with `runAutoplay` at the report's realism, `REPLAY_REPS` times (default
+8). It prints one line per run and a `fairnessLine` row (`autoplaySummary.ts`,
+shared with the fairness soak). Run 0 uses `headlessModules`, the game's own seeds,
+and repeats exactly: a headless flight is deterministic. Runs 1 and up use
+`seededHeadlessModules(n)`, which reseeds combat's chance draws and each AI
+controller. `runAutoplay` takes `modules` for this. `--browser` launches the
+mission in a running dev server through `window.__rb2.services.launcher.fly`.
+
 
 ## Robustness
 

@@ -10,7 +10,7 @@ import { createAIController } from '../ai';
 import { aiControllerOptions } from './aiOptions';
 import type { GameEvent, MissionDefinition, MissionResult, RealismSettings } from '../core/types';
 import { DEFAULT_SETTINGS } from '../core/settings';
-import { bankAngle, createCombatSystem, createFlightEnvironment, pitchAngle, setGunnerTarget, sim } from '../sim';
+import { bankAngle, createCombatSystem, createFlightEnvironment, createRng, pitchAngle, setGunnerTarget, sim } from '../sim';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
 import { LossCauseTracker } from './lossCause';
@@ -27,6 +27,22 @@ export const headlessModules: SimCoreModules = {
   sideOfFrontAt,
 };
 
+/**
+ * `headlessModules` with the chance draws (gun dispersion, damage rolls, AI decisions) reseeded,
+ * so one mission can be flown several different ways (the flight-report replay). Variant 0 is
+ * `headlessModules` itself: the same seeds as the game.
+ */
+export function seededHeadlessModules(variant: number): SimCoreModules {
+  if (!variant) return headlessModules;
+  return {
+    ...headlessModules,
+    createCombatSystem: (bus, getRealism) => createCombatSystem(bus, getRealism, { rng: createRng(0xc0ffee + variant * 7717) }),
+    // The controller's own default seed (controller.ts) offset per variant.
+    createAIController: (ac, o) =>
+      createAIController(ac, { ...aiControllerOptions(ac, o, setGunnerTarget), seed: ac.id * 7919 + 13 + variant * 104729 }),
+  };
+}
+
 export interface AutoplayOptions {
   realism?: RealismSettings;
   /** Hard cap on simulated seconds (default 40 min). */
@@ -40,6 +56,8 @@ export interface AutoplayOptions {
    * throttle and never fights (the "does a newcomer survive the first minute?" check).
    */
   passivePlayer?: boolean;
+  /** Modules to fly with (default `headlessModules`; see `seededHeadlessModules`). */
+  modules?: SimCoreModules;
 }
 
 export interface AutoplayReport {
@@ -87,7 +105,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   const realism = opts.realism ?? DEFAULT_SETTINGS.realism;
   const maxTime = opts.maxTime ?? 2400;
   const contactRange = opts.contactRange ?? 3000;
-  const core = new SimCore(headlessModules, mission, () => realism, { aiPlayer: !opts.passivePlayer });
+  const core = new SimCore(opts.modules ?? headlessModules, mission, () => realism, { aiPlayer: !opts.passivePlayer });
   const { world, director, bus } = core;
   const player = world.player;
 

@@ -794,4 +794,5 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Schema rule:** optional fields may be added under `schema: 1`. Any other change bumps it, and `parseFlightReport` learns to read the old version.
 - **Privacy:** the pilot's name (career) is the only personal field. The mission's other names are generated.
 - **Transport:** the clipboard, with a selectable textarea when the clipboard refuses. No network: the game is a static site (D-072).
+- **Where reports live:** tracked in `playtests/reports/` (README there: naming and commit style), outside `docs/` because they are data, not prose. `tools/playtest/replay-report.mjs` flies one again, headless (8 autoplayer runs: run 0 on the game's seeds, the rest reseeded) or in the real app with `--browser`.
 **Consequences.** A playtester pastes the report back. A headless flight is deterministic, so the report's mission flies the same fight again for the autoplayer (`src/core/flightReport.test.ts` checks this). Anything added to `MissionDefinition` has to stay plain JSON.
