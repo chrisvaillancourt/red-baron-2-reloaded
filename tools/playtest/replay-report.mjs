@@ -61,10 +61,14 @@ page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`http://localhost:${port}/`);
 await page.waitForFunction(() => !!window.__rb2?.services);
 await page.evaluate(
-  ([rep, vulnerable]) => {
+  async ([rep, vulnerable]) => {
     const s = window.__rb2.services;
     const settings = structuredClone(s.getSettings());
-    settings.realism = { ...rep.settings.realism, invulnerable: vulnerable ? rep.settings.realism.invulnerable : true };
+    // The report's realism over this build's defaults, so fields added since the report was
+    // written get their defaults (src/core/flightReport.ts realismFromReport).
+    const { DEFAULT_SETTINGS } = await import('/src/core/settings.ts');
+    settings.realism = { ...DEFAULT_SETTINGS.realism, ...rep.settings.realism };
+    if (!vulnerable) settings.realism.invulnerable = true;
     settings.controls.mouseMode = rep.settings.mouseMode;
     settings.graphics = rep.settings.graphics;
     settings.showTutorialHints = false;

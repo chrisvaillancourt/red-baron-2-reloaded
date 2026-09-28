@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runAutoplay } from '../game/autoplay';
 import { recordedQuickFlight } from '../game/testing/recordedFlight';
-import { buildFlightReport, FLIGHT_NOTE_MAX, missionFromReport, parseFlightReport, serializeFlightReport } from './flightReport';
+import { buildFlightReport, FLIGHT_NOTE_MAX, missionFromReport, parseFlightReport, realismFromReport, serializeFlightReport } from './flightReport';
 import { DEFAULT_SETTINGS } from './settings';
 import type { MissionDefinition, MissionResult } from './types';
 
@@ -59,6 +59,24 @@ describe('flight report', () => {
     expect(() => parseFlightReport('{"kind":"other"}')).toThrow(/Not a flight report/);
     expect(() => parseFlightReport('{"kind":"rb2r-flight-report","schema":2}')).toThrow(/schema 2/);
     expect(() => parseFlightReport('{"kind":"rb2r-flight-report","schema":1}')).toThrow(/no usable mission/);
+    // A report that has lost a section says which.
+    const good = buildFlightReport({ mission: { objectives: [], flights: [], date: '1918-08-06' } as never, result: minimalResult(), settings: DEFAULT_SETTINGS, build: BUILD });
+    const without = (k: string) => JSON.stringify({ ...good, [k]: undefined });
+    expect(() => parseFlightReport(serializeFlightReport(good))).not.toThrow();
+    expect(() => parseFlightReport(without('outcome'))).toThrow(/no outcome/);
+    expect(() => parseFlightReport(without('build'))).toThrow(/no build/);
+    expect(() => parseFlightReport(without('enemies'))).toThrow(/no enemies list/);
+    expect(() => parseFlightReport(JSON.stringify({ ...good, enemies: {} }))).toThrow(/no enemies list/);
+    expect(() => parseFlightReport(JSON.stringify({ ...good, outcome: { ...good.outcome, fate: undefined } }))).toThrow(/outcome.*fate/);
+  });
+
+  it('replays at the report realism, with defaults for fields it predates', () => {
+    const r = buildFlightReport({ mission: { objectives: [] } as never, result: minimalResult(), settings: DEFAULT_SETTINGS, build: BUILD });
+    const old = { ...r.settings.realism, flightModel: 'authentic' } as Record<string, unknown>;
+    delete old.enemySkillBias; // as if written before the field existed
+    const realism = realismFromReport({ ...r, settings: { ...r.settings, realism: old as never } });
+    expect(realism.flightModel).toBe('authentic');
+    expect(realism.enemySkillBias).toBe(DEFAULT_SETTINGS.realism.enemySkillBias);
   });
 });
 

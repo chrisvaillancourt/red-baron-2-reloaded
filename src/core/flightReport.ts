@@ -9,6 +9,7 @@
  * `parseFlightReport` to read the old one.
  */
 import type { CareerDifficulty, QuickMissionOptions } from './campaignTypes';
+import { DEFAULT_SETTINGS } from './settings';
 import type {
   AircraftOutcome,
   ControlSettings,
@@ -156,11 +157,30 @@ export function parseFlightReport(text: string): FlightReport {
   if (r.schema !== FLIGHT_REPORT_SCHEMA) throw new Error(`Unsupported flight report schema ${JSON.stringify(r.schema)} (this build reads ${FLIGHT_REPORT_SCHEMA}).`);
   const m = r.mission as Partial<MissionDefinition> | undefined;
   if (!m || typeof m !== 'object' || !Array.isArray(m.flights) || typeof m.date !== 'string') throw new Error('Flight report has no usable mission.');
-  if (!r.settings?.realism) throw new Error('Flight report has no realism settings.');
+  if (!isObject(r.settings) || !isObject(r.settings.realism)) throw new Error('Flight report has no realism settings.');
+  if (!isObject(r.build) || typeof r.build.sha !== 'string') throw new Error('Flight report has no build (expected build.sha).');
+  if (!isObject(r.outcome)) throw new Error('Flight report has no outcome.');
+  for (const [k, type] of [['fate', 'string'], ['missionSuccess', 'boolean'], ['flightTimeS', 'number']] as const) {
+    if (typeof r.outcome[k] !== type) throw new Error(`Flight report outcome has no ${k} (expected a ${type}).`);
+  }
+  if (!Array.isArray(r.outcome.objectives)) throw new Error('Flight report outcome has no objectives list.');
+  if (!Array.isArray(r.enemies)) throw new Error('Flight report has no enemies list.');
   return r as FlightReport;
+}
+
+function isObject(v: unknown): v is Record<string, unknown> & object {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
 /** The mission to fly again: a fresh copy of the one in the report. */
 export function missionFromReport(r: FlightReport): MissionDefinition {
   return clone(r.mission);
+}
+
+/**
+ * The realism to fly a report again with: the report's settings over the current defaults, so a
+ * field added after the report was written (allowed under schema 1) gets its default.
+ */
+export function realismFromReport(r: FlightReport, defaults: RealismSettings = DEFAULT_SETTINGS.realism): RealismSettings {
+  return { ...defaults, ...r.settings.realism };
 }

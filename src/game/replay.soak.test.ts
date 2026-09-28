@@ -13,7 +13,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { missionFromReport, parseFlightReport } from '../core/flightReport';
+import { missionFromReport, parseFlightReport, realismFromReport } from '../core/flightReport';
 import { runAutoplay, seededHeadlessModules, type AutoplayReport } from './autoplay';
 import { FAIRNESS_HEADER, fairnessLine } from './autoplaySummary';
 
@@ -35,7 +35,7 @@ describe.skipIf(!FILE)('flight report replay', () => {
     }
     const runs: AutoplayReport[] = [];
     for (let r = 0; r < REPS; r++) {
-      const rep = runAutoplay(missionFromReport(report), { realism: report.settings.realism, maxTime: MAX_TIME, modules: seededHeadlessModules(r) });
+      const rep = runAutoplay(missionFromReport(report), { realism: realismFromReport(report), maxTime: MAX_TIME, modules: seededHeadlessModules(r) });
       expect(rep.badSpawns).toEqual([]);
       runs.push(rep);
       out.push(`  run ${r}: ${rep.result.playerFate} (${rep.result.playerOutcome}${rep.playerLossCause ? `, ${rep.playerLossCause}` : ''}), success ${rep.result.missionSuccess}, kills ${rep.playerKills}, enemy lost ${rep.enemyLosses}, ${rep.time.toFixed(0)} s${rep.timedOut ? ' TIMEOUT' : ''}`);
