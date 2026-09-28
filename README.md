@@ -33,7 +33,8 @@ open it again from the **Flying Manual** on the main menu.
 ### Your first flight
 
 1. On the title screen choose **Quick Mission**. The default is a fair first fight: your
-   Camel and a wingman against two Albatros D.Vs, head-on, meeting in about 25 seconds.
+   Camel and a wingman against two veteran Fokker D.VIIs, head-on, meeting in about 25
+   seconds. For a gentler start, set the enemy skill to Novice or Regular.
    Press **To the briefing**, then **Take off**.
 2. **Click the flight view** to capture the mouse. With mouse-aim (the default), move the
    mouse to put the small circle where you want to go; the aircraft follows it. The view

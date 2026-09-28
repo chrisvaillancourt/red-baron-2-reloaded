@@ -16,16 +16,16 @@ soak skipped), `pnpm build` OK.
 
 ## Next up (priority order, 2026-09-28)
 1. **Do: human playtest** on the live URL, 5–10 missions. Every wave-8 number comes from
-   the autoplayer. Note whether the default fight is too easy, whether sun attacks feel
+   the autoplayer. Note whether the new default fight (2 veteran D.VIIs, D-078) is too hard,
+   whether default balloon attacks feel punishing, whether sun attacks feel
    fair, and whether cloud escapes are satisfying. Turn fights that felt wrong into
    seeded scenes (`tools/playtest/ai-depth-shots.mjs` shows the pattern).
-2. **Do: fix the default quick fight** (player down 4% against a 20–40% target, D-076).
-   - **Try first: change the default enemy** to one that can fight a Camel. The D.VII
-     and Dr.I mirror fights ran at 21–42% player down (docs/ai.md "Wave 8"). It's a
-     data-only change. Re-run the quick-fight and career soaks, and write a DECISIONS
-     entry that supersedes D-076.
-   - **Alternative: tune the D.V's dive limit or drag.** More authentic, but it touches
-     the sim and every fight involving a D.V needs measuring again.
+2. **Done (wave 9, D-078): the default quick fight** is now 2 veteran D.VIIs, at 28% player
+   down over 96 runs (was 4% against D.Vs). Every other quick type got harder too, balloon
+   attacks most of all (31% killed). See docs/ai.md "Wave 9".
+   - **Defer:** first-visit enemy skill that depends on the mission type. Do it if
+     playtests find default balloon attacks or escorts punishing.
+   - **Skip:** tuning the D.V's dive limit or drag. The default no longer depends on it.
 3. **Do: make cloud cut hits, not just sight.** A pursuer within ~200 m still sees into
    cloud, so wounded pilots spend nearly three times longer in cloud (126 s against 46 s)
    but take about the same hits (227 against 213; `cloudEscape.realsim.test.ts`).
@@ -74,7 +74,7 @@ Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073
 - **Measured** (on / off, with run counts in docs/ai.md):
   - Where stalking can apply, aces enter 62% of first passes from above or up-sun
     against 0% for novices. A stalker-signature ace enters 100% of them, every one unseen.
-  - Default quick fight: 4% player down, unchanged.
+  - Default quick fight: 4% player down, unchanged (the default changed in wave 9, D-078).
   - Camel mirror: 35% player down (48 runs).
   - Veteran career: 21% killed or captured, and 3.8 collisions per 100 missions (80
     missions).
@@ -83,11 +83,10 @@ Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073
 - **Skip (measured, D-075):** boom-and-zoom for out-turned types. It lost more fights in
   every matchup, because the D.V is dive-limited in the flight model. The code stays
   behind `TACTICS_FLAGS`.
-- **Keep (D-076, revisits D-071):** the Camel v D.V quick default. The 20–40% target for
-  it isn't reachable with AI alone.
-- **Defer (sim owner):** making the D.V dangerous by default. It needs a flight-model
-  change (D.V dive limit or drag) or a different default enemy. Decide from human
-  playtests.
+- **Superseded (D-078):** D-076 kept the Camel v D.V quick default. Wave 9 changed it to
+  2 veteran D.VIIs.
+- **Skip:** making the D.V dangerous through the flight model. The default no longer
+  depends on it.
 - **Defer (perception):** a pursuer within ~200 m still sees into cloud, so cloud refuge
   hides a wounded pilot but doesn't cut the hits he takes.
 - **Defer:** generic veterans and aces (no signature) never reach the merge unseen, because
@@ -101,7 +100,7 @@ Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073
 ## How it was built
 Parallel agents in git worktrees, one subsystem each, merged by the lead over
 eight waves. Rationale for every significant choice is in `DECISIONS.md`
-(D-001..D-076); module docs are in `docs/*.md`; playtest findings are in
+(D-001..D-078); module docs are in `docs/*.md`; playtest findings are in
 `docs/PLAYTEST.md`.
 
 ## Wave 7 release-check leftovers (docs/PLAYTEST.md)
@@ -177,7 +176,7 @@ Remaining:
 - **Done (gunnery wave 7):** the AI lead solution now models bullet drag (it under-led by
   10–20% at 200–400 m), with a turn-aware lead regression test (`src/ai/gunnery.test.ts`)
   and a gunnery diagnostic soak (`AI_SOAK=gundiag`). See DECISIONS "Drag-aware lead".
-- **Skip (decided, DECISIONS D-071: keep the D.V default):** the Quick Mission default dogfight (Camel+1 v 2 regular
+- **Superseded (D-078, wave 9: the default is now 2 veteran D.VIIs):** the Quick Mission default dogfight (Camel+1 v 2 regular
   D.V) stays lopsided: player down 0–8% (target 35–55%), and 6–13% against veteran D.Vs.
   Wave 7 showed it is the airframe, not gunnery: the D.V (wing loading 44 against the
   Camel's 31 kg/m², same speed and climb) almost never reaches a Camel's six, so its hits

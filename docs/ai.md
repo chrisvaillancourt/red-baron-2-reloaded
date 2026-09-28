@@ -392,15 +392,56 @@ missions (78 against 91), and the gap is about ±5%. Read it as "no worse", not 
 Run `career` and `quick` as separate invocations: both write to `AUTOPLAY_OUT` from the
 start, so a combined run keeps only the quick table.
 
+### Wave 9: default quick fight (D-078)
+
+The Quick Mission default changed from 2 regular Albatros D.Vs to 2 veteran Fokker D.VIIs.
+The player still flies a Camel with one regular wingman, head-on at 2,500 m. Results from
+`AI_SOAK=fairness` with `AI_FAIR_SET=dvii`, `dviiground` and `dviitypes`. "Player down" counts
+killed, captured and wounded, shown in brackets as killed/captured/wounded.
+
+| Dogfight (96 runs each) | Win | Player down |
+|---|---|---|
+| Camel+1 v 2 regular D.VII | 92% | 7% (5/2/0) |
+| **Camel+1 v 2 veteran D.VII (new default)** | 74% | **28% (22/3/2)** |
+| Camel+novice wingman v 2 regular D.VII | 80% | 19% (10/2/6) |
+| Camel alone v 2 regular D.VII | 5% | 89% (79/2/4) |
+| Camel+1 v 3 regular D.VII (48 runs) | 23% | 75% (31/1/4) |
+
+The wingman is the big lever: without one, a Camel against 2 regular D.VIIs goes down 89%
+of the time. The veteran pair is the only setup inside the 20–40% target.
+
+The defaults apply to every quick type (48 runs each), so the other types got harder too:
+
+| Type | Old default: 2 regular D.V | New default: 2 veteran D.VII | 2 regular D.VII |
+|---|---|---|---|
+| Balloon attack | 13% (2/2/2) | 46% (15/0/7) | 15% (3/0/4) |
+| Escort | 0% | 35% (5/4/8) | 8% (1/0/3) |
+| Intercept | 4% (2/0/0) | 13% (5/0/1) | 10% (2/2/1) |
+| Ground attack | 35% (6/0/11) | 29% (7/1/6) | 31% (7/2/6) |
+
+Autoplay quick survey on the new defaults (24 runs of each type, `AUTOPLAY=quick
+AUTOPLAY_QUICK_SETUPS=default`), success / killed / captured:
+- dogfight 83% / 8% / 4%
+- balloon attack 100% / 42% / 0%
+- escort 96% / 4% / 4%
+- intercept 88% / 17% / 0%
+- ground attack 92% / 17% / 0%
+
+There were no collisions in the 120 missions. Balloon attacks are the outlier: the D.VII
+defenders scramble onto a Camel that is committed to its run. A quick-mission death ends
+only that flight, so this was accepted. If playtests find it punishing, make the
+first-visit enemy skill depend on the mission type.
+
 ### Known weaknesses
 
-- **The default quick dogfight stays lopsided** (Camel+1 v 2 regular D.V: player down 4%,
-  24 runs). The target of 20–40% with no flight-model changes was not reachable, and it
-  is reset here. The D.V can't out-turn a Camel (44 against 31 kg/m²), can't out-dive it
+- **The D.V can't threaten a Camel.** This is why the default quick dogfight changed in
+  wave 9 (D-078): it is now against 2 veteran D.VIIs, 28% player down over 96 runs. See
+  "Wave 9: default quick fight" below. Against 2 regular D.Vs the player went down 4% of
+  the time (24 runs), and no AI tactic moved it. The D.V can't out-turn a Camel (44 against 31 kg/m²), can't out-dive it
   (`AI_SOAK=energy`: 74 against 80 m/s, a low `vne` from structural strength 0.55) and
   can't out-zoom it (net −221 against −247 m after a dive and zoom). Boom-and-zoom made
-  every matchup worse (DECISIONS "Boom-and-zoom measured and rejected"). Changing it takes
-  a flight-model change or a different default enemy (D-071).
+  every matchup worse (DECISIONS "Boom-and-zoom measured and rejected"). Making the D.V
+  itself dangerous would take a flight-model change.
 - **Stalking only fires where the attacker starts unseen.** In head-on quick fights both
   sides spot each other first, so entries from above or up-sun stay near 10% for regulars
   (19% for aces). Where it can apply (`AI_SOAK=ambush`), aces enter 62% of first passes from

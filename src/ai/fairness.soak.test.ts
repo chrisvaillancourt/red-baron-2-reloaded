@@ -7,7 +7,7 @@
  *
  * AI_FAIR_SET: `default` (the Quick Mission screen's setup), `mirror` (same type and skill
  * both sides: checks the AI itself is even), `matrix` (common 1917-18 matchups), `survey`
- * (the autoplay survey's quick setups), `vet` (the default fight against veterans). AI_FAIR_SKILL forces every pilot, player included,
+ * (the autoplay survey's quick setups), `vet` (Camel against veteran D.Vs and Dr.Is), `dvii` / `dviiground` (the wave-9 default candidates). AI_FAIR_SKILL forces every pilot, player included,
  * to one skill.
  */
 import { describe, it } from 'vitest';
@@ -15,6 +15,7 @@ import { applyTacticsFlagsFromEnv } from './tactics';
 import { buildQuickMission } from '../campaign';
 import type { QuickMissionOptions } from '../core/campaignTypes';
 import type { AircraftId, SkillLevel } from '../core/types';
+import { QUICK_DEFAULTS } from '../data/quickDefaults';
 import { runAutoplay } from '../game/autoplay';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
@@ -44,11 +45,34 @@ const base = (player: AircraftId, enemy: AircraftId, extra: Partial<QuickMission
 });
 
 const SETS: Record<string, Setup[]> = {
-  default: [base('sopwith_camel', 'albatros_dv')],
+  // The Quick Mission screen's setup (src/data/quickDefaults.ts). The pre-wave-9 D.V default is in `matrix` and `camel`.
+  default: [{ ...QUICK_DEFAULTS, label: 'default (quick screen)' }],
   // The default fight with veteran enemies (the Quick Mission screen's harder setting).
   vet: [{ ...base('sopwith_camel', 'albatros_dv', { enemySkill: 'veteran' }), label: 'camel v 2 vet d.v' }, { ...base('sopwith_camel', 'fokker_dri', { enemySkill: 'veteran' }), label: 'camel v 2 vet dr.i' }],
   // Candidate even defaults once the D.V is ruled out (it can't turn with a Camel).
   even: [{ ...base('sopwith_camel', 'fokker_dvii', { enemySkill: 'veteran' }), label: 'camel v 2 vet d.vii' }, { ...base('sopwith_camel', 'fokker_dri', { enemySkill: 'novice' }), label: 'camel v 2 novice dr.i' }],
+  // D.VII candidates for the Quick Mission default (wave 9): skill and numbers.
+  dvii: [
+    { ...base('sopwith_camel', 'fokker_dvii'), label: 'camel+1 v 2 reg d.vii' },
+    { ...base('sopwith_camel', 'fokker_dvii', { enemySkill: 'veteran' }), label: 'camel+1 v 2 vet d.vii' },
+    { ...base('sopwith_camel', 'fokker_dvii', { enemyCount: 3 }), label: 'camel+1 v 3 reg d.vii' },
+    { ...base('sopwith_camel', 'fokker_dvii', { wingmen: 0 }), label: 'camel alone v 2 reg d.vii' },
+    { ...base('sopwith_camel', 'fokker_dvii', { wingmanSkill: 'novice' }), label: 'camel+novice v 2 reg d.vii' },
+  ],
+  // The same candidates as quick ground attacks (the screen's defaults apply to every type).
+  dviiground: [
+    { ...base('sopwith_camel', 'albatros_dv', { type: 'ground-attack' }), label: 'ga camel+1 v 2 reg d.v' },
+    { ...base('sopwith_camel', 'fokker_dvii', { type: 'ground-attack' }), label: 'ga camel+1 v 2 reg d.vii' },
+    { ...base('sopwith_camel', 'fokker_dvii', { type: 'ground-attack', enemySkill: 'veteran' }), label: 'ga camel+1 v 2 vet d.vii' },
+    { ...base('sopwith_camel', 'fokker_dvii', { type: 'ground-attack', wingmen: 0 }), label: 'ga camel alone v 2 reg d.vii' },
+    { ...base('sopwith_camel', 'fokker_dvii', { type: 'ground-attack', wingmanSkill: 'novice' }), label: 'ga camel+novice v 2 reg d.vii' },
+  ],
+  // Old default (2 regular D.V) against the new one (2 veteran D.VII) on the other quick types.
+  dviitypes: (['balloon-attack', 'escort', 'intercept'] as const).flatMap((type) => [
+    { ...base('sopwith_camel', 'albatros_dv', { type }), label: `${type} old d.v` },
+    { ...base('sopwith_camel', 'fokker_dvii', { type, enemySkill: 'veteran' }), label: `${type} vet d.vii` },
+    { ...base('sopwith_camel', 'fokker_dvii', { type }), label: `${type} reg d.vii` },
+  ]),
   mirror: [base('sopwith_camel', 'sopwith_camel'), base('albatros_dv', 'albatros_dv'), base('fokker_dri', 'fokker_dri'), base('spad_xiii', 'spad_xiii'), base('fokker_dvii', 'fokker_dvii')],
   matrix: [
     base('sopwith_camel', 'albatros_dv'),
