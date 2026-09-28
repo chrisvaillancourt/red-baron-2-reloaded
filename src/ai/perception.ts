@@ -7,8 +7,9 @@
  * cloud and memory"): an enemy close to the line of the sun is spotted at a
  * fraction of the normal range, and cloud on the line of sight (the same clouds
  * the renderer draws, `WorldQuery.cloudTransmittance`) scales the range by the
- * light that gets through, so a pilot inside a cloud drops out of sight and out of
- * memory after `SkillProfile.memory` seconds.
+ * light that gets through, down to a contrast limit below which nothing is seen at
+ * any range, so a pilot inside a cloud drops out of sight and out of memory after
+ * `SkillProfile.memory` seconds.
  */
 import { Vector3 } from 'three';
 import type { WorldQuery } from '../core/interfaces';
@@ -41,6 +42,26 @@ const GLARE_EL_LO = Math.sin(2 * DEG);
 const GLARE_EL_HI = Math.sin(6 * DEG);
 /** How far toward the sun the observer's own view of it is checked for cloud, m. */
 const SUN_RAY_M = 3000;
+
+// ---- cloud -------------------------------------------------------------------
+
+/**
+ * Below this cloud transmittance an aircraft can't be made out at any range (optical
+ * depth ~1.2, about 100 m of cumulus core; the renderer's in-cloud fog is ~3/4 opaque
+ * there). Without it sight was range x transmittance, and 4 km x 0.25 still let a
+ * pursuer 110 m behind see into a core (DECISIONS "Cloud blinds at close range").
+ */
+export const CLOUD_SIGHT_MIN = 0.3;
+
+/** 0..1 range multiplier for a line of sight with this cloud transmittance: 0 below the contrast limit. */
+export function cloudSight(transmittance: number): number {
+  return transmittance < CLOUD_SIGHT_MIN ? 0 : transmittance;
+}
+
+/** Does cloud between `from` and `to` hide an aircraft at any range (below the contrast limit)? */
+export function cloudHides(from: Vector3, to: Vector3, world: WorldQuery): boolean {
+  return !!world.cloudTransmittance && world.cloudTransmittance(from, to) < CLOUD_SIGHT_MIN;
+}
 
 /** Angle (rad) between the line of sight from `from` to `to` and the sun; Infinity with no sun or the sun below the horizon. */
 export function sunAngle(from: Vector3, to: Vector3, world: WorldQuery): number {
@@ -90,7 +111,7 @@ export function sightFactor(observer: AircraftEntity, target: AircraftEntity, wo
   let f = 1;
   const a = sunAngle(from, to, world);
   if (a < GLARE_EDGE) f = glareFactor(a, sunStrength(world) * sunVisibleFrom(from, world), skillT);
-  if (world.cloudTransmittance) f *= world.cloudTransmittance(from, to);
+  if (world.cloudTransmittance) f *= cloudSight(world.cloudTransmittance(from, to));
   return f;
 }
 
@@ -159,7 +180,7 @@ export class Perception {
         }
       }
       // Cloud on the line of sight (only rays that cross the cloud band cost anything).
-      if (world.cloudTransmittance && r > range * world.cloudTransmittance(pos, e.state.position)) continue;
+      if (world.cloudTransmittance && r > range * cloudSight(world.cloudTransmittance(pos, e.state.position))) continue;
       this.see(e, world.time);
     }
     for (const [id, c] of this.contacts) {

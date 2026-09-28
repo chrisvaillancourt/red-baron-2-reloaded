@@ -43,7 +43,7 @@ import {
   type LandingPlan,
   type LandingStage,
 } from './navigation';
-import { isAlive, isAttacking, likelySpottedBy, Perception, sunAngle, threatLevel } from './perception';
+import { cloudHides, isAlive, isAttacking, likelySpottedBy, Perception, sunAngle, threatLevel } from './perception';
 import { makeSkillProfile, skillValue, type SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
 import { aceTactics, attackSetupPoint, outTurnedBy, TACTICS_FLAGS, tacticsProfile, type TacticsProfile } from './tactics';
@@ -121,6 +121,10 @@ const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort compl
 const BREAK_LEAD_S = 1.8;
 /** Seconds of full-g break away from the merge before the extension. */
 const BREAK_S = 0.8;
+/** Shortest stay inside a refuge cloud, s (plus up to 15 s). */
+const REFUGE_MIN_S = 25;
+/** Largest circle flown round a refuge cloud's core, m (an overcast deck has no edge). */
+const REFUGE_ORBIT_MAX_M = 250;
 
 export function getAIPilot(ac: AircraftEntity): AIPilot | undefined {
   return REGISTRY.get(ac);
@@ -130,6 +134,7 @@ type AttackStage = 'approach' | 'run' | 'pullout';
 
 const _tmp = new Vector3();
 const _tmp2 = new Vector3();
+const _tmp3 = new Vector3();
 const _rel = new Vector3();
 const _up = new Vector3(0, 1, 0);
 
@@ -193,7 +198,7 @@ export class AIPilot implements AIController {
   /** Setting up an unseen attack on this target since this time. */
   private stalk: { targetId: number; since: number } | null = null;
   /** A cloud to hide in on the way home (damaged, pursued), and until when to stay in it. */
-  private refuge: { pos: Vector3; until: number } | null = null;
+  private refuge: { pos: Vector3; radius: number; until: number; turn: number } | null = null;
   private refugeCheck = 0;
   private loiter: Vector3 | null = null;
   private readonly steer: SteerCommand = { dir: new Vector3(0, 0, -1), speed: Infinity };
@@ -831,9 +836,14 @@ export class AIPilot implements AIController {
     }
     // Lost him at a distance (cloud, glare): fly to where he was heading, not where he is.
     // Close in, a pilot who loses sight under the nose or behind the wing still knows where
-    // a man he was just fighting is, so the ordinary pursuit (and its collision care) runs.
+    // a man he was just fighting is, so the ordinary pursuit (and its collision care) runs,
+    // unless it is cloud that hides him: then there is nothing to follow even at 100 m. The
+    // head-on break above still uses the true geometry, so this can't fly him into a ram.
     const seen = this.perception.contact(tgt.id);
-    if (TACTICS_FLAGS.memoryPursuit && seen && !seen.visible && this.now - this.hitAt > 1.5 && seen.position.distanceTo(s.position) > 350) {
+    if (
+      TACTICS_FLAGS.memoryPursuit && seen && !seen.visible && this.now - this.hitAt > 1.5 &&
+      (seen.position.distanceTo(s.position) > 350 || cloudHides(s.position, ts.position, world))
+    ) {
       const age = Math.min(this.now - seen.lastSeen, 8);
       steer.dir.copy(seen.position).addScaledVector(seen.velocity, age).sub(s.position);
       steer.maxG = Math.min(p.maxG, 3.5);
@@ -1289,8 +1299,9 @@ export class AIPilot implements AIController {
 
   /**
    * Cloud refuge (DECISIONS "Stalking and ace signatures"): a pilot heading home hurt, with
-   * an enemy close, makes for a nearby cloud and stays inside it a while before carrying on,
-   * so a pursuer loses sight of him. Only clouds the renderer draws count (world.nearestCloud).
+   * an enemy close, makes for a nearby cloud and circles its core for 25-40 s before carrying
+   * on, so a pursuer loses sight of him and gives up (DECISIONS "Cloud blinds at close range").
+   * Only clouds the renderer draws count (world.nearestCloud).
    */
   private steerRefuge(self: AircraftEntity, world: WorldQuery, steer: SteerCommand): boolean {
     if (!TACTICS_FLAGS.cloudEscape || !world.nearestCloud || VOLUNTARY_RTB.has(this.rtbReason)) return false;
@@ -1301,13 +1312,14 @@ export class AIPilot implements AIController {
       if (pursuer) {
         const c = world.nearestCloud(s.position, 3000);
         // Don't climb into it slowly with a scout on us: only clouds at or below our height, or a short climb.
-        if (c && c.position.y < s.position.y + 250) this.refuge = { pos: c.position.clone(), until: Infinity };
+        if (c && c.position.y < s.position.y + 250) this.refuge = { pos: c.position.clone(), radius: c.radius, until: Infinity, turn: 0 };
       }
     }
     const rf = this.refuge;
     if (!rf) return false;
     const inside = (world.cloudDensityAt?.(s.position.x, s.position.y, s.position.z) ?? 0) > 0.3;
-    if (inside && rf.until === Infinity) rf.until = this.now + 12 + 8 * this.rng();
+    // Long enough for a pursuer to lose him and give up (memory is 3-12 s): 25-40 s inside.
+    if (inside && rf.until === Infinity) rf.until = this.now + REFUGE_MIN_S + 15 * this.rng();
     if (this.now > rf.until || (rf.until === Infinity && s.position.distanceTo(rf.pos) > 5000)) {
       this.refuge = null;
       this.refugeCheck = this.now + 30;
@@ -1315,11 +1327,26 @@ export class AIPilot implements AIController {
     }
     // Refresh the drifting cloud's centre, then fly into it (and wander inside it).
     const c = world.nearestCloud(rf.pos, 600);
-    if (c) rf.pos.copy(c.position);
+    if (c) {
+      rf.pos.copy(c.position);
+      rf.radius = c.radius;
+    }
     // Into its flank at our own height (a climb for its core would hand him the shot).
     steer.dir.copy(rf.pos).sub(s.position);
     steer.dir.y = Math.min(steer.dir.y, 40);
-    if (inside) steer.dir.setY(0).normalize().applyAxisAngle(_up, 0.6 * Math.sin(this.now * 0.4));
+    if (rf.until !== Infinity) {
+      // Circle the core at his own height instead of flying out of the far side: a
+      // hideable cumulus is only ~350 m across its core, 8 s at a wounded D.V's speed.
+      const orbitR = Math.min(REFUGE_ORBIT_MAX_M, rf.radius * 0.45);
+      const out = _tmp2.copy(s.position).sub(rf.pos).setY(0);
+      const d = out.length();
+      if (d > 1) out.divideScalar(d);
+      else out.set(1, 0, 0);
+      // Keep turning the way he entered (the side his velocity already carries him round).
+      if (!rf.turn) rf.turn = _up.dot(_tmp3.copy(out).cross(s.velocity)) >= 0 ? 1 : -1;
+      steer.dir.copy(out).cross(_up).multiplyScalar(-rf.turn).addScaledVector(out, clamp((orbitR - d) / orbitR, -1.5, 1));
+      steer.dir.y = 0;
+    }
     steer.speed = Infinity;
     steer.maxG = 3;
     steer.minAgl = this.profile.groundMargin;
@@ -1513,6 +1540,9 @@ export class AIPilot implements AIController {
     for (const e of candidates) {
       const r = e.state.position.distanceTo(s.position);
       if (r > 600) continue;
+      // No shooting at a remembered target that cloud hides (glare alone doesn't stop a
+      // burst at a man he was just fighting: D-074 "Not kept").
+      if (!this.perception.contact(e.id)?.visible && cloudHides(s.position, e.state.position, world)) continue;
       leadSolution(s.position, s.velocity, e.state.position, e.state.velocity, e === cur ? this.targetAcc : null, mv, 1, this.trueLead);
       const trueErr = angleBetween(f, this.trueLead.dir);
       const size = angularRadius(Math.max(3, e.spec.geometry.span * 0.4), r);
