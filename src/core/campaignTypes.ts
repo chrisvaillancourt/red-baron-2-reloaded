@@ -131,7 +131,11 @@ export interface AceStanding {
   nation: Nation;
   victories: number;
   isPlayer: boolean;
-  status: 'active' | 'killed' | 'captured' | 'survived';
+  /**
+   * 'away': alive and still in the war but not at the front on this date (an ace between service
+   * spells, e.g. in hospital, or the player in hospital). Additive; older readers can treat it as 'active'.
+   */
+  status: 'active' | 'away' | 'killed' | 'captured' | 'survived';
 }
 
 export interface Promotion {

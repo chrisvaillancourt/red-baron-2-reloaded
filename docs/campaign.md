@@ -13,7 +13,7 @@ const campaign = createCampaignService(); // localStorage, or memoryStorage() in
 | File | Contents |
 |---|---|
 | `squadrons.ts` | 29 squadrons (DE/GB/FR/US) with dated bases (aerodrome ids) and equipment; `SQUADRON_SUCCESSORS` for disbandments (FFA 62 → Jasta 2, Lafayette → 103rd Aero). |
-| `aces.ts` | 43 historical aces: service periods by squadron/aircraft, dated victory milestones (linear between points, frozen at fate), fate. `aceVictoriesOn`, `aceServiceOn`. |
+| `aces.ts` | 43 historical aces: service periods by squadron/aircraft, dated victory milestones (linear between points, frozen at fate), fate. `aceVictoriesOn`, `aceServiceOn`. A gap between service periods (hospital, a home posting) shows as `'away'` in the ace standings (`standings.ts`). |
 | `ranks.ts` | Rank ladders per nation; `requires` = victories OR missions to be promoted into a rank. |
 | `medals.ts` | Decorations with criteria (thresholds may depend on date, e.g. Pour le Mérite 8/16/20). |
 | `liveries.ts` | Factory finishes, squadron markings, ace colours, national insignia by date. `composeLivery()` layers them. |

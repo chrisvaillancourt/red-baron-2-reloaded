@@ -1,6 +1,6 @@
 /** Ace standings: historical aces' tallies on the pilot's date, plus the player. */
 import type { AceStanding, CareerPilot } from '../core/campaignTypes';
-import { ACES, aceNamesOn, aceVictoriesOn } from '../data/aces';
+import { ACES, aceNamesOn, aceServiceOn, aceVictoriesOn } from '../data/aces';
 import { getRank } from '../data/ranks';
 import { confirmedVictories } from './awards';
 import { ARMISTICE } from './dates';
@@ -18,6 +18,8 @@ export function aceStandings(p: CareerPilot, date = p.date): AceStanding[] {
       status = ace.fate.kind === 'killed' ? 'killed' : ace.fate.kind === 'captured' ? 'captured' : 'survived';
     }
     if (status === 'active' && date >= ARMISTICE) status = 'survived';
+    // Between service spells (hospital, leave, a home posting) the ace is alive but not flying.
+    else if (status === 'active' && !aceServiceOn(ace, date)) status = 'away';
     rows.push({ name: aceNamesOn(ace, date).display, aceId: ace.id, nation: ace.nation, victories, isPlayer: false, status });
   }
   const rank = getRank(p.rankId);
@@ -26,7 +28,7 @@ export function aceStandings(p: CareerPilot, date = p.date): AceStanding[] {
     nation: p.nation,
     victories: confirmedVictories(p),
     isPlayer: true,
-    status: p.status === 'killed' ? 'killed' : p.status === 'captured' ? 'captured' : p.status === 'retired' || p.status === 'war-over' ? 'survived' : 'active',
+    status: p.status === 'killed' ? 'killed' : p.status === 'captured' ? 'captured' : p.status === 'retired' || p.status === 'war-over' ? 'survived' : p.status === 'hospital' ? 'away' : 'active',
   });
   return rows.sort((a, b) => b.victories - a.victories || (a.isPlayer ? -1 : b.isPlayer ? 1 : a.name.localeCompare(b.name)));
 }
