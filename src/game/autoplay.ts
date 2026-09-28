@@ -13,6 +13,7 @@ import { DEFAULT_SETTINGS } from '../core/settings';
 import { bankAngle, createCombatSystem, createFlightEnvironment, pitchAngle, setGunnerTarget, sim } from '../sim';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
+import { LossCauseTracker } from './lossCause';
 import { SIM_HZ, SimCore, type SimCoreModules } from './simCore';
 
 /** The headless subset of GameModules, bound to the real implementations. */
@@ -96,14 +97,10 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   let balloonsDestroyed = 0;
   let groundDestroyed = 0;
   const acesDowned = new Set<string>();
-  let lastBulletHit = -Infinity;
-  let lastSplinter = -Infinity;
-  let collisionWith: string | null = null;
-  let playerLossCause: string | null = null;
-  let lastDamageSum = 0;
-  let wasFailed = false;
+  const loss = new LossCauseTracker(world, player, () => (core.ai.get(player!.id) as { phase?: string } | undefined)?.phase ?? '?');
   const collisions: string[] = [];
   bus.onAny((e) => {
+    loss.onEvent(e);
     if (e.type === 'collision') {
       const a = world.getEntity(e.aId);
       const b = world.getEntity(e.bId);
@@ -117,19 +114,6 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
         const wreck = a.damage.destroyed || b.damage.destroyed ? ' wreck' : '';
         collisions.push(`${withPlayer ? 'player' : 'ai'}-${rel}${wreck} ${ang}deg ${st(a)}/${st(b)} t=${world.time.toFixed(0)}`);
       }
-    }
-    if (player && e.type === 'bullet-hit' && e.targetId === player.id) lastBulletHit = world.time;
-    if (player && e.type === 'collision' && (e.aId === player.id || e.bId === player.id) && collisionWith === null) {
-      const other = world.getEntity(e.aId === player.id ? e.bId : e.aId);
-      collisionWith = !other
-        ? 'unknown'
-        : other.kind !== 'aircraft'
-          ? other.kind
-          : other.side !== player.side
-            ? 'enemy'
-            : other.flightId === player.flightId
-              ? 'wingman'
-              : 'friendly';
     }
     events[e.type] = (events[e.type] ?? 0) + 1;
     if (e.type === 'gun-fired' && player && e.shooterId === player.id && firstPlayerShot === null) firstPlayerShot = world.time;
@@ -176,29 +160,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
       c.fireGuns = false;
     }
     core.step(h);
-    if (player && playerLossCause === null) {
-      // Damage that arrives without a bullet hit is flak or ground fire.
-      let sum = 0;
-      for (const v of Object.values(player.damage.zones)) sum += v;
-      // A shot-up airframe that later fails (a zone jumps to 1) is the enemy's doing, not flak.
-      const failedNow = player.damage.structuralFailure && !wasFailed;
-      wasFailed = player.damage.structuralFailure;
-      if (sum > lastDamageSum + 1e-9 && lastBulletHit < world.time - 0.02 && !failedNow) lastSplinter = world.time;
-      lastDamageSum = sum;
-      const o = player.outcome;
-      if (o !== null && o !== 'landed-friendly' && o !== 'disengaged') {
-        const phase = (core.ai.get(player.id) as { phase?: string } | undefined)?.phase ?? '?';
-        const recent = (t: number) => world.time - t < 25;
-        playerLossCause =
-          o === 'collided'
-            ? `collision-${collisionWith ?? '?'}`
-            : recent(lastBulletHit) && (!recent(lastSplinter) || lastBulletHit >= lastSplinter)
-              ? `enemy-fire(${o})`
-              : recent(lastSplinter)
-                ? `flak/ground(${o})`
-                : `self(${o}, ${phase})`;
-      }
-    }
+    loss.step();
     if (player && player.outcome === null && ++stepN % 30 === 0) {
       if (firstContact === null && nearestEnemy(core, player.state.position) < contactRange) firstContact = world.time;
       // Like a human player: once heading home with the job done, end the flight when it's safe.
@@ -232,7 +194,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
     misplaced,
     acesPresent: [...new Set(acesPresent)],
     acesDowned: [...acesDowned],
-    playerLossCause,
+    playerLossCause: loss.cause,
     collisions,
     events,
   };
