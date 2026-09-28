@@ -14,6 +14,33 @@ Verified on `main` after the wave-8 merges: `npx tsc --noEmit` clean, `pnpm test
 357 passed (23 env-gated soak tests skipped), `pnpm e2e` 16 passed (1 gated
 soak skipped), `pnpm build` OK.
 
+## Next up (priority order, 2026-09-28)
+1. **Do: human playtest** on the live URL, 5–10 missions. Every wave-8 number comes from
+   the autoplayer. Note whether the default fight is too easy, whether sun attacks feel
+   fair, and whether cloud escapes are satisfying. Turn fights that felt wrong into
+   seeded scenes (`tools/playtest/ai-depth-shots.mjs` shows the pattern).
+2. **Do: fix the default quick fight** (player down 4% against a 20–40% target, D-076).
+   - **Try first: change the default enemy** to one that can fight a Camel. The D.VII
+     and Dr.I mirror fights ran at 21–42% player down (docs/ai.md "Wave 8"). It's a
+     data-only change. Re-run the quick-fight and career soaks, and write a DECISIONS
+     entry that supersedes D-076.
+   - **Alternative: tune the D.V's dive limit or drag.** More authentic, but it touches
+     the sim and every fight involving a D.V needs measuring again.
+3. **Do: make cloud cut hits, not just sight.** A pursuer within ~200 m still sees into
+   cloud, so wounded pilots spend nearly three times longer in cloud (126 s against 46 s)
+   but take about the same hits (227 against 213; `cloudEscape.realsim.test.ts`).
+   Tighten close-range transmittance in `src/ai/perception.ts`.
+4. **Housekeeping:**
+   - **Decide: add a LICENSE.** The repo is public but has none, so no reuse is allowed.
+     The original game's names and assets are a separate question.
+   - **Check** the first deploy after 2026-10-19, when `ubuntu-latest` moves to
+     Ubuntu 26.
+   - **Defer: split `flightModules`** (699 kB, 202 kB gzip). It's prefetched already;
+     do it only if the first flight is slow on weak connections.
+5. **Skip:** e2e in CI (it needs a GPU runner; run `pnpm e2e` locally before pushing),
+   and the untried AI ideas in "AI depth — wave 8" until playtests show fights feel
+   shallow.
+
 ## Deployment
 - **Live:** https://chrisvaillancourt.github.io/red-baron-2-reloaded/ (public repo
   `chrisvaillancourt/red-baron-2-reloaded`, GitHub Pages; DECISIONS D-072).
