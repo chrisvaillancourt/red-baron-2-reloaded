@@ -27,7 +27,8 @@ base → front anchor near the base → weighted mission type (side, year,
 aircraft role, historical event emphasis) → plan (waypoints, enemy/friendly
 flights, balloons, ground targets, objectives) → player flight (player leads;
 historical aces serving in the squadron may fly as wingmen; generic mates from
-a quarterly roster) → weather/time of day → period-voice briefing.
+a quarterly roster, `names.ts`; the Lafayette's Americans carry French ranks) → weather/time
+of day → period-voice briefing.
 
 Enemy fighters are drawn from real enemy squadrons based within 70 km, and
 their aces appear with a probability scaled by the historical event's

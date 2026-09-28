@@ -66,7 +66,7 @@ were the GPU's `ReadPixels` stall messages, caused by the screenshot tool.
 | 8 | polish | **The CO's remarks drop cap splits "Lt."** into a big "L" and "t. Smith". | Debrief when a wingman is lost | Defer (typographic nicety). |
 | 9 | polish | **One dark serrated ribbon still reads near-black from 2 km.** It is at the edge of the front, probably a tree-lined road or wood strip, and is visible in the 2,200 m look-down. | Quick dogfight, look down at 2 km | Routed (render). |
 | 10 | polish | **Ace standings say "Flying" for an ace in hospital.** For example, Lothar von Richthofen on 1 June 1917. The status ignores service gaps. | HQ → Ace Standings, June 1917 | **Fixed:** `AceStanding.status` gains an additive `'away'`, set for an ace between service spells in `src/data/aces.ts` (and for the player in hospital). HQ shows "Off the front" (test in `campaign.test.ts`). |
-| 11 | polish | **American mates in the Lafayette carry USAS ranks** ("1st Lt.", "Sgt."). The escadrille used French ranks until February 1918. | Lafayette career | Defer. |
+| 11 | polish | **American mates in the Lafayette carry USAS ranks** ("1st Lt.", "Sgt."). The escadrille used French ranks until February 1918. | Lafayette career | **Fixed:** N.124 mates carry French ranks (`RANK_SERVICE` in `src/campaign/names.ts`, test in `names.test.ts`); the 103rd Aero keeps USAS ranks. The player's own rank still follows the US ladder (deferred: it would need a rank transfer at the 103rd Aero changeover). |
 
 ### Verdict
 

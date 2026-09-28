@@ -33,11 +33,18 @@ const SKILL_TABLE: Record<CareerDifficulty, readonly (readonly [SkillLevel, numb
   ace: [['novice', 4], ['regular', 5], ['veteran', 1]],
 };
 
+/**
+ * Squadrons whose pilots held another service's ranks. The Lafayette's Americans were enlisted in
+ * the French service (Caporal, Sergent, Adjudant, Sous-Lieutenant) until it became the 103rd Aero
+ * in February 1918; names stay American.
+ */
+const RANK_SERVICE: Record<string, Nation> = { n124: 'france' };
+
 /** Deterministic roster of squadron mates for the pilot's current quarter. */
 export function squadronRoster(pilotSeed: number, squadronId: string, nation: Nation, date: string, difficulty: CareerDifficulty, size = 8, excludeSurname?: string): RosterPilot[] {
   const quarter = `${date.slice(0, 4)}Q${Math.floor((Number(date.slice(5, 7)) - 1) / 3)}`;
   const rng = new Rng(seedFrom(pilotSeed, squadronId, quarter));
-  const ranks = ranksFor(nation);
+  const ranks = ranksFor(RANK_SERVICE[squadronId] ?? nation);
   const start = ranks.find((r) => r.start)!;
   // Never give a squadron mate the player's own surname ("Ltn. Hartmann" flying with "Ltn. M. Hartmann").
   const used = new Set<string>(excludeSurname ? [excludeSurname] : []);
