@@ -31,6 +31,7 @@ import { resolveUnits } from '../ui/format';
 import { getGunnerTarget, pilotGTolerance } from '../sim';
 import { stepGEffect } from './gEffect';
 import { COMPRESSION_BLOCK_MESSAGES, COMPRESSION_SAFE_RANGE, compressionBlock, ThreatWatch, type CompressionBlock } from './timeCompression';
+import { FlightRecorder } from './flightRecorder';
 import { PlayerAwareness } from './playerAwareness';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
@@ -100,6 +101,8 @@ export function createFlightLauncher(modules: GameModules, audio: AudioEngine): 
 export class FlightSession {
   private bus: EventBus = createEventBus();
   private core!: SimCore;
+  /** Statistics for the debrief's flight report (MissionResult.telemetry). */
+  private recorder: FlightRecorder | null = null;
   private world!: SessionWorld;
   private renderer!: WorldRenderer;
   private combat!: CombatSystem;
@@ -195,6 +198,7 @@ export class FlightSession {
     this.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     this.core = new SimCore(modules, mission, () => settings.realism, { bus: this.bus });
+    this.recorder = new FlightRecorder(this.core, { playerKnows: (id) => this.awareness.knows(id, this.world.time) });
     this.world = this.core.world;
     this.combat = this.core.combat;
     this.director = this.core.director;
@@ -597,6 +601,8 @@ export class FlightSession {
   };
 
   private tick(now: number): void {
+    // Frame time before the MAX_FRAME_DT clamp, so the report's fps sees real hitches.
+    this.recorder?.frame(Math.max(0, (now - this.lastT) / 1000), this.paused ? 1 : this.timeScale);
     const dtReal = Math.min(MAX_FRAME_DT, Math.max(0, (now - this.lastT) / 1000));
     this.lastT = now;
     this.frames++;
@@ -696,6 +702,7 @@ export class FlightSession {
       const v = this.visuals.get(ac.id);
       if (v) v.object.visible = true;
     }
+    this.recorder?.afterStep();
   }
 
   private updateGEffect(dt: number): void {
@@ -735,6 +742,12 @@ export class FlightSession {
     } catch (e) {
       this.fail(e);
       return;
+    }
+    // The report is a convenience: a recorder failure must never cost the player the debrief.
+    try {
+      if (this.recorder) result.telemetry = this.recorder.telemetry();
+    } catch (e) {
+      console.error('[flight] flight recorder failed', e);
     }
     this.teardown();
     try {
@@ -803,6 +816,7 @@ export class FlightSession {
     step('input', () => this.input?.detach());
     step('audio', () => this.audio.stopFlight());
     step('director', () => this.director?.dispose());
+    step('recorder', () => this.recorder?.dispose());
     // Renderer first, while aircraft visuals are still in its scene: its dispose sweeps
     // every geometry/material/texture in the scene, including shared model caches, so
     // none of them keeps this flight's WebGL context alive (src/render/releaseGpu.ts).

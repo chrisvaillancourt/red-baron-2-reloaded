@@ -1,0 +1,54 @@
+import { describe, expect, it } from 'vitest';
+import { buildQuickMission } from '../campaign';
+import { DEFAULT_SETTINGS } from '../core/settings';
+import { QUICK_DEFAULTS } from '../data/quickDefaults';
+import { headlessModules } from './autoplay';
+import { FlightRecorder } from './flightRecorder';
+import { SimCore } from './simCore';
+import { recordedQuickFlight } from './testing/recordedFlight';
+
+describe('flight recorder', () => {
+  it('records hits taken, combat time and every enemy with its first pass', { timeout: 60_000 }, () => {
+    const { mission, result, hitsOnPlayer } = recordedQuickFlight();
+    const t = result.telemetry!;
+    const enemyCount = mission.flights.filter((f) => f.role === 'enemy').reduce((n, f) => n + f.members.length, 0);
+    expect(t.enemies).toHaveLength(enemyCount);
+    expect(t.hitsTaken).toBe(hitsOnPlayer);
+    // A head-on start 2.6 km apart: combat inside 1.5 km begins within the first minute.
+    expect(t.combatTimeS).toBeGreaterThan(10);
+    expect(t.combatTimeS).toBeLessThanOrEqual(result.flightTimeS + 0.1);
+    const passes = t.enemies.flatMap((e) => (e.firstPass ? [e.firstPass] : []));
+    expect(passes.length).toBeGreaterThan(0);
+    for (const p of passes) {
+      expect(p.t).toBeGreaterThan(0);
+      expect(p.above).toBe(p.heightAdvM > 100);
+      // The AI-flown player has a perception to ask.
+      if (p.atPlayer) expect(p.seen).not.toBeNull();
+    }
+    // Headless: no frames, no compression.
+    expect(t.fps).toBeNull();
+    expect(t.timeCompression).toEqual({ realS: 0, simS: 0, maxScale: 1 });
+    // The loss cause is set exactly when the player didn't come home intact.
+    const lost = result.playerOutcome !== 'in-flight' && result.playerOutcome !== 'landed-friendly' && result.playerOutcome !== 'disengaged';
+    expect(t.lossCause !== null).toBe(lost);
+  });
+
+  it('reports frame rate percentiles and time compression from rendered frames', () => {
+    const mission = buildQuickMission({ ...QUICK_DEFAULTS }, 1);
+    const core = new SimCore(headlessModules, mission, () => DEFAULT_SETTINGS.realism);
+    const rec = new FlightRecorder(core);
+    for (let i = 0; i < 90; i++) rec.frame(1 / 60, 1); // 90 frames at 60 fps
+    for (let i = 0; i < 10; i++) rec.frame(1 / 20, 4); // 10 slow frames at 4x
+    const t = rec.telemetry();
+    expect(t.fps!.frames).toBe(100);
+    expect(t.fps!.p50).toBeGreaterThan(55);
+    expect(t.fps!.p50).toBeLessThan(65);
+    expect(t.fps!.p95).toBeGreaterThan(18);
+    expect(t.fps!.p95).toBeLessThan(22);
+    expect(t.timeCompression.maxScale).toBe(4);
+    expect(t.timeCompression.realS).toBeCloseTo(0.5, 1);
+    expect(t.timeCompression.simS).toBeCloseTo(2, 1);
+    rec.dispose();
+    core.dispose();
+  });
+});

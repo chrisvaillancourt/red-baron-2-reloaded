@@ -524,6 +524,51 @@ export interface MissionResult {
   aborted?: boolean;
   /** Every historical ace lost in the mission, either side (killed, captured, or wounded and forced down). */
   acesDown?: { aceId: string; side: Side; fate: PilotFate }[];
+  /** What the flight recorder saw (src/game/flightRecorder.ts), for the flight report. Additive. */
+  telemetry?: FlightTelemetry;
+}
+
+/** An enemy aircraft in the flight report, with the geometry of its first firing pass. */
+export interface EnemyEntryTelemetry {
+  aircraftId: AircraftId;
+  flightId: string;
+  callsign: string;
+  aceId?: string;
+  skill: SkillLevel;
+  outcome: AircraftOutcome | 'in-flight';
+  /** Null when he never fired. */
+  firstPass: {
+    /** Mission time, s. */
+    t: number;
+    /** Aimed at the player (not a wingman or another friendly). */
+    atPlayer: boolean;
+    /** Height above his target when he closed inside 600 m, m. */
+    heightAdvM: number;
+    /** Began at least 100 m above the target. */
+    above: boolean;
+    /** Within 15° of the sun as seen from the target. */
+    upSun: boolean;
+    /** Did the target know about him when the pass began (the HUD's awareness for the player)? */
+    seen: boolean | null;
+  } | null;
+}
+
+/** Flight statistics the MissionResult doesn't carry, recorded for the flight report. */
+export interface FlightTelemetry {
+  /** Bullets that hit the player's aircraft. */
+  hitsTaken: number;
+  /** What took the player out (src/game/lossCause.ts), or null. */
+  lossCause: string | null;
+  /** Mission seconds with the player alive and an enemy aircraft within 1.5 km. */
+  combatTimeS: number;
+  /** Time compression: real seconds and mission seconds spent above 1x, and the highest factor used. */
+  timeCompression: { realS: number; simS: number; maxScale: number };
+  /**
+   * Frame rate from rendered frame times (null headless): the median, and the rate at the
+   * 95th-percentile frame time (the slow end: 95% of frames were at least this fast).
+   */
+  fps: { p50: number; p95: number; frames: number } | null;
+  enemies: EnemyEntryTelemetry[];
 }
 
 // ---------------------------------------------------------------------------
