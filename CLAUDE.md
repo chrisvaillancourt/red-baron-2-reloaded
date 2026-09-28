@@ -54,6 +54,14 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   Write/Edit tools, not heredocs, `cat >>` or `sed -i`. Use one plain command per Bash call.
 - **Playwright:** the cached Chromium revision doesn't match `@playwright/test`; launch with
   `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`) instead of downloading.
+  Modals fade in over about 0.5 s, and Playwright counts a fading modal as visible, so wait
+  for the fade to finish before a screenshot.
+- **Test helpers:** never import from a `*.test.ts` file, because Vitest registers its tests
+  again in the importing file. Shared fixtures go in a `testing/` module, like
+  `src/game/testing/`. Vitest can swallow `console.log` in tests, so print soak output
+  with `process.stdout.write`.
+- **After `git mv`, stage only the new path.** A `git add` that names the old path fails as
+  a whole and stages nothing. Check `git show --stat HEAD` after committing.
 - **No `@types/node`:** Node-only tests declare what they need locally (e.g.
   `src/render/aircraft/node-shim.d.ts`); `node --experimental-strip-types` runs `tools/*.ts`
   but can't resolve extensionless relative imports, so exporters only import leaf data files.
