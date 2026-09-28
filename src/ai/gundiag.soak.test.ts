@@ -17,7 +17,7 @@ import { headlessModules } from '../game/autoplay';
 import { SimCore, SIM_HZ } from '../game/simCore';
 import { DEFAULT_SETTINGS } from '../core/settings';
 import { forwardOf } from './math';
-import { EntryTracker, entryLine, type EntryAcc } from './testing/entryStats';
+import { EntryTracker, entryLine, type EntryAcc } from './entryStats';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
 // AI_TACTICS=boomZoomOutTurned=1,stalk=0,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.

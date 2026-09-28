@@ -5,10 +5,36 @@
  * 600 m of that target (within 12 s of the burst): a diving attack from 400 m above is
  * nearly level by the time an ace opens fire at 150 m. Also time spent in sustained flat turns (bank > 45°, climb
  * angle within ±10°, lasting more than 5 s) with an enemy within 1.5 km.
+ *
+ * Used by the gunnery soak (pooled counts) and by the flight recorder (src/game/flightRecorder.ts),
+ * which keeps each enemy's first pass through `onPass`.
  */
 import { Vector3 } from 'three';
-import type { AircraftEntity } from '../../core/types';
-import { bankAngle } from '../../sim/flightModel';
+import type { AircraftEntity } from '../core/types';
+import { bankAngle } from '../sim/flightModel';
+
+/** One firing pass: the geometry it began from. */
+export interface PassRecord {
+  time: number;
+  shooter: AircraftEntity;
+  target: AircraftEntity;
+  /** Shooter height above the target when he closed inside 600 m, m. */
+  heightAdvM: number;
+  above: boolean;
+  upSun: boolean;
+  /** Did the target know about the shooter when the pass began? null: unknown (no perception to ask). */
+  seen: boolean | null;
+}
+
+export interface EntryTrackerOptions {
+  /** Called for every pass, after the counts are updated. */
+  onPass?(pass: PassRecord): void;
+  /**
+   * Whether `target` knew about `shooter`; undefined falls back to the target's AI perception
+   * contacts. The flight recorder answers for the human player from the HUD's awareness model.
+   */
+  seenBy?(target: AircraftEntity, shooter: AircraftEntity): boolean | undefined;
+}
 
 export interface EntryAcc {
   passes: number;
@@ -52,6 +78,7 @@ export class EntryTracker {
     private readonly ctl: (id: number) => unknown,
     private readonly key: (a: AircraftEntity) => string,
     private readonly acc = new Map<string, EntryAcc>(),
+    private readonly opts: EntryTrackerOptions = {},
   ) {}
 
   get(k: string): EntryAcc {
@@ -83,8 +110,13 @@ export class EntryTracker {
     const upSun = useAp ? ap.upSun : this.upSun(shooter, target);
     if (upSun) g.upSun++;
     if (above || upSun) g.aboveOrSun++;
-    const tc = this.ctl(target.id) as CtlView | undefined;
-    if (tc?.perception?.contacts && !tc.perception.contacts.has(shooter.id)) g.unseen++;
+    let seen = this.opts.seenBy?.(target, shooter);
+    if (seen === undefined) {
+      const tc = this.ctl(target.id) as CtlView | undefined;
+      if (tc?.perception?.contacts) seen = tc.perception.contacts.has(shooter.id);
+    }
+    if (seen === false) g.unseen++;
+    this.opts.onPass?.({ time: t, shooter, target, heightAdvM: dh, above, upSun, seen: seen ?? null });
   }
 
   private upSun(shooter: AircraftEntity, target: AircraftEntity): boolean {
