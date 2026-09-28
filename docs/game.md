@@ -256,7 +256,7 @@ makes that possible: the analytic terrain costs ~20 us a call).
   quick setup with N fixed seeds, and `AUTOPLAY_DIFFICULTY=recruit|pilot|ace`
   sets the career difficulty. `AUTOPLAY_SEED_BASE=N` offsets the career pilots'
   seeds so parallel runs sample different careers. The quick setups include the
-  Quick Mission screen's default (Camel and wingman v two regular D.Vs);
+  Quick Mission screen's default (`QUICK_DEFAULTS`, src/data/quickDefaults.ts);
   `AUTOPLAY_QUICK_SETUPS=default,camel,dvii` and
   `AUTOPLAY_QUICK_TYPES=dogfight,ground-attack` select setups and types, and
   `AUTOPLAY_QUICK_BY_SETUP=1` summarises per setup as well as per type. The output ends with a per-type
