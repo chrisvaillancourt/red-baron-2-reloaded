@@ -2138,8 +2138,16 @@ select.input option {
 .quick-foot {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 1em;
   flex: none;
+}
+.quick-note {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--paper);
+  opacity: 0.85;
 }
 
 /* ============================================================== OPTIONS */

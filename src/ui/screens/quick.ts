@@ -1,7 +1,7 @@
 import { composeLivery } from '../../data/liveries';
 import type { QuickMissionOptions } from '../../core/campaignTypes';
 import type { AircraftId, AircraftSpec, SkillLevel } from '../../core/types';
-import { AIRCRAFT, AIRCRAFT_LIST } from '../../data/aircraft';
+import { AIRCRAFT, AIRCRAFT_LIST, servedTogether } from '../../data/aircraft';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
 import { formatAltitude, resolveUnits } from '../format';
@@ -133,6 +133,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
   );
 
   const acePick = h('div', { class: 'ace-pick' });
+  const anachronism = h('p', { class: 'quick-note', role: 'status' }, 'These machines never met in service; the flight is dated by yours.');
 
   // --- Mission column
   const altVal = h('span', { class: 'typed' });
@@ -223,6 +224,8 @@ export const quickScreen: ScreenFactory = (ctx) => {
   }
   function renderEnemy(): void {
     const s = AIRCRAFT[o.enemyAircraft];
+    // The mission is dated by the shared service window, or by the player's type if there is none.
+    anachronism.hidden = servedTogether(AIRCRAFT[o.playerAircraft], s);
     setChildren(enemyHead, svg(nationalInsignia(insigniaFor(s.nation, s.introduced), 28)), 'The enemy');
     setChildren(enemySpec, specSheet(s, units(), composeLivery({ aircraftId: s.id, nation: s.nation, date: s.introduced, aceId: o.enemyAceId })));
     const enemyGerman = s.nation === 'germany';
@@ -271,7 +274,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
     'To the briefing →',
   );
 
-  shell.content.append(h('div', { class: 'quick' }, playerCol, missionCol, enemyCol), h('div', { class: 'quick-foot' }, fly));
+  shell.content.append(h('div', { class: 'quick' }, playerCol, missionCol, enemyCol), h('div', { class: 'quick-foot' }, anachronism, fly));
   withHints(shell);
   return { el: shell.el, music: 'menu' };
 };

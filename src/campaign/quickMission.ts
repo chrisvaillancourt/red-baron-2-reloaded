@@ -2,7 +2,7 @@
 import type { QuickMissionOptions } from '../core/campaignTypes';
 import type { AircraftId, MissionDefinition, MissionFlightMember, MissionType, Nation, Side, Weather } from '../core/types';
 import { NATION_SIDE } from '../core/types';
-import { AIRCRAFT } from '../data/aircraft';
+import { AIRCRAFT, servedTogether } from '../data/aircraft';
 import { aceNamesOn, getAce } from '../data/aces';
 import { composeLivery } from '../data/liveries';
 import { terrainHeightAt } from '../world/terrain';
@@ -34,12 +34,14 @@ const GA_DEFENDER_AGL = 350;
 const GA_FIRST_ARRIVAL = 150;
 const GA_ELEMENT_GAP = 90;
 
+/** Mid-way through the types' shared service; if they never met, mid-way through the player's (the Quick Mission screen says so). */
 function quickDate(a: AircraftId, b: AircraftId): string {
   const A = AIRCRAFT[a];
   const B = AIRCRAFT[b];
+  if (!servedTogether(A, B)) return midDate(A.introduced, A.retired);
   const from = A.introduced > B.introduced ? A.introduced : B.introduced;
   const to = A.retired < B.retired ? A.retired : B.retired;
-  return from <= to ? midDate(from, to) : midDate(A.introduced, A.retired);
+  return midDate(from, to);
 }
 
 function members(ctx: GenCtx, n: number, aircraftId: AircraftId, nation: Nation, skill: MissionFlightMember['skill'], playerFirst: boolean): MissionFlightMember[] {

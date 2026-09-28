@@ -1,8 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { terrainHeightAt } from '../world/terrain';
+import { AIRCRAFT, servedTogether } from '../data/aircraft';
 import { buildQuickMission } from './quickMission';
 
 describe('quick missions', () => {
+  it('dates a matchup inside the shared service, or by the player\'s type when they never met', () => {
+    const opts = { enemyCount: 1, wingmen: 0, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.4, type: 'dogfight' } as const;
+    // Camel and D.V served together (from May 1917): dated inside both windows.
+    expect(servedTogether(AIRCRAFT.sopwith_camel, AIRCRAFT.albatros_dv)).toBe(true);
+    const met = buildQuickMission({ ...opts, playerAircraft: 'sopwith_camel', enemyAircraft: 'albatros_dv' }, 1).date;
+    expect(met >= AIRCRAFT.albatros_dv.introduced && met <= AIRCRAFT.sopwith_camel.retired).toBe(true);
+    // The N.11 was retired before the D.V arrived: dated mid-way through the N.11's service.
+    expect(servedTogether(AIRCRAFT.nieuport_11, AIRCRAFT.albatros_dv)).toBe(false);
+    expect(servedTogether(AIRCRAFT.albatros_dv, AIRCRAFT.nieuport_11)).toBe(false);
+    const d = buildQuickMission({ ...opts, playerAircraft: 'nieuport_11', enemyAircraft: 'albatros_dv' }, 1).date;
+    expect(d >= AIRCRAFT.nieuport_11.introduced && d <= AIRCRAFT.nieuport_11.retired).toBe(true);
+  });
+
   it('quick ground attack: defenders scramble low in two elements, the second later', () => {
     for (let seed = 1; seed <= 6; seed++) {
       const m = buildQuickMission(

@@ -97,4 +97,6 @@ Waypoint `altitude` is metres ASL; balloon `altitude` is metres above ground.
 ## Quick missions
 
 `buildQuickMission(opts, seed?)` honours every `QuickMissionOptions` field;
-the date defaults to the midpoint of both aircraft's overlapping service.
+the date defaults to the midpoint of both aircraft's overlapping service
+(`servedTogether` in `src/data/aircraft.ts`), or of the player's own type when the two never
+met; the Quick Mission screen says so beside To the briefing.

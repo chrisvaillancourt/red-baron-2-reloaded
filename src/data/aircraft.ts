@@ -290,3 +290,10 @@ export function aircraftInService(date: string, side?: 'central' | 'allied'): Ai
     (s) => s.introduced <= date && date <= s.retired && (!side || (side === 'central') === (s.nation === 'germany')),
   );
 }
+
+/** Whether two types were ever in front-line service at the same time (their service windows overlap). */
+export function servedTogether(a: AircraftSpec, b: AircraftSpec): boolean {
+  const from = a.introduced > b.introduced ? a.introduced : b.introduced;
+  const to = a.retired < b.retired ? a.retired : b.retired;
+  return from <= to;
+}
