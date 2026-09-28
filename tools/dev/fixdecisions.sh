@@ -6,6 +6,8 @@
 f=DECISIONS.md
 # Drop zdiff3 base sections (between ||||||| and =======), then all marker lines.
 awk '/^\|\|\|\|\|\|\|/{skip=1; next} /^=======/{skip=0; next} /^(<<<<<<<|>>>>>>>)/{next} !skip{print}' $f > $f.tmp && mv $f.tmp $f
+# Both sides appended at end of file, so the join can lose the blank line before an entry.
+awk 'NR > 1 && /^## D-/ && prev != "" { print "" } { print; prev = $0 }' $f > $f.tmp && mv $f.tmp $f
 n=$(grep -oE '^## D-[0-9]+' $f | sed 's/## D-//' | sort -n | tail -1)
 while grep -q '^## D-XXX' $f; do
   n=$((10#$n + 1)); num=$(printf '%03d' $n)

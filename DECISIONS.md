@@ -104,6 +104,7 @@ written in a small text notation and played by synthesised instruments.
 anywhere WebAudio does and the synthesis is unit-testable in Node. Startup
 pays about 100 ms to render the flight bank (`warmUp()`). Timbre scales a
 little with rpm because the whole loop is resampled, which suits engines.
+
 ## D-010 — Historical simplifications in the career data
 **Context.** The aircraft roster starts in mid-1915 but lacks several types
 squadrons actually flew (SE5, D.H.5, Morane, B.E.2, 1½ Strutter).
@@ -133,6 +134,7 @@ turn over every three months rather than tracking individual losses.
 career date jumps past the stay at once. The next `generateMission` returns
 the pilot to `active`. The UI can show "returned from hospital" while the
 status is `hospital`.
+
 ## D-013 — AI flies through the same controls as the player
 **Context.** AI pilots could be kinematic (set position/velocity directly) or
 fly the real flight model.
@@ -153,6 +155,7 @@ stay in the turn. Aces gain height before engaging and approach two-seaters
 from below the observer's gun. Threat assessment weighs aspect (enemy on our
 tail vs a head-on pass) so experienced pilots don't break from every nose
 pointed their way.
+
 ## D-015 — Flight model: calibrated lumped polar in an acceleration-form 6-DOF
 **Context.** WWI types must feel distinct and match their history, but full
 per-panel aerodynamics with real inertia tensors is hard to tune for 23
@@ -190,6 +193,7 @@ consumed by the combat system (one hammer blow per press).
 **Consequences.** Forced-down victories count as in RB2; mission designers get
 flak "for free" near the lines; the input layer only has to set the flag on key
 press edges.
+
 ## D-018 — Single composition point for subsystems (game layer)
 **Context.** Eight subsystems are built in parallel; the flight loop has to
 run and be tested before any of them exists.
@@ -221,6 +225,7 @@ always works but counts as captured over enemy lines. Time compression drops
 to ×1 when an enemy is within 4 km.
 **Consequences.** Mirrors RB2's "end flight when safe" and period
 confirmation practice without exploits (quitting mid-fight over enemy lines).
+
 ## D-021 — UI: framework-free DOM, generated period art (UI agent)
 **Decision.** Menus and HUD are plain DOM + CSS with tiny helpers (`src/ui/dom.ts`), a
 stack router and spatial keyboard/gamepad focus navigation. Visual identity is aged paper,
@@ -287,6 +292,7 @@ lanes 40 m apart, since the fields are open grass.
 **Consequences.** Missions can start on the ground (`startOnGround`). The flight
 session only needs to set `landed-*` outcomes; `phase === 'landed'` or
 `isStoppedOnGround` tells it when.
+
 ## D-028 — Front lines as sectioned keyframes, cratering as rasterised history (world)
 **Context.** The front must move with the date (campaign, AI, rendering, capture rules) and be queried per frame.
 **Decision.** Each historical keyframe is six named sections (Yser, Ypres, French Flanders, Artois, Arras–Cambrai, Somme) sharing joints; dates between keyframes interpolate section by section after arc-length resampling, and quiet periods repeat a keyframe. Queries use a bucketed segment index with pseudo-normal signing. Shell cratering is the max over every line held up to the date (sampled every 10 days through offensives) rasterised once per date into a 250 m grid.
@@ -303,6 +309,7 @@ session only needs to set `landed-*` outcomes; `phase === 'landed'` or
 ## D-031 — Flak colour by ground side (render)
 **Decision.** `flak-burst` events carry no side; the effects system colours bursts by the side holding the ground beneath (black German "archie" over central ground, white-grey British/French over allied ground).
 **Consequences.** Historically plausible with no contract change; a burst fired across the lines would be mis-coloured (rare).
+
 ## D-032 — Aircraft model pipeline: one parametric generator, runtime-painted liveries
 **Context.** 23 types are needed, each in many squadron and personal colours, and they must stay
 in sync with `src/data/aircraft.ts`.
@@ -364,6 +371,7 @@ real engine into an OfflineAudioContext. The per-sound gains (`UI_GAIN`) keep UI
 8–12 dB below the menu music's peaks. At unity gain, confirm and back peaked about 2 dB
 above the music on every button press.
 **Consequences.** Re-run the script after changing a UI sound's synthesis.
+
 ## D-039 — Mouse-aim flies through the AI's model-inverse autopilot (polish-flight)
 **Context.** The original mouse-aim instructor (a PD law on nose error) was written before the real
 flight model existed. On it, an idealised mouse user crashed, pulled wings off and stalled, holding
@@ -396,6 +404,7 @@ the scene's sun (`patchGroundBounce` in `aircraftVisual.ts`), instead of changin
 environment map.
 **Consequences.** Undersides read as their doped colours. The fix only affects aircraft; other
 down-facing surfaces (hangar eaves, balloons) are unchanged.
+
 ## D-043 — Headless SimCore, terrain height cache, and the autoplayer (polish-missions)
 **Context.** Mission QA needs hundreds of full missions flown end to end; the browser loop
 and any test harness must not drift apart. Profiling showed the analytic terrain
@@ -427,6 +436,7 @@ and success/death rates are in a playable band (see the table in the final polis
 safe "End flight" (no enemy within 5 km, friendly ground below) remains a normal return.
 Every ace lost in a fight is reported in `MissionResult.acesDown` so the campaign retires
 him even when someone other than the player brought him down.
+
 ## D-046 — Tree and town placement runs in web workers (render)
 **Context.** In real flights, building one forested tree cell (~20–45 ms) or one city tile (~100–220 ms) on the main thread caused visible stutters at low altitude.
 **Decision.** Placement moved to pure modules (`src/render/treeCells.ts`, `townTiles.ts`) run by `treeWorker.ts`/`townWorker.ts`, the same pattern as terrain chunks. The worker returns packed instance matrices and colours, and results for a stale date or season are dropped. If `Worker` is unavailable, placement falls back to the main thread. `whenReady()` also waits for nearby tree cells and town tiles.
@@ -475,6 +485,7 @@ him even when someone other than the player brought him down.
 - Error grows with the gunner's own aircraft's turn rate and with the target's crossing rate.
 
 **Consequences.** A scout on a steady six still gets punished (the regression tests pass), but a manoeuvring attacker takes 1–5 gunner hits per sortie instead of 30+.
+
 ## D-051 — HUD declutter by priority, waypoint on the heading tape (hud-flight)
 **Context.** At every mission start and in every fight, the waypoint diamond and its label, the mouse-aim ring, the nose cross, the gun reticle, the target box and threat triangles piled up at screen centre.
 **Decision.** A pure rule set (`src/ui/hud/declutter.ts`) with priority target box > aim ring > reticle > nose > waypoint. The waypoint fades to 35% in combat, disappears under a target box, and drops its label near the aim cluster. Its number, name and distance ride a caret on the heading tape instead (pinned to the tape end beyond ±40°). The aim ring and nose cross (or reticle) merge into one hollow amber ring when aligned. It is hollow because your own tracers converge in its middle. The threat ring only shows enemies that are off-screen or dangerous. The target text flips left when the box is right of centre.
@@ -489,6 +500,7 @@ him even when someone other than the player brought him down.
 **Context.** Wave 3 reported the E.III at 1–5% on target against a D.H.2. `MOUSEAIM_SEEDS` averaged identical runs, because the sim and AI are deterministic, so single fights were being read as trends.
 **Decision.** Seeds above 1 now vary the start geometry. `MOUSEAIM_PAIRS` narrows a soak to chosen matchups. Three changes were measured over 6 starts each and rejected: an instructor-side rudder fine-aim blend (E.III vs N.11 dropped from 5/6 kills to 1/6, and wing failures appeared), roll 0.55 / pitch 0.85 (no gain, time on target fell), and lower instructor `caution` (noise-level changes). The E.III data is unchanged.
 **Consequences.** The E.III wins against a Nieuport 11 (5/6 kills at standard) and loses the turning fight to the D.H.2 (1–2 of 6), which is how the Fokker Scourge ended. The real remaining defect, roll dithering on slow rollers, belongs in the autopilot's aim mode (docs/STATUS.md).
+
 ## D-054 — Crater grids built in a worker and handed to the main thread (visuals wave 4)
 **Context.** The dated crater/freshness history grid (~0.5 s to build) was built lazily on
 first query. The terrain workers built their own copies, but on the main thread the first
@@ -555,6 +567,7 @@ whose version is newer than the game's is never written. `migrate()` is the
 one place schema upgrades go.
 **Consequences.** Safe across tabs and versions. Reads parse storage only
 when its text has changed, so repeated `get()` calls stay cheap.
+
 ## D-059 — Controllers invert the pitch law through the tail's slipstream (ai-sim wave 5)
 **Context.** Low-level AI fights spent 11–12% of engage time in stall recovery, and 19 of 160 aircraft in the low-level survey flew into the ground. Stall onsets showed the autopilot already limiting g to 0.5 with the stick forward, at 1.3–1.6 Vs. The sim's pitch law settles where the *tail* AoA meets the command, and the propeller slipstream lowers the tail AoA under power at low speed. The wing therefore settled 10–30% above the AoA the model-inverse stick asked for, and the "safe" command sat past the stall. The sim's own relaxed stall cap had the same flaw.
 **Decision.** `tailPressureRatio(ac, env)` in src/sim (qTail/q̄ for current power and speed). The AI autopilot divides its desired wing AoA by it. The sim scales its relaxed/standard g cap and the relaxed stall cap by the same ratio.
@@ -612,6 +625,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - the player was threatened in the last 8 s: hit, silently damaged by trench fire, a flak burst within 200 m, or an enemy round within 40 m;
 - the player is below 300 m AGL over enemy ground, or within 2.5 km of a live enemy ground target (4 km for AA).
 **Consequences.** Low strafing runs and balloon attacks fly at x1 automatically. High transit over the lines is still compressible until flak bursts close.
+
 ## D-066 — Early-war two-seaters: B.E.2c, F.E.2b, Farman F.40, Albatros C.III (models wave 6; amends D-010)
 **Context.** The roster had no two-seater before the Rumpler C.IV (Jan 1917) and R.E.8 (Nov 1916), so 1915–16 escorts and intercepts flew those types a year early (PLAYTEST #15).
 **Decision.**
@@ -625,6 +639,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Escorts guard their own nation:** a French career escorts Farmans and a British one escorts B.E.2cs or F.E.2bs.
 - **The one remaining stand-in:** German two-seaters before December 1915 use the C.III, and briefings then name it generically ("observation two-seaters", `chargeNames`).
 **Consequences.** All 1916 escorts and intercepts now fly types that were in service. The Farman keeps a single fin and rudder, and its booms converge less than the F.E.2b's; it is not an exact copy of any one sub-type.
+
 ## D-067 — Trenches drawn as energy-conserving lines; woods mottled, not ink (render wave 6)
 **Context.** PLAYTEST #3: from 1.5–3 km the trench line read as a thick black sawtooth ribbon and woods as flat black blots. The shader widened each trench's anti-aliasing band with the pixel footprint (`smoothstep(1.3 ± 0.6·px)`) and kept a 30% floor, so a 2 m cut with a ±3.5 m zig-zag filled 5–8 pixels at ~1 km. Far woods were a flat, dark palette colour with the near-field noise averaged away. Thresholded single-octave value noise also drew lattice-aligned squares (chalk splashes, Flanders wet ground).
 **Decision.**
@@ -635,6 +650,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Woods:** multi-scale canopy tone (stand, clump, crown), each fading to its mean, over lighter seasonal forest colours. Autumn tree tints are less orange.
 - **`tblob`:** two rotated value-noise octaves for thresholded patches.
 **Consequences.** From 1–3 km the network reads as fine pale lines, from 2 km straight down as parallel chalk lines with communication trenches, and at 50–300 m as dark crenellated cuts edged with spoil. The wave-4 low-level crater look is unchanged. Cost: +0.16 ms p50 on 'high' in big16 (A/B mean of five, 3.64 against 3.48 ms), within noise in the `frontShots` views. The trench trace direction is still a fixed world axis (`along`), so lines running east–west show stretched bays; an arc-length parameter would need a per-vertex attribute.
+
 ## D-068 — Quick ground attack: defenders scramble low in two staggered elements; flak is not a strafing target (balance wave 6)
 **Context.** Quick ground attacks killed or captured the autoplayer in most runs. The defenders were one flight arriving together at 500 m AGL, about two minutes in. Traces also showed strafers spending passes on the AA gun sited next to the target waypoint (never an objective), so they failed the 3-target objective and left with the job undone.
 **Decision.** `buildQuickMission` splits the defenders into two elements (ceil(n/2), then the rest). They scramble 7 and 8.5 km beyond the target at 350 m AGL, and arrive ~150 s and ~240 s after the player reaches the target. Strafers add 4 km to an AA gun's distance when choosing a target, so they attack flak only when nothing else is left. A closure-based "scouts coming" exit and different pass caps were measured and gave no gain, so they were dropped.
@@ -673,6 +689,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Workflow:** `.github/workflows/deploy.yml` runs on every push to `main` (and on demand). It installs with `pnpm install --frozen-lockfile`, then runs typecheck, unit tests and the build, uploads `dist`, and deploys. Actions are pinned by commit SHA, with the tag in a comment. Only one deploy runs at a time.
 - **Out of CI:** Playwright e2e stays out, because it needs a real GPU (Metal) and the installed Chrome. `pnpm prodcheck <url>` is the post-deploy check, run by hand against the live site.
 **Consequences.** Every push to `main` is a release, so a red test blocks the deploy. The first deploy passed prodcheck on a cold cache: the menus loaded in ~1.1 s, the flight chunk was prefetched, GLBs and all four workers loaded, and there were no failed requests or console errors. Rolling back means reverting on `main`. `ubuntu-latest` moves to Ubuntu 26 from 19 October 2026; pin the runner if that breaks the build.
+
 ## D-073 — Perception: sun glare, cloud and memory; the player's HUD plays by the same rules (perception, AI depth)
 **Context.** The AI saw every enemy within its spotting range except in a rear blind cone, whatever the sun and clouds, and remembered only *when* it last saw one, then used its true position. Attacks out of the sun and escapes into cloud, central to WWI air fighting and RB2, meant nothing. The player's HUD threat triangles and automatic target box were just as omniscient within 3 km.
 **Decision.**
