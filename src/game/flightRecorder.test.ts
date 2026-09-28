@@ -37,8 +37,8 @@ describe('flight recorder', () => {
     const mission = buildQuickMission({ ...QUICK_DEFAULTS }, 1);
     const core = new SimCore(headlessModules, mission, () => DEFAULT_SETTINGS.realism);
     const rec = new FlightRecorder(core);
-    for (let i = 0; i < 90; i++) rec.frame(1 / 60, 1); // 90 frames at 60 fps
-    for (let i = 0; i < 10; i++) rec.frame(1 / 20, 4); // 10 slow frames at 4x
+    for (let i = 0; i < 90; i++) rec.frame(1 / 60, 1 / 60, 1); // 90 frames at 60 fps
+    for (let i = 0; i < 10; i++) rec.frame(1 / 20, 1 / 20, 4); // 10 slow frames at 4x
     const t = rec.telemetry();
     expect(t.fps!.frames).toBe(100);
     expect(t.fps!.p50).toBeGreaterThan(55);
@@ -48,6 +48,21 @@ describe('flight recorder', () => {
     expect(t.timeCompression.maxScale).toBe(4);
     expect(t.timeCompression.realS).toBeCloseTo(0.5, 1);
     expect(t.timeCompression.simS).toBeCloseTo(2, 1);
+    rec.dispose();
+    core.dispose();
+  });
+
+  it('counts compression by the time the sim advanced, not a background-tab hitch', () => {
+    const mission = buildQuickMission({ ...QUICK_DEFAULTS }, 1);
+    const core = new SimCore(headlessModules, mission, () => DEFAULT_SETTINGS.realism);
+    const rec = new FlightRecorder(core);
+    // A 5 s hitch at 8x: the session clamps the step to 0.1 s, so the sim advanced 0.8 s.
+    rec.frame(5, 0.1, 8);
+    const t = rec.telemetry();
+    expect(t.timeCompression.realS).toBeCloseTo(0.1, 5);
+    expect(t.timeCompression.simS).toBeCloseTo(0.8, 5);
+    // The fps histogram still sees the real 5 s frame (it lands in the slowest bucket).
+    expect(t.fps!.p50).toBeLessThan(5);
     rec.dispose();
     core.dispose();
   });

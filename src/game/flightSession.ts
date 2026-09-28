@@ -601,9 +601,10 @@ export class FlightSession {
   };
 
   private tick(now: number): void {
-    // Frame time before the MAX_FRAME_DT clamp, so the report's fps sees real hitches.
-    this.recorder?.frame(Math.max(0, (now - this.lastT) / 1000), this.paused ? 1 : this.timeScale);
-    const dtReal = Math.min(MAX_FRAME_DT, Math.max(0, (now - this.lastT) / 1000));
+    const dtRaw = Math.max(0, (now - this.lastT) / 1000);
+    const dtReal = Math.min(MAX_FRAME_DT, dtRaw);
+    // fps from the raw frame time (real hitches count); compression from what the sim advanced.
+    this.recorder?.frame(dtRaw, dtReal, this.paused ? 1 : this.timeScale);
     this.lastT = now;
     this.frames++;
     const world = this.world;

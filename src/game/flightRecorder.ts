@@ -77,14 +77,18 @@ export class FlightRecorder {
     }
   }
 
-  /** Once per rendered frame: real seconds since the last frame and the time-compression factor. */
-  frame(dtReal: number, timeScale: number): void {
-    if (dtReal <= 0) return;
+  /**
+   * Once per rendered frame. `dtRaw`: real seconds since the last frame, unclamped (frame rate).
+   * `dtStep`: the real seconds the session let the sim advance (clamped to its MAX_FRAME_DT), so
+   * a background tab or hitch doesn't inflate the compression totals.
+   */
+  frame(dtRaw: number, dtStep: number, timeScale: number): void {
+    if (dtRaw <= 0) return;
     this.frames++;
-    this.frameHist[Math.min(BUCKETS, Math.floor((dtReal * 1000) / BUCKET_MS))]++;
+    this.frameHist[Math.min(BUCKETS, Math.floor((dtRaw * 1000) / BUCKET_MS))]++;
     if (timeScale > 1) {
-      this.compressedRealS += dtReal;
-      this.compressedSimS += dtReal * timeScale;
+      this.compressedRealS += dtStep;
+      this.compressedSimS += dtStep * timeScale;
       this.maxScale = Math.max(this.maxScale, timeScale);
     }
   }
