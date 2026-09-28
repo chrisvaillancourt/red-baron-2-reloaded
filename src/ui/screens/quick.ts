@@ -7,7 +7,7 @@ import { artBackground, h, setChildren, svg } from '../dom';
 import { formatAltitude, resolveUnits } from '../format';
 import { getUiCatalog } from '../catalog';
 import { insigniaFor, nationalInsignia } from '../insignia';
-import { rangeInput, screenShell, segmented, withHints } from '../components';
+import { rangeInput, roveTabStop, screenShell, segmented, withHints } from '../components';
 import { specSheet } from '../aircraftCards';
 import { SKILL_LABEL } from '../labels';
 
@@ -230,8 +230,9 @@ export const quickScreen: ScreenFactory = (ctx) => {
     setChildren(enemySpec, specSheet(s, units(), composeLivery({ aircraftId: s.id, nation: s.nation, date: s.introduced, aceId: o.enemyAceId })));
     const enemyGerman = s.nation === 'germany';
     const aces = getUiCatalog().aces.filter((a) => (a.nation === 'germany') === enemyGerman);
-    setChildren(
-      acePick,
+    // The list is rebuilt on every pick; keep keyboard focus on the chosen entry.
+    const hadFocus = acePick.contains(document.activeElement);
+    const choices = [
       h('button', { type: 'button', class: 'choice', 'aria-pressed': String(!o.enemyAceId), onClick: () => ((o.enemyAceId = undefined), renderEnemy(), save()) }, h('span', null, 'No named ace'), h('span', { class: 'muted' }, '')),
       ...aces.map((a) =>
         h(
@@ -241,7 +242,11 @@ export const quickScreen: ScreenFactory = (ctx) => {
           h('span', { class: 'muted typed' }, `${a.victories} victories`),
         ),
       ),
-    );
+    ];
+    const current = o.enemyAceId ? aces.findIndex((a) => a.id === o.enemyAceId) + 1 : 0;
+    roveTabStop(choices, current);
+    setChildren(acePick, ...choices);
+    if (hadFocus) choices[Math.max(0, current)].focus({ preventScroll: true });
   }
   rebuildEnemySelect();
   const enemyCol = h(
