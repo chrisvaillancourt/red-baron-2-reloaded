@@ -17,6 +17,10 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   files you changed. Never force-push; never rewrite others' commits.
 - Record significant decisions in `DECISIONS.md` (append `D-0NN` entries; take the next free
   number at merge time — use `D-XXX` placeholders if unsure and the lead will renumber).
+- End every final report with a **Friction** section: what slowed you down, including
+  missing tools, wrong or missing instructions, confusing structure, and flaky commands.
+  Give each item a suggested fix. Write "none" if there was none. The lead logs each item
+  in `docs/FRICTION.md` with a disposition. Read that file's Open table before starting.
 - Run Python via `uv run python`, never bare `python3`. Use `trash` instead of `rm` for
   user-authored files.
 - Browser QA: `pnpm dev` then drive with Playwright (`@playwright/test` is installed; use the
