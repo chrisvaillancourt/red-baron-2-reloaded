@@ -76,7 +76,14 @@ test('debrief: rate the flight and copy the flight report', async ({ page, conte
   await expect(strip).toBeVisible();
   await strip.locator('button:has-text("Fair")').click();
   await expect(strip.locator('button:has-text("Fair")')).toHaveAttribute('aria-pressed', 'true');
-  await strip.locator('input[aria-label="Playtest note"]').fill('Headed straight for them.');
+  const noteInput = strip.locator('input[aria-label="Playtest note"]');
+  await noteInput.fill('Headed straight for them.');
+  // Esc in the note leaves the field, not the debrief (a quick debrief is one page).
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen'))).toBe('debrief');
+  await expect(noteInput).not.toBeFocused();
+  await expect(noteInput).toHaveValue('Headed straight for them.');
   await page.screenshot({ path: 'test-results/flight-report-debrief.png' });
 
   // Clipboard refused: the report appears in a box to copy by hand.

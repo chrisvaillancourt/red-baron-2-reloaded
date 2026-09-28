@@ -201,6 +201,14 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
       'aria-label': 'Playtest note',
       value: note,
       onInput: (e: Event) => (note = (e.target as HTMLInputElement).value),
+      // Esc in the note only leaves the field. Menu nav (nav.ts) would also go "back", which
+      // on a quick mission's one-page debrief leaves the screen and loses the rating and note;
+      // it skips events already handled (defaultPrevented).
+      onKeydown: (e: KeyboardEvent) => {
+        if (e.key !== 'Escape') return;
+        e.preventDefault();
+        (e.target as HTMLInputElement).blur();
+      },
     });
     return h(
       'div',
