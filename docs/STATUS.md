@@ -1,4 +1,4 @@
-# Project status — release candidate, 2026-09-25
+# Project status — release candidate, 2026-09-28
 
 The game is playable end to end: `pnpm dev`, then open http://localhost:5173
 (README "Your first flight" walks a new player through it). Career (all four
@@ -10,9 +10,29 @@ The wave-7 release check (docs/PLAYTEST.md, top section) gave a **GO**: a fan
 can play for an evening without hitting a blocker. Everything still open below
 is minor or polish, and each item carries a disposition.
 
-Verified on `main` after the wave-8 merges: `npx tsc --noEmit` clean, `pnpm test`
-357 passed (23 env-gated soak tests skipped), `pnpm e2e` 16 passed (1 gated
-soak skipped), `pnpm build` OK.
+Verified on `main` after the wave-9 merges: `npx tsc --noEmit` clean, `pnpm test`
+362 passed (23 env-gated soak tests skipped), `pnpm e2e` 17 passed (1 gated
+soak skipped). The deploy passed on the pinned `ubuntu-24.04` runner, and
+`pnpm prodcheck` passed on the live URL.
+
+## Current figures (wave 9 re-baseline, 2026-09-28, commit f84cb16)
+These are the numbers to quote. They come from the veteran autoplayer, not humans; the
+commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
+- **Default quick dogfight** (Camel+1 v 2 veteran D.VII, D-078): 28% player down, 96 runs.
+- **Mirror fights** (48 runs each), player down: Camel 38%, D.V 52%, Dr.I 44%, SPAD XIII 31%,
+  D.VII 23%.
+- **Quick defaults by type** (24 runs each), success / killed / captured:
+  - dogfight 83 / 8 / 4%
+  - balloon attack 100 / 42 / 0%
+  - escort 92 / 4 / 8%
+  - intercept 88 / 17 / 0%
+  - ground attack 92 / 17 / 0%
+- **Veteran career** (3 seed sets, 245 missions): 21.6% killed or captured. There were
+  1.6 collisions per 100 missions, counting every collision event, and none involved the
+  player.
+- **Ambush entries** where stalking can apply (14 runs each): veteran 57%, ace 62%,
+  stalker ace 100% (all unseen). Unchanged from wave 8.
+- **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
 
 ## Next up (priority order, 2026-09-28)
 1. **Do: human playtest** on the live URL, 5–10 missions. Every wave-8 number comes from
@@ -72,7 +92,8 @@ Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073
   - **Ace signatures:** `Ace.tactics`, with sources in D-074. The ace id reaches the AI
     through one shared adapter (`src/game/aiOptions.ts`) for both the game and the
     autoplayer.
-- **Measured** (on / off, with run counts in docs/ai.md):
+- **Measured in wave 8** (on / off, with run counts in docs/ai.md). These are superseded by
+  "Current figures" above:
   - Where stalking can apply, aces enter 62% of first passes from above or up-sun
     against 0% for novices. A stalker-signature ace enters 100% of them, every one unseen.
   - Default quick fight: 4% player down, unchanged (the default changed in wave 9, D-078).

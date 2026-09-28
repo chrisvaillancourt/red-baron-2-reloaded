@@ -455,6 +455,38 @@ the target, the gun gate skips a target cloud hides, and the refuge circles the 
 A pursuer already 30–80 m behind as he enters still sees him (as a player would on screen),
 so one seed that reaches cloud with the pursuer on him still takes 27 hits.
 
+### Wave 9 re-baseline (commit f84cb16: D.VII default, D-078; cloud, D-081)
+
+These were all measured on one commit after the wave-9 merges, with the veteran autoplayer
+and the default tactics flags. They supersede earlier figures wherever the two differ.
+- **Fairness** (`AI_SOAK=fairness`), player down (killed/captured/wounded):
+  - `AI_FAIR_SET=default`, 96 runs: 28% (21/3/3). Unchanged by the cloud work.
+  - `mirror`, 48 runs each: Camel 38%, D.V 52%, Dr.I 44%, SPAD XIII 31%, D.VII 23%.
+- **Quick survey** (`AUTOPLAY=quick AUTOPLAY_QUICK_REPS=24 AUTOPLAY_QUICK_BY_SETUP=1`),
+  success / killed / captured:
+
+  | Type | Default (Camel+1 v 2 vet D.VII) | Camel+2 v 3 Dr.I, random start | D.VII+1 v 2 vet SPAD XIII |
+  |---|---|---|---|
+  | Dogfight | 83 / 8 / 4% | 38 / 38 / 17% | 33 / 63 / 4% |
+  | Balloon attack | 100 / 42 / 0% | 96 / 21 / 17% | 96 / 46 / 8% |
+  | Escort | 92 / 4 / 8% | 92 / 25 / 8% | 96 / 33 / 0% |
+  | Intercept | 88 / 17 / 0% | 33 / 38 / 0% | 63 / 38 / 0% |
+  | Ground attack | 92 / 17 / 0% | 88 / 25 / 0% | 96 / 63 / 0% |
+
+  The second and third setups are hard by construction (see "Known weaknesses"). There
+  were 15 collision events in the 360 missions, and 4 of them involved the player.
+- **Career survey** (`AUTOPLAY=career AUTOPLAY_MISSIONS=10`, with `AUTOPLAY_SEED_BASE` 0,
+  1000 and 2000 run as separate invocations): 245 missions, 21.6% killed or captured
+  (48 killed, 5 captured, 30 wounded). There were 4 collision events (1.6 per 100
+  missions) and none involved the player. Loss causes: enemy fire 34, flak or ground 13,
+  self 6.
+- **Ambush** (`AI_SOAK=ambush AI_AMBUSH_REPS=14`), first passes from above or up-sun:
+  novice 0%, regular 0%, veteran 57%, ace 62%, stalker ace 100% (all unseen).
+
+"Collisions per 100 missions" counts every collision event in the survey's `COLLISIONS`
+line, whichever aircraft were involved. Collisions involving the player are the
+`player-*` entries.
+
 ### Known weaknesses
 
 - **The D.V can't threaten a Camel.** This is why the default quick dogfight changed in
