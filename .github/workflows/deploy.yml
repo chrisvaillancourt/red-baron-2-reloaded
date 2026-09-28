@@ -1,6 +1,8 @@
 # Build, test and publish the game to GitHub Pages on every push to main.
 # Playwright e2e stays local: it needs a real GPU (Metal) and the installed Chrome.
 # Actions are pinned by commit SHA (tag in the comment); bump both together.
+# The runner image is pinned too (DECISIONS D-077). Moving to ubuntu-26.04 is an open task
+# in docs/STATUS.md ("Next up"): try it on a branch with workflow_dispatch first.
 name: Deploy to GitHub Pages
 
 on:
@@ -20,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -41,7 +43,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

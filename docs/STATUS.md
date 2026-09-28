@@ -33,8 +33,12 @@ soak skipped), `pnpm build` OK.
 4. **Housekeeping:**
    - **Decide: add a LICENSE.** The repo is public but has none, so no reuse is allowed.
      The original game's names and assets are a separate question.
-   - **Check** the first deploy after 2026-10-19, when `ubuntu-latest` moves to
-     Ubuntu 26.
+   - **Do: upgrade the CI runner to Ubuntu 26.04, target 2027-01-31.** Deploys are
+     pinned to `ubuntu-24.04` (D-077), so the 2026-10-19 `ubuntu-latest` switch can't
+     break them. The pin stays until someone moves it. On a branch, change both
+     `runs-on` lines in `.github/workflows/deploy.yml` to `ubuntu-26.04` and run it
+     with `workflow_dispatch`. It passes when typecheck, tests and build are green.
+     Then merge to `main`, run `pnpm prodcheck` against the live URL, and update D-077.
    - **Defer: split `flightModules`** (699 kB, 202 kB gzip). It's prefetched already;
      do it only if the first flight is slow on weak connections.
 5. **Skip:** e2e in CI (it needs a GPU runner; run `pnpm e2e` locally before pushing),
@@ -44,8 +48,9 @@ soak skipped), `pnpm build` OK.
 ## Deployment
 - **Live:** https://chrisvaillancourt.github.io/red-baron-2-reloaded/ (public repo
   `chrisvaillancourt/red-baron-2-reloaded`, GitHub Pages; DECISIONS D-072).
-- **How deploys happen:** every push to `main` runs `.github/workflows/deploy.yml`:
-  frozen-lockfile install, typecheck, unit tests, build, then a Pages deploy. A failing
+- **How deploys happen:** every push to `main` runs `.github/workflows/deploy.yml` on a
+  pinned `ubuntu-24.04` runner (D-077): frozen-lockfile install, typecheck, unit tests,
+  build, then a Pages deploy. A failing
   test blocks the release. E2E is not in CI (it needs a GPU), so run `pnpm e2e` locally
   before pushing.
 - **After a deploy:** `pnpm prodcheck https://chrisvaillancourt.github.io/red-baron-2-reloaded/`
