@@ -101,3 +101,11 @@ Waypoint `altitude` is metres ASL; balloon `altitude` is metres above ground.
 the date defaults to the midpoint of both aircraft's overlapping service
 (`servedTogether` in `src/data/aircraft.ts`), or of the player's own type when the two never
 met; the Quick Mission screen says so beside To the briefing.
+
+A head-on dogfight starts with the flights about 2.6 km apart, so they merge in about 25 s.
+If the cloud field (`CloudField` in `src/world/clouds.ts`, built from the mission weather)
+puts a cloud on the line between the two flights, the builder slides the fight along the
+front in 2 km steps until that line lets through at least half the light (D-082). The
+search makes no random draws, so a start that was already clear is built exactly as before.
+Under a solid overcast at the flights' height no line is clear, and the start stays where
+it was.

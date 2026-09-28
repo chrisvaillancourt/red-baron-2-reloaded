@@ -16,6 +16,7 @@ import type { WorldQuery } from '../core/interfaces';
 import type { AircraftEntity } from '../core/types';
 import { angleBetween, clamp, DEG, forwardOf, lerp } from './math';
 import type { SkillProfile } from './skill';
+import { SIGHT_MIN_TRANSMITTANCE } from '../world/clouds';
 
 export function isAlive(ac: AircraftEntity): boolean {
   return !ac.outcome && !ac.damage.destroyed && !ac.damage.pilotKilled;
@@ -51,7 +52,7 @@ const SUN_RAY_M = 3000;
  * there). Without it sight was range x transmittance, and 4 km x 0.25 still let a
  * pursuer 110 m behind see into a core (DECISIONS "Cloud blinds at close range").
  */
-export const CLOUD_SIGHT_MIN = 0.3;
+export const CLOUD_SIGHT_MIN = SIGHT_MIN_TRANSMITTANCE;
 
 /** 0..1 range multiplier for a line of sight with this cloud transmittance: 0 below the contrast limit. */
 export function cloudSight(transmittance: number): number {

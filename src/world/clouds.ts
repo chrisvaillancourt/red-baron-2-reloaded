@@ -58,6 +58,13 @@ export function cloudBodiesInCell(w: Weather, ix: number, iz: number): CloudBody
   return out;
 }
 
+/**
+ * Below this line-of-sight transmittance an aircraft can't be made out at any range (optical
+ * depth ~1.2, about 100 m of cumulus core). Perception's contrast limit (D-081) and the quick
+ * builder's clear head-on start both use it.
+ */
+export const SIGHT_MIN_TRANSMITTANCE = 0.3;
+
 /** Wind drift of the cloud frame at mission time t (x, z metres). */
 export function cloudDrift(w: Weather, t: number): { x: number; z: number } {
   return { x: w.wind[0] * t, z: w.wind[2] * t };

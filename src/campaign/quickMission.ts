@@ -6,6 +6,7 @@ import { AIRCRAFT, servedTogether } from '../data/aircraft';
 import { aceNamesOn, getAce } from '../data/aces';
 import { composeLivery } from '../data/liveries';
 import { terrainHeightAt } from '../world/terrain';
+import { CloudField, SIGHT_MIN_TRANSMITTANCE } from '../world/clouds';
 import { midDate } from './dates';
 import {
   addBalloon,
@@ -33,6 +34,9 @@ const GA_DEFENDER_AGL = 350;
 /** Seconds after the player reaches the target that the lead element arrives, and the gap to the next. */
 const GA_FIRST_ARRIVAL = 150;
 const GA_ELEMENT_GAP = 90;
+/** Head-on dogfights: the line between the flights must let this much light through at the start, and the search step along the front (m). */
+const CLEAR_START_TRANSMITTANCE = Math.max(0.5, SIGHT_MIN_TRANSMITTANCE);
+const CLEAR_START_STEP_M = 2000;
 
 /** Mid-way through the types' shared service; if they never met, mid-way through the player's (the Quick Mission screen says so). */
 function quickDate(a: AircraftId, b: AircraftId): string {
@@ -68,7 +72,8 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
   const wingmen = Math.max(0, Math.min(3, Math.round(o.wingmen)));
 
   // Fight over the lines near Arras, somewhere along a 40 km stretch.
-  const fp = frontAnchor({ x: 0, z: 0 }, date, rng.range(-20000, 20000));
+  const frontShift = rng.range(-20000, 20000);
+  const fp = frontAnchor({ x: 0, z: 0 }, date, frontShift);
   const eDir = enemyDirection(fp, side);
   const along = fp.tangent;
   const back = { x: -eDir.x, z: -eDir.z };
@@ -226,6 +231,30 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
     turbulence: 0.15,
   };
   weather.cloudTopM = Math.max(weather.cloudTopM, weather.cloudBaseM + 400);
+
+  // Instant action merges in ~25 s, so a head-on dogfight must not start with a cloud between
+  // the flights: both would fly through it blind and wander apart (9 in 96 default fights went
+  // more than 30 s with no sight of the enemy). Slide the fight along the front until the line
+  // is clear. No random draws, so a start that was already clear is unchanged. Under a solid
+  // overcast at the flights' height nothing is clear, and the start stays where it was.
+  if (o.type === 'dogfight' && startMode === 'head-on') {
+    const clouds = new CloudField(weather);
+    const clearLine = (a: XZ, b: XZ) => clouds.transmittance(a.x, pAlt, a.z, b.x, eAlt, b.z, 0) >= CLEAR_START_TRANSMITTANCE;
+    const enemyFlight = ctx.flights.find((f) => f.role === 'enemy');
+    if (enemyFlight && !clearLine(pStart, eStart)) {
+      for (const k of [1, -1, 2, -2, 3, -3, 4, -4]) {
+        const f2 = frontAnchor({ x: 0, z: 0 }, date, frontShift + k * CLEAR_START_STEP_M);
+        const p2 = pointOnSide(f2, side, runIn, date);
+        const e2 = pointOnSide(f2, enemySide, runIn, date);
+        if (!clearLine(p2, e2)) continue;
+        Object.assign(playerFlight.start, { x: Math.round(p2.x), z: Math.round(p2.z), heading: heading(p2, e2) });
+        Object.assign(enemyFlight.start, { x: Math.round(e2.x), z: Math.round(e2.z), heading: heading(e2, p2) });
+        Object.assign(enemyFlight.waypoints[0], { x: Math.round(p2.x), z: Math.round(p2.z) });
+        Object.assign(playerFlightWps[0], { x: Math.round(e2.x), z: Math.round(e2.z) });
+        break;
+      }
+    }
+  }
 
   const ace = aceId ? getAce(aceId) : undefined;
   const briefing = [

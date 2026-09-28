@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { terrainHeightAt } from '../world/terrain';
 import { AIRCRAFT, servedTogether } from '../data/aircraft';
 import { buildQuickMission } from './quickMission';
+import { QUICK_DEFAULTS } from '../data/quickDefaults';
+import { CloudField, SIGHT_MIN_TRANSMITTANCE } from '../world/clouds';
+import { sideOfFrontAt } from '../world/frontline';
 
 describe('quick missions', () => {
   it('dates a matchup inside the shared service, or by the player\'s type when they never met', () => {
@@ -15,6 +18,23 @@ describe('quick missions', () => {
     expect(servedTogether(AIRCRAFT.albatros_dv, AIRCRAFT.nieuport_11)).toBe(false);
     const d = buildQuickMission({ ...opts, playerAircraft: 'nieuport_11', enemyAircraft: 'albatros_dv' }, 1).date;
     expect(d >= AIRCRAFT.nieuport_11.introduced && d <= AIRCRAFT.nieuport_11.retired).toBe(true);
+  });
+
+  it('a head-on quick dogfight starts with no cloud between the flights', () => {
+    // Instant action promises a merge in ~25 s. With cloud on the line, 9 of 96 default fights
+    // went more than 30 s before either side could see the other, and 8 went past 2 minutes.
+    let blocked = 0;
+    for (let r = 0; r < 96; r++) {
+      const m = buildQuickMission({ ...QUICK_DEFAULTS }, 5000 + r * 131);
+      const [p, e] = [m.flights.find((f) => f.role === 'player-flight')!, m.flights.find((f) => f.role === 'enemy')!];
+      const tr = new CloudField(m.weather).transmittance(p.start.x, p.start.altitude, p.start.z, e.start.x, e.start.altitude, e.start.z, 0);
+      if (tr < SIGHT_MIN_TRANSMITTANCE) blocked++;
+      // Still a head-on start ~2.6 km apart, each flight on its own side of the lines.
+      expect(Math.hypot(p.start.x - e.start.x, p.start.z - e.start.z)).toBeGreaterThan(2000);
+      expect(sideOfFrontAt(p.start.x, p.start.z, m.date)).toBe(p.side);
+      expect(sideOfFrontAt(e.start.x, e.start.z, m.date)).toBe(e.side);
+    }
+    expect(blocked).toBe(0);
   });
 
   it('quick ground attack: defenders scramble low in two elements, the second later', () => {

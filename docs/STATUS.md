@@ -18,7 +18,8 @@ soak skipped). The deploy passed on the pinned `ubuntu-24.04` runner, and
 ## Current figures (wave 9 re-baseline, 2026-09-28, commit f84cb16)
 These are the numbers to quote. They come from the veteran autoplayer, not humans; the
 commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
-- **Default quick dogfight** (Camel+1 v 2 veteran D.VII, D-078): 28% player down, 96 runs.
+- **Default quick dogfight** (Camel+1 v 2 veteran D.VII, D-078): 28% player down, 96 runs; 30%
+  with clear head-on starts (D-082), within noise.
 - **Mirror fights** (48 runs each), player down: Camel 38%, D.V 52%, Dr.I 44%, SPAD XIII 31%,
   D.VII 23%.
 - **Quick defaults by type** (24 runs each), success / killed / captured:
@@ -124,7 +125,7 @@ Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073
 ## How it was built
 Parallel agents in git worktrees, one subsystem each, merged by the lead over
 eight waves. Rationale for every significant choice is in `DECISIONS.md`
-(D-001..D-081); module docs are in `docs/*.md`; playtest findings are in
+(D-001..D-082); module docs are in `docs/*.md`; playtest findings are in
 `docs/PLAYTEST.md`.
 
 ## Wave 7 release-check leftovers (docs/PLAYTEST.md)

@@ -460,7 +460,8 @@ so one seed that reaches cloud with the pursuer on him still takes 27 hits.
 These were all measured on one commit after the wave-9 merges, with the veteran autoplayer
 and the default tactics flags. They supersede earlier figures wherever the two differ.
 - **Fairness** (`AI_SOAK=fairness`), player down (killed/captured/wounded):
-  - `AI_FAIR_SET=default`, 96 runs: 28% (21/3/3). Unchanged by the cloud work.
+  - `AI_FAIR_SET=default`, 96 runs: 28% (21/3/3), unchanged by the cloud work. With clear
+    head-on starts (D-082) it is 30% (21/2/6), within noise.
   - `mirror`, 48 runs each: Camel 38%, D.V 52%, Dr.I 44%, SPAD XIII 31%, D.VII 23%.
 - **Quick survey** (`AUTOPLAY=quick AUTOPLAY_QUICK_REPS=24 AUTOPLAY_QUICK_BY_SETUP=1`),
   success / killed / captured:
