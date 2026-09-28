@@ -75,7 +75,7 @@ export const briefingScreen: ScreenFactory = (ctx, params) => {
             ctx.router.replace('debrief', { result, mission, pilotId });
           }
         } else {
-          ctx.router.replace('debrief', { result, mission, quick: true });
+          ctx.router.replace('debrief', { result, mission, quick: true, quickOptions: params.quickOptions });
         }
       },
     },
