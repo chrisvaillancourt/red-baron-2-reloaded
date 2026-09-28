@@ -2,6 +2,7 @@ import { composeLivery } from '../../data/liveries';
 import type { QuickMissionOptions } from '../../core/campaignTypes';
 import type { AircraftId, AircraftSpec, SkillLevel } from '../../core/types';
 import { AIRCRAFT, AIRCRAFT_LIST } from '../../data/aircraft';
+import { QUICK_DEFAULTS } from '../../data/quickDefaults';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
 import { formatAltitude, resolveUnits } from '../format';
@@ -16,22 +17,8 @@ const SKILLS: SkillLevel[] = ['novice', 'regular', 'veteran', 'ace'];
 
 const sideOf = (s: AircraftSpec) => (s.nation === 'germany' ? 'central' : 'allied');
 
-function defaults(): QuickMissionOptions {
-  return {
-    playerAircraft: 'sopwith_camel',
-    enemyAircraft: 'albatros_dv',
-    // An even first fight: you and a wingman against a pair.
-    enemyCount: 2,
-    wingmen: 1,
-    enemySkill: 'regular',
-    wingmanSkill: 'regular',
-    altitudeM: 2500,
-    startPosition: 'head-on',
-    timeOfDay: 'afternoon',
-    cloudCover: 0.35,
-    type: 'dogfight',
-  };
-}
+// First-visit setup, shared with the soaks (src/data/quickDefaults.ts).
+const defaults = (): QuickMissionOptions => ({ ...QUICK_DEFAULTS });
 
 function load(): QuickMissionOptions {
   try {

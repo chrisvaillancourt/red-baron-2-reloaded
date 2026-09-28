@@ -2,6 +2,7 @@
 import { describe, it } from 'vitest';
 import { buildQuickMission } from '../campaign';
 import type { QuickMissionOptions } from '../core/campaignTypes';
+import { QUICK_DEFAULTS } from '../data/quickDefaults';
 import { headlessModules } from '../game/autoplay';
 import { SimCore, SIM_HZ } from '../game/simCore';
 import { DEFAULT_SETTINGS } from '../core/settings';
@@ -14,7 +15,7 @@ describe.skipIf(!SOAK.includes('quickdiag'))('quick diag', () => {
     const which = process.env.AI_Q ?? 'dvii';
     const q: QuickMissionOptions =
       which === 'default'
-        ? { type: 'ground-attack', playerAircraft: 'sopwith_camel', enemyAircraft: 'albatros_dv', enemyCount: 2, wingmen: 1, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.35 }
+        ? { ...QUICK_DEFAULTS, type: 'ground-attack' }
         : which === 'dvii'
         ? { type: 'ground-attack', playerAircraft: 'fokker_dvii', enemyAircraft: 'spad_xiii', enemyCount: 2, wingmen: 1, enemySkill: 'veteran', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.5 }
         : { type: 'ground-attack', playerAircraft: 'sopwith_camel', enemyAircraft: 'fokker_dri', enemyCount: 3, wingmen: 2, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2000, startPosition: 'random', timeOfDay: 'midday', cloudCover: 0.3 };

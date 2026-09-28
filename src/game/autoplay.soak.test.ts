@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { buildQuickMission, createCampaignService, memoryStorage } from '../campaign';
 import type { CareerDifficulty, QuickMissionOptions } from '../core/campaignTypes';
 import type { MissionDefinition, Nation } from '../core/types';
+import { QUICK_DEFAULTS } from '../data/quickDefaults';
 import { applyTacticsFlagsFromEnv } from '../ai/tactics';
 import { runAutoplay, type AutoplayReport } from './autoplay';
 
@@ -160,8 +161,8 @@ const QUICK_TYPES = (process.env.AUTOPLAY_QUICK_TYPES ?? '').split(',').filter(B
 const QUICK: (QuickMissionOptions & { label: string })[] = [];
 for (const type of ['dogfight', 'balloon-attack', 'escort', 'intercept', 'ground-attack'] as const) {
   QUICK.push(
-    // The Quick Mission screen's defaults (src/ui/screens/quick.ts): an even fight at standard skill.
-    { label: `default camel v dv ${type}`, type, playerAircraft: 'sopwith_camel', enemyAircraft: 'albatros_dv', enemyCount: 2, wingmen: 1, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.35 },
+    // The Quick Mission screen's defaults (src/data/quickDefaults.ts), flown as every type.
+    { ...QUICK_DEFAULTS, label: `default ${type}`, type },
     { label: `camel v dr1 ${type}`, type, playerAircraft: 'sopwith_camel', enemyAircraft: 'fokker_dri', enemyCount: 3, wingmen: 2, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2000, startPosition: 'random', timeOfDay: 'midday', cloudCover: 0.3 },
     { label: `dvii v spad ${type}`, type, playerAircraft: 'fokker_dvii', enemyAircraft: 'spad_xiii', enemyCount: 2, wingmen: 1, enemySkill: 'veteran', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.5 },
   );

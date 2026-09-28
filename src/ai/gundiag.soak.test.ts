@@ -12,6 +12,7 @@ import { Vector3 } from 'three';
 import { buildQuickMission } from '../campaign';
 import type { QuickMissionOptions } from '../core/campaignTypes';
 import type { AircraftEntity, AircraftId } from '../core/types';
+import { QUICK_DEFAULTS } from '../data/quickDefaults';
 import { headlessModules } from '../game/autoplay';
 import { SimCore, SIM_HZ } from '../game/simCore';
 import { DEFAULT_SETTINGS } from '../core/settings';
@@ -32,7 +33,9 @@ const base = (player: AircraftId, enemy: AircraftId, extra: Partial<QuickMission
   ...extra,
 });
 const SETS: Record<string, QuickMissionOptions[]> = {
-  default: [base('sopwith_camel', 'albatros_dv')],
+  // The Quick Mission screen's setup (src/data/quickDefaults.ts); `dv` is the pre-wave-9 default.
+  default: [{ ...QUICK_DEFAULTS }],
+  dv: [base('sopwith_camel', 'albatros_dv')],
   reverse: [base('albatros_dv', 'sopwith_camel')],
   mirror: [base('sopwith_camel', 'sopwith_camel'), base('albatros_dv', 'albatros_dv')],
   // Entry geometry by enemy skill: aces should come from above / out of the sun far more than novices.
