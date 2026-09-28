@@ -3,7 +3,7 @@ import type { MissionDefinition, MissionResult, Nation, VictoryClaim } from '../
 import { AIRCRAFT } from '../../data/aircraft';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
-import { formatDate, formatDuration, percent } from '../format';
+import { formatDate, formatDuration, percent, takesDropCap } from '../format';
 import { medalDisplay, rankDisplay, serviceName } from '../catalog';
 import { medalSvg, pilotPortrait } from '../insignia';
 import { screenShell, stamp, statBox, withHints } from '../components';
@@ -168,7 +168,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
           : null,
           ),
           report?.narrative.length
-            ? h('div', { class: 'report-side' }, h('div', { class: 'field-label' }, 'Remarks of the commanding officer'), h('div', { class: 'narrative' }, ...report.narrative.map((t) => h('p', null, t))))
+            ? h('div', { class: 'report-side' }, h('div', { class: 'field-label' }, 'Remarks of the commanding officer'), h('div', { class: 'narrative' }, ...report.narrative.map((t) => h('p', takesDropCap(t) ? null : { class: 'no-cap' }, t))))
             : null,
         ),
         h('div', { class: 'report-foot' }, continueBtn()),

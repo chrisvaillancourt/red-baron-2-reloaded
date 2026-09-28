@@ -1838,7 +1838,7 @@ select.input option {
 .narrative p + p {
   clear: left;
 }
-.narrative p:first-child::first-letter {
+.narrative p:first-child:not(.no-cap)::first-letter {
   font-family: var(--font-display);
   font-size: 2.4em;
   float: left;
