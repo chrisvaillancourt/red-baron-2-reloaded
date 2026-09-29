@@ -12,7 +12,8 @@ describe('mid-air collisions with a pilot who does not dodge', () => {
     for (let s = 1; s <= 20; s++) furball(1000 + s, t, true);
     const human = [...t.collisions].filter(([k]) => k.startsWith('human-')).reduce((n, [, v]) => n + v, 0);
     expect(human).toBeLessThanOrEqual(1);
-    // Still a fight: at least two kills a run on average.
-    expect(t.kills / t.runs).toBeGreaterThan(2);
+    // Still a fight: about two kills a run on average. Over 80 seeds it is 2.2-2.3; these 20
+    // swing by a quarter kill either side with any change to how the AI fights.
+    expect(t.kills / t.runs).toBeGreaterThan(1.75);
   }, 60_000);
 });

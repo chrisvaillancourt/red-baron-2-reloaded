@@ -36,37 +36,42 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
 - **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
 
 ## Resume here (lead handoff, 2026-09-28, session 2 of wave 9)
-- **In flight: the defence agent.** Worktree `.claude/worktrees/agent-a62654b98429b6a5d`,
-  branch `worktree-agent-a62654b98429b6a5d`, **not merged**. Its first pass (brake turn and
-  counter-attack; the full escalation ladder measured worse against the veteran
-  autoplayer) was **held**: the circling a human sees stays, and AI-to-AI collisions went
-  from 7 to 14. It was re-briefed (user's choice):
-  1. merge main into its branch
-  2. build a human-like pursuer (`AUTOPLAY_PILOT=human`: aim lag, aim error, reaction
-     delay, human fire discipline), calibrated to the user's reports (fixed-gun
-     accuracy about 8–10%; first check whether `outcome.hits` counts the Bristol
-     observer's gun)
-  3. add aim telemetry to the flight recorder
-  4. re-test defence designs (a) main, (b) brake turn, (c) full ladder, (d) a mix,
-     against both pursuers, with a visible-variety metric
-  5. report a table
-  **Next for the lead:** review it (run `code-review`), merge it, replay the user's reports
-  in `playtests/reports/` and `playtests/inbox/` against it, and re-baseline "Current
-  figures" with `tools/dev/ab.mjs`. The default fight was 26% with the first defence pass,
-  which isn't on main; main is ~30%.
-- **Then: mutual support** (3a below), on the same pursuers.
-- **In progress: bombers and gunner seats** (user said go, 2026-09-28). The lead's contracts
-  landed (D-086, `src/data/crew.ts`). Tracks A (sim), B (data, models and effects) and C (game
-  and UI) run in worktrees; track D (campaign and AI) starts once the defence track has
-  merged. The plan, the file each track owns, and the merge order are in `docs/bombers.md`
-  "Waves". **Lead at merge:** A before C (C's gunner seat needs A's `stationInputs`), then B;
-  run the fairness and career soaks against `main` for A (today's two-seaters must be within
-  noise); flip `flyable` for the bombers only after A, C and D have merged. At the defence merge, change the three `crew === 2` checks in `src/ai` to `crew >= 2` before merging B (docs/bombers.md).
+- **Merged: the defence track** (D-085, D-087; item 4 below). **Lead still owes:** replay
+  the user's reports (`playtests/reports/` and the main checkout's `playtests/inbox/`)
+  against it with `node tools/playtest/replay-report.mjs`, and re-baseline "Current figures"
+  with `tools/dev/ab.mjs` once the bomber tracks have merged (they move the same figures).
+- **In progress: bombers and gunner seats** (user said go, 2026-09-28; plan, file
+  ownership and merge order in `docs/bombers.md` "Waves"):
+  - **Contracts:** landed (D-086, `src/data/crew.ts`).
+  - **Track A (sim): merged** (D-088), after a code review and ten fixes. The career A/B
+    against main is within noise. Its `src/ai/autopilot.ts` effective-weight change is on
+    main too.
+  - **Track C (game and UI):** reviewed; it is merging main, swapping its stand-ins for
+    track A's exports, and fixing eight review items. Merge it next, then fly the two hand
+    checks in its report (the Bristol observer firing; the D.H.4 raid via `/?bombing`).
+  - **Track B (data, models and effects):** running.
+  - **Track D (campaign and AI):** starts now that the defence track has merged. It owns
+    `src/ai` and `src/campaign`.
+  - **Lead fixes on main from the track C review:** `splitSide` (an AI flying the player's
+    aircraft splits opposite ways from other AIs) and `releaseAIPilot`.
+  - **Flip `flyable`** for the bombers and the two-seaters only after A, C and D have
+    merged, and after D separates "the player may fly it" from "the AI flies it" in
+    `aircraftPool`.
+- **Then: mutual support** (item 4 below). It edits `src/ai/controller.ts`, so it waits for
+  track D.
+- **New, needs a user decision: the engine soaks up rounds meant for the pilot.** Track A
+  found that the "engine block stops a round" rule in `src/sim/combat.ts` takes the first
+  engine in the zone list, not the first along the round's path. In a single-engined tractor
+  the engine box is listed first, so a burst from astern through the cockpit into the engine
+  damages only the engine and spares the pilot. That may be part of the user's "104 hits
+  for 1 kill". Track A fixed the path order for twins only, because fixing it for everyone
+  changes the balance. **Do:** a sim agent measures the path-order fix (fairness, quick,
+  career via `ab.mjs`, plus hits-to-kill), then the lead brings the numbers to the user.
 - **Waiting on the user:** 3–5 flights at the default setup (a Camel against 2 veteran
   D.VIIs at 2,500 m) with ratings, and the LICENSE decision.
 
 ## Next up (priority order, 2026-09-28)
-1. **Do: human playtest** on `pnpm dev`, 5–10 missions (one done, see 3a). Every other
+1. **Do: human playtest** on `pnpm dev`, 5–10 missions (one done, see 4). Every other
    figure comes from the autoplayer. Each flight's report saves itself to the git-ignored
    `playtests/inbox/` (D-084); rating it and adding a note on the debrief is optional. On
    the live URL, press **Copy flight report** and paste it into the chat instead (D-083).
@@ -88,18 +93,48 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
    target, and a refuge that circles the core for 25–40 s. A wounded pilot takes 28 hits
    with refuge against 195 without (was 196 against 213; `cloudEscape.realsim.test.ts`).
    **Check** in the human playtest that a player who dives into cloud shakes a pursuer.
-3a. **From the first human playtest**
-   (`playtests/reports/2026-09-28-chris-brisfit-v-5-ace-dvii-low.json`: a Bristol and 3 novices
-   against 5 ace D.VIIs at 300 m, rated "too easy").
-   - **Doing (defence track): enemies only fly in circles with the player on their tail.**
-     Below `LOW_AGL` (350 m) `chooseDefensive` gives even an ace only flat breaks, and
-     repeated breaks at any height chain into one circle. The fix makes defence escalate by
-     airframe and skill.
-   - **Do next: mutual support.** No D.VII came to clear a mate's tail. The player took 3 hits
-     in 392 s against 5 aces, and every enemy pass went at a wingman. D-070 dropped
-     mutual-support targeting because it favoured the veteran autoplayer. This report is the
-     human evidence against that. Re-measure it after the defence track merges.
-4. **Housekeeping:**
+4. **Done (wave 9, D-085, D-087 "Human-like pursuer"): enemies with you on their tail.**
+   This answers the first playtest report ("they just fly in circles"). Every design was
+   measured against the veteran autoplayer and a new human-like pursuer (`AUTOPLAY_PILOT=
+   human`, fitted to the user's flights). Turning stays their best defence; the scissors,
+   dive and climb ladder got them shot down 2-4x as often against both pursuers. Shipped:
+   - veterans and aces above 500 m throttle back in the turn to make you overshoot, then
+     turn on you
+   - anyone above novice reverses his turn when you fall into lag behind him
+   - nobody but novices jinks with you close behind
+   With a human-like pursuer on his tail at 2,000 m a D.VII takes 432 hits instead of 645
+   (96 seeds, after the code-review fixes), and 53% of the tail-hold is out of one
+   constant-direction turn instead of 41%; at 300 m 62% against 52%, hits within 7%.
+   Fairness, quick and career surveys: all within noise. See docs/ai.md "Wave 9: defence"
+   and "Human-like pursuer".
+   - **Do next: mutual support.** In the report the player took 3 hits in 6 minutes against
+     5 aces. The aces who aren't being chased never come to clear a friend's tail. D-070
+     dropped this for the autoplayer's mirror fights; re-measure it with the report scene
+     (`playtests/reports/2026-09-28-…-low.json`), `AI_SOAK=tailhold AI_TH_SET=low` and
+     both pursuers.
+   - **Do: refit the human-like pursuer** from the next few human reports, which now carry
+     `aim` (the player's accuracy apart from the AI crew's, aim error, firing range, time to
+     fire). The current fit is one scene and two usable flights; replays and balloon runs
+     don't match it (docs/ai.md "Human-like pursuer"). Over 96 seeds it hits with 9% of its
+     fixed rounds in the fitted scene, the low edge of the human's 10-14% (the 12% fit was
+     on 24 seeds); fit on 96 seeds next time.
+   - **Defer:** low-level defence beyond the reversal. Below 500 m there is no brake turn
+     (D-060); revisit if players find low fights too easy after mutual support.
+   - **Do: collision care in the attack extension.** AI-against-enemy collisions in the
+     quick survey are 7 of 360 missions with or without the escalation, nearly all with both
+     aircraft in the *extend* phase after a pass, mostly Camel+2 v 3 Dr.I. The collision
+     soak's furballs don't reproduce it (0 in 60), so it needs a scene built from the quick
+     survey's cases first. After the review fixes the player's own collisions are 3 → 5
+     distinct in the quick survey and 2 → 5 in the career (both within noise), mostly the
+     same extension case with the player's aircraft; include those in the scene.
+   - **Check:** the SPAD XIII mirror is 33 → 25% player down with the escalation (within
+     noise, below the 30-70% band). Re-measure at the next re-baseline.
+   - **Check:** self-crashes on the way home 1 → 3 in the quick survey (360 missions). A
+     small count; re-measure at the next re-baseline.
+   - **Check:** the report's human hit D.VIIs 104 times for one kill (roughly 40-55 of those were
+     the observer's). That's D.VII damage tolerance, not AI; look at it if players say
+     D.VIIs are bullet sponges.
+5. **Housekeeping:**
    - **Decide: add a LICENSE.** The repo is public but has none, so no reuse is allowed.
      The original game's names and assets are a separate question.
    - **Do: upgrade the CI runner to Ubuntu 26.04, target 2027-01-31.** Deploys are
@@ -110,7 +145,7 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
      Then merge to `main`, run `pnpm prodcheck` against the live URL, and update D-077.
    - **Defer: split `flightModules`** (699 kB, 202 kB gzip). It's prefetched already;
      do it only if the first flight is slow on weak connections.
-5. **Skip:** e2e in CI (it needs a GPU runner; run `pnpm e2e` locally before pushing),
+6. **Skip:** e2e in CI (it needs a GPU runner; run `pnpm e2e` locally before pushing),
    and the untried AI ideas in "AI depth — wave 8" until playtests show fights feel
    shallow.
 

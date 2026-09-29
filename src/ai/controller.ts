@@ -31,7 +31,8 @@ import { getAerodrome } from '../data/aerodromes';
 import { Autopilot, type SteerCommand } from './autopilot';
 import { angularRadius, leadSolution, type LeadSolution } from './gunnery';
 import { angleBetween, clamp, DEG, forwardOf, headingOf, makeRng, upOf, rightOf, wrapPi } from './math';
-import { chooseDefensive, LOW_AGL, maneuverSteer, type Maneuver } from './maneuvers';
+import { HumanAim, type HumanPilotParams } from './humanAim';
+import { chooseDefensive, DefenceStreak, LOW_AGL, maneuverSteer, type DefenceMode, type Maneuver } from './maneuvers';
 import {
   formationOffset,
   formationSteer,
@@ -43,7 +44,7 @@ import {
   type LandingPlan,
   type LandingStage,
 } from './navigation';
-import { cloudHides, isAlive, isAttacking, likelySpottedBy, Perception, sunAngle, threatLevel } from './perception';
+import { cloudHides, forgetPerception, isAlive, isAttacking, likelySpottedBy, Perception, sunAngle, threatLevel } from './perception';
 import { makeSkillProfile, skillValue, type SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
 import { aceTactics, attackSetupPoint, outTurnedBy, TACTICS_FLAGS, tacticsProfile, type TacticsProfile } from './tactics';
@@ -78,6 +79,11 @@ export interface AIControllerOptions {
   aceId?: string;
   /** Tactical signature override (tests); defaults to the ace's own, else generic for the skill. */
   tactics?: AceTactics;
+  /**
+   * Aim and fire like a human mouse-aim player (humanAim.ts) instead of the skill's computed
+   * lead. The autoplayer's human-like pursuer; tactics are still the AI's own.
+   */
+  human?: HumanPilotParams;
 }
 
 /** Boom-and-zoom cycle against one target: set up above, dive through, zoom away. */
@@ -126,8 +132,34 @@ const REFUGE_MIN_S = 25;
 /** Largest circle flown round a refuge cloud's core, m (an overcast deck has no edge). */
 const REFUGE_ORBIT_MAX_M = 250;
 
+/** The escalation TACTICS_FLAGS selects (maneuvers.ts). */
+function defenceMode(): DefenceMode {
+  return TACTICS_FLAGS.defenceLadder ? 'ladder' : 'brake';
+}
+
 export function getAIPilot(ac: AircraftEntity): AIPilot | undefined {
   return REGISTRY.get(ac);
+}
+
+/**
+ * Forget the controller that flew `ac`, when the player takes the controls back from the AI
+ * that flew while he worked a gun (src/game). Other AIs then stop reading its frozen phase and
+ * target, and nothing reads its contacts as the player's.
+ */
+export function releaseAIPilot(ac: AircraftEntity): void {
+  REGISTRY.delete(ac);
+  forgetPerception(ac);
+}
+
+/**
+ * Which way `self` splits from `other` when they close dead ahead: +1 up its lift line, -1
+ * down. The two always split opposite ways. Every AI takes the up side against the player's
+ * aircraft, assuming the human won't dodge; when an AI flies the player's aircraft (the
+ * autoplayer, or the player at a gun) it takes the down side, so they don't both climb.
+ */
+export function splitSide(self: AircraftEntity, other: AircraftEntity): 1 | -1 {
+  if (self.controller === 'player' && other.controller !== 'player') return -1;
+  return other.controller === 'player' || self.id < other.id ? 1 : -1;
 }
 
 type AttackStage = 'approach' | 'run' | 'pullout';
@@ -200,10 +232,16 @@ export class AIPilot implements AIController {
   /** A cloud to hide in on the way home (damaged, pursued), and until when to stay in it. */
   private refuge: { pos: Vector3; radius: number; until: number; turn: number } | null = null;
   private refugeCheck = 0;
+  /** Defensive manoeuvres flown in a row against one attacker (escalation). */
+  private readonly defenceStreak = new DefenceStreak();
   private loiter: Vector3 | null = null;
   private readonly steer: SteerCommand = { dir: new Vector3(0, 0, -1), speed: Infinity };
   private readonly lead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
   private readonly trueLead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
+  /** Human-like aim (opts.human), else null. */
+  private readonly human: HumanAim | null;
+  /** The last update's time step, s. */
+  private dt = 0;
 
   constructor(ac: AircraftEntity, opts: AIControllerOptions) {
     this.entityId = ac.id;
@@ -213,6 +251,8 @@ export class AIPilot implements AIController {
     this.perception = new Perception(this.profile, ac);
     this.tactics = tacticsProfile(this.profile.t, opts.tactics ?? aceTactics(opts.aceId));
     this.rng = makeRng(opts.seed ?? ac.id * 7919 + 13);
+    // Its own stream, so the pilot's decisions draw the same numbers either way.
+    this.human = opts.human ? new HumanAim(opts.human, makeRng((opts.seed ?? ac.id * 7919 + 13) ^ 0x5eed)) : null;
     this.autopilot = new Autopilot(
       this.traits,
       this.profile.maxG,
@@ -242,6 +282,7 @@ export class AIPilot implements AIController {
   // =====================================================================
   update(self: AircraftEntity, world: WorldQuery, dt: number): void {
     this.now = world.time;
+    this.dt = dt;
     const c = self.controls;
     if (!isAlive(self)) {
       this.phase = 'out';
@@ -463,7 +504,9 @@ export class AIPilot implements AIController {
       if (this.threatSince < 0) this.threatSince = this.now;
       if (this.now - this.threatSince >= p.reactionDelay) {
         const expired = !this.maneuver || this.now >= this.maneuver.until;
-        if (this.phase !== 'defend' || expired) {
+        // A new manoeuvre when the last has run out, or at once on turning to defend. On the
+        // way home the phase stays 'rtb', so there only an expired manoeuvre is replaced.
+        if (expired || (this.phase !== 'defend' && this.phase !== 'rtb')) {
           // Aces reverse onto an attacker that has overshot.
           if (attacker && p.t > 0.6 && this.phase === 'defend' && this.overshot(self, attacker)) {
             this.maneuver = null;
@@ -473,7 +516,18 @@ export class AIPilot implements AIController {
             return;
           }
           const agl = self.state.heightAboveGround;
-          this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined, TACTICS_FLAGS.meetBounce);
+          // Count manoeuvres in a row against the same attacker: one that is still behind us
+          // after a break gets something else (TACTICS_FLAGS.escalateDefence).
+          const st = this.defenceStreak;
+          const level = st.level(attacker?.id, this.now);
+          // Not on the way home: a hurt pilot's job is to get there (or into cloud), and an
+          // escalated spiral would drop him out of the bottom of a refuge cloud.
+          const escalation =
+            TACTICS_FLAGS.escalateDefence && this.phase !== 'rtb'
+              ? { level, lastKind: st.lastKind, lastSide: st.lastSide, mode: defenceMode(), reversal: TACTICS_FLAGS.defenceReversal }
+              : undefined;
+          this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined, TACTICS_FLAGS.meetBounce, escalation);
+          st.started(attacker?.id, this.maneuver, level);
           if (this.phase !== 'rtb') this.phase = 'defend';
           this.threatId = attacker?.id ?? null;
         }
@@ -610,7 +664,7 @@ export class AIPilot implements AIController {
       if (task === 'defend' && e.spec.role !== 'fighter') s += 0.5;
       if (this.traits.style === 'energy' && e.state.position.y > self.state.position.y + 500) s -= 0.2;
       // Signatures: stragglers (nobody of his own within 800 m) and two-seaters.
-      if (this.tactics.twoSeaterBias && e.spec.geometry.crew === 2) s += this.tactics.twoSeaterBias;
+      if (this.tactics.twoSeaterBias && e.spec.geometry.crew >= 2) s += this.tactics.twoSeaterBias;
       if (this.tactics.stragglerBias && !world.aircraft.some((o) => o !== e && o.side === e.side && isAlive(o) && o.state.position.distanceToSquared(e.state.position) < 800 * 800)) s += this.tactics.stragglerBias;
       // Spread targets across the flight.
       for (const a of world.aircraft) {
@@ -874,9 +928,7 @@ export class AIPilot implements AIController {
 
     const mv = this.traits.fixedMuzzleVelocity || 800;
     if (r < 800) {
-      leadSolution(s.position, s.velocity, ts.position, ts.velocity, this.targetAcc, mv, this.leadScale, this.lead);
-      const dir = steer.dir.copy(this.lead.dir);
-      this.applyAimNoise(self, dir, dt);
+      this.aimAt(self, tgt, mv, dt, steer.dir);
       steer.aim = true;
       // Overshoot guard: lag pursuit and throttle back when closing fast at high angle-off.
       // The lag point is a fraction of the range behind the target, so the nose stays on
@@ -889,7 +941,7 @@ export class AIPilot implements AIController {
       // Range hold on the six: close to ~110 m and stay there rather than overshooting.
       if (r < 450 && angleOff < 70 * DEG) steer.speed = Math.max(tSpeed + clamp((r - 110) * 0.2, -15, 40), this.traits.stallSpeed * 1.45);
       // Rear gunner caution: approach two-seaters from below.
-      if (tgt.spec.geometry.crew === 2 && r > 250 && p.t > 0.5) steer.dir.y -= 0.06;
+      if (tgt.spec.geometry.crew >= 2 && r > 250 && p.t > 0.5) steer.dir.y -= 0.06;
     } else {
       // Intercept: aim at the predicted position.
       const vc = Math.max(20, closure);
@@ -1064,9 +1116,7 @@ export class AIPilot implements AIController {
     steer.speed = Infinity;
     steer.maxG = p.maxG;
     if (r < 800) {
-      leadSolution(s.position, s.velocity, ts.position, ts.velocity, this.targetAcc, mv, this.leadScale, this.lead);
-      steer.dir.copy(this.lead.dir);
-      this.applyAimNoise(self, steer.dir, dt);
+      this.aimAt(self, tgt, mv, dt, steer.dir);
       steer.aim = true;
     } else {
       const closure = Math.max(20, -_rel.dot(_tmp2.copy(ts.velocity).sub(s.velocity)) / Math.max(r, 1));
@@ -1099,7 +1149,7 @@ export class AIPilot implements AIController {
     const fwd = forwardOf(s.orientation, new Vector3());
     cpa.addScaledVector(fwd, -cpa.dot(fwd));
     if (cpa.length() > 4) this.breakDir.copy(cpa).normalize().negate().addScaledVector(up, 0.5).normalize();
-    else this.breakDir.copy(up).multiplyScalar(other.controller === 'player' || self.id < other.id ? 1 : -1);
+    else this.breakDir.copy(up).multiplyScalar(splitSide(self, other));
     this.breakUntil = this.now + seconds;
   }
 
@@ -1118,6 +1168,18 @@ export class AIPilot implements AIController {
     }
     this.prevTargetVel.copy(tgt.state.velocity);
     if (this.profile.t < 0.3) this.targetAcc.multiplyScalar(0.3);
+  }
+
+  /** Nose direction for a guns pass on `tgt`: the skill's lead and aim wander, or the human's aim. */
+  private aimAt(self: AircraftEntity, tgt: AircraftEntity, mv: number, dt: number, out: Vector3): void {
+    const s = self.state;
+    if (this.human) {
+      this.human.track(self, tgt.id, tgt.state.position, tgt.state.velocity, mv, this.now, dt, out);
+      return;
+    }
+    leadSolution(s.position, s.velocity, tgt.state.position, tgt.state.velocity, this.targetAcc, mv, this.leadScale, this.lead);
+    out.copy(this.lead.dir);
+    this.applyAimNoise(self, out, dt);
   }
 
   /** Ornstein-Uhlenbeck aim wander, rotating dir by small angles. */
@@ -1241,8 +1303,11 @@ export class AIPilot implements AIController {
       return true;
     }
     // Attack run: dive on the target, guns solution for a static target.
-    leadSolution(s.position, s.velocity, tp, ZERO, null, this.traits.fixedMuzzleVelocity || 800, 1, this.lead);
-    steer.dir.copy(this.lead.dir);
+    if (this.human && this.attackObjId != null) this.human.track(self, this.attackObjId, tp, ZERO, this.traits.fixedMuzzleVelocity || 800, this.now, this.dt, steer.dir);
+    else {
+      leadSolution(s.position, s.velocity, tp, ZERO, null, this.traits.fixedMuzzleVelocity || 800, 1, this.lead);
+      steer.dir.copy(this.lead.dir);
+    }
     steer.aim = r < 700;
     steer.lowLevel = true;
     steer.minAgl = 30;
@@ -1474,9 +1539,8 @@ export class AIPilot implements AIController {
       const radius = !isAlive(o) ? 40 : o.controller === 'player' || sameTarget ? 45 : 32;
       if (dcpa >= radius) continue;
       const w = (1 - dcpa / radius) * (1 - tcpa / 4.2);
-      // Dead ahead: split by id (up / down the lift line, no roll needed); the AI always
-      // takes the up side against the player.
-      if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).multiplyScalar(o.controller === 'player' || self.id < o.id ? -1 : 1);
+      // Dead ahead: split up or down the lift line, no roll needed (splitSide).
+      if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).multiplyScalar(-splitSide(self, o));
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
     }
@@ -1547,6 +1611,14 @@ export class AIPilot implements AIController {
       const trueErr = angleBetween(f, this.trueLead.dir);
       const size = angularRadius(Math.max(3, e.spec.geometry.span * 0.4), r);
       if (e === cur && trueErr < size + 0.5 * DEG && r < 400) this.stats.gunsSolutionTime += dt;
+      if (this.human) {
+        // A human shoots at the man he is tracking, where he believes the lead is.
+        if (e === cur && this.human.wantsFire(this.human.believedError(f, e.id, this.now), size, r, this.now)) {
+          want = true;
+          break;
+        }
+        continue;
+      }
       // Perceived error: the pilot's own (imperfect) solution.
       leadSolution(s.position, s.velocity, e.state.position, e.state.velocity, e === cur ? this.targetAcc : null, mv, this.leadScale, this.lead);
       const err = angleBetween(f, this.lead.dir) + Math.abs(gauss(this.rng)) * p.aimNoiseRad * 0.5;
@@ -1566,14 +1638,21 @@ export class AIPilot implements AIController {
       const o = world.getEntity(this.attackObjId);
       if (o && o.kind !== 'aircraft') {
         const r = o.position.distanceTo(s.position);
-        leadSolution(s.position, s.velocity, o.position, ZERO, null, mv, 1, this.lead);
         const size = angularRadius(o.kind === 'balloon' ? 9 : 4, r);
-        if (r < (o.kind === 'balloon' ? 480 : 450) && angleBetween(f, this.lead.dir) < size + p.fireConeRad) want = true;
+        const range = o.kind === 'balloon' ? 480 : 450;
+        if (this.human) want = this.human.wantsFire(this.human.believedError(f, o.id, this.now), size, r, this.now, range);
+        else {
+          leadSolution(s.position, s.velocity, o.position, ZERO, null, mv, 1, this.lead);
+          if (r < range && angleBetween(f, this.lead.dir) < size + p.fireConeRad) want = true;
+        }
       }
     }
     if (want && !this.lineOfFireClear(self, world, f)) want = false;
 
-    if (want) {
+    if (want && this.human) {
+      this.human.pull(this.now);
+      c.fireGuns = true;
+    } else if (want) {
       if (this.now >= this.burstUntil && this.now >= this.burstNext) {
         this.burstUntil = this.now + p.burstLength * this.tactics.burstScale * (0.7 + 0.6 * this.rng());
         this.burstNext = this.burstUntil + p.burstPause * (0.7 + 0.6 * this.rng());

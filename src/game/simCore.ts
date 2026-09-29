@@ -7,6 +7,7 @@
 import { createEventBus } from '../core/events';
 import type { AIController, CombatSystem, EventBus, WingmanCommand } from '../core/interfaces';
 import type { AircraftEntity, MissionDefinition, RealismSettings } from '../core/types';
+import type { HumanPilotParams } from '../ai/humanAim';
 import { createHeightCache } from './heightCache';
 import { MissionDirector } from './missionDirector';
 import type { GameModules } from './moduleTypes';
@@ -24,6 +25,8 @@ export interface SimCoreOptions {
   bus?: EventBus;
   /** Fly the player's aircraft with an AI controller too (autoplayer). */
   aiPlayer?: boolean;
+  /** With aiPlayer: that controller aims and fires like a human (src/ai/humanAim.ts). */
+  humanPlayer?: HumanPilotParams;
 }
 
 export class SimCore {
@@ -64,7 +67,8 @@ export class SimCore {
       members.forEach((ac, slot) => {
         if (ac.controller !== 'ai' && !(opts.aiPlayer && ac.controller === 'player')) return;
         const homeAerodromeId = flight.role === 'enemy' ? undefined : mission.homeAerodromeId;
-        this.ai.set(ac.id, modules.createAIController(ac, { skill: ac.skill, flight, slot, leaderId, realism, homeAerodromeId }));
+        const human = ac.controller === 'player' ? opts.humanPlayer : undefined;
+        this.ai.set(ac.id, modules.createAIController(ac, { skill: ac.skill, flight, slot, leaderId, realism, homeAerodromeId, ...(human ? { human } : {}) }));
       });
     }
   }

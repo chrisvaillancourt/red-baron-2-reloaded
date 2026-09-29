@@ -21,7 +21,7 @@ import type { AircraftEntity } from '../core/types';
 import type { WorldQuery } from '../core/interfaces';
 import { angleBetween, clamp, DEG, G, headingOf, WORLD_UP, wrapPi } from './math';
 import type { AircraftTraits } from './traits';
-import { stickForAlpha, tailPressureRatio } from '../sim/flightModel';
+import { effectiveWeight, stickForAlpha, tailPressureRatio } from '../sim/flightModel';
 import type { FlightCoefficients } from '../sim/coefficients';
 
 export interface SteerCommand {
@@ -194,7 +194,7 @@ export class Autopilot {
     const V = Math.max(8, s.airspeed);
     const rho = world.env.airDensityAt(s.position.y);
     const qS = 0.5 * rho * V * V * co.wingArea;
-    const dAlphaDn = co.weight / (qS * co.clAlpha);
+    const dAlphaDn = effectiveWeight(ac) / (qS * co.clAlpha);
 
     // ---- pitch --------------------------------------------------------------
     const gErr = nDes - s.gLoad;
@@ -409,7 +409,7 @@ export class Autopilot {
       let kTurn = k.turnKp * aggr;
       if (cmd.aim && this.co) {
         const qS = 0.5 * world.env.airDensityAt(s.position.y) * V * V * this.co.wingArea;
-        const dAlphaDn = this.co.weight / (qS * this.co.clAlpha);
+        const dAlphaDn = effectiveWeight(ac) / (qS * this.co.clAlpha);
         kTurn = Math.min(kTurn, (0.5 * G) / (V * dAlphaDn));
       }
       const omega = clamp(kTurn * theta + k.turnKd * Math.min(0, dTheta), 0, omegaMax);

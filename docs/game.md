@@ -18,7 +18,8 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `simCore.ts` | `SimCore`: the headless flight — world, combat, AI controllers, mission director, the fixed step, landing detection, wingman orders. Shared by `FlightSession` and the autoplayer. |
 | `heightCache.ts` | Tiled bilinear cache (32 m cells, 1 km tiles, LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
 | `autoplay.ts` | Autoplayer: `runAutoplay(mission)` flies a mission headlessly with the player's aircraft on an AI controller; `headlessModules`. |
-| `flightRecorder.ts` | `FlightRecorder`: the flight report's statistics (`MissionResult.telemetry`): hits taken, loss cause, combat time, each enemy's first pass, time compression, fps. See "Flight report". |
+| `flightRecorder.ts` | `FlightRecorder`: the flight report's statistics (`MissionResult.telemetry`): hits taken, loss cause, combat time, each enemy's first pass, gunnery (`aimStats.ts`), time compression, fps. See "Flight report". |
+| `aimStats.ts` | `AimTracker`: the player's gunnery by mount, aim error with the trigger held, firing range and time to the first shot (flight recorder and autoplayer). |
 | `lossCause.ts` | `LossCauseTracker`: what took the player out. Shared by the autoplayer and the recorder. |
 | `world.ts` | `buildWorld`: entities from a `MissionDefinition` (formation offsets, ground starts, spawn delays), `WorldQuery`. |
 | `missionDirector.ts` | Objectives, kill credit → `VictoryClaim`, radio chatter, end conditions, `MissionResult`. |
@@ -236,6 +237,13 @@ makes that possible: the analytic terrain costs ~20 us a call).
   `<player|ai>-<enemy|wingman|friendly>[ wreck] <angle between noses>deg
   <stateA>/<stateB> t=<s>`; the soak prints them per mission (`COLL …`) and a
   `COLLISIONS` histogram (head-on = noses 130–180° apart).
+- `pilot: 'human'` (or `AUTOPLAY_PILOT=human` in the environment, which every soak
+  and the replay honour) keeps the AI player's tactics but aims and fires like a
+  mouse-aim human: aim lag, reaction delay, drifting bias and jitter, long bursts
+  (`src/ai/humanAim.ts`; docs/ai.md "Human-like pursuer"). `AUTOPLAY_HUMAN=
+  aimLagS=0.4,biasDeg=1,...` overrides single parameters for calibration sweeps.
+  The report's `aim` holds the player's gunnery (`aimStats.ts`, as in the flight
+  report) and `humanPilot` says which pilot flew.
 - `passivePlayer: true` replaces the AI player with one that holds wings
   level and the nose on the horizon and never fights.
 - `src/game/autoplay.test.ts` (in `pnpm test`):
@@ -288,6 +296,17 @@ can wrap any `SimCore` (`src/game/testing/recordedFlight.ts`).
   factor.
 - **Frame rate:** a 0.5 ms histogram of unclamped frame times. `p50` is the
   median, and `p95` is the rate at the 95th-percentile frame time (the slow end).
+- **Gunnery** (`aim`, `aimStats.ts`; the autoplayer records the same): rounds and
+  hits split into the player's and the AI crew's, since `outcome.hits` also counts a
+  two-seater's AI-aimed rear gun. A gun is the player's when it belongs to the
+  station he is at (`stationInputs.station`, the pilot's by default; `bullet-hit`
+  carries `mountIndex`, and `stationForGun` in `src/data/crew.ts` maps it). While
+  his fixed guns fire, seconds by angle from the gun line to the true lead of the
+  enemy nearest it inside 400 m and 30° (1° buckets to 20°); while any of his guns
+  fire, seconds by range to the target nearest the gun line (50 m buckets to 1 km).
+  Each time an enemy inside 400 m comes within 10° of the gun line's lead, the
+  seconds to his first fixed-gun shot. This is what the autoplayer's human-like
+  pilot is fitted to (docs/ai.md "Human-like pursuer").
 
 A recorder failure is logged and the debrief goes on without telemetry.
 

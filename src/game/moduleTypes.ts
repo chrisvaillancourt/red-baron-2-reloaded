@@ -29,6 +29,7 @@ import type {
   SkillLevel,
 } from '../core/types';
 import type { Hud } from '../ui/hud/types';
+import type { HumanPilotParams } from '../ai/humanAim';
 
 export interface WorldRendererOptions {
   quality: GraphicsQuality;
@@ -45,6 +46,8 @@ export interface AIControllerOptions {
   realism: RealismSettings;
   /** Aerodrome friendly flights return to (mission.homeAerodromeId for the player's side). */
   homeAerodromeId?: string;
+  /** Aim and fire like a human (the autoplayer's human-like pilot, src/ai/humanAim.ts). */
+  human?: HumanPilotParams;
 }
 
 export interface UiHandle {

@@ -59,6 +59,11 @@ events (EventBus) fan out to renderer.handleEvent, audio.handleEvent, hud, missi
 * Bombs: `spec.bombs` is the load (included in `massLoaded`), `AircraftEntity.bombs` the
   count left per store. Release through `controls.releaseBomb` (pilot, AI) or
   `stationInputs.releaseBomb` (the player at the bombsight).
+* The sim side (docs/sim.md "Gunners", "Twins", "Bombs"): combat runs one AI gunner per crew
+  member, from `crewStations(spec)`. `setGunnerTarget(ac, id, station?)` and
+  `getStationAim(ac, station)` are the gunners' API. The game layer calls `loadBombs(ac)`
+  for a bombing sortie and fills `MissionResult` from `getBombStats(ac)`. The bombsight uses
+  `predictBombImpact(ac, env)`, and the renderer draws `combat.bombs` (`BombView`).
 
 ## Commands
 

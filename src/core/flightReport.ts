@@ -12,6 +12,7 @@ import type { CareerDifficulty, QuickMissionOptions } from './campaignTypes';
 import type { BuildInfo } from './build';
 import { DEFAULT_SETTINGS } from './settings';
 import type {
+  AimTelemetry,
   AircraftOutcome,
   ControlSettings,
   EnemyEntryTelemetry,
@@ -78,6 +79,12 @@ export interface FlightReport {
   enemies: EnemyEntryTelemetry[];
   timeCompression: FlightTelemetry['timeCompression'] | null;
   performance: FlightTelemetry['fps'];
+  /**
+   * The player's gunnery: rounds and hits by mount (`outcome.hits` includes a two-seater's
+   * AI-aimed rear gun), the aim-error histogram with the trigger held, and the time from a
+   * target entering the gun line's 10-degree cone to the first shot. Absent from older reports.
+   */
+  aim?: AimTelemetry | null;
 }
 
 export interface FlightReportInput {
@@ -140,6 +147,7 @@ export function buildFlightReport(i: FlightReportInput): FlightReport {
     enemies: t ? clone(t.enemies) : [],
     timeCompression: t ? { ...t.timeCompression } : null,
     performance: t?.fps ? { ...t.fps } : null,
+    aim: t?.aim ? clone(t.aim) : null,
   };
 }
 

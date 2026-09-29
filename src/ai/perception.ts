@@ -134,6 +134,11 @@ export function perceptionOf(ac: AircraftEntity): Perception | undefined {
   return REGISTRY.get(ac);
 }
 
+/** Drop `ac`'s perception when no AI flies it any more (`releaseAIPilot`). */
+export function forgetPerception(ac: AircraftEntity): void {
+  REGISTRY.delete(ac);
+}
+
 export class Perception {
   /** Enemy id -> what we know of it. */
   readonly contacts = new Map<number, Contact>();
