@@ -6,7 +6,8 @@ src/
   data/        Static historical data: aircraft, aerodromes (lead), squadrons/aces/medals/ranks (campaign),
                geography/front lines (world).
   sim/         Flight model (6-DOF rigid body), weapons, ballistics, damage, collisions, flak. Pure TS.
-  ai/          AI pilots: dogfighting, formation, escort, two-seater gunners, wingman orders. Pure TS.
+  ai/          AI pilots: dogfighting, formation, escort, wingman orders. Pure TS. (The AI
+               gunners' aiming and fire live in sim/combat.ts; ai/ picks their targets.)
   world/       Terrain height field, land-use, rivers/towns/forests, front lines by date. Pure TS
                (no scene code) so sim/AI/campaign can query it in Node tests.
   render/      Three.js: WorldRenderer (terrain streaming, sky, clouds, water, trenches, towns,
@@ -44,6 +45,20 @@ events (EventBus) fan out to renderer.handleEvent, audio.handleEvent, hud, missi
 * `src/core/interfaces.ts` — module interfaces (SimModule, CombatSystem, AIController, WorldRenderer,
   AircraftVisual, AudioEngine, CampaignService, FlightLauncher, GameServices).
 * `src/core/campaignTypes.ts` — career data (CareerPilot, SquadronInfo, DebriefReport, QuickMissionOptions).
+
+### Crew stations and bombs (D-086, docs/bombers.md)
+
+* Every aircraft has crew stations, pilot first: where a crew member works from, the guns he
+  fires (`spec.guns` indices) and their fields of fire (`FireArc` boxes in the body frame).
+  Read them only through `crewStations(spec)` (`src/data/crew.ts`), which derives the pilot and
+  one observer for types that don't list their own. `inFireArcs` tests a direction.
+* Stations that share a `crewIndex` are one man, who fires one of them at a time.
+* The player's aircraft keeps `controller: 'player'` wherever he sits. At a gunner station
+  the game layer sets `AircraftEntity.stationInputs` (aim, fire, bomb release) and lets an AI
+  controller fly; those inputs override the AI gunner at that station only.
+* Bombs: `spec.bombs` is the load (included in `massLoaded`), `AircraftEntity.bombs` the
+  count left per store. Release through `controls.releaseBomb` (pilot, AI) or
+  `stationInputs.releaseBomb` (the player at the bombsight).
 
 ## Commands
 

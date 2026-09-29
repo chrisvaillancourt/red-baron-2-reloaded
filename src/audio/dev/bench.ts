@@ -100,7 +100,7 @@ check('player', 'on fire', 'fire');
 check('player', 'cockpit view', 'cockpit');
 
 // --- Guns -------------------------------------------------------------------
-for (const g of ['vickers', 'spandau', 'lewis', 'parabellum'] as GunType[]) {
+for (const g of ['vickers', 'spandau', 'lewis', 'parabellum', 'hotchkiss'] as GunType[]) {
   const b = button('guns', g, () => {});
   let timer: ReturnType<typeof setInterval> | null = null;
   const stop = () => { if (timer) clearInterval(timer); timer = null; b.classList.remove('active'); };

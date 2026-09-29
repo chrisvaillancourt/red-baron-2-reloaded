@@ -140,6 +140,8 @@ const GUN_PROFILES: Record<GunType, GunProfile> = {
   // Air-cooled Lewis: lighter bark with a ringing aluminium shroud.
   lewis: { crackFreq: 2400, crackQ: 1.3, crackDecay: 0.014, bodyFrom: 210, bodyTo: 85, bodyDecay: 0.035, bodyGain: 0.7, clickFreq: 5000, clickDelay: 0.012, clickGain: 0.3, ring: 880, ringDecay: 0.04, length: 0.16 },
   // Parabellum: fast, bright rattle.
+  // Hotchkiss (Voisin III): air-cooled with finned barrel, a slow, dry, heavy knock.
+  hotchkiss: { crackFreq: 1500, crackQ: 1.1, crackDecay: 0.02, bodyFrom: 165, bodyTo: 60, bodyDecay: 0.055, bodyGain: 0.95, clickFreq: 3800, clickDelay: 0.024, clickGain: 0.35, ring: 0, ringDecay: 0, length: 0.2 },
   parabellum: { crackFreq: 2800, crackQ: 1.4, crackDecay: 0.012, bodyFrom: 230, bodyTo: 95, bodyDecay: 0.03, bodyGain: 0.65, clickFreq: 5300, clickDelay: 0.01, clickGain: 0.35, ring: 0, ringDecay: 0, length: 0.14 },
 };
 

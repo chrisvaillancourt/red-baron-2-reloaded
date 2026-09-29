@@ -11,6 +11,7 @@ export const MISSION_TYPE_LABEL: Record<MissionType, string> = {
   'airfield-attack': 'Aerodrome Attack',
   'free-hunt': 'Free Hunt',
   dogfight: 'Dogfight',
+  bombing: 'Bombing Raid',
 };
 
 export const TIME_LABEL: Record<TimeOfDay, string> = {

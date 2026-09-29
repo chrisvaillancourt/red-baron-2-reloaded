@@ -18,6 +18,7 @@ import type {
   AircraftSpec,
   AircraftId,
   BalloonEntity,
+  CrewStationId,
   Entity,
   FlightEnvironment,
   GameEvent,
@@ -174,6 +175,14 @@ export interface AircraftVisual {
   readonly object: Object3D;
   /** Pilot eye point in body frame (metres), for the cockpit camera. */
   readonly eyePoint: Vector3;
+  /**
+   * Eye points of the other crew stations (body frame), from the model's `EyePoint_<id>`
+   * empties. A station missing here falls back to `CrewStation.eye`, then to the default
+   * in src/data/crew.ts.
+   */
+  readonly stationEyes?: ReadonlyMap<CrewStationId, Vector3>;
+  /** Swing a station's gun ring and barrels to point along `aimBody` (body-frame unit vector). */
+  setStationAim?(station: CrewStationId, aimBody: Vector3): void;
   /** Sync transform, propeller spin, control surfaces, damage decals, smoke emitters. */
   update(ac: AircraftEntity, dt: number): void;
   /** When true: show the 3D cockpit + instruments, hide the pilot head/parts that clip the camera. */

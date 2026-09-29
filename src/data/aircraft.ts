@@ -13,6 +13,8 @@ export const GUNS: Record<GunType, GunSpec> = {
   spandau: { type: 'spandau', name: 'LMG 08/15 "Spandau"', rpmSynchronized: 450, rpmFree: 550, muzzleVelocity: 870, bulletMass: 0.0128, jamChancePerRound: 0.0006, drumChangeTime: 0 },
   parabellum: { type: 'parabellum', name: 'Parabellum MG 14', rpmSynchronized: 600, rpmFree: 650, muzzleVelocity: 870, bulletMass: 0.0128, jamChancePerRound: 0.0005, drumChangeTime: 4 },
   vickers: { type: 'vickers', name: 'Vickers .303', rpmSynchronized: 450, rpmFree: 500, muzzleVelocity: 745, bulletMass: 0.0113, jamChancePerRound: 0.0007, drumChangeTime: 0 },
+  // Strip-fed (25 rounds); drumChangeTime is the strip change.
+  hotchkiss: { type: 'hotchkiss', name: 'Hotchkiss M1914', rpmSynchronized: 450, rpmFree: 450, muzzleVelocity: 725, bulletMass: 0.0128, jamChancePerRound: 0.0009, drumChangeTime: 3 },
   lewis: { type: 'lewis', name: 'Lewis .303', rpmSynchronized: 550, rpmFree: 550, muzzleVelocity: 745, bulletMass: 0.0113, jamChancePerRound: 0.0004, drumChangeTime: 5 },
 };
 
@@ -247,6 +249,8 @@ const SPECS: AircraftSpec[] = [
     geometry: geom({ layout: 'biplane', span: 12.92, lowerSpan: 12.92, length: 9.35, chord: 1.7, gap: 1.75, stagger: 0.3, height: 3.35, crew: 2, tailShape: 'squared', fuselageWidth: 0.95, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1575, massEmpty: 1083, wingArea: 40.32, enginePowerHp: 375, engineType: 'inline', engineName: 'Rolls-Royce Eagle VIII', maxSpeedKmh: 230, maxSpeedAltM: 1000, ceilingM: 6700, climbTo3000mMin: 11, enduranceHours: 3.75, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.85, fuelCapacityL: 300 }),
     guns: [sync('vickers', 0), rearGun('lewis')],
+    // Four 112 lb bombs under the wings (up to 460 lb). The charge figure is approximate.
+    bombs: [{ name: '112 lb R.L. HE', massKg: 51, explosiveKg: 20, count: 4 }],
   },
   {
     id: 'be2c', name: 'Royal Aircraft Factory B.E.2c', shortName: 'B.E.2c', manufacturer: 'Royal Aircraft Factory', nation: 'britain', alsoUsedBy: [],

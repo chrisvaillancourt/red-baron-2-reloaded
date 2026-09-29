@@ -444,7 +444,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     }
 
     // Rear gunner.
-    if (ac.spec.geometry.crew === 2 && !m.gunnerKilled && ac.damage.zones.gunner < 1) updateGunner(ac, world, dt, m);
+    if (ac.spec.geometry.crew >= 2 && !m.gunnerKilled && ac.damage.zones.gunner < 1) updateGunner(ac, world, dt, m);
   }
 
   function updateGunner(ac: AircraftEntity, world: WorldQuery, dt: number, m: CombatMemory) {

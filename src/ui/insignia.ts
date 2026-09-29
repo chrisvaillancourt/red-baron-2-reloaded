@@ -211,7 +211,7 @@ export function aircraftProfile(spec: AircraftSpec, opts: ProfileOptions = {}): 
 
   // Coordinate system: x from nose (0) to tail (L); y up. Draw with nose at right: X = L - x.
   const depth = g.fuselageWidth * 1.15;
-  const groundY = -1.25 - (g.crew === 2 ? 0.15 : 0);
+  const groundY = -1.25 - (g.crew >= 2 ? 0.15 : 0);
   const fusBottom = 0;
   const fusTop = depth;
   const X = (x: number) => L - x;
@@ -220,7 +220,7 @@ export function aircraftProfile(spec: AircraftSpec, opts: ProfileOptions = {}): 
 
   const parts: string[] = [];
   const noseLen = spec.performance.engineType === 'rotary' ? 0.75 : 1.1;
-  const cockpitX = g.pusher ? 1.1 : noseLen + 1.25 + (g.crew === 2 ? 0 : 0.2);
+  const cockpitX = g.pusher ? 1.1 : noseLen + 1.25 + (g.crew >= 2 ? 0 : 0.2);
 
   // --- Fuselage / nacelle
   if (g.pusher) {
@@ -244,7 +244,7 @@ export function aircraftProfile(spec: AircraftSpec, opts: ProfileOptions = {}): 
     // cockpit cut-out and pilot head
     parts.push(`<path d="M${pt(cockpitX - 0.3, fusTop)} Q${pt(cockpitX, fusTop - 0.12)} ${pt(cockpitX + 0.35, fusTop * 0.97)}" stroke="${ink}" stroke-width="${sw}" fill="#3a2d1e"/>`);
     parts.push(`<circle cx="${X(cockpitX + 0.05)}" cy="${Y(fusTop + 0.16)}" r="0.16" fill="#4a3826" stroke="${ink}" stroke-width="${sw * 0.7}"/>`);
-    if (g.crew === 2) {
+    if (g.crew >= 2) {
       parts.push(`<circle cx="${X(cockpitX + 1.05)}" cy="${Y(fusTop * 0.93 + 0.14)}" r="0.15" fill="#4a3826" stroke="${ink}" stroke-width="${sw * 0.7}"/>`);
       parts.push(`<path d="M${pt(cockpitX + 1.05, fusTop + 0.2)} L${pt(cockpitX + 0.55, fusTop + 0.42)}" stroke="${ink}" stroke-width="${sw * 1.4}"/>`);
     }

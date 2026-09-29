@@ -55,6 +55,9 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   Any `cd` is refused, including in a subshell `( … )`, and so are `for`/`while`/`until`
   loops and `<(…)` process substitution. Write a small Node script to the scratchpad instead. To run something from another
   directory, set `cwd` in `spawnSync` from a script.
+  The repo's own path contains "github", which can trip the sandbox's git guard even for
+  commands with no git in them (FRICTION F-24). If a plain `jq` or `grep` on such a path is
+  refused, do it from a Node script.
 - **A/B with `node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`) and
   wait on background outputs with `node tools/dev/waitfor.mjs <file> <regex> …`. Don't
   hand-launch paired soaks or write sleep loops. Quote a difference only when the tool says

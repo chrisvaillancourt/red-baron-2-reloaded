@@ -37,7 +37,7 @@ export type WingLayout = 'monoplane' | 'parasol' | 'biplane' | 'sesquiplane' | '
 export type EngineType = 'rotary' | 'inline' | 'twin-inline';
 export type AircraftRole = 'fighter' | 'two-seater' | 'bomber';
 
-export type GunType = 'spandau' | 'parabellum' | 'vickers' | 'lewis';
+export type GunType = 'spandau' | 'parabellum' | 'vickers' | 'lewis' | 'hotchkiss';
 
 export interface GunMount {
   type: GunType;
@@ -45,9 +45,9 @@ export interface GunMount {
   position: [number, number, number];
   /** 'fixed' fires along the body -Z axis (plus convergence); 'flexible' is an AI/rear gunner on a ring. */
   mount: 'fixed-synchronized' | 'fixed-overwing' | 'fixed-pusher' | 'flexible';
-  /** Rounds per belt (fixed Vickers/Spandau) or per drum (Lewis). */
+  /** Rounds per belt (fixed Vickers/Spandau), per drum (Lewis, Parabellum) or per strip (Hotchkiss). */
   rounds: number;
-  /** Spare drums carried (Lewis only; 0 for belt-fed guns). */
+  /** Spare drums or strips carried (0 for belt-fed guns). */
   spareDrums: number;
 }
 
@@ -82,16 +82,31 @@ export interface AircraftGeometry {
   fuselageWidth: number; // max width, m
   fuselageShape: 'slab' | 'round' | 'plywood-oval';
   tailShape: 'comma' | 'rounded' | 'squared' | 'triangular';
-  crew: 1 | 2;
+  /**
+   * Crew carried: 1 for a single-seater, 2 for a two-seater, 3 or 4 for the heavy bombers
+   * (Gotha G.V 3, Handley Page O/400 4). Test `crew >= 2` for "has a gunner", not `=== 2`.
+   */
+  crew: 1 | 2 | 3 | 4;
   wheelTrack: number;
+  /**
+   * Twin-engine types: how far each engine nacelle sits from the centre line, m. Absent or 0
+   * means the engine is on the centre line. The flight model, hit boxes and models share it.
+   */
+  nacelleOffsetX?: number;
 }
 
 export interface AircraftPerformance {
-  /** Loaded (combat) mass, kg. */
+  /**
+   * Loaded (combat) mass, kg, including the full bomb load in `AircraftSpec.bombs`. The flight
+   * model subtracts the mass of bombs released or not carried (`AircraftEntity.bombs`).
+   */
   massLoaded: number;
   massEmpty: number;
   wingArea: number; // m^2 total
+  /** Total for all engines (a Gotha G.V's two 260 hp Mercedes are 520). */
   enginePowerHp: number;
+  /** Engines fitted; absent means 1. Twins split `enginePowerHp` evenly between them. */
+  engineCount?: number;
   engineType: EngineType;
   engineName: string;
   /** Historical figures used to tune/validate the flight model. */
@@ -125,6 +140,68 @@ export interface AircraftSpec {
   geometry: AircraftGeometry;
   performance: AircraftPerformance;
   guns: GunMount[];
+  /**
+   * Every crew position, pilot first. Absent: `crewStations(spec)` in src/data/crew.ts
+   * derives the pilot and, for a type with a flexible gun, one observer. Always read the
+   * stations through that helper, never this field directly.
+   */
+  crewStations?: CrewStation[];
+  /** The bomb load for a bombing sortie. Absent means no bomb racks. */
+  bombs?: BombStore[];
+}
+
+// ---------------------------------------------------------------------------
+// Crew stations and bombs (docs/bombers.md)
+// ---------------------------------------------------------------------------
+
+export type CrewStationId = 'pilot' | 'observer' | 'nose' | 'dorsal' | 'ventral' | 'rear';
+
+/**
+ * A box of directions in the body frame. Azimuth 0 is dead ahead, +90 right, -90 left and
+ * ±180 astern. The box runs clockwise from `azimuthDeg[0]` to `azimuthDeg[1]` and may wrap
+ * through astern ([150, -150] is a 60° cone over the tail). Elevation +90 is straight up,
+ * relative to the aircraft's own wings, not the horizon.
+ */
+export interface FireArc {
+  azimuthDeg: [number, number];
+  elevationDeg: [number, number];
+}
+
+/** A place a crew member works from: the pilot's seat, a gun ring, the ventral tunnel. */
+export interface CrewStation {
+  id: CrewStationId;
+  /** For the HUD and the Quick Mission seat picker: "Pilot", "Rear gunner", "Nose gunner". */
+  label: string;
+  /**
+   * The crew member who works this station, 0 for the pilot. One man can move between
+   * stations (the Gotha's rear gunner works the dorsal gun and the ventral tunnel gun), so
+   * stations that share an index fire one at a time, and his wound silences all of them.
+   */
+  crewIndex: number;
+  /** Indices into `spec.guns` fired from this station. */
+  guns: number[];
+  /**
+   * Where this station's flexible guns can bear: a direction is in the field of fire when
+   * it lies inside any arc. Empty for the pilot, whose fixed guns fire along the nose.
+   */
+  arcs: FireArc[];
+  /**
+   * Eye point, body frame, m. Absent: the model's EyePoint for the pilot, and for a gunner
+   * 0.45 m above and 0.35 m behind his first gun's mount.
+   */
+  eye?: [number, number, number];
+  /** Aims and releases the bombs (the D.H.4's observer, the Gotha's nose gunner). */
+  bombAimer?: boolean;
+}
+
+/** One kind of bomb in a load, e.g. six 50 kg P.u.W. bombs. */
+export interface BombStore {
+  /** Period name: "P.u.W. 50 kg", "112 lb R.L. HE". */
+  name: string;
+  massKg: number;
+  /** Charge mass, kg; sets the blast radius. */
+  explosiveKg: number;
+  count: number;
 }
 
 export type AircraftId =
@@ -198,6 +275,27 @@ export interface ControlInputs {
   fireGuns: boolean;
   /** Pressed to hammer at a jammed gun. Edge-triggered by the input layer. */
   clearJam: boolean;
+  /**
+   * Release the next bomb (edge-triggered): the pilot's release, or an AI bomb aimer's.
+   * The player working the bombsight uses `StationInputs.releaseBomb` instead.
+   */
+  releaseBomb?: boolean;
+}
+
+/**
+ * The player working a crew station other than the pilot's. The AI flies the aircraft
+ * (writing `controls` as usual); these inputs drive the guns, and for a bomb aimer the
+ * release, at `station`. Station inputs override the AI gunner at that station only.
+ */
+export interface StationInputs {
+  station: CrewStationId;
+  /** World-frame unit vector the player aims the station's guns along. */
+  aim: Vector3;
+  fire: boolean;
+  /** Edge-triggered, for a bomb-aimer station. */
+  releaseBomb: boolean;
+  /** Edge-triggered, like `ControlInputs.clearJam`. */
+  clearJam: boolean;
 }
 
 export interface FlightState {
@@ -256,6 +354,13 @@ export interface DamageState {
   destroyed: boolean;
   /** Entity id of the last aircraft that damaged us (for kill credit). */
   lastAttackerId: number | null;
+  /**
+   * Wounds per crew member (`CrewStation.crewIndex`), 0..1, 1 killed. Index 0 mirrors the
+   * pilot. Absent: the `gunner` zone stands for the whole rear crew, as for the two-seaters.
+   */
+  crewWounds?: number[];
+  /** Damage per engine, 0..1, for multi-engine types. The `engine` zone holds the worst. */
+  engines?: number[];
 }
 
 export type PilotController = 'player' | 'ai' | 'none';
@@ -281,6 +386,13 @@ export interface AircraftEntity {
   damage: DamageState;
   /** Mission time the aircraft was removed from play (crashed/landed/etc). */
   outcome: AircraftOutcome | null;
+  /** Bombs still aboard, one count per `spec.bombs` store. Absent: the sortie carries none. */
+  bombs?: number[];
+  /**
+   * Set by the game layer only while the player works a crew station other than the
+   * pilot's. The player's aircraft keeps `controller: 'player'`; the station is here.
+   */
+  stationInputs?: StationInputs;
 }
 
 export type AircraftOutcome =
@@ -368,13 +480,16 @@ export type MissionType =
   | 'ground-attack' // strafe trenches/transport
   | 'airfield-attack'
   | 'free-hunt' // Jagd: look for trouble
-  | 'dogfight'; // quick-combat / instant action
+  | 'dogfight' // quick-combat / instant action
+  | 'bombing'; // fly a bomber to a target and bomb it
 
 export type WaypointAction =
   | 'fly'
   | 'patrol' // orbit here for `duration` s engaging enemies
   | 'attack-ground'
   | 'attack-balloon'
+  /** Bomb run: fly straight and level over `targetIds` and release. */
+  | 'bomb'
   | 'rendezvous'
   | 'land';
 
@@ -400,6 +515,8 @@ export interface MissionFlightMember {
   livery: Livery;
   /** True for exactly one member in the player's flight. */
   isPlayer?: boolean;
+  /** The player's crew station at the start (player member only); absent means the pilot's seat. */
+  station?: CrewStationId;
 }
 
 export interface MissionFlight {
@@ -526,6 +643,10 @@ export interface MissionResult {
   acesDown?: { aceId: string; side: Side; fate: PilotFate }[];
   /** What the flight recorder saw (src/game/flightRecorder.ts), for the flight report. Additive. */
   telemetry?: FlightTelemetry;
+  /** Bombs the player's aircraft released, whoever aimed them. */
+  bombsDropped?: number;
+  /** Of those, bombs that damaged a ground target. */
+  bombHits?: number;
 }
 
 /** An enemy aircraft in the flight report, with the geometry of its first firing pass. */
@@ -635,6 +756,10 @@ export type GameEvent =
   | { type: 'balloon-destroyed'; balloonId: number; killerId: number | null; position: Vector3 }
   | { type: 'ground-destroyed'; targetId: number; killerId: number | null; position: Vector3 }
   | { type: 'explosion'; position: Vector3; size: number }
+  /** `storeIndex` is into the aircraft's `spec.bombs`. */
+  | { type: 'bomb-released'; aircraftId: number; storeIndex: number; position: Vector3 }
+  /** A bomb burst on the ground; `damagedTargetIds` are the ground targets its blast reached. */
+  | { type: 'bomb-exploded'; shooterId: number; position: Vector3; explosiveKg: number; damagedTargetIds: number[] }
   | { type: 'flak-burst'; position: Vector3 }
   | { type: 'collision'; aId: number; bId: number; position: Vector3 }
   | { type: 'objective-complete'; objectiveId: string }
