@@ -171,6 +171,26 @@ describe('pilot creation & persistence', () => {
     expect(createCampaignService(storage).listPilots()).toHaveLength(1);
   });
 
+  it('assigns the same squadron to the same new pilot every time (seeded careers repeat: FRICTION F-33)', () => {
+    const s = newService();
+    for (const [nation, startDate] of [['britain', '1917-09-15'], ['germany', '1918-04-01'], ['france', '1917-08-01']] as const) {
+      const opts = { firstName: 'Auto', lastName: 'Pilot7', nation, startDate, difficulty: 'pilot' } as const;
+      const first = s.createPilot(opts).squadronId;
+      for (let i = 0; i < 12; i++) expect(s.createPilot(opts).squadronId, nation).toBe(first);
+      // Different pilots still spread across the squadrons.
+      const spread = new Set(Array.from({ length: 30 }, (_, i) => s.createPilot({ ...opts, lastName: `Pilot${i}` }).squadronId));
+      expect(spread.size, nation).toBeGreaterThan(1);
+    }
+  });
+
+  it('varies the posting of the same pilot with a posting seed, and repeats it with the same seed', () => {
+    const s = newService();
+    const opts = { firstName: 'John', lastName: 'Smith', nation: 'britain', startDate: '1917-09-15', difficulty: 'pilot' } as const;
+    const postings = new Set(Array.from({ length: 30 }, (_, i) => s.createPilot({ ...opts, postingSeed: i }).squadronId));
+    expect(postings.size).toBeGreaterThan(1);
+    for (const seed of [3, 17]) expect(s.createPilot({ ...opts, postingSeed: seed }).squadronId).toBe(s.createPilot({ ...opts, postingSeed: seed }).squadronId);
+  });
+
   it('moves the start date forward when a nation has no squadrons yet', () => {
     const s = newService();
     const p = s.createPilot({ firstName: 'Tom', lastName: 'Hitchcock', nation: 'usa', startDate: '1915-08-01', difficulty: 'pilot' });

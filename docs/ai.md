@@ -17,7 +17,7 @@ const ai = createAIController(ac, {
   formationSlot,                // 1-based vic slot; odd = right, even = left
   realism: settings.realism,    // enemySkillBias shifts enemy skill
   homeAerodromeId: mission.homeAerodromeId, // friendly flights; enemies fall back to nearest field
-  setGunnerTarget: combat.setGunnerTarget,  // src/sim rear-gun hook: (ac, targetId | null) => void
+  setGunnerTarget: combat.setGunnerTarget,  // src/sim gunner hook: (ac, targetId | null, station?) => void
   // controlLaw: 'sim' (default: inverts src/sim's stick laws) | 'generic' (model-agnostic PID)
 });
 // Create the controller after the entity (createAircraftEntity): an aircraft parked
@@ -102,7 +102,7 @@ their leader is doing).
    point, or up the lift line when dead ahead (DECISIONS.md "Collision avoidance:
    early committed head-on break").
 3. **Mission** (`navigation.ts`). Waypoints (`fly`, `patrol`, `rendezvous`,
-   `attack-balloon`, `attack-ground`, `land`), vic formation keeping, escort
+   `attack-balloon`, `attack-ground`, `bomb` (see "Bombers"), `land`), vic formation keeping, escort
    station 300 m above and behind the escorted flight, balloon and strafing
    runs, RTB (damage, fuel, ammo, orders, route complete) and a full landing
    approach (approach point, 5° final, flare, rollout). With no route and no
@@ -132,6 +132,147 @@ their leader is doing).
 Skill is continuous (`skill.ts`): novice → ace changes spotting, reaction
 delay, aim noise, lead error, fire range and cone, burst discipline, g
 tolerance, target fixation and check-six frequency.
+
+## Bombers (`bombing.ts`, bombers wave 1)
+
+A flight tasked `bomb` is a bomber formation. The game layer loads its bombs (`loadBombs`,
+src/sim); the AI only releases them, through the held `controls.releaseBomb` (one bomb per
+false-to-true change; it sets the flag for one AI tick and clears it the next).
+
+- **The bomb run** (`'bomb'` waypoint, phase `bomb-run`). The leader, or a bomber alone,
+  approaches at the waypoint's height and aims at one of the live enemy ground targets within
+  1.5 km of it (flak only when nothing else is left). He picks the target whose stick puts
+  the most of his formation's tracks within blast reach of a target: each bomber that
+  releases on him passes a fixed distance to his side, so the pick is scored over those
+  offsets, ties going to the least correction (`chooseAimTarget`). From 5 km out
+  (`RUN_START_M`) he flies straight and level: heading corrections of at most about 11°, at
+  most 1.4 g, holding the height, to lay the predicted impact (`predictBombImpact`) onto the
+  target.
+- **Release.** He starts his stick when the predicted impact is half a stick short of the
+  target, so the stick straddles it: all his bombs, 0.25 s apart (rounded up to whole AI
+  ticks, about 13 m apart at a D.H.4 formation's speed). More than 35 m off to one side, he
+  goes round (6 km back along the run, beyond its start, in banked turns) for another run; on
+  the third he releases anyway. The run starts only with the target within 30° of his track:
+  further off he turns in first, and closer than 2.5 km facing away (a wingman who takes over
+  the lead near the target, say) he goes out the way he is heading and comes round.
+- **The formation releases on its leader**, as crews did. A bomber keeping station sees his
+  leader's first bomb go (`getBombStats(leader).dropped`, so a human leader works the same
+  way), notes where it falls, and starts his own stick when his own predicted impact comes
+  abreast of it (at most 4 s later). His speed and his place in the vic change how far his
+  bombs are thrown, so he times it on his own sight rather than a fixed delay. The quick
+  raid's targets are laid out 45-50 m apart across the run for this reason.
+  While he waits for it and drops his stick he flies straight and level on the leader's
+  heading instead of sliding into his slot: a bomb keeps the aircraft's sideways drift through
+  its 20-odd second fall, so 10 m/s sideways puts it 200 m off. After his own stick the leader
+  holds the run (at most 8 s, `RUN_HOLD_S`) while the men releasing on him still have bombs,
+  or his own stick is still going with the targets gone under it.
+- **Straight and level, and together.** A bomber in formation (a leader or a flight-mate
+  within 600 m, not going home alone) holds it under attack: no defensive manoeuvres, and a
+  hurt man ('wounded', 'airframe damaged') keeps his place instead of going home alone. His
+  gunner does the fighting. Nobody jinks on the run. A bomber alone defends himself like a
+  two-seater, and a failing engine, fire or fuel still sends a man home
+  (`TACTICS_FLAGS.bomberFormation`, on).
+- **Leading.** A formation's leader flies at 0.72 of his top speed (a lone machine cruises at
+  0.8), so the formation can keep station, on the run and on the way home. Wingmen keep his
+  place on the route, so if he falls the next man leads on from there. Nobody follows a
+  leader who turns for home hurt before bombing (his bombs still aboard): the next man takes
+  them on to the target and home by their route, and they don't take him back after bombing.
+- **The player at the bombsight.** While he works the bomb-aimer station
+  (`stationInputs.station`) the AI flying his aircraft flies him the run but releases
+  nothing: his `stationInputs.releaseBomb` does, and his wingmen release on his bombs.
+- **Nothing to drop** (no bombs aboard, or the bomb aimer dead: the sim refuses a release
+  without him): the `'bomb'` waypoint is flown over like a `'fly'` one.
+- **Home.** After the run the formation flies on over the target, to the next waypoint and
+  home (the quick raid's rally point, then its aerodrome).
+- **Gunners, one per crew member.** On a type with one gunner (every two-seater, the D.H.4)
+  the AI keeps the old choice: the nearest enemy within 650 m in the 115° cone his gun
+  faces, one attacking us counting at half the range, set with `setGunnerTarget(ac, id)`.
+  On a type with several (explicit `crewStations`: the Gotha, the O/400) each live man
+  (`crewWounds`) takes the enemy his own stations bear on (`inFireArcs`), nearest first,
+  one attacking us at half the range and one attacking a formation-mate within 400 m at 0.7
+  of it. It is set with `setGunnerTarget(ac, id, station)` at the station that bears. With
+  nothing in his arcs, or dead, his override is cleared and the sim's own choice stands
+  (docs/sim.md "Gunners"). `stationGunners.test.ts` checks it on the sim's twin fixture.
+
+### Fighters against bombers
+
+- **Interceptors go for the bombers.** A `defend`-tasked fighter (the quick raid's
+  interceptors, career defenders) scores a bomber (`role: 'bomber'`, or bombs aboard) +0.9
+  instead of the +0.5 any other two-seater gets, and a bombers' escort fighter that isn't
+  attacking him or his flight −0.3 (escorts of recon two-seaters keep their old score). An escort that comes at him is fought as before (+0.4), and
+  defence (D-085) is unchanged.
+- **From the blind spot** (`steerBlindSpot`, `TACTICS_FLAGS.blindSpot`, on). A pilot above
+  novice attacking a bomber from 250 m to 1.8 km first works round to where the fewest of
+  its live gunners can bear (`blindSpot`): candidate directions below and behind, below the
+  beam and ahead and below, tested against the station arcs (`inFireArcs`, dead men left
+  out). Of the least covered he takes the one nearest his present bearing, with ahead of the
+  beam costing 150° more, so below and behind wins for every type whose tail it leaves open
+  (every two-seater and the D.H.4). He flies to a point 300-600 m out along it, never below
+  the ground margin, and once inside a 25° cone of it (or inside 250 m) the ordinary pursuit
+  takes over.
+- **Escorts stay with the bombers.** A bombers' escort (`escort` task on a `bomb` flight)
+  goes only for a scout coming at a bomber (`isAttacking` within 1.5 km) or at itself
+  within 700 m, and keeps its target only while he stays within 1.2 km of a bomber. It lets a
+  shadower or a runner go and returns to its station 300 m above and 250 m behind the
+  leading bomber. Escorts of recon two-seaters keep the older rule (anything within 1.8 km of
+  them).
+
+`interceptors.realsim.test.ts` (CI, ~3 s): a veteran D.VII meeting a pair of D.H.4s from
+ahead, 8 seeds, with the blind-spot approach off and on: within 700 m it spends 57% and 87%
+of the time outside the bombers' gunner arcs, and takes 33 and 5 hits from them, for about
+the same hits on the bombers (347 and 341). An interceptor picks the bombers 2.5 km off over
+an escort crossing 250 m away. An escort Camel doesn't chase a D.V shadowing its bombers
+1.3 km off and stays within 700 m of them, and it engages a D.V that attacks them.
+
+`bombers.realsim.test.ts` (CI, ~4 s): three D.H.4s bomb a depot of three dumps 45 m apart.
+All 12 bombs go, at least 7 burst within blast range (about 18 m from a dump's walls with the D.H.4's 16 kg charges), the
+wingmen release after the leader, the run's last 20 s are within 12° of bank and 80 m of
+height, and the formation then heads for its rally point together. Under attack by two
+veteran D.VIIs (3 seeds), nobody breaks off to defend while a flight-mate flies beside him,
+the wingmen hold their slots within 60 m on average up to the release, and the leader bombs
+every time. A Gotha G.V formation (ten bombs each, of two sizes) drops them all and puts
+most within 60 m of a dump. A lone bomber started 3 km past the target heading away, or 1 km short and 450 m
+off the line (a certain miss), comes round and bombs the target on a later run. When the leader turns for home with an engine
+hit on the way in, the other two bomb and fly on for their rally, not after him.
+
+**Raid survey** (`AI_SOAK=raid AI_RAID_REPS=24`, commit 6216291; the autoplayer leads a
+D.H.4 vic, 24 raids a setup, 3 bombers each; "on target" is a burst that damaged a target):
+
+| setup | tactics | dropped | on target | targets destroyed | success | bombers lost | escorts lost | interceptors lost |
+|---|---|---|---|---|---|---|---|---|
+| v 3 reg D.V | default | 100% | 50% | 59/102 | 79% | 43% | - | 0/72 |
+| v 3 reg D.V, 2 Camel escort | default | 100% | 51% | 63/102 | 83% | 26% | 21/48 | 2/72 |
+| v 2 vet D.VII, 2 S.E.5a escort | default | 100% | 44% | 57/102 | 79% | 25% | 14/48 | 2/48 |
+| v 3 reg D.V | `blindSpot=0` | 93% | 43% | 44/102 | 75% | 46% | - | 0/72 |
+| v 3 reg D.V, 2 Camel escort | `blindSpot=0` | 99% | 42% | 49/102 | 88% | 35% | 6/48 | 15/72 |
+| v 2 vet D.VII, 2 S.E.5a escort | `blindSpot=0` | 100% | 40% | 40/102 | 54% | 33% | 17/48 | 5/48 |
+| v 3 reg D.V | `bomberFormation=0` | 19% | 46% | 13/102 | 21% | 22% | - | 3/72 |
+| v 3 reg D.V, 2 Camel escort | `bomberFormation=0` | 21% | 50% | 15/102 | 21% | 0% | 4/48 | 26/72 |
+| v 2 vet D.VII, 2 S.E.5a escort | `bomberFormation=0` | 71% | 46% | 46/102 | 63% | 4% | 17/48 | 7/48 |
+
+These are single surveys, not `ab.mjs` compares, so read only the large gaps. Without
+`bomberFormation` the bombers break off to defend and go home with their bombs: a fifth of
+them are dropped against D.Vs. With it every bomb goes and about half burst on a target, at
+the price of a quarter to two fifths of the bombers. The blind-spot switch mainly changes
+what the interceptors lose to the gunners once escorts are about (15 of 72 lost with it off,
+2 with it on, against Camels). The autoplayer is one of the bombers and goes down in 29-67%
+of raids, highest unescorted.
+
+**A/B against the wave's base** (`node tools/dev/ab.mjs --base <ref> --head HEAD`): nothing
+the tool calls a difference.
+
+| soak | base | metric | base | head | verdict |
+|---|---|---|---|---|---|
+| quick, 24 reps | 1612485 | killed or captured | 35.0% (30.3-40.1) n=360 | 35.0% (30.3-40.1) n=360 | within noise |
+| quick, 24 reps | 1612485 | collisions per 100 | 5.6 | 5.6 | within noise |
+| career, seeds 0/1000/2000 | 1612485 | killed or captured | 25.0% (19.9-30.9) n=232 | 21.2% (16.4-26.9) n=231 | within noise |
+| career, seeds 0/1000/2000 | 1612485 | collisions per 100 | 4.7 | 6.5 | within noise |
+| career, seeds 0/1000/2000 | 1612485 + F-33 fix | killed or captured | 26.2% (20.7-32.4) n=214 | 24.7% (19.4-30.8) n=219 | within noise |
+| career, seeds 0/1000/2000 | 1612485 + F-33 fix | collisions per 100 | 6.1 | 5.0 | within noise |
+
+The quick survey is identical: no quick type but the raid flies bombers. The fairness
+default set is identical too. The second career row pins the posting on both sides (F-33),
+so it compares the same squadrons.
 
 ## Control law on the real flight model
 
@@ -270,6 +411,15 @@ missions, both with intervals. Collisions count every event; `playerColl` is the
   by skill where stalking can apply (the stalk test's geometry, 7 start bearings), for
   novice, regular, veteran, ace and a stalker-signature ace: first passes from above,
   up-sun and unseen. It takes ~4 min.
+- `AI_SOAK=raid AI_RAID_SET=default|escort AI_RAID_REPS=24 pnpm vitest run src/ai/raid.soak.test.ts`:
+  quick bombing raids flown by the autoplayer leading a D.H.4 vic; per setup the bombs
+  dropped and on target (`getBombStats`), targets destroyed, success, and the bombers,
+  escorts and interceptors lost (docs "Bombers"). It loads the bombs itself for `bomb`
+  flights until the game layer does. `AI_TACTICS=bomberFormation=0` or `blindSpot=0` for
+  A/B runs. `AI_FAIR_SET=twoseat` in the fairness soak flies two-seaters (Bristol F.2b v D.V,
+  D.VII v R.E.8). Baseline at 6216291, 48 reps: the Bristol wins 79% and goes down 27%
+  (enemy lost 81, wingmen 7); the D.VII against R.E.8s wins 73% and goes down 25%
+  (enemy-fire 7 of its 12 losses).
 - `AI_SOAK=tailhold AI_TH_SET=default,mirror,energy,low AI_TH_REPS=12 pnpm vitest run
   src/ai/tailhold.soak.test.ts` (~3 min): for each defender type and side, how long an
   enemy held its tail (inside 400 m, within 60° of astern), and meanwhile its circling

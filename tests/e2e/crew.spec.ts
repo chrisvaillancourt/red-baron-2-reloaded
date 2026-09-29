@@ -40,21 +40,24 @@ const BASE = {
 };
 
 /**
- * Fly a quick mission, adjusted: `station` is the player's starting seat; `bombRun` turns a
- * quick ground attack into a D.H.4 bomb run (as src/game/testing/crewMissions.ts dh4BombRun).
+ * Fly a quick mission as the builder makes it (`playerStation` is the starting seat; `type:
+ * 'bombing'` a raid). `runInM` starts the player's flight that far short of its bomb
+ * waypoint, on the same heading, so the bombsight has the target in view (the raid itself
+ * starts about 10 km out).
  */
-async function fly(page: Page, opts: Record<string, unknown>, adjust: { station?: string; bombRun?: boolean } = {}): Promise<void> {
+async function fly(page: Page, opts: Record<string, unknown>, runInM?: number): Promise<void> {
   await page.evaluate(
-    ([o, a]) => {
+    ([o, runIn]) => {
       const s = window.__rb2!.services!;
       const m = s.campaign.buildQuickMission(o as never);
       const flight = m.flights.find((f) => f.members.some((x) => x.isPlayer))!;
-      const me = flight.members.find((x) => x.isPlayer)!;
-      if (a.station) me.station = a.station as never;
-      if (a.bombRun) {
-        m.type = 'bombing';
-        flight.task = 'bomb';
-        for (const wp of flight.waypoints) if (wp.action === 'attack-ground') wp.action = 'bomb';
+      const wp = flight.waypoints.find((w) => w.action === 'bomb');
+      if (runIn && wp) {
+        const dx = wp.x - flight.start.x;
+        const dz = wp.z - flight.start.z;
+        const d = Math.hypot(dx, dz);
+        flight.start.x = wp.x - (dx / d) * runIn;
+        flight.start.z = wp.z - (dz / d) * runIn;
       }
       const host = document.createElement('div');
       host.style.cssText = 'position:fixed;inset:0;z-index:1000';
@@ -63,7 +66,7 @@ async function fly(page: Page, opts: Record<string, unknown>, adjust: { station?
       (window as Win).__result = undefined;
       void s.launcher.fly(m, s.getSettings(), host).then((r) => ((window as Win).__result = r));
     },
-    [opts, adjust] as const,
+    [opts, runInM] as const,
   );
   // The first flight on a fresh dev server compiles the flight chunk: allow for it.
   await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 90_000 });
@@ -166,7 +169,7 @@ test('Bristol: take the observer seat, aim within the arcs, hand back to the pil
 test('a mission can start the player at the gun', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page);
-  await fly(page, { ...BASE, type: 'dogfight', playerAircraft: 'bristol_f2b' }, { station: 'observer' });
+  await fly(page, { ...BASE, type: 'dogfight', playerAircraft: 'bristol_f2b', playerStation: 'observer' });
   const s = await session(page);
   expect(s).toMatchObject({ station: 'observer', mode: 'gunner' });
   await end(page);
@@ -176,7 +179,7 @@ test('a mission can start the player at the gun', async ({ page }) => {
 test('D.H.4 bomb run: F6 takes the observer to the bombsight', async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page);
-  await fly(page, { ...BASE, type: 'ground-attack', playerAircraft: 'dh4' }, { bombRun: true });
+  await fly(page, { ...BASE, type: 'bombing', playerAircraft: 'dh4' }, 3500);
   await page.waitForFunction(() => window.__rb2!.session!.time > 1, undefined, { timeout: 30_000 });
   let s = await session(page);
   expect(s.bombs).toEqual([4]);

@@ -52,6 +52,17 @@ export const TACTICS_FLAGS = {
    * his turn when the attacker lags, so the fight isn't one endless circle (maneuvers.ts).
    */
   defenceReversal: true,
+  /**
+   * Bombers in formation hold it under attack (no defensive breaks; hurt but flying, they keep
+   * their place) and leave the fighting to their gunners (controller.ts holdsFormation). Off:
+   * they break and go home hurt like any two-seater.
+   */
+  bomberFormation: true,
+  /**
+   * Fighters attacking a bomber work round to where its gunners can't bear (below and behind
+   * for most types, from the station arcs) before closing in (bombing.ts blindSpot).
+   */
+  blindSpot: true,
 };
 
 export function applyTacticsFlagsFromEnv(env: Record<string, string | undefined>): void {

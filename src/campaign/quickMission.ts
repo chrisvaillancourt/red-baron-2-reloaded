@@ -1,16 +1,19 @@
 /** Quick / single mission builder (instant action; not recorded in a career). */
 import type { QuickMissionOptions } from '../core/campaignTypes';
-import type { AircraftId, MissionDefinition, MissionFlightMember, MissionType, Nation, Side, Weather } from '../core/types';
+import type { AircraftId, MissionDefinition, MissionFlight, MissionFlightMember, MissionType, Nation, Side, Waypoint, Weather } from '../core/types';
 import { NATION_SIDE } from '../core/types';
 import { AIRCRAFT, servedTogether } from '../data/aircraft';
 import { aceNamesOn, getAce } from '../data/aces';
+import type { AerodromeWorld } from '../data/aerodromes';
 import { composeLivery } from '../data/liveries';
 import { terrainHeightAt } from '../world/terrain';
 import { CloudField, SIGHT_MIN_TRANSMITTANCE } from '../world/clouds';
 import { midDate } from './dates';
 import {
   addBalloon,
+  addBombTargets,
   addFlight,
+  BOMB_TARGET_SETS,
   addGround,
   addObjective,
   centroid,
@@ -23,9 +26,9 @@ import {
   twoSeaterFlight,
   type GenCtx,
 } from './missionGen';
-import { add, describeLocation, enemyDirection, frontAnchor, heading, pointOnSide, type XZ } from './placement';
+import { add, clampToSector, describeLocation, dist, enemyDirection, frontAnchor, heading, pointOnSide, type FrontPoint, type XZ } from './placement';
 import { seedFrom } from './rng';
-import { nationForAircraft } from './squadronUtil';
+import { aircraftPool, nationForAircraft } from './squadronUtil';
 import { describeWeather } from './weather';
 
 /** Quick ground attack: defenders' scramble point beyond the target (m) and cruise height (m AGL). */
@@ -38,6 +41,86 @@ const GA_ELEMENT_GAP = 90;
 const CLEAR_START_TRANSMITTANCE = Math.max(0.5, SIGHT_MIN_TRANSMITTANCE);
 const CLEAR_START_STEP_M = 2000;
 
+/** Bombing raids: the target's depth behind the lines and the start's behind ours (m). */
+const RAID_TARGET_DEPTH_M = 6000;
+const RAID_START_M = 4000;
+/** Bombing raids: the lowest bombing height (m), and the ceiling fraction a bomber cruises at. */
+const RAID_MIN_ALT_M = 1000;
+const RAID_CEILING_FRACTION = 0.8;
+/** Interceptors: where they start beyond the target, and where they meet the raid (m before / after the target). */
+const RAID_INTERCEPTOR_RANGE_M = 7000;
+const RAID_FIRST_MEET_M = 2500;
+const RAID_SECOND_MEET_M = 500;
+/** Seconds the second element arrives after the bombers pass its meeting point. */
+const RAID_SECOND_EXTRA_S = 30;
+/** Distances (m) short of the target from which the bomb aimer must see it on the run. */
+const RAID_SIGHT_BACK_M = [1000, 2000, 3000];
+
+/** Flak round the target: metres along the run and to the right. */
+const RAID_AA: readonly (readonly [number, number])[] = [[-300, 350], [200, -400]];
+const RAID_COUNT_WORDS = ['none', 'one', 'two', 'three', 'four', 'five'];
+
+interface RaidPlan {
+  fp: FrontPoint;
+  /** Target centre, the start, and the run's direction and its right. */
+  c: XZ;
+  start: XZ;
+  dir: XZ;
+  right: XZ;
+  /** Bombing height, m ASL. */
+  altitude: number;
+}
+
+/**
+ * Where a raid goes: a target 6 km behind the enemy lines and a start 4 km behind ours,
+ * opposite it. The bomb aimer must see the target from the run-in (1-3 km short, when the
+ * formation gets there, with the clouds drifted), so a blocked run slides along the front in
+ * 2 km steps like a head-on dogfight's start (D-082). No random draws: a clear raid is where
+ * it would have been. Under a solid overcast nothing is clear, and the raid stays put.
+ */
+function planRaid(ctx: GenCtx, o: QuickMissionOptions, a: { side: Side; enemySide: Side; frontShift: number; weather: Weather }): RaidPlan {
+  const spec = AIRCRAFT[o.playerAircraft];
+  const altitude = Math.round(Math.min(Math.max(o.altitudeM, RAID_MIN_ALT_M), spec.performance.ceilingM * RAID_CEILING_FRACTION));
+  const v = cruiseSpeed(o.playerAircraft);
+  const clouds = new CloudField(a.weather);
+  const plan = (k: number): RaidPlan => {
+    const fp = frontAnchor({ x: 0, z: 0 }, ctx.date, a.frontShift + k * CLEAR_START_STEP_M);
+    const c = pointOnSide(fp, a.enemySide, RAID_TARGET_DEPTH_M, ctx.date);
+    const start = pointOnSide(fp, a.side, RAID_START_M, ctx.date);
+    const n = dist(start, c) || 1;
+    const dir = { x: (c.x - start.x) / n, z: (c.z - start.z) / n };
+    return { fp, c, start, dir, right: { x: -dir.z, z: dir.x }, altitude };
+  };
+  const clear = (r: RaidPlan) => {
+    const n = dist(r.start, r.c);
+    const gy = terrainHeightAt(r.c.x, r.c.z);
+    return RAID_SIGHT_BACK_M.every((back) => {
+      const p = add(r.c, r.dir, -back);
+      return clouds.transmittance(p.x, altitude, p.z, r.c.x, gy + 5, r.c.z, Math.max(0, n - back) / v) >= CLEAR_START_TRANSMITTANCE;
+    });
+  };
+  const first = plan(0);
+  if (clear(first)) return first;
+  for (const k of [1, -1, 2, -2, 3, -3, 4, -4]) {
+    const r = plan(k);
+    if (clear(r)) return r;
+  }
+  return first;
+}
+
+function escortLine(f: MissionFlight | undefined): string {
+  if (!f) return '';
+  const n = f.members.length;
+  return `${n} ${AIRCRAFT[f.aircraftId].name}${n > 1 ? 's' : ''} fly as your escort.`;
+}
+
+/** A fighter of the player's side in service on the date, his own nation's if it flies one. */
+function escortFighter(ctx: GenCtx, side: Side, nation: Nation): AircraftId {
+  const pool = aircraftPool(side, 'fighter', ctx.date);
+  const own = pool.filter((id) => AIRCRAFT[id].nation === nation || AIRCRAFT[id].alsoUsedBy.includes(nation));
+  return ctx.rng.pick(own.length ? own : pool);
+}
+
 /** Mid-way through the types' shared service; if they never met, mid-way through the player's (the Quick Mission screen says so). */
 function quickDate(a: AircraftId, b: AircraftId): string {
   const A = AIRCRAFT[a];
@@ -46,6 +129,23 @@ function quickDate(a: AircraftId, b: AircraftId): string {
   const from = A.introduced > B.introduced ? A.introduced : B.introduced;
   const to = A.retired < B.retired ? A.retired : B.retired;
   return midDate(from, to);
+}
+
+function landAt(home: AerodromeWorld | undefined): Waypoint[] {
+  return home ? [{ x: Math.round(home.x), z: Math.round(home.z), altitude: Math.round(terrainHeightAt(home.x, home.z) + 300), action: 'land', label: home.name }] : [];
+}
+
+function quickWeather(o: QuickMissionOptions, rng: GenCtx['rng']): Weather {
+  const weather: Weather = {
+    cloudCover: Math.max(0, Math.min(1, o.cloudCover)),
+    cloudBaseM: 1500 + Math.round(rng.range(0, 800)),
+    cloudTopM: 2600 + Math.round(rng.range(0, 800)),
+    wind: [4, 0, -1],
+    visibilityM: 30000,
+    turbulence: 0.15,
+  };
+  weather.cloudTopM = Math.max(weather.cloudTopM, weather.cloudBaseM + 400);
+  return weather;
 }
 
 function members(ctx: GenCtx, n: number, aircraftId: AircraftId, nation: Nation, skill: MissionFlightMember['skill'], playerFirst: boolean): MissionFlightMember[] {
@@ -112,8 +212,8 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
     const ace = getAce(aceId)!;
     enemyMembers[0] = { pilotName: aceNamesOn(ace, date).short, aceId, skill: 'ace', livery: composeLivery({ aircraftId: o.enemyAircraft, nation: enemyNation, date, aceId }) };
   }
-  const home = nearestAerodrome(ctx, side, pStart);
-  const homeWp = home ? [{ x: Math.round(home.x), z: Math.round(home.z), altitude: Math.round(terrainHeightAt(home.x, home.z) + 300), action: 'land' as const, label: home.name }] : [];
+  let home = nearestAerodrome(ctx, side, pStart);
+  let homeWp = landAt(home);
 
   const playerFlightWps: MissionDefinition['flights'][number]['waypoints'] = [];
   let type: MissionType = o.type;
@@ -121,8 +221,66 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
   let orders = '';
 
   const playerMembers = members(ctx, 1 + wingmen, o.playerAircraft, nation, o.wingmanSkill, true);
+  if (o.playerStation && o.playerStation !== 'pilot') playerMembers[0].station = o.playerStation;
+  let raidWeather: Weather | undefined;
 
   switch (o.type) {
+    case 'bombing': {
+      raidWeather = quickWeather(o, rng);
+      const r = planRaid(ctx, o, { side, enemySide, frontShift, weather: raidWeather });
+      const { c, dir, right } = r;
+      const at = (along: number, lat: number): XZ => ({ x: c.x + dir.x * along + right.x * lat, z: c.z + dir.z * along + right.z * lat });
+      const runHeading = heading(r.start, c);
+      const layout = BOMB_TARGET_SETS[rng.int(0, BOMB_TARGET_SETS.length - 1)];
+      const ids = addBombTargets(ctx, layout, c, dir, enemySide, r.fp);
+      for (const [along, lat] of RAID_AA) addGround(ctx, 'aa-gun', enemySide, ensureSide(ctx, at(along, lat), enemySide, r.fp), runHeading);
+      pStart = r.start;
+      pAlt = r.altitude;
+      pHeading = runHeading;
+      // Home by another way: turn off the target for the lines a few kilometres along the front.
+      const rally = pointOnSide(r.fp, side, 1500, date, (rng.chance(0.5) ? 1 : -1) * 3500);
+      home = nearestAerodrome(ctx, side, rally);
+      homeWp = landAt(home);
+      playerFlightWps.push(
+        { x: Math.round(c.x), z: Math.round(c.z), altitude: Math.round(r.altitude), action: 'bomb', targetIds: ids, label: 'Target' },
+        { x: Math.round(rally.x), z: Math.round(rally.z), altitude: Math.round(r.altitude), action: 'fly', label: 'Rally' },
+      );
+
+      // Interceptors are called up when the raid crosses the lines. They climb in from deep
+      // behind the target: the first element meets the formation on its run-in, the second
+      // over the target, so the bombers have the lines and most of the run-in to themselves.
+      const n = enemyMembers.length;
+      const elements = n >= 2 ? [enemyMembers.slice(0, Math.ceil(n / 2)), enemyMembers.slice(Math.ceil(n / 2))] : [enemyMembers];
+      const eDirR = enemyDirection(r.fp, side);
+      const vBomber = cruiseSpeed(o.playerAircraft);
+      const vEnemy = cruiseSpeed(o.enemyAircraft);
+      elements.forEach((mem, i) => {
+        const meet = i === 0 ? at(-RAID_FIRST_MEET_M, 0) : at(RAID_SECOND_MEET_M, 0);
+        const from = clampToSector(add(add(c, eDirR, RAID_INTERCEPTOR_RANGE_M + i * 1500), r.fp.tangent, (i ? -1 : 1) * 1500));
+        const tBombers = dist(r.start, meet) / vBomber;
+        const delay = Math.round(Math.max(0, tBombers + i * RAID_SECOND_EXTRA_S - dist(from, meet) / vEnemy + rng.range(0, 30)));
+        addFlight(ctx, { role: 'enemy', side: enemySide, nation: enemyNation, aircraftId: o.enemyAircraft, members: mem, start: from, altitude: r.altitude + 200, waypoints: [{ x: Math.round(meet.x), z: Math.round(meet.z), altitude: Math.round(r.altitude + 200), action: 'patrol', duration: 600 }], task: 'defend', spawnDelay: delay, idPrefix: 'enemy' });
+      });
+
+      const escorts = Math.max(0, Math.min(4, Math.round(o.escortCount ?? 0)));
+      if (escorts > 0) {
+        const escortType = o.escortAircraft && AIRCRAFT[o.escortAircraft]?.role === 'fighter' ? o.escortAircraft : escortFighter(ctx, side, nation);
+        const escortNation = nationForAircraft(escortType, side);
+        const back = { x: -dir.x, z: -dir.z };
+        addFlight(ctx, {
+          role: 'friendly', side, nation: escortNation, aircraftId: escortType,
+          members: members(ctx, escorts, escortType, escortNation, o.wingmanSkill, false),
+          start: add(add(r.start, back, 450), right, 150), altitude: r.altitude + 300, startHeading: runHeading,
+          waypoints: homeWp.slice(), task: 'escort', escortFlightId: 'player-1', idPrefix: 'friendly',
+        });
+      }
+      const flightSize = 1 + wingmen;
+      addObjective(ctx, { kind: 'destroy-ground', description: `Destroy at least ${RAID_COUNT_WORDS[Math.min(ids.length, Math.max(1, Math.ceil(flightSize / 2)))]} of the ${layout.what}.`, targetIds: ids, count: Math.min(ids.length, Math.max(1, Math.ceil(flightSize / 2))), primary: true });
+      addObjective(ctx, { kind: 'destroy-ground', description: `Destroy all of the ${layout.what}.`, targetIds: ids, count: ids.length, primary: false });
+      title = `Bombing Raid ${describeLocation(c)}`;
+      orders = `Bomb the enemy ${layout.name} ${describeLocation(c)} and bring the formation home. Hold formation: enemy scouts will come up to meet you${escorts ? ', and your escort will try to keep them off' : ''}.`;
+      break;
+    }
     case 'dogfight': {
       addFlight(ctx, { role: 'enemy', side: enemySide, nation: enemyNation, aircraftId: o.enemyAircraft, members: enemyMembers, start: eStart, altitude: eAlt, startHeading: eHeading, waypoints: [{ x: Math.round(pStart.x), z: Math.round(pStart.z), altitude: Math.round(alt), action: 'patrol', duration: 900 }], task: 'fighter-sweep', idPrefix: 'enemy' });
       playerFlightWps.push({ x: Math.round(eStart.x), z: Math.round(eStart.z), altitude: Math.round(alt), action: 'patrol', duration: 900, label: 'Engagement' });
@@ -218,19 +376,12 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
     members: playerMembers,
     start: { x: Math.round(pStart.x), z: Math.round(pStart.z), altitude: Math.round(pAlt), heading: pHeading, airspeed: Math.round(cruiseSpeed(o.playerAircraft)) },
     waypoints: playerFlightWps,
-    task: (o.type === 'escort' ? 'escort' : o.type === 'balloon-attack' ? 'balloon-attack' : o.type === 'ground-attack' ? 'ground-attack' : 'fighter-sweep') as MissionDefinition['flights'][number]['task'],
+    task: (o.type === 'escort' ? 'escort' : o.type === 'balloon-attack' ? 'balloon-attack' : o.type === 'ground-attack' ? 'ground-attack' : o.type === 'bombing' ? 'bomb' : 'fighter-sweep') as MissionDefinition['flights'][number]['task'],
     ...(o.type === 'escort' ? { escortFlightId: ctx.flights.find((f) => f.role === 'friendly')?.id } : {}),
   };
 
-  const weather: Weather = {
-    cloudCover: Math.max(0, Math.min(1, o.cloudCover)),
-    cloudBaseM: 1500 + Math.round(rng.range(0, 800)),
-    cloudTopM: 2600 + Math.round(rng.range(0, 800)),
-    wind: [4, 0, -1],
-    visibilityM: 30000,
-    turbulence: 0.15,
-  };
-  weather.cloudTopM = Math.max(weather.cloudTopM, weather.cloudBaseM + 400);
+  // A raid drew its weather first, to find a clear bomb run; the other types keep their draw order.
+  const weather: Weather = raidWeather ?? quickWeather(o, rng);
 
   // Instant action merges in ~25 s, so a head-on dogfight must not start with a cloud between
   // the flights: both would fly through it blind and wander apart (9 in 96 default fights went
@@ -261,6 +412,7 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
     orders,
     ace ? `Your opponent: ${aceNamesOn(ace, date).display}${ace.nickname ? ` - "${ace.nickname}"` : ''}. ${ace.bio}` : '',
     `You fly the ${playerSpec.name}${wingmen ? ` with ${wingmen} wingm${wingmen > 1 ? 'en' : 'an'}` : ''} against ${enemyCount} ${AIRCRAFT[o.enemyAircraft].name}${enemyCount > 1 ? 's' : ''}.`,
+    escortLine(ctx.flights.find((f) => f.role === 'friendly' && f.task === 'escort' && f.escortFlightId === 'player-1')),
     `Weather: ${describeWeather(weather, nation === 'britain' || nation === 'usa')}`,
   ].filter(Boolean);
 

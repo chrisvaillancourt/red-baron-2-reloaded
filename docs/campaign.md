@@ -56,6 +56,24 @@ Generic enemy skill is mostly novice/regular on 'pilot'; named aces lead a
 flight with probability ~0.22 × event intensity (×0.5 recruit, ×1.3 ace).
 `startOnGround` parks the flight on the home aerodrome's runway heading.
 
+**Bomber flights.** From 1917, 40% of escort missions escort bombers (task `bomb`). Their
+route has a `'bomb'` waypoint over a set of enemy ground targets (`BOMB_TARGET_SETS`, the
+quick raid's sets: a depot, hangars, a railhead or an artillery park) laid out across their
+run from the rendezvous, so the AI flies a bomb run and drops its bombs (docs/ai.md
+"Bombers"). The set is picked from the target's position rather than by a random draw, so
+the rest of the mission is generated as before. There is no objective on those targets:
+the player's job is to bring the bombers home. Raids flown by the player (bomber squadrons)
+are wave 2.
+
+**AI aircraft pools** (`aircraftPool` in `squadronUtil.ts`). Generic AI flights
+(fighters with no squadron nearby, two-seater recon and bomber flights) draw a type of
+their side and role in service on the date, or the earliest one when none is yet. Recon
+flights fly two-seaters, and bomber flights fly bombers or two-seaters. The pools don't
+read `flyable`, which only says the player may fly a type: they leave out only the
+fighter two-seaters the AI flies as fighters (`AI_FIGHTER_TWO_SEATERS`, the Bristol
+F.2b). So making a two-seater or bomber flyable doesn't change any AI flight
+(`squadronUtil.test.ts`).
+
 ### Objective `targetIds`
 
 | kind | targetIds refer to |
@@ -109,3 +127,37 @@ front in 2 km steps until that line lets through at least half the light (D-082)
 search makes no random draws, so a start that was already clear is built exactly as before.
 Under a solid overcast at the flights' height no line is clear, and the start stays where
 it was.
+
+### Bombing raid (`type: 'bombing'`)
+
+The player's flight (his bomber and `wingmen` more of the same type, task `bomb`) flies
+from 4 km behind our lines to a target 6 km behind the enemy's, at `altitudeM` (at least
+1,000 m and at most 80% of the bomber's ceiling), and home by another way:
+
+- **Route:** a `'bomb'` waypoint over the targets (its `targetIds` are the targets), a
+  rally point 1.5 km behind our lines and 3.5 km along the front, and the nearest
+  aerodrome's `'land'` waypoint.
+- **Targets:** one of four sets, laid out on the run line with rows 45-50 m apart (the
+  formation's spacing, so each bomber of a vic that releases on its leader passes over one):
+  a supply depot (three dumps and two lorries), hangars (three and a tent hangar), a
+  railhead (a train lying across the run and two dumps), or an artillery park (four guns
+  and their dump). Two AA guns stand 400-500 m off.
+- **Objectives:** destroy at least half the flight's size (rounded up, at most every
+  target), and, secondary, all of them.
+- **Interceptors:** `enemyCount` fighters of `enemyAircraft`, task `defend`, in one or two
+  elements that start 7-8.5 km beyond the target. Their spawn delay (from their own cruise
+  speed) brings the first element to a point 2.5 km short of the target as the bombers get
+  there, and the second over the target 30 s after them, each up to 30 s late.
+- **Escort:** `escortCount` fighters (0-4, default none) of `escortAircraft`, or a fighter of
+  the player's side in service on the date (his own nation's if it flies one), task
+  `escort` on `player-1`, starting 450 m behind and 300 m above the bombers.
+- **Station:** the player's member carries `playerStation` as `station` (absent for the
+  pilot's seat).
+- **A clear bomb run:** the builder checks the bomb aimer's view of the target from 1, 2
+  and 3 km short of it, with the clouds drifted to when the formation gets there. If any
+  view lets through less than half the light, the raid slides along the front in 2 km steps
+  (±1 … ±4) as a head-on dogfight's start does (D-082). The search makes no random draws;
+  under a solid overcast the raid stays where it was.
+
+A raid draws its weather before its layout, to run that check; every other type keeps its
+old draw order, so their missions are unchanged for a seed.

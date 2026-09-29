@@ -64,7 +64,12 @@ export function createCampaignService(storage?: StorageLike): CampaignServiceExt
       }
       const now = new Date().toISOString();
       const rngSeed = seedFrom(firstName, lastName, nation, now, Math.random());
-      const chosen = squadrons.find((s) => s.id === opts.squadronId) ?? new Rng(rngSeed).pick(squadrons);
+      // Without a chosen squadron, the posting follows from who he is, when he starts and the
+      // optional posting seed, so a seeded career (the autoplay soak, which leaves the seed out)
+      // repeats run to run (FRICTION F-33), and the enlistment screen's random seed gives real
+      // careers variety. The career's own seed stays unique.
+      const postingKey = opts.postingSeed === undefined ? ['posting'] : ['posting', opts.postingSeed];
+      const chosen = squadrons.find((s) => s.id === opts.squadronId) ?? new Rng(seedFrom(firstName, lastName, nation, date, ...postingKey)).pick(squadrons);
       const p: CareerPilot = {
         id: `p-${Date.now().toString(36)}-${hashString(`${rngSeed}`).toString(36)}`,
         firstName,

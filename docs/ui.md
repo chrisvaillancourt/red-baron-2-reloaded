@@ -103,15 +103,15 @@ Quick Mission takes 12 Tabs from the aircraft list to "To the briefing"
 
 ### Quick Mission crew options
 
-- **Your seat**: for a multi-crew type (today the Bristol F.2b), a button per crew station
+- **Your seat**: for a multi-crew type (the Bristol F.2b, the D.H.4), a button per crew station
   (`crewStations(spec)`), saved as `playerStation`; hidden, and no Tab stop, for a
-  single-seater. Until track D's builder copies it, `applyPlayerStation` (`src/ui/quickCrew.ts`)
-  puts it on the player's flight member after `buildQuickMission`.
-- **Bombing raid** is wired but hidden: only a dev server opened with `?bombing` offers it,
-  with an "Escort fighters" count (0–4) and the bomb-carrying AI-only types (the D.H.4) in
-  the aircraft list. It builds through `devBombingRaid`, a quick ground attack turned into a
-  bomb run, until track D's raid builder exists. A saved raid falls back to a dogfight
-  without the flag.
+  single-seater. `buildQuickMission` puts the player at that station.
+- **Bombing raid** is in the mission list, with an "Escort fighters" count (0–4). It builds
+  through `buildQuickMission` (`type: 'bombing'`, docs/campaign.md). The aircraft list follows
+  the mission type (`quickPlayerAircraft`, `src/ui/quickCrew.ts`): a raid offers the
+  bomb-carrying types, including AI-only ones (the D.H.4), and switches to one; any other type
+  offers the flyable types and falls back from an AI-only bomber to the default fighter.
+  `sanitizeQuickOptions` applies the same rule to saved options.
 
 The Options key list and the Flying Manual pick up the Crew key group from
 `src/ui/bindings.ts`; the Manual also has an "At a gun or the bombsight" table (which
