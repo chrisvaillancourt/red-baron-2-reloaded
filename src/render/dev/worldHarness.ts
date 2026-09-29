@@ -7,6 +7,7 @@ import { BoxGeometry, Euler, Group, Mesh, MeshStandardMaterial, PerspectiveCamer
 import type { BulletView, WorldQuery } from '../../core/interfaces';
 import type { AircraftEntity, BalloonEntity, GraphicsQuality, GroundTargetEntity, GroundTargetType, TimeOfDay, Weather } from '../../core/types';
 import { AERODROMES } from '../../data/aerodromes';
+import { AIRCRAFT } from '../../data/aircraft';
 import { sideOfFrontAt } from '../../world/frontline';
 import { TOWNS_WORLD } from '../../world/landuse';
 import { terrainHeightAt } from '../../world/terrain';
@@ -217,6 +218,31 @@ if (params.get('fx') === 'boom') {
   setTimeout(() => world.handleEvent({ type: 'aircraft-destroyed', victimId: 0, killerId: null, outcome: 'crashed', position: q }), 800);
 }
 
+// A stick of bombs ahead of the camera (fx=bombs, or __harness.bombRun()): a hidden Gotha
+// releases them from `alt` m, and each burst follows at its fall time.
+const bombers: AircraftEntity[] = [];
+function bombRun(dist = 320, alt = 180, n = 6): void {
+  const f = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
+  const side = new Vector3(-f.z, 0, f.x);
+  const c = camera.position.clone().addScaledVector(f, dist);
+  const spec = AIRCRAFT.gotha_gv;
+  const g = { id: nextId++, kind: 'aircraft', spec, state: { position: c.clone(), velocity: new Vector3() } } as unknown as AircraftEntity;
+  bombers.push(g);
+  for (let i = 0; i < n; i++) {
+    const p = c.clone().addScaledVector(side, (i - (n - 1) / 2) * 22).addScaledVector(f, (i % 2) * 14);
+    const gy = terrainHeightAt(p.x, p.z);
+    const store = i % 3 === 2 ? 1 : 0;
+    const rel = new Vector3(p.x, gy + alt, p.z);
+    setTimeout(() => {
+      world.handleEvent({ type: 'bomb-released', aircraftId: g.id, storeIndex: store, position: rel });
+      const t = Math.sqrt((2 * alt) / 9.81);
+      const hit = new Vector3(p.x, gy, p.z);
+      setTimeout(() => world.handleEvent({ type: 'bomb-exploded', shooterId: g.id, position: hit, explosiveKg: spec.bombs![store].explosiveKg, damagedTargetIds: [] }), t * 1000);
+    }, i * 250);
+  }
+}
+if (params.get('fx') === 'bombs') setTimeout(() => bombRun(), 500);
+
 const worldQuery: WorldQuery = {
   get time() {
     return performance.now() / 1000;
@@ -225,7 +251,7 @@ const worldQuery: WorldQuery = {
   aircraft,
   balloons,
   groundTargets: grounds,
-  getEntity: (id) => [...aircraft, ...balloons, ...grounds].find((e) => e.id === id),
+  getEntity: (id) => [...aircraft, ...balloons, ...grounds, ...bombers].find((e) => e.id === id),
   groundHeightAt: terrainHeightAt,
   sideOfFrontAt: (x, z) => sideOfFrontAt(x, z, date),
   getFlight: () => undefined,
@@ -305,6 +331,7 @@ window.__harness = {
   camera,
   teleport,
   spawnDemo,
+  bombRun,
   setEnv(d: string, t: TimeOfDay, cover: number, vis: number, base = 1500) {
     date = d;
     tod = t;
