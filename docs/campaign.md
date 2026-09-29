@@ -56,6 +56,15 @@ Generic enemy skill is mostly novice/regular on 'pilot'; named aces lead a
 flight with probability ~0.22 × event intensity (×0.5 recruit, ×1.3 ace).
 `startOnGround` parks the flight on the home aerodrome's runway heading.
 
+**AI aircraft pools** (`aircraftPool` in `squadronUtil.ts`). Generic AI flights
+(fighters with no squadron nearby, two-seater recon and bomber flights) draw a type of
+their side and role in service on the date, or the earliest one when none is yet. Recon
+flights fly two-seaters, and bomber flights fly bombers or two-seaters. The pools don't
+read `flyable`, which only says the player may fly a type: they leave out only the
+fighter two-seaters the AI flies as fighters (`AI_FIGHTER_TWO_SEATERS`, the Bristol
+F.2b). So making a two-seater or bomber flyable doesn't change any AI flight
+(`squadronUtil.test.ts`).
+
 ### Objective `targetIds`
 
 | kind | targetIds refer to |

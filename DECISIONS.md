@@ -877,3 +877,8 @@ when its text has changed, so repeated `get()` calls stay cheap.
   - Fairness (default, 48 reps): 25.0% both times, identical, since that set has no two-seaters.
   - After the review fixes, pinned on both sides (`--base main --head HEAD`): killed or captured 23.2% (18.2–29.0, n=233) against 22.6% (17.8–28.2, n=248), and collisions 3.4 against 3.6 per 100 missions. Both within noise.
 - Track B draws `combat.bombs` (`BombView`) and aims gun rings from `getStationAim`. Track C calls `loadBombs`, `predictBombImpact` and `getBombStats`. Track D sets targets per station.
+
+## D-XXX — AI pools apart from flyable (campaign and AI track, bombers wave 1)
+**Context.** `aircraftPool` (`src/campaign/squadronUtil.ts`) kept only non-flyable two-seaters in AI recon and bomber flights (`!a.flyable`), which in practice left out the one flyable two-seater, the Bristol F.2b. The bombers wave makes the R.E.8, D.H.4, Rumpler and the other two-seaters flyable, and that rule would have emptied the pools.
+**Decision.** "The player may fly it" (`flyable`) and "the AI flies it in recon and bomber flights" are separate. The pools no longer read `flyable`; recon and bomber pools leave out only `AI_FIGHTER_TWO_SEATERS` (the Bristol F.2b), which the AI flies as a fighter. A test flips every two-seater and bomber to flyable and checks every pool (both sides, four roles, eight dates) is unchanged. Bombers stay in the bomber pool, so track B's new types join career bomb-task flights as soon as they are in service.
+**Consequences.** Today's pools are identical. The list lives in campaign rather than as a spec field, since it is a campaign choice and the data file is track B's; a later spec field (for instance `aiRoles`) could replace it.

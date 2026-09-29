@@ -80,13 +80,23 @@ export function successorSquadron(sq: SquadronInfo, date: string): SquadronInfo 
 }
 
 /**
+ * Two-seaters the AI flies as fighters, never in its recon or bomber flights. What the AI
+ * flies is kept apart from `flyable` (whether the player may fly a type): the two-seaters
+ * and bombers become flyable in the bombers wave, and their AI flights must not change
+ * when they do (DECISIONS "AI pools apart from flyable").
+ */
+export const AI_FIGHTER_TWO_SEATERS: ReadonlySet<AircraftId> = new Set<AircraftId>(['bristol_f2b']);
+
+/**
  * Aircraft pool for AI flights of a side and role on a date. Falls back to
  * the earliest types of that role when none are yet in service (the roster
  * starts in mid-1915 but some roles only enter it later) — DECISIONS.md.
+ * Independent of `flyable`: recon and bomber pools leave out only the fighter
+ * two-seaters (`AI_FIGHTER_TWO_SEATERS`).
  */
 export function aircraftPool(side: Side, role: AircraftRole | 'recon', date: string): AircraftId[] {
   const roles: AircraftRole[] = role === 'recon' ? ['two-seater'] : role === 'bomber' ? ['bomber', 'two-seater'] : [role];
-  const ofSide = AIRCRAFT_LIST.filter((a) => NATION_SIDE[a.nation] === side && roles.includes(a.role) && (role === 'fighter' || !a.flyable || a.role === 'bomber'));
+  const ofSide = AIRCRAFT_LIST.filter((a) => NATION_SIDE[a.nation] === side && roles.includes(a.role) && (role === 'fighter' || !AI_FIGHTER_TWO_SEATERS.has(a.id)));
   const live = ofSide.filter((a) => a.introduced <= date && date <= a.retired);
   if (live.length) return live.map((a) => a.id);
   const earliest = ofSide.slice().sort((a, b) => (a.introduced < b.introduced ? -1 : 1));
