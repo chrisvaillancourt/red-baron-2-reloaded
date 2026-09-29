@@ -23,6 +23,8 @@ import {
   propThrust,
   type FlightCoefficients,
 } from './coefficients';
+import { G } from './atmosphere';
+import { bombMassNotAboard } from './bombs';
 
 const DEG = Math.PI / 180;
 export const SIM_DT = 1 / 120;
@@ -317,6 +319,11 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
     return;
   }
 
+  // massLoaded includes the full bomb load: bombs released or never loaded come off.
+  const lighter = bombMassNotAboard(ac);
+  const mass = lighter > 0 ? co.mass - lighter : co.mass;
+  const weight = lighter > 0 ? mass * G : co.weight;
+
   const level = realism.flightModel;
   const relaxed = level === 'relaxed';
   const authentic = level === 'authentic';
@@ -416,11 +423,11 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   }
   _fBody.z -= thrust;
   // Normal load factor (aero + thrust along body up), before ground forces.
-  const gLoad = _fBody.y / co.weight;
+  const gLoad = _fBody.y / weight;
 
   // World-frame force accumulator.
   _fWorld.copy(_fBody).applyQuaternion(s.orientation);
-  _fWorld.y -= co.weight;
+  _fWorld.y -= weight;
 
   // ------------------------------------------------------------- moments
   const stallFactor = clamp((alpha - co.alphaStall) / (4 * DEG), 0, 1);
@@ -448,7 +455,7 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   const tailRatio = qd > 1 ? qTail / qd : 1;
   if (qS > 50) {
     const gCap = relaxed ? Math.min(5.5, co.gLimit * 0.8) : level === 'standard' ? co.gLimit * 1.08 : Infinity;
-    if (Number.isFinite(gCap)) alphaCmd = Math.min(alphaCmd, (co.alpha0 + (gCap * co.weight) / qS / co.clAlpha) / tailRatio);
+    if (Number.isFinite(gCap)) alphaCmd = Math.min(alphaCmd, (co.alpha0 + (gCap * weight) / qS / co.clAlpha) / tailRatio);
   }
   if (relaxed) alphaCmd = Math.min(alphaCmd, (co.alphaStall - 2.5 * DEG) / tailRatio);
   alphaCmd -= co.stallSharpness * stallFactor * 3 * DEG; // nose drops at the break
@@ -650,7 +657,7 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   }
 
   // ----------------------------------------------------------- integrate
-  const inv = 1 / co.mass;
+  const inv = 1 / mass;
   s.velocity.addScaledVector(_fWorld, inv * dt);
   s.position.addScaledVector(s.velocity, dt);
   const w = s.angularVelocity;

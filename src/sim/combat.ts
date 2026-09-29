@@ -5,7 +5,7 @@
  * Emits the GameEvents defined in src/core/types.ts on the flight session bus.
  */
 import { Quaternion, Vector3 } from 'three';
-import type { EventBus, CombatSystem, BulletView, WorldQuery } from '../core/interfaces';
+import type { EventBus, CombatSystem, BombView, BulletView, WorldQuery } from '../core/interfaces';
 import type {
   AircraftEntity,
   AircraftOutcome,
@@ -36,6 +36,7 @@ import {
   segmentBox,
   type ZoneBox,
 } from './hitboxes';
+import { blastDamage, blastSize, groundCrossing, nextBombStore, recordBomb, stepBomb } from './bombs';
 import { createRng, gaussian, type Rng } from './rng';
 
 // ---------------------------------------------------------------------------
@@ -177,6 +178,9 @@ interface CombatMemory {
   gunnerKilled: boolean;
   /** One AI gunner per crew member who works a flexible gun. */
   gunners: GunnerMem[];
+  /** Last step's bomb-release inputs, for the rising edge. */
+  prevReleaseControls: boolean;
+  prevReleaseStation: boolean;
   flakTimer: number;
   groundFireTimer: number;
   outOfAmmoReported: boolean[];
@@ -195,6 +199,18 @@ interface GunnerMem {
   retarget: number;
   burst: number;
   pause: number;
+}
+
+interface Bomb extends BombView {
+  position: Vector3;
+  velocity: Vector3;
+  prev: Vector3;
+  storeIndex: number;
+  massKg: number;
+  explosiveKg: number;
+  shooterId: number;
+  side: Side;
+  age: number;
 }
 
 interface PendingBurst {
@@ -273,6 +289,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
   const flakEnabled = opts.flak ?? true;
   const groundFireEnabled = opts.groundFire ?? true;
   const bullets: Bullet[] = [];
+  const bombs: Bomb[] = [];
   const pool: Bullet[] = [];
   const memory = new WeakMap<AircraftEntity, CombatMemory>();
   const pending: PendingBurst[] = [];
@@ -300,6 +317,8 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         burnLimit: 8 + rng() * 12,
         gunnerKilled: false,
         gunners: buildGunners(ac.spec),
+        prevReleaseControls: false,
+        prevReleaseStation: false,
         flakTimer: 2 + rng() * 4,
         groundFireTimer: 1,
         outOfAmmoReported: ac.spec.guns.map(() => false),
@@ -916,6 +935,94 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     }
   }
 
+  // --------------------------------------------------------------- bombs
+  /**
+   * One bomb per rising edge of `controls.releaseBomb` (the pilot, or an AI bomb aimer) or of
+   * `stationInputs.releaseBomb` at a bomb-aimer station (the player at the bombsight).
+   */
+  function updateBombRelease(ac: AircraftEntity) {
+    const m = mem(ac);
+    const ctl = !!ac.controls.releaseBomb;
+    const si = ac.stationInputs;
+    const aimer = !!si && crewStations(ac.spec).some((st) => st.id === si.station && st.bombAimer);
+    const stn = aimer && !!si?.releaseBomb;
+    const edge = (ctl && !m.prevReleaseControls) || (stn && !m.prevReleaseStation);
+    m.prevReleaseControls = ctl;
+    m.prevReleaseStation = stn;
+    if (!edge || ac.damage.destroyed || ac.outcome !== null || !ac.bombs) return;
+    const i = nextBombStore(ac);
+    if (i < 0) return;
+    const store = ac.spec.bombs![i];
+    ac.bombs[i]--;
+    const b: Bomb = {
+      position: ac.state.position.clone(),
+      velocity: ac.state.velocity.clone(),
+      prev: ac.state.position.clone(),
+      storeIndex: i,
+      massKg: store.massKg,
+      explosiveKg: store.explosiveKg,
+      shooterId: ac.id,
+      side: ac.side,
+      age: 0,
+    };
+    bombs.push(b);
+    recordBomb(ac, 'dropped');
+    bus.emit({ type: 'bomb-released', aircraftId: ac.id, storeIndex: i, position: b.position.clone() });
+  }
+
+  const BOMB_LIFE = 120;
+  function updateBombs(world: WorldQuery, dt: number) {
+    const env = world.env;
+    for (let i = bombs.length - 1; i >= 0; i--) {
+      const b = bombs[i];
+      b.prev.copy(b.position);
+      stepBomb(b.position, b.velocity, b.massKg, env, dt);
+      b.age += dt;
+      const g = env.groundHeightAt(b.position.x, b.position.z);
+      if (b.position.y > g && b.age < BOMB_LIFE) continue;
+      const f = groundCrossing(b.prev, b.position, env.groundHeightAt(b.prev.x, b.prev.z), g);
+      const at = b.prev.clone().lerp(b.position, f);
+      at.y = env.groundHeightAt(at.x, at.z);
+      bombs[i] = bombs[bombs.length - 1];
+      bombs.pop();
+      burst(b, at, world);
+    }
+  }
+
+  /** A bomb bursts on the ground: blast every ground target in reach (docs/sim.md "Bombs"). */
+  function burst(b: Bomb, at: Vector3, world: WorldQuery) {
+    const damaged: number[] = [];
+    let hitEnemy = false;
+    for (const gt of world.groundTargets) {
+      if (gt.destroyed) continue;
+      const amount = blastDamage(gt.type, distanceToTarget(gt, at), b.explosiveKg);
+      if (amount <= 0) continue;
+      damaged.push(gt.id);
+      if (gt.side !== b.side) hitEnemy = true;
+      damageGround(gt, amount, b.shooterId);
+    }
+    const shooter = world.getEntity(b.shooterId);
+    if (hitEnemy && shooter?.kind === 'aircraft') recordBomb(shooter, 'hits');
+    bus.emit({ type: 'bomb-exploded', shooterId: b.shooterId, position: at.clone(), explosiveKg: b.explosiveKg, damagedTargetIds: damaged });
+    bus.emit({ type: 'explosion', position: at, size: blastSize(b.explosiveKg) });
+  }
+
+  /** Distance from a point to a ground target's box (its nearest face; 0 inside). */
+  function distanceToTarget(gt: GroundTargetEntity, p: Vector3): number {
+    const spec = GROUND_TARGET_BOXES[gt.type];
+    const c = Math.cos(gt.heading);
+    const s = Math.sin(gt.heading);
+    const dx = p.x - gt.position.x;
+    const dz = p.z - gt.position.z;
+    const lx = dx * c + dz * s;
+    const lz = -dx * s + dz * c;
+    const ly = p.y - gt.position.y;
+    const ex = Math.max(0, Math.abs(lx) - spec.hx);
+    const ez = Math.max(0, Math.abs(lz) - spec.hz);
+    const ey = ly < 0 ? -ly : Math.max(0, ly - spec.h);
+    return Math.hypot(ex, ey, ez);
+  }
+
   // --------------------------------------------------- per-aircraft status
   function updateStatus(ac: AircraftEntity, dt: number) {
     const m = mem(ac);
@@ -1112,6 +1219,9 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     get bullets() {
       return bullets;
     },
+    get bombs() {
+      return bombs;
+    },
     get pendingFlak() {
       return pending;
     },
@@ -1121,8 +1231,10 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       for (const ac of world.aircraft) {
         mem(ac);
         updateGuns(ac, world, dt);
+        updateBombRelease(ac);
       }
       updateBullets(world, dt);
+      updateBombs(world, dt);
       updateCollisions(world);
       for (const ac of world.aircraft) {
         updateStatus(ac, dt);

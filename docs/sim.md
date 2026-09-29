@@ -8,6 +8,7 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
 | `coefficients.ts` | Per-type aero/engine/handling coefficients derived from `AircraftSpec` and calibrated to its historical figures. Cached by aircraft id. |
 | `flightModel.ts` | `createFlightState`, `stepFlight` (6-DOF), attitude helpers, `getSimInternal`. |
 | `combat.ts` | `createCombatSystem(bus, getRealism, opts?)`, `setGunnerTarget` / `getGunnerTarget`, `getStationAim`, `aimFlexibleGun`. |
+| `bombs.ts` | `loadBombs`, `nextBombStore`, `predictBombImpact` (the bombsight's prediction), bomb ballistics, `blastDamage`, `getBombStats`. Combat releases and bursts the bombs. |
 | `hitboxes.ts` | Body-frame damage-zone boxes, ground-target boxes, balloon radius. |
 | `entity.ts` | `createAircraftEntity(...)` and fresh controls/damage/gun states. |
 | `autopilot.ts` | `Autopilot` — altitude / vertical-speed / airspeed-by-pitch / heading / bank hold. Used by tests; handy for AI and "form up". |
@@ -172,6 +173,32 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
     gun's station arcs. `getStationAim(ac, station)` is where a station's guns are laid this
     step (the AI solution or the player's aim), null when idle, for the renderer's
     `setStationAim`. `gun-fired.mountIndex` says which gun fired.
+* **Bombs** (`bombs.ts`, combat). `spec.bombs` is the load, and `ac.bombs` the count left per store.
+  * **Loading:** the game layer calls `loadBombs(ac)` for a sortie that carries bombs. An
+    aircraft whose `bombs` stays unset carries none. `massLoaded` includes the full load,
+    so the flight model subtracts every bomb not aboard (`bombMassNotAboard`). A D.H.4
+    without a bomb load is 204 kg lighter than its loaded weight.
+  * **Release:** one bomb per rising edge of `controls.releaseBomb` (the pilot or an AI
+    bomb aimer) or of `stationInputs.releaseBomb` at a `bombAimer` station. Holding either
+    releases one; neither is consumed. The heaviest store with bombs left goes first (ties
+    to the lower index). The bomb leaves from the CG with the aircraft's world velocity,
+    and emits `bomb-released`.
+  * **Ballistics:** gravity plus quadratic drag relative to the air, so the wind drifts it.
+    k = ½ ρ C_d A / m with C_d 0.25 and a 0.2 m body for 50 kg (diameter ∝ mass^⅓), about
+    8·10⁻⁵ /m for a 50 kg bomb at sea level. The ground is `env.groundHeightAt`.
+    `predictBombImpact(ac, env, store?)` runs the same integrator and returns the burst
+    point and fall time, within about a metre of the real fall. `combat.bombs`
+    (`BombView[]`) lists the bombs in flight for the renderer.
+  * **Blast:** Hopkinson-Cranz scaling on Z = r / W^⅓ (r to the target box's nearest face,
+    W the charge). A target is destroyed inside Z_kill, and damage falls as the square of
+    the way out to Z_zero. Soft targets (lorry, tent hangar, AA gun) are 3.5 / 10, a trench
+    MG 3 / 8, a hangar, dump or train 2.5 / 7, and a battery 2 / 6. So a 20 kg charge
+    destroys a lorry within 9.5 m and a hangar within 7 m of its walls. Damage goes through
+    the strafing path (`ground-destroyed` with the bomber's kill credit), then
+    `bomb-exploded` (the targets reached, of any side) and `explosion` (size 0.6 W^⅓, at
+    most 4). Blast doesn't touch aircraft or balloons.
+  * **Counts:** `getBombStats(ac)` returns `{ dropped, hits }` for `MissionResult.bombsDropped` /
+    `bombHits`. A hit is a bomb that damaged at least one ground target of the other side.
 * **Archie.** Aircraft above 500 m AGL over enemy ground draw bursts: every 4–7 s within ~5 km of
   the front, 10–18 s deeper, 1.5–3 s near an enemy balloon (and more accurate), faster near live
   enemy `aa-gun` ground targets. Shells arrive after 2 s + altitude/700; aim error ~75 m + 2% of

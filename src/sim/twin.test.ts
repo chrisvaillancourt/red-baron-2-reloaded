@@ -18,10 +18,11 @@ function twin(engines?: number[], spec: AircraftSpec = TEST_TWIN) {
 }
 
 /** Fly `seconds`, hands off, or under an autopilot holding height and heading. */
-function fly(ac: AircraftEntity, env: ReturnType<typeof flatEnv>, seconds: number, hold = false) {
+function fly(ac: AircraftEntity, env: ReturnType<typeof flatEnv>, seconds: number, hold: false | 'height' | 'speed' = false) {
   const ap = new Autopilot();
   for (let t = 0; t < seconds; t += SIM_DT) {
-    if (hold) ap.update(ac, { altitude: 1500, heading: 0, throttle: 1 }, SIM_DT);
+    if (hold === 'height') ap.update(ac, { altitude: 1500, heading: 0, throttle: 1 }, SIM_DT);
+    if (hold === 'speed') ap.update(ac, { airspeedByPitch: 32, heading: 0, throttle: 1 }, SIM_DT);
     stepFlight(ac, env, R, SIM_DT);
     env.advance(SIM_DT);
   }
@@ -38,8 +39,8 @@ describe('twin engines', () => {
     const single: AircraftSpec = { ...TEST_TWIN, id: 'test_twin_single' as AircraftSpec['id'], performance: { ...TEST_TWIN.performance, engineCount: 1 } };
     const a = twin();
     const b = twin(undefined, single);
-    fly(a.ac, a.env, 40, true);
-    fly(b.ac, b.env, 40, true);
+    fly(a.ac, a.env, 40, 'height');
+    fly(b.ac, b.env, 40, 'height');
     expect(Math.abs(a.ac.state.airspeed - b.ac.state.airspeed) / b.ac.state.airspeed).toBeLessThan(0.03);
     expect(Math.abs(turned(a.ac))).toBeLessThan(0.05);
   });
@@ -58,11 +59,12 @@ describe('twin engines', () => {
     const one = twin([1, 0]);
     const none = twin([1, 1]);
     none.ac.damage.engineDead = true;
-    fly(one.ac, one.env, 30, true);
-    fly(none.ac, none.env, 30, true);
+    fly(one.ac, one.env, 30, 'speed');
+    fly(none.ac, none.env, 30, 'speed');
     const sinkOne = 1500 - one.ac.state.position.y;
     const sinkNone = 1500 - none.ac.state.position.y;
-    expect(one.ac.state.airspeed).toBeGreaterThan(25);
+    expect(Math.abs(one.ac.state.airspeed - 32)).toBeLessThan(3);
+    expect(one.ac.state.stalled).toBe(false);
     expect(sinkOne).toBeLessThan(sinkNone / 2);
   });
 });
