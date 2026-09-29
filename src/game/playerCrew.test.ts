@@ -9,7 +9,7 @@ import type { InputFrame } from './input';
 import { PlayerCrew } from './playerCrew';
 import { SimCore, SIM_HZ } from './simCore';
 import { bristolFight, dh4BombRun } from './testing/crewMissions';
-import { loadBombs } from './world';
+import { loadBombs } from '../sim';
 
 const realism = () => DEFAULT_SETTINGS.realism;
 

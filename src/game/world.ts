@@ -20,6 +20,7 @@ import type {
 } from '../core/types';
 import { NATION_SIDE } from '../core/types';
 import { getAircraft } from '../data/aircraft';
+import { effectiveMass, loadBombs } from '../sim';
 import { CloudField } from '../world/clouds';
 import { sunDirectionFor } from '../world/sun';
 import type { GameModules } from './moduleTypes';
@@ -98,15 +99,6 @@ export function createGunStates(ac: Pick<AircraftEntity, 'spec'>, realism: Reali
 export function sortieCarriesBombs(mission: MissionDefinition, flight: MissionFlight): boolean {
   if (flight.task === 'bomb') return true;
   return mission.type === 'bombing' && flight.role === 'player-flight';
-}
-
-/**
- * Fill `ac.bombs` with the spec's full load (absent spec.bombs: none).
- * TODO(bombers merge): replace with track A's `loadBombs` from src/sim, which does the same.
- */
-export function loadBombs(ac: AircraftEntity): number[] | undefined {
-  ac.bombs = ac.spec.bombs?.length ? ac.spec.bombs.map((b) => b.count) : undefined;
-  return ac.bombs;
 }
 
 /**
@@ -191,6 +183,8 @@ export function buildWorld(opts: BuildWorldOptions): SessionWorld {
       };
       ac.guns = createGunStates(ac, realism);
       if (sortieCarriesBombs(mission, flight)) loadBombs(ac);
+      // `massLoaded` counts the full bomb load: a bomber flying without it is trimmed lighter.
+      if (spec.bombs?.length) ac.state = modules.sim.createFlightState(spec, start, env, !!flight.startOnGround, effectiveMass(ac));
       if (m.isPlayer) player = ac;
       members.push(ac);
       byId.set(id, ac);
