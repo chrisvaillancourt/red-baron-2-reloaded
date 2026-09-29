@@ -35,55 +35,59 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
   stalker ace 100% (all unseen). Unchanged from wave 8.
 - **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
 
-## Resume here (lead handoff, 2026-09-28, session 2 of wave 9)
-- **Merged: the defence track** (D-085, D-087; item 4 below). **Lead still owes:** replay
-  the user's reports (`playtests/reports/` and the main checkout's `playtests/inbox/`)
-  against it with `node tools/playtest/replay-report.mjs`, and re-baseline "Current figures"
-  with `tools/dev/ab.mjs` once the bomber tracks have merged (they move the same figures).
-- **In progress: bombers and gunner seats** (user said go, 2026-09-28; plan, file
-  ownership and merge order in `docs/bombers.md` "Waves"):
-  - **Contracts:** landed (D-086, `src/data/crew.ts`).
-  - **Track A (sim): merged** (D-088), after a code review and ten fixes. The career A/B
-    against main is within noise. Its `src/ai/autopilot.ts` effective-weight change is on
-    main too.
-  - **Track C (game and UI): merged** (D-090 to D-092), after review fixes. Its hand checks
-    passed: a D.H.4 raid from the observer's seat via `/?bombing` (one bomb, one hit in the
-    debrief) and the Bristol observer's Lewis. The Bombing raid stays behind the dev-only
-    `?bombing` gate until track D's builder lands; the lead removes `devBombingRaid` and
-    `applyPlayerStation` (`src/ui/quickCrew.ts`) at D's merge.
-  - **Track D (campaign and AI):** starts now that the defence track has merged. It owns
-    `src/ai` and `src/campaign`.
-  - **Lead fixes on main from the track C review:** `splitSide` (an AI flying the player's
-    aircraft splits opposite ways from other AIs) and `releaseAIPilot`.
-  - **Track B (data, models and effects): merged** (D-093 to D-096), after nine review
-    fixes. Six bombers calibrated to their sources (docs/models.md "Bomber specifications
-    and sources"); falling bombs are drawn from the sim's `CombatSystem.bombs`. A models test
-    now keeps every gunner's arcs off the propeller discs. **Do (next sim task):** the
-    Gotha and O/400 ventral gunners' hit boxes hang below the fuselage (`stationBoxes` in
-    `src/sim/hitboxes.ts` puts a standing man 1.2 m below every eye); centre a ventral
-    gunner's box on his eye and empty the pinned exception list in
-    `src/sim/hitboxes.test.ts` (FRICTION F-71).
-  - **Do before the flip: bomber flight-model follow-ups** (`src/sim`, from track B). Give
-    them to a sim agent once the damage-path agent is done with `src/sim`:
-    - the propeller-diameter formula uses total power, so twins get oversized propellers;
-      use power per engine
-    - the 0.7 rad/s roll-rate floor is far too fast for bombers (the Gotha's spec is 0.15)
-    - check the gear's `mainY` (-1.2) against the tall twin undercarriage in the models
-    - the Gotha keeps `pusher: false` although its nacelles push; check what the flag
-      changes (hit boxes, the prop wash) before flipping it
-  - **Flip `flyable`** for the bombers and the two-seaters only after A, C and D have
-    merged, and after D separates "the player may fly it" from "the AI flies it" in
-    `aircraftPool`.
-- **Then: mutual support** (item 4 below). It edits `src/ai/controller.ts`, so it waits for
-  track D.
-- **New, needs a user decision: the engine soaks up rounds meant for the pilot.** Track A
-  found that the "engine block stops a round" rule in `src/sim/combat.ts` takes the first
-  engine in the zone list, not the first along the round's path. In a single-engined tractor
-  the engine box is listed first, so a burst from astern through the cockpit into the engine
-  damages only the engine and spares the pilot. That may be part of the user's "104 hits
-  for 1 kill". Track A fixed the path order for twins only, because fixing it for everyone
-  changes the balance. **Do:** a sim agent measures the path-order fix (fairness, quick,
-  career via `ab.mjs`, plus hits-to-kill), then the lead brings the numbers to the user.
+## Resume here (lead handoff, 2026-09-28, end of bombers wave 1)
+The user asked the lead to stop after the bomber merges: start nothing new until told.
+- **Merged: bombers and gunner seats, wave 1** (plan and file ownership in
+  `docs/bombers.md` "Waves"). All four tracks are on main:
+  - **Contracts** (D-086, `src/data/crew.ts`) and **track A, sim** (D-088): combat on crew
+    stations, twins, bombs.
+  - **Track C, game and UI** (D-090 to D-092): seat picker, gunner view, bombsight, bomb
+    results in the debrief.
+  - **Track B, data, models and effects** (D-093 to D-096): six bombers (Gotha G.V,
+    O/400, AEG G.IV, Breguet 14, D.H.9, Voisin III) calibrated to their sources, falling
+    bombs, whistles, bursts, craters.
+  - **Track D, campaign and AI** (D-097 to D-099): the quick Bombing raid (no longer
+    behind `?bombing`), bomber formations, a gunner per crew member, interceptors from the
+    blind spot, escorts that stay with the bombers, career bomb waypoints, a `twoseat`
+    fairness set, repeatable seeded careers (F-33). Every A/B within noise; raid survey in
+    docs/ai.md "Bombers".
+  - Lead fixes on main: `splitSide` and `releaseAIPilot` (track C review).
+- **Do next (when the user says go), in this order:**
+  1. **Sim follow-ups before any bomber is flyable** (`src/sim`, one sim agent):
+     - the propeller-diameter formula uses total power, so twins get oversized propellers;
+       use power per engine
+     - the 0.7 rad/s roll-rate floor is far too fast for bombers (the Gotha's spec is 0.15)
+     - check the gear's `mainY` (-1.2) against the tall twin undercarriage in the models
+     - the Gotha keeps `pusher: false` although its nacelles push; check what the flag
+       changes (hit boxes, the prop wash) before flipping it
+     - the Gotha and O/400 ventral gunners' hit boxes hang below the fuselage
+       (`stationBoxes` in `src/sim/hitboxes.ts` puts a standing man 1.2 m below every eye):
+       centre a ventral gunner's box on his eye and empty the pinned exception list in
+       `src/sim/hitboxes.test.ts` (F-71)
+  2. **Flip `flyable`** for the bombers and two-seaters. The AI pools no longer read
+     `flyable` (D-097), so this is only a player-facing choice. Then add them to the
+     Quick Mission aircraft lists.
+  3. **Lead:** replay the user's reports (`playtests/reports/` and the main checkout's
+     `playtests/inbox/`) against the defence changes (D-085) with
+     `node tools/playtest/replay-report.mjs`, and re-baseline "Current figures" with
+     `tools/dev/ab.mjs` now that the bomber tracks have merged.
+  4. **Mutual support** (item 4 below); it edits `src/ai/controller.ts`, now free.
+  5. **Track D's open questions, for the user with a recommendation:**
+     - Gotha wingmen fall about 80 m behind their slots on a long run in: formation speed
+       (0.72 of top) sits near the Gotha's loaded minimum. Set it within the band between
+       stall and top speed?
+     - The career bomber pool includes the O/400 and Gothas, which flew mostly at night or
+       against England: day bombers only for career `bomb` flights until night bombing?
+     - The Quick Mission enemy list offers bombers as interceptors on a raid: fighters
+       only?
+     - Interceptors can't catch a lone D.H.4 at 0.8 of top speed (formations fly at 0.72).
+- **Needs a user decision (asked 2026-09-28):**
+  - **The damage-path flag** (D-089, `SIM_FLAGS.damagePath`): the engine block in path
+    order changes no outcome within noise. The lead recommends turning it on (it also
+    lowers the combat.test floor).
+  - **Bullet-sponge levers:** about 38 hits to kill, 54–58% of victories from tail failure.
+    The feel comes from tail damage per hit and tail box size, and from wing damage lowering
+    the g limit. Should an agent A/B those levers?
 - **Waiting on the user:** 3–5 flights at the default setup (a Camel against 2 veteran
   D.VIIs at 2,500 m) with ratings, and the LICENSE decision.
 

@@ -69,7 +69,9 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   "differs" (docs/ai.md "Tests").
 - **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,
   perception) shifts them. Compare with an independent count, or assert a range, unless the
-  test is about determinism.
+  test is about determinism. Read aircraft and bomb figures from the spec rather than
+  copying them into a test: a data change then can't leave a stale copy that still passes
+  (F-77).
 - **Scratch scripts that import project packages** (Playwright, three) go in the git-ignored
   `tools/dev/scratch/`, not the session scratchpad: Node resolves `@playwright/test` only
   from inside the repo (FRICTION F-48).
