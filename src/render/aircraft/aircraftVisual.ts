@@ -25,9 +25,10 @@ import {
   type Texture,
 } from 'three';
 import type { AircraftVisual, AircraftVisualFactory } from '../../core/interfaces';
-import type { AircraftEntity, AircraftSpec, CrewStationId, DamageZone, Livery } from '../../core/types';
+import type { AircraftEntity, AircraftSpec, CrewStationId, DamageZone, FireArc, Livery } from '../../core/types';
 import { crewStations } from '../../data/crew';
 import { getStationAim } from '../../sim/combat';
+import { gunPitchLimits } from './gunAim';
 import { propSpinSign, type PropNode } from './propSpin';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGaugeSet, GAUGE_KINDS, type GaugeKind, type GaugeSet } from './gauges';
@@ -221,6 +222,7 @@ const HOLES_PER_PART = 40;
 const UP = new Vector3(0, 1, 0);
 const _aim = new Vector3();
 const _invQ = new Quaternion();
+const RAD_TO_DEG = 180 / Math.PI;
 const RIGHT = new Vector3(1, 0, 0);
 
 /** One propeller: pivot, blades and its blur disc. Twins have two (`Propeller_L`, `Propeller_R`). */
@@ -238,6 +240,8 @@ interface PropView {
 /** A station's gun mounts (`Gun_<station>`, `Gun_<station>_2`...) and where they rest. */
 interface StationGuns {
   pivots: Object3D[];
+  /** The station's fields of fire, which bound how far the guns pitch (gunPitchLimits). */
+  arcs: readonly FireArc[];
   /** Rest pose: yaw and pitch (rad) the guns are stowed at until aimed. */
   stowYaw: number;
   stowPitch: number;
@@ -377,7 +381,7 @@ class AircraftVisualImpl implements AircraftVisual {
       firstFlex ??= st.id;
       const firstGun = spec.guns[st.guns[0]];
       const aft = st.id === 'dorsal' || st.id === 'ventral' || st.id === 'rear' || (st.id === 'observer' && !!firstGun && firstGun.position[2] > 0);
-      const g: StationGuns = { pivots, stowYaw: aft ? Math.PI : 0, stowPitch: st.id === 'ventral' ? -0.6 : aft ? 0.12 : 0, simAimed: false };
+      const g: StationGuns = { pivots, arcs: st.arcs, stowYaw: aft ? Math.PI : 0, stowPitch: st.id === 'ventral' ? -0.6 : aft ? 0.12 : 0, simAimed: false };
       this.stationGuns.set(st.id, g);
       this.stow(g);
     }
@@ -488,11 +492,11 @@ class AircraftVisualImpl implements AircraftVisual {
     for (const [station, g] of this.stationGuns) {
       const w = getStationAim(ac, station);
       if (w) {
-        this.aimGuns(g, station, _aim.copy(w).applyQuaternion(_invQ));
+        this.aimGuns(g, _aim.copy(w).applyQuaternion(_invQ));
         g.simAimed = true;
       } else if (station === this.firstFlexStation && this.flexAim) {
         const local = this.object.worldToLocal(_aim.copy(this.flexAim)).sub(g.pivots[0].position);
-        this.aimGuns(g, station, local);
+        this.aimGuns(g, local);
         g.simAimed = false;
       } else if (g.simAimed) {
         this.stow(g);
@@ -531,15 +535,16 @@ class AircraftVisualImpl implements AircraftVisual {
     const g = this.stationGuns.get(station);
     if (!g) return;
     if (station === this.firstFlexStation) this.flexAim = null;
-    this.aimGuns(g, station, aimBody);
+    this.aimGuns(g, aimBody);
   }
 
-  private aimGuns(g: StationGuns, station: CrewStationId, dir: Vector3): void {
+  private aimGuns(g: StationGuns, dir: Vector3): void {
     if (dir.lengthSq() < 1e-9) return;
     const yaw = Math.atan2(-dir.x, -dir.z);
     const pitch = Math.atan2(dir.y, Math.hypot(dir.x, dir.z));
-    // A ring or pillar gun can't point much below the coaming; a ventral gun can't point up.
-    const [lo, hi] = station === 'ventral' ? [-1.5, 0.15] : [-0.6, 1.45];
+    // The station's own fields of fire bound the pitch (a bomber's nose gun reaches 60° down,
+    // a ventral gun can't point up), so the barrel stays on the sim's tracers.
+    const [lo, hi] = gunPitchLimits(g.arcs, Math.atan2(dir.x, -dir.z) * RAD_TO_DEG);
     for (const p of g.pivots) {
       p.rotation.set(0, 0, 0);
       p.rotateY(yaw);

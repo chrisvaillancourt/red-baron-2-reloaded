@@ -129,8 +129,10 @@ v.dispose();
 * **Bombs** on the racks follow `AircraftEntity.bombs` (per store); without it, as outside a
   bombing sortie, none are drawn. Each store is one merged mesh (`setDrawRange`), so a load
   costs one draw call per store.
-* `setStationAim` clamps the ventral guns to 0.15 … −1.5 rad of pitch and the others to
-  1.45 … −0.6 rad. Guns that face aft at rest (rear rings, the tunnel) are stowed pointing aft.
+* Gun pitch is bounded by the station's own arcs (`gunPitchLimits`): the elevation span of
+  the arcs covering the aim's azimuth, or of all of them between arcs; −0.6 … 1.45 rad for a
+  station without arcs. A bomber's nose gun reaches 60° down, a ventral gun can't point up.
+  Guns that face aft at rest (rear rings, the tunnel) are stowed pointing aft.
 * **Gun rings follow the sim:** every update the visual reads `getStationAim(ac, station)`
   (src/sim), the direction the AI gunner or the player at that station has laid the guns,
   and swings them there. An idle station returns to its rest pose. `aimFlexibleGun` and
