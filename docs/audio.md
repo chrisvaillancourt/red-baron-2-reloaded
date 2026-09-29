@@ -62,7 +62,11 @@ propeller is heard (`min(rpm, airspeed × 9)`, as the visual spins it). Each voi
 cockpit when it's the player's, positional within 250 m otherwise. The whistle (2.2 s,
 sliding from about 1650 to 750 Hz and swelling) is heard only within 700 m of where the bomb
 will land: the engine asks the sim (`predictBombImpact(aircraft, world.env, storeIndex)`, the
-same ballistics, drag and wind as the real fall) and ends the whistle there. `bomb-exploded`: a deep
+same ballistics, drag and wind as the real fall) and ends the whistle there, as the burst
+is heard: it starts `BOMB_WHISTLE_SECONDS / rate` before the impact and gets the same
+sound-travel delay as the burst. Whistles wait in a queue (`whistles.ts`) instead of being
+scheduled at release, so a falling bomb holds no one-shot voice. At most three play at once,
+nearest first; one that comes due with no free slot is dropped. `bomb-exploded`: a deep
 concussion with a crack, then earth pattering back for about two seconds; bigger charges are
 louder, carry further (`ref` 25 · kg^⅓ m) and play lower. Sound travel delays it like
 every distant bang.

@@ -15,7 +15,8 @@ import { predictBombImpact } from '../sim/bombs';
 import { SoundBank, type SoundId } from './bank';
 import { MusicPlayer } from './music/player';
 import { airAbsorptionCutoff, dopplerFactor, selectNearest, soundDelay } from './spatial';
-import { BOMB_WHISTLE_SECONDS, engineKindFor, type HitMaterial } from './synthBuffers';
+import { engineKindFor, type HitMaterial } from './synthBuffers';
+import { WhistleQueue, whistleStart, type PendingWhistle } from './whistles';
 import { createLimiter } from './limiter';
 import { LoopVoice, MultiEngineVoice } from './voices';
 
@@ -102,6 +103,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
   private readonly crashed = new Set<number>();
   private readonly bulletTrack = new WeakMap<BulletView, { d: number; age: number; whizzed: boolean }>();
   private whizzBudget = 0;
+  private readonly whistles = new WhistleQueue<PendingWhistle & { point: Vector3 }>();
   private playerSide: AircraftEntity['side'] | null = null;
   private cockpit = true;
 
@@ -283,6 +285,12 @@ export class WebAudioEngine implements ReloadedAudioEngine {
     }
 
     this.whizzBudget = Math.min(4, this.whizzBudget + dt * 8);
+
+    // Falling-bomb whistles whose start has come (at most MAX_WHISTLES at once, nearest first).
+    const tNow = this.context.currentTime;
+    for (const w of this.whistles.due(tNow)) {
+      this.oneShot('bomb-whistle', { position: w.point, ref: 30, gain: 0.55, rate: w.rate, delay: Math.max(0, w.start - tNow), delayBySound: true });
+    }
   }
 
   updateBullets(bullets: readonly BulletView[]): void {
@@ -405,11 +413,15 @@ export class WebAudioEngine implements ReloadedAudioEngine {
         else if (near(e.position, 250)) this.oneShot('bomb-release', { position: e.position.clone(), ref: 6, gain: 0.7, delayBySound: true });
         // The whistle, heard near where it will land: the sim's own prediction for that store
         // from the releasing aircraft (the bomb leaves the CG with its velocity; same
-        // ballistics, drag and wind as the real fall), ending just before the burst.
+        // ballistics, drag and wind as the real fall), ending as the burst is heard: it is
+        // queued (not scheduled, so it holds no voice while the bomb falls) and played with
+        // the same sound-travel delay as the burst (updateFlight).
         if (a && a.kind === 'aircraft' && this.world) {
           const hit = predictBombImpact(a, this.world.env, e.storeIndex);
-          if (hit && hit.time > BOMB_WHISTLE_SECONDS * 0.6 && near(hit.point, BOMB_WHISTLE_RANGE)) {
-            this.oneShot('bomb-whistle', { position: hit.point, ref: 30, gain: 0.55, delay: Math.max(0, hit.time - BOMB_WHISTLE_SECONDS), rate: 0.94 + Math.random() * 0.12 });
+          if (hit && near(hit.point, BOMB_WHISTLE_RANGE)) {
+            const rate = 0.94 + Math.random() * 0.12;
+            const start = whistleStart(this.context.currentTime, hit.time, rate);
+            if (start !== null) this.whistles.add({ start, rate, distance: hit.point.distanceTo(this.listenerPos), point: hit.point });
           }
         }
         return;
@@ -439,6 +451,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
   }
 
   stopFlight(): void {
+    this.whistles.clear();
     this.releasePlayer();
     for (const [, r] of this.remote) {
       r.voice.dispose(0.3);
