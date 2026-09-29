@@ -7,9 +7,9 @@
  * Angles follow `FireArc` (src/core/types.ts): azimuth 0 = the nose, +90 = the right wing,
  * ±180 = astern; elevation +90 = straight up, relative to the aircraft's own wings.
  */
-import { MathUtils, Quaternion, Vector3 } from 'three';
+import { MathUtils, type Quaternion, Vector3 } from 'three';
 import type { AircraftSpec, CrewStation, CrewStationId, FireArc, StationInputs, Waypoint } from '../core/types';
-import { bodyDirectionAngles, crewStations, inFireArcs } from '../data/crew';
+import { crewStations, inAzimuth, inFireArcs } from '../data/crew';
 
 const D2R = Math.PI / 180;
 
@@ -63,14 +63,6 @@ export function pilotPickupWaypoint(waypoints: readonly Waypoint[], from: number
   return next;
 }
 
-/** Azimuth `az` inside the clockwise range [from, to] (which may wrap through astern)? */
-function azInRange(az: number, from: number, to: number): boolean {
-  if (to - from >= 360 || (from === -180 && to === 180)) return true;
-  const span = (((to - from) % 360) + 360) % 360;
-  const off = (((az - from) % 360) + 360) % 360;
-  return off <= span + 1e-9;
-}
-
 const _a = new Vector3();
 const _b = new Vector3();
 /** Degrees a clamped aim sits inside the edge it was pulled onto. */
@@ -104,7 +96,7 @@ export function clampToArcs(arcs: readonly FireArc[], azimuthDeg: number, elevat
     const [lo, hi] = box.elevationDeg;
     const e = MathUtils.clamp(el, lo + EDGE_MARGIN, hi - EDGE_MARGIN);
     let a = az;
-    if (!azInRange(az, box.azimuthDeg[0], box.azimuthDeg[1])) {
+    if (!inAzimuth(az, box.azimuthDeg[0], box.azimuthDeg[1], 1e-9)) {
       const d0 = Math.abs(wrapAzimuth(az - box.azimuthDeg[0]));
       const d1 = Math.abs(wrapAzimuth(az - box.azimuthDeg[1]));
       a = wrapAzimuth(d0 <= d1 ? box.azimuthDeg[0] + EDGE_MARGIN : box.azimuthDeg[1] - EDGE_MARGIN);
@@ -238,10 +230,3 @@ export function stationInputsFor(station: CrewStation, aimBody: Vector3, orienta
   si.clearJam = b.clearJam;
   return si;
 }
-
-/** Azimuth/elevation of a world direction in the aircraft's body frame (degrees). */
-export function bodyAnglesOf(worldDir: Vector3, orientation: Quaternion): { azimuthDeg: number; elevationDeg: number } {
-  const d = _b.copy(worldDir).applyQuaternion(_q.copy(orientation).invert());
-  return bodyDirectionAngles(d.x, d.y, d.z);
-}
-const _q = new Quaternion();
