@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import type { AircraftEntity, GameEvent } from '../core/types';
 import { aimFlexibleGun, getGunnerTarget, setGunnerTarget } from './combat';
-import { SIM_DT } from './flightModel';
+import { SIM_DT, orientationFrom } from './flightModel';
 import { TEST_TWIN } from './testing/fixtures';
 import { scenario, type Scenario } from './testing/scenario';
 
@@ -88,6 +88,32 @@ describe('crew stations: AI gunners', () => {
     expect(twin.damage.crewWounds![1]).toBe(1);
     expect(twin.damage.crewWounds![2]).toBe(0);
     expect(twin.damage.zones.gunner).toBe(1);
+  });
+
+  it('rounds through a gunner position find the man only while he works that station', () => {
+    const woundsFrom = (at: 'dorsal' | 'ventral') => {
+      const s = scenario({ realism: { gunJams: false } });
+      const twin = s.add(1, TEST_TWIN, 0, 0, 1000);
+      twin.controller = 'player';
+      twin.stationInputs = { station: at, aim: new Vector3(0, -1, 0), fire: false, releaseBomb: false, clearJam: false };
+      // A Camel 150 m straight above the dorsal gunner, diving vertically: its guns converge on him.
+      const camel = s.add(2, 'sopwith_camel', 0, 1.7 + 0.8, 1001 + 150, 0, 'britain');
+      camel.controller = 'none';
+      orientationFrom(0, -Math.PI / 2, 0, camel.state.orientation);
+      camel.side = 'central';
+      s.step(SIM_DT, undefined, 'kinematic');
+      twin.damage.crewWounds![1] = 1; // silence the nose gunner, who would shoot back
+      camel.controls.fireGuns = true;
+      s.step(2, undefined, 'kinematic');
+      const hits = s.events.filter((e) => e.type === 'bullet-hit' && e.targetId === 1).length;
+      return { hits, wound: twin.damage.crewWounds![2] };
+    };
+    const away = woundsFrom('ventral');
+    const there = woundsFrom('dorsal');
+    expect(away.hits).toBeGreaterThan(5);
+    expect(there.hits).toBeGreaterThan(5);
+    expect(away.wound).toBe(0);
+    expect(there.wound).toBeGreaterThan(0);
   });
 
   it('two-seaters without explicit stations keep the gunner zone', () => {

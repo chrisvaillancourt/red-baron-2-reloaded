@@ -34,6 +34,7 @@ import {
   getHitModel,
   pointSegmentDistanceSq,
   segmentBox,
+  type ZoneBox,
 } from './hitboxes';
 import { createRng, gaussian, type Rng } from './rng';
 
@@ -743,6 +744,12 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
   }
 
   // ------------------------------------------------------------ bullets
+  /** Is the crew member of a station's gunner box at that station now (not moved to his other gun)? */
+  function atStation(ac: AircraftEntity, zb: ZoneBox): boolean {
+    const g = mem(ac).gunners.find((x) => x.crewIndex === zb.crewIndex);
+    return !g || g.stations[g.active]?.station.id === zb.station;
+  }
+
   function hitAircraft(b: Bullet, world: WorldQuery, dt: number): boolean {
     for (const ac of world.aircraft) {
       if (ac.id === b.shooterId) continue;
@@ -763,6 +770,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       tmpB.set(bx, by, bz).applyQuaternion(tmpQ);
       let firstT = 2;
       for (const zb of hm.zones) {
+        if (zb.station && !atStation(ac, zb)) continue;
         const t = segmentBox(tmpA.x, tmpA.y, tmpA.z, tmpB.x, tmpB.y, tmpB.z, zb);
         if (t >= 0 && t < firstT) firstT = t;
       }
@@ -775,9 +783,12 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       let best: DamageZone | null = null;
       let bestPri = 99;
       const hitZones: DamageZone[] = [];
+      const hitIndex: (number | undefined)[] = [];
       for (const zb of hm.zones) {
+        if (zb.station && !atStation(ac, zb)) continue;
         if (segmentBox(tmpA.x, tmpA.y, tmpA.z, tmpB.x, tmpB.y, tmpB.z, zb) < 0) continue;
         hitZones.push(zb.zone);
+        hitIndex.push(zb.crewIndex ?? zb.engineIndex);
         const pri = HIT_PRIORITY.indexOf(zb.zone);
         if (pri < bestPri) {
           bestPri = pri;
@@ -791,7 +802,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       // The engine block stops a round; anything behind it along the path is spared.
       const engineIdx = hitZones.indexOf('engine');
       if (engineIdx >= 0) hitZones.length = engineIdx + 1;
-      for (const z of hitZones) damageAircraft(ac, z, ZONE_DAMAGE[z], shooter, now);
+      for (let k = 0; k < hitZones.length; k++) damageAircraft(ac, hitZones[k], ZONE_DAMAGE[hitZones[k]], shooter, now, hitIndex[k]);
       return true;
     }
     return false;

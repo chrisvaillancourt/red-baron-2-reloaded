@@ -108,6 +108,14 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   every zone on its path until the engine stops it. Balloons are 8 m spheres (hits drain
   health; each hit may ignite the hydrogen; ignition = `balloon-destroyed`). Ground targets
   are oriented boxes (`GROUND_TARGET_BOXES`).
+* **Hit boxes** (`hitboxes.ts`, body frame). Types with explicit `crewStations` have a gunner
+  box per station around its eye point (by default 0.45 m above and 0.35 m behind its first
+  gun), tagged with the crew member and station. A man is only in the box of the station
+  he is working now, so a round through the Gotha's empty tunnel position finds nobody.
+  The pilot's box moves to the pilot station's `eye` when one is given. Multi-engine types
+  (`engineCount` > 1 with `nacelleOffsetX`) have an engine box per nacelle (left engine 0),
+  ahead of the wing for tractors and behind it for pushers, and none in the nose. Every
+  other type's boxes are unchanged.
 * **Damage.** Engine (smoke > 0.4, dead at 1, small fire chance), fuel tank (leaks, fire),
   pilot/gunner (not every round in the box finds the man; each pilot hit adds 0.22 wound and
   kills with probability (0.07 + 0.25 × wounds) × severity, the fifth hit certainly), wings/tail/fuselage
