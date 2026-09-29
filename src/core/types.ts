@@ -697,6 +697,11 @@ export interface FlightTelemetry {
   enemies: EnemyEntryTelemetry[];
   /** The player's gunnery (src/game/aimStats.ts); absent from older builds. */
   aim?: AimTelemetry;
+  /**
+   * Mission seconds the player spent at each crew station while his aircraft flew, on a type
+   * with more than one (docs/bombers.md); absent for a single-seater and from older builds.
+   */
+  stationTimeS?: Partial<Record<CrewStationId, number>>;
 }
 
 /**

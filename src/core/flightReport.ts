@@ -77,6 +77,8 @@ export interface FlightReport {
     /** A bombing sortie's `MissionResult.bombsDropped` / `bombHits`; absent for any other (additive, schema 1). */
     bombsDropped?: number;
     bombHits?: number;
+    /** Seconds at each crew station (`FlightTelemetry.stationTimeS`); absent for a single-seater (additive, schema 1). */
+    stationTimeS?: FlightTelemetry['stationTimeS'];
   };
   /** Each enemy aircraft and its first firing pass (empty without telemetry). */
   enemies: EnemyEntryTelemetry[];
@@ -147,6 +149,7 @@ export function buildFlightReport(i: FlightReportInput): FlightReport {
       flightTimeS: r1(result.flightTimeS),
       combatTimeS: t?.combatTimeS ?? null,
       ...(result.bombsDropped !== undefined ? { bombsDropped: result.bombsDropped, bombHits: result.bombHits ?? 0 } : {}),
+      ...(t?.stationTimeS ? { stationTimeS: { ...t.stationTimeS } } : {}),
     },
     enemies: t ? clone(t.enemies) : [],
     timeCompression: t ? { ...t.timeCompression } : null,

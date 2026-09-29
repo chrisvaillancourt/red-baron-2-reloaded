@@ -64,6 +64,17 @@ describe('flight report', () => {
     expect('bombHits' in plain.outcome).toBe(false);
   });
 
+  it('carries the time at each crew station of a two-seater, and leaves it out otherwise', () => {
+    const mission = { objectives: [], flights: [], date: '1918-08-06' } as never;
+    const base = minimalResult();
+    const telemetry = { hitsTaken: 0, lossCause: null, combatTimeS: 0, timeCompression: { realS: 0, simS: 0, maxScale: 1 }, fps: null, enemies: [] };
+    const crewed = buildFlightReport({ mission, result: { ...base, telemetry: { ...telemetry, stationTimeS: { pilot: 60, observer: 40.5 } } }, settings: DEFAULT_SETTINGS, build: BUILD });
+    expect(crewed.outcome.stationTimeS).toEqual({ pilot: 60, observer: 40.5 });
+    expect(parseFlightReport(serializeFlightReport(crewed)).outcome.stationTimeS).toEqual({ pilot: 60, observer: 40.5 });
+    const solo = buildFlightReport({ mission, result: { ...base, telemetry }, settings: DEFAULT_SETTINGS, build: BUILD });
+    expect('stationTimeS' in solo.outcome).toBe(false);
+  });
+
   it('refuses things that are not a report, with a reason', () => {
     expect(() => parseFlightReport('nope')).toThrow(/Not JSON/);
     expect(() => parseFlightReport('{"kind":"other"}')).toThrow(/Not a flight report/);
