@@ -733,8 +733,8 @@ export class AIPilot implements AIController {
       if (isAttacking(e, self)) s += 0.4;
       if (damageSum(e) > 0.3 || e.damage.smoking) s += 0.25;
       if (task === 'defend' && e.spec.role !== 'fighter') s += isBomber(e) ? 0.9 : 0.5;
-      // Interceptors are sent for the bombers: an escort that isn't attacking us or ours can wait.
-      if (task === 'defend' && e.spec.role === 'fighter' && world.getFlight(e.flightId)?.task === 'escort' && !isAttacking(e, self) && !(leader && isAttacking(e, leader)) && !world.aircraft.some((m) => m !== self && m.side === self.side && m.flightId === self.flightId && isAttacking(e, m))) s -= 0.3;
+      // Interceptors are sent for the bombers: their escort, if it isn't attacking us or ours, can wait.
+      if (task === 'defend' && e.spec.role === 'fighter' && this.escortsBombers(e, world) && !isAttacking(e, self) && !(leader && isAttacking(e, leader)) && !world.aircraft.some((m) => m !== self && m.side === self.side && m.flightId === self.flightId && isAttacking(e, m))) s -= 0.3;
       if (this.traits.style === 'energy' && e.state.position.y > self.state.position.y + 500) s -= 0.2;
       // Signatures: stragglers (nobody of his own within 800 m) and two-seaters.
       if (this.tactics.twoSeaterBias && e.spec.geometry.crew >= 2) s += this.tactics.twoSeaterBias;
@@ -754,6 +754,12 @@ export class AIPilot implements AIController {
       }
     }
     return best;
+  }
+
+  /** Is `e` flying escort to a bomber flight? */
+  private escortsBombers(e: AircraftEntity, world: WorldQuery): boolean {
+    const f = world.getFlight(e.flightId);
+    return f?.task === 'escort' && !!f.escortFlightId && world.getFlight(f.escortFlightId)?.task === 'bomb';
   }
 
   private escortees(self: AircraftEntity, world: WorldQuery): AircraftEntity[] {
@@ -1541,8 +1547,9 @@ export class AIPilot implements AIController {
   /**
    * Bomb release (the sim's held input: one bomb per false-to-true change). A leader's stick
    * is started by his bomb run. A bomber in formation releases on his leader's first bomb, as
-   * crews did, once he reaches the point where the leader let go (his distance behind at his
-   * speed, 0.2-3 s), so the formation's bombs fall abreast rather than short.
+   * crews did: he starts his stick when his own predicted impact comes abreast of where the
+   * leader's first bomb falls (at most 4 s later), so the formation's bombs fall abreast
+   * rather than short or long.
    */
   private releaseBombs(self: AircraftEntity, world: WorldQuery): void {
     const c = self.controls;
@@ -1562,7 +1569,7 @@ export class AIPilot implements AIController {
       else if (d > seen.dropped) {
         seen.dropped = d;
         if (!this.stick && !this.onLeader && leader.state.position.distanceToSquared(self.state.position) < 400 * 400) {
-          // His first bomb falls about where his next would now, less the ground he has covered since.
+          // His first bomb falls about where his next would now (one AI tick later, ~1.5 m on).
           const p = predictBombImpact(leader, world.env)?.point ?? leader.state.position;
           const dir = new Vector3(leader.state.velocity.x, 0, leader.state.velocity.z);
           if (dir.lengthSq() < 1) forwardOf(leader.state.orientation, dir).setY(0);

@@ -188,8 +188,8 @@ false-to-true change; it sets the flag for one AI tick and clears it the next).
 
 - **Interceptors go for the bombers.** A `defend`-tasked fighter (the quick raid's
   interceptors, career defenders) scores a bomber (`role: 'bomber'`, or bombs aboard) +0.9
-  instead of the +0.5 any other two-seater gets, and an escort fighter that isn't attacking
-  him or his flight −0.3. An escort that comes at him is fought as before (+0.4), and
+  instead of the +0.5 any other two-seater gets, and a bombers' escort fighter that isn't
+  attacking him or his flight −0.3 (escorts of recon two-seaters keep their old score). An escort that comes at him is fought as before (+0.4), and
   defence (D-085) is unchanged.
 - **From the blind spot** (`steerBlindSpot`, `TACTICS_FLAGS.blindSpot`, on). A pilot above
   novice attacking a bomber from 250 m to 1.8 km first works round to where the fewest of
