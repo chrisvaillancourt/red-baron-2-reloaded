@@ -6,6 +6,7 @@ import type { MissionDefinition } from '../core/types';
 import { getAerodrome } from '../data/aerodromes';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
+import { recordBomb } from '../sim/bombs';
 import { clockPosition, MissionDirector } from './missionDirector';
 import { stubBuildQuickMission } from './stubs/campaign';
 import { stubCreateFlightEnvironment, stubSim } from './stubs/sim';
@@ -296,20 +297,22 @@ describe('MissionDirector', () => {
     expect(t.director.buildResult().objectives[0].completed).toBe(false);
   });
 
-  it('counts the player aircraft\'s bombs dropped and the hits on enemy targets only', () => {
-    const t = setup((m) => m.groundTargets.push({ id: 'own', type: 'truck', side: 'allied', x: -5000, z: 0, heading: 0 }));
-    const enemyTarget = t.world.missionIdToEntity.get('g1')!;
-    const ownTarget = t.world.missionIdToEntity.get('own')!;
-    const pos = new Vector3();
-    for (let i = 0; i < 3; i++) t.bus.emit({ type: 'bomb-released', aircraftId: t.player.id, storeIndex: 0, position: pos });
-    t.bus.emit({ type: 'bomb-released', aircraftId: t.wingman.id, storeIndex: 0, position: pos });
-    t.bus.emit({ type: 'bomb-exploded', shooterId: t.player.id, position: pos, explosiveKg: 20, damagedTargetIds: [enemyTarget, ownTarget] });
-    t.bus.emit({ type: 'bomb-exploded', shooterId: t.player.id, position: pos, explosiveKg: 20, damagedTargetIds: [ownTarget] });
-    t.bus.emit({ type: 'bomb-exploded', shooterId: t.player.id, position: pos, explosiveKg: 20, damagedTargetIds: [] });
-    t.bus.emit({ type: 'bomb-exploded', shooterId: t.wingman.id, position: pos, explosiveKg: 20, damagedTargetIds: [enemyTarget] });
+  it('reports combat\'s bomb counts for the player aircraft only', () => {
+    const t = setup();
+    t.player.bombs = [1];
+    for (let i = 0; i < 3; i++) recordBomb(t.player, 'dropped');
+    recordBomb(t.player, 'hits');
+    recordBomb(t.wingman, 'dropped');
+    recordBomb(t.wingman, 'hits');
     const r = t.director.buildResult();
     expect(r.bombsDropped).toBe(3);
     expect(r.bombHits).toBe(1);
+  });
+
+  it('reports the counts for a bomber that dropped its whole load', () => {
+    const t = setup();
+    recordBomb(t.player, 'dropped');
+    expect(t.director.buildResult().bombsDropped).toBe(1);
   });
 
   it('leaves the bomb counts out of a sortie without bombs', () => {

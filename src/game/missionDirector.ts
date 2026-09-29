@@ -13,6 +13,7 @@ import type {
   VictoryClaim,
 } from '../core/types';
 import { getAerodrome } from '../data/aerodromes';
+import { getBombStats } from '../sim';
 import type { SessionWorld } from './world';
 
 export const DESTROYED_OUTCOMES: ReadonlySet<AircraftOutcome> = new Set([
@@ -97,9 +98,6 @@ export class MissionDirector {
   private readonly onRecall?: () => void;
   roundsFired = 0;
   hits = 0;
-  /** Bombs the player's aircraft released, and of those, bursts that damaged an enemy ground target. */
-  bombsDropped = 0;
-  bombHits = 0;
   ended = false;
   endedByPlayer = false;
   aborted = false;
@@ -139,19 +137,6 @@ export class MissionDirector {
         let set = this.attackers.get(e.targetId);
         if (!set) this.attackers.set(e.targetId, (set = new Set()));
         set.add(e.shooterId);
-      }),
-      // TODO(bombers merge): track A's getBombStats(player) from src/sim gives the same counts.
-      bus.on('bomb-released', (e) => {
-        if (player && e.aircraftId === player.id) this.bombsDropped++;
-      }),
-      bus.on('bomb-exploded', (e) => {
-        if (!player || e.shooterId !== player.id) return;
-        // The blast list includes friendly targets it reached; only an enemy one makes a hit.
-        const enemyHit = e.damagedTargetIds.some((id) => {
-          const g = world.getEntity(id);
-          return g?.kind === 'ground' && g.side !== player.side;
-        });
-        if (enemyHit) this.bombHits++;
       }),
       bus.on('aircraft-destroyed', (e) => this.onAircraftDestroyed(e.victimId, e.killerId, e.position)),
       bus.on('balloon-destroyed', (e) => this.onBalloonDestroyed(e.balloonId, e.killerId, e.position)),
@@ -490,7 +475,8 @@ export class MissionDirector {
       wingmanClaims: [...this.wingmanKills].map(([pilotName, count]) => ({ pilotName, count })),
       aborted: this.aborted || undefined,
       // Only for a sortie that carried bombs (or dropped one), so every other result is unchanged.
-      ...(player && (player.bombs || this.bombsDropped > 0) ? { bombsDropped: this.bombsDropped, bombHits: this.bombHits } : {}),
+      // Combat keeps the counts (src/sim/bombs.ts): hits are bursts that damaged an enemy target.
+      ...bombCounts(player),
       acesDown: all
         .filter((a) => a.aceId && a !== player && isLost(a))
         .map((a) => ({ aceId: a.aceId!, side: a.side, fate: lossFate(a, w) })),
@@ -505,6 +491,13 @@ function lossFate(a: AircraftEntity, w: SessionWorld): PilotFate {
 }
 
 /** Objectives only decidable when the mission ends. */
+/** `MissionResult.bombsDropped` / `bombHits` for a player who carried bombs or dropped one; else nothing. */
+function bombCounts(player: AircraftEntity | null | undefined): { bombsDropped?: number; bombHits?: number } {
+  if (!player) return {};
+  const s = getBombStats(player);
+  return player.bombs || s.dropped > 0 ? { bombsDropped: s.dropped, bombHits: s.hits } : {};
+}
+
 export function isDeferredObjective(o: MissionObjective): boolean {
   return o.kind === 'protect-flight' || o.kind === 'protect-balloons' || o.kind === 'survive';
 }
