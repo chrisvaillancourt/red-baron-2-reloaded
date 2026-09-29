@@ -81,6 +81,11 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`) instead of downloading.
   Modals fade in over about 0.5 s, and Playwright counts a fading modal as visible, so wait
   for the fade to finish before a screenshot.
+  `keyboard.press` goes down and up inside one frame, so for keys the game reads as held use
+  `keyboard.down`, wait a few frames, then `keyboard.up` (F-61). Playwright wipes
+  `test-results/` on every run; copy screenshots you want to keep to `tools/dev/scratch/`
+  (F-62). A gamepad on the machine drives headless Chrome; stub `navigator.getGamepads` in
+  specs that fly (F-60, see `tests/e2e/crew.spec.ts`).
 - **Playtest reports:** the dev server saves every human flight to `playtests/inbox/`, which
   is git-ignored, so worktrees don't have it. Read an inbox report through the main
   checkout's absolute path. Move it to the tracked `playtests/reports/` only when your change
