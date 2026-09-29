@@ -454,6 +454,35 @@ export const AIRCRAFT: Readonly<Record<AircraftId, AircraftSpec>> = Object.fromE
 
 export const AIRCRAFT_LIST: readonly AircraftSpec[] = SPECS;
 
+/** A bomb's body length and diameter, m. */
+export interface BombDimensions {
+  readonly lengthM: number;
+  readonly diameterM: number;
+}
+
+/**
+ * Bomb sizes by store-name prefix. The one table for the models' rack bombs (exported to
+ * the Blender generator by tools/export-aircraft-json.ts) and the falling bombs the renderer
+ * draws, so a bomb keeps its size when it leaves the rack.
+ */
+const BOMB_DIMS: readonly (readonly [prefix: string, lengthM: number, diameterM: number])[] = [
+  ['P.u.W. 50', 1.7, 0.18],
+  ['P.u.W. 12.5', 0.75, 0.09],
+  ['112 lb', 1.1, 0.23],
+  ['230 lb', 1.45, 0.29],
+  ['Michelin 115', 0.55, 0.115],
+  ['Obus de 155', 1.5, 0.155],
+  ['Obus de 90', 0.9, 0.09],
+];
+const BOMB_DIMS_BY_PREFIX = BOMB_DIMS.map(([prefix, lengthM, diameterM]) => ({ prefix, dims: { lengthM, diameterM } as BombDimensions }));
+
+/** A store's bomb size: from the table, else from its mass (diameter 0.06·∛m, 5.5 diameters long). */
+export function bombDimensions(store: { readonly name: string; readonly massKg: number }): BombDimensions {
+  for (const e of BOMB_DIMS_BY_PREFIX) if (store.name.startsWith(e.prefix)) return e.dims;
+  const diameterM = 0.06 * Math.cbrt(store.massKg);
+  return { lengthM: diameterM * 5.5, diameterM };
+}
+
 export function getAircraft(id: AircraftId): AircraftSpec {
   const s = AIRCRAFT[id];
   if (!s) throw new Error(`Unknown aircraft ${id}`);

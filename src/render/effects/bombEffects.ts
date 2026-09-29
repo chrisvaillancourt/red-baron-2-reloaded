@@ -26,6 +26,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { BombView, WorldQuery } from '../../core/interfaces';
+import { AIRCRAFT_LIST, bombDimensions, type BombDimensions } from '../../data/aircraft';
 import type { GameEvent } from '../../core/types';
 
 type Exploded = Extract<GameEvent, { type: 'bomb-exploded' }>;
@@ -37,11 +38,18 @@ const MAX_CRATERS = 128;
 const CV = 9;
 const CI = 24;
 
-/** Size of a bomb from its mass: diameter and length, m (the 50 kg P.u.W. is 1.7 m × 0.18 m). */
-export function bombSize(massKg: number): { diameter: number; length: number } {
-  const diameter = 0.05 * Math.cbrt(massKg);
-  return { diameter, length: diameter * 7 };
+/** Rack size of the store a falling bomb came from (the models' table), else by its mass. */
+function fallingBombSize(b: BombView, world: WorldQuery): BombDimensions {
+  const shooter = world.getEntity?.(b.shooterId);
+  const store = shooter?.kind === 'aircraft' ? shooter.spec.bombs?.[b.storeIndex] : undefined;
+  if (store && store.massKg === b.massKg) return bombDimensions(store);
+  // The releasing aircraft is gone: the first store of that mass in the roster.
+  let d = BY_MASS.get(b.massKg);
+  if (!d) BY_MASS.set(b.massKg, (d = bombDimensions({ name: '', massKg: b.massKg })));
+  return d;
 }
+const BY_MASS = new Map<number, BombDimensions>();
+for (const spec of AIRCRAFT_LIST) for (const st of spec.bombs ?? []) if (!BY_MASS.has(st.massKg)) BY_MASS.set(st.massKg, bombDimensions(st));
 
 /** Crater radius, m, for a charge (about 2.6 m for the P.u.W. 50 kg's 23 kg). */
 export function craterRadius(explosiveKg: number): number {
@@ -170,8 +178,8 @@ export class BombEffects {
     for (let i = 0; i < n; i++) {
       const b = bombs[i];
       const mesh = this.pool[i] ?? this.addMesh();
-      const { diameter, length } = bombSize(b.massKg);
-      mesh.scale.set(diameter / 0.15, diameter / 0.15, length);
+      const { lengthM, diameterM } = fallingBombSize(b, world);
+      mesh.scale.set(diameterM / 0.15, diameterM / 0.15, lengthM);
       mesh.position.copy(b.position);
       if (b.velocity.lengthSq() > 1e-4) mesh.lookAt(_look.copy(b.position).add(b.velocity));
       mesh.visible = true;

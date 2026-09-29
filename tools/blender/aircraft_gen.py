@@ -87,9 +87,8 @@ BOMB_RACKS = {
     'aeg_giv': [('wing', 0.3, 0.42, 1)],
     'voisin_iii': [('fuselage', 1, 0.0, -0.1), ('wing', 0.62, 0.25, 1)],
 }
-# Bomb length and diameter, m, by the start of the store name (IWM and period tables).
-BOMB_DIMS = [('P.u.W. 50', 1.7, 0.18), ('P.u.W. 12.5', 0.75, 0.09), ('112 lb', 1.1, 0.23), ('230 lb', 1.45, 0.29),
-             ('Michelin 115', 0.55, 0.115), ('Obus de 155', 1.5, 0.155), ('Obus de 90', 0.9, 0.09)]
+# Bomb sizes (IWM and period tables) come with each store in aircraft.json (lengthM, diameterM): the table is
+# bombDimensions() in src/data/aircraft.ts, shared with the falling bombs the renderer draws.
 
 
 # ---------------------------------------------------------------------------
@@ -1684,11 +1683,8 @@ class Aircraft:
         box(mb, (cx, cy - L * 0.42, cz), (0.012, L * 0.16, fin * 2))
 
     def bomb_dims(self, store):
-        for prefix, L, D in BOMB_DIMS:
-            if store['name'].startswith(prefix):
-                return L, D
-        D = 0.06 * store['massKg'] ** (1 / 3)
-        return D * 5.5, D
+        """Length and diameter, m, from the export (bombDimensions() in src/data/aircraft.ts)."""
+        return store['lengthM'], store['diameterM']
 
     def build_bombs(self, parent):
         """Bomb_<store>_<k> meshes on racks; the runtime merges each store and hides bombs as they go.

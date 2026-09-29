@@ -41,7 +41,8 @@ zsh tools/blender/render_art.sh [samples] [title aerodrome desk debrief] # publi
   overhang gets its raked struts (`OVERHANG_STRUTS`). `PILOT_Y` places the pilot where the data
   can't say (Gotha, AEG, O/400, Voisin).
 * **Bombs** hang as `Bombs` > `Bomb_<store>_<k>` on beam racks (`BOMB_RACKS`: under the
-  fuselage or the lower wings), sized from the store (`BOMB_DIMS`, else from the mass). The
+  fuselage or the lower wings), sized from the store's `lengthM` and `diameterM` in the export
+  (`bombDimensions()` in `src/data/aircraft.ts`, the table the falling bombs use too). The
   O/400 carries its sixteen 112 lb bombs inside (`INTERNAL_BOMBS`), so it has no bomb nodes.
 * `tools/blender/build_models.py` — builds and exports every type to `public/models/<id>.glb`
   (33 types, 9.0 MB total) and optionally renders EEVEE previews. `--stats` also prints the

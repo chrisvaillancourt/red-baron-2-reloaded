@@ -953,7 +953,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 ## D-XXX — Falling bombs drawn from the sim; bursts sized by the charge (track B, bombers wave 1)
 **Context.** Combat simulates bombs (D-086, D-088) and exposes them as `CombatSystem.bombs` (`BombView`), with `predictBombImpact` for where one will land and `getStationAim` for where each station's guns are laid.
 **Decision.**
-- **Falling bombs:** the renderer draws the sim's bombs, not a copy of its own, so wind drift and drag match. `WorldRenderer.update` takes them as an optional fifth argument, `bombs?: readonly BombView[]` (additive). Without it none are drawn. The game layer passes `this.combat.bombs`.
+- **Falling bombs:** the renderer draws the sim's bombs, not a copy of its own, so wind drift and drag match. `WorldRenderer.update` takes them as an optional fifth argument, `bombs?: readonly BombView[]` (additive). Without it none are drawn. The game layer passes `this.combat.bombs`. A falling bomb is drawn at the size of its store on the rack: one table, `bombDimensions()` in `src/data/aircraft.ts`, which the aircraft JSON export hands to the Blender generator.
 - **Gun rings:** the aircraft visual reads `getStationAim(ac, station)` every update, for AI gunners and the player alike. An idle station returns to its rest pose, and `aimFlexibleGun` / `setStationAim` apply only while the sim has no aim there.
 - **Bursts:** the flash, fireball and earth fountain scale with 1.2 · kg^⅓ of charge.
 - **Craters:** a crater decal is draped over the terrain. All the mission's craters are one merged mesh, reused as a ring of 128.

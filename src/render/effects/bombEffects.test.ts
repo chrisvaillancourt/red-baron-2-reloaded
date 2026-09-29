@@ -1,7 +1,8 @@
 import { Mesh, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { BombView, WorldQuery } from '../../core/interfaces';
-import { BombEffects, bombSize, craterRadius, MAX_DRAWN_BOMBS } from './bombEffects';
+import { AIRCRAFT, bombDimensions } from '../../data/aircraft';
+import { BombEffects, craterRadius, MAX_DRAWN_BOMBS } from './bombEffects';
 import { bombBurstSize } from './effectsSystem';
 
 const world = { groundHeightAt: () => 0 } as unknown as WorldQuery;
@@ -13,10 +14,24 @@ function view(x: number, y: number, vx: number, vy: number, massKg = 50): BombVi
 const drawn = (fx: BombEffects) => fx.group.children.filter((c): c is Mesh => c.name === 'FallingBomb' && c.visible);
 
 describe('bomb sizes', () => {
-  it('sizes bombs, bursts and craters by mass and charge', () => {
-    const b = bombSize(50);
-    expect(b.length).toBeGreaterThan(1.2);
-    expect(b.length).toBeLessThan(2.2);
+  it('draws a falling bomb the size of the same bomb on the rack', () => {
+    // Every store of every aircraft: the release must not change the bomb's size.
+    for (const spec of Object.values(AIRCRAFT)) {
+      (spec.bombs ?? []).forEach((store, storeIndex) => {
+        const shooter = { id: 7, kind: 'aircraft', spec };
+        const w = { groundHeightAt: () => 0, getEntity: (id: number) => (id === 7 ? shooter : undefined) } as unknown as WorldQuery;
+        const fx = new BombEffects();
+        fx.update(w, [{ ...view(0, 500, 40, -10, store.massKg), storeIndex }]);
+        const [m] = drawn(fx);
+        const d = bombDimensions(store);
+        expect(m.scale.z, `${spec.id} ${store.name}`).toBeCloseTo(d.lengthM, 6);
+        expect(m.scale.x * 0.15, `${spec.id} ${store.name}`).toBeCloseTo(d.diameterM, 6);
+      });
+    }
+    expect(bombDimensions({ name: 'P.u.W. 50 kg', massKg: 50 })).toEqual({ lengthM: 1.7, diameterM: 0.18 });
+  });
+
+  it('sizes bursts and craters by charge', () => {
     expect(craterRadius(50)).toBeGreaterThan(craterRadius(1.5));
     expect(bombBurstSize(23)).toBeGreaterThan(bombBurstSize(1.5));
     expect(bombBurstSize(50) / bombBurstSize(6.25)).toBeCloseTo(2, 5);
