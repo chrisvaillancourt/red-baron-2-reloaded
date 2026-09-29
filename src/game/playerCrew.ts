@@ -1,5 +1,5 @@
 /**
- * The player's crew seat in flight (docs/bombers.md, D-XXX): the seat keys, the gunner's aim,
+ * The player's crew seat in flight (docs/bombers.md, D-089 to D-091): the seat keys, the gunner's aim,
  * the bombsight and bomb release. The flight session owns one; it turns key commands into
  * seat changes on the SimCore, keeps the camera and input in step with the seat, writes the
  * station inputs (or the pilot's bomb release) before each sim step, and gives the HUD its

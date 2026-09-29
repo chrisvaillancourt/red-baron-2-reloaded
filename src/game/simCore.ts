@@ -8,6 +8,7 @@ import { Vector3 } from 'three';
 import { createEventBus } from '../core/events';
 import type { AIController, CombatSystem, EventBus, WingmanCommand, WorldQuery } from '../core/interfaces';
 import type { AircraftEntity, CrewStationId, MissionDefinition, MissionFlight, RealismSettings } from '../core/types';
+import type { HumanPilotParams } from '../ai/humanAim';
 import { aimBodyVector, stationInputsFor, stationOf, startStation, StationAim } from './crewSeat';
 import { createHeightCache } from './heightCache';
 import { MissionDirector } from './missionDirector';
@@ -28,6 +29,8 @@ export interface SimCoreOptions {
   bus?: EventBus;
   /** Fly the player's aircraft with an AI controller too (autoplayer). */
   aiPlayer?: boolean;
+  /** With aiPlayer: that controller aims and fires like a human (src/ai/humanAim.ts). */
+  humanPlayer?: HumanPilotParams;
 }
 
 export class SimCore {
@@ -74,7 +77,8 @@ export class SimCore {
       members.forEach((ac, slot) => {
         if (ac.controller !== 'ai' && !(opts.aiPlayer && ac.controller === 'player')) return;
         const homeAerodromeId = flight.role === 'enemy' ? undefined : mission.homeAerodromeId;
-        this.ai.set(ac.id, modules.createAIController(ac, { skill: ac.skill, flight, slot, leaderId, realism, homeAerodromeId }));
+        const human = ac.controller === 'player' ? opts.humanPlayer : undefined;
+        this.ai.set(ac.id, modules.createAIController(ac, { skill: ac.skill, flight, slot, leaderId, realism, homeAerodromeId, ...(human ? { human } : {}) }));
       });
     }
 
@@ -90,7 +94,7 @@ export class SimCore {
   }
 
   /**
-   * Put the player at a crew station of his aircraft (D-XXX, docs/bombers.md). At any station
+   * Put the player at a crew station of his aircraft (D-089, docs/bombers.md). At any station
    * but the pilot's an AI pilot flies the aircraft, taking up the route at `fromWaypoint` (the
    * player's next waypoint), and `stationInputs` carry the player's aim and buttons; the
    * aircraft keeps `controller: 'player'`. Back at the pilot's seat the AI pilot is dropped and

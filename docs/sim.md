@@ -7,7 +7,8 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
 | `atmosphere.ts` | ISA density/temperature; `createFlightEnvironment(groundHeightAt, weather)` (wind scaled with height AGL, reference at 1000 m, plus a smooth gust field; call `env.advance(dt)` every fixed step). |
 | `coefficients.ts` | Per-type aero/engine/handling coefficients derived from `AircraftSpec` and calibrated to its historical figures. Cached by aircraft id. |
 | `flightModel.ts` | `createFlightState`, `stepFlight` (6-DOF), attitude helpers, `getSimInternal`. |
-| `combat.ts` | `createCombatSystem(bus, getRealism, opts?)`, `setGunnerTarget`, `aimFlexibleGun`. |
+| `combat.ts` | `createCombatSystem(bus, getRealism, opts?)`, `setGunnerTarget` / `getGunnerTarget`, `getStationAim`, `aimFlexibleGun`. |
+| `bombs.ts` | `loadBombs`, `nextBombStore`, `predictBombImpact` (the bombsight's prediction), bomb ballistics, `blastDamage`, `getBombStats`. Combat releases and bursts the bombs. |
 | `hitboxes.ts` | Body-frame damage-zone boxes, ground-target boxes, balloon radius. |
 | `entity.ts` | `createAircraftEntity(...)` and fresh controls/damage/gun states. |
 | `autopilot.ts` | `Autopilot` — altitude / vertical-speed / airspeed-by-pitch / heading / bank hold. Used by tests; handy for AI and "form up". |
@@ -36,6 +37,16 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
   `tailPressureRatio(ac, env)`. Controllers inverting `stickForAlpha` must divide their
   desired wing AoA by it (the AI autopilot does); the relaxed stall cap and the relaxed /
   standard g caps are scaled by it internally.
+* **Twins** (`performance.engineCount` > 1). `enginePowerHp` is the total, split evenly, with a
+  propeller per engine sized for its share. Each engine has its own damage
+  (`damage.engines`, filled in by combat; absent, the `engine` zone stands for all): power
+  × (1 − 0.75 × damage), misfiring above 0.5, dead at 1. Thrust and windmilling drag act at
+  each nacelle (`engineOffsetX`: spread across ±`nacelleOffsetX`, left first), so with an
+  engine out the aircraft yaws toward the dead side. Hands off, the test twin swings about
+  35° further toward it over 15 s than with both running. It flies on the other engine,
+  sinking slowly at full throttle. The aircraft's engine is dead (`engineDead`,
+  `engine-dead`) only when every engine is. Healthy, a twin flies exactly as a
+  single-engined aircraft of the same total power.
 * **Torque** (`realism.engineTorque`, not in relaxed): reaction roll to the left, gyroscopic
   precession `M = H × ω` (yaw right → nose down; pull up → yaw right), and a rotary
   power-on right-yaw bias. Result: a Camel turns ~12% faster right than left and needs
@@ -108,7 +119,21 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   every zone on its path until the engine stops it. Balloons are 8 m spheres (hits drain
   health; each hit may ignite the hydrogen; ignition = `balloon-destroyed`). Ground targets
   are oriented boxes (`GROUND_TARGET_BOXES`).
-* **Damage.** Engine (smoke > 0.4, dead at 1, small fire chance), fuel tank (leaks, fire),
+* **Hit boxes** (`hitboxes.ts`, body frame). Types with explicit `crewStations` have a gunner
+  box per station around its eye point (by default 0.45 m above and 0.35 m behind its first
+  gun), tagged with the crew member and station. A man is only in the box of the station
+  he is working now, so a round through the Gotha's empty tunnel position finds nobody.
+  The pilot's box moves to the pilot station's `eye` when one is given. Multi-engine types
+  (`engineCount` > 1 with `nacelleOffsetX`) have an engine box per nacelle (left engine 0),
+  ahead of the wing for tractors and behind it for pushers, and none in the nose. Every
+  other type's boxes are unchanged.
+  * **The engine stops a round.** On multi-engine types the first engine box along the
+    path stops it, so a beam shot spares the far engine and everything behind the near one.
+    Single-engined types keep the older cut by zone-list order. In a tractor the engine
+    comes first in that list, so any round whose path crosses the engine box damages only
+    the engine: a shot from astern that passes through the pilot into the engine spares
+    the pilot. Changing that would change today's balance, so it waits for a lead decision.
+* **Damage.** Engine (smoke > 0.4, dead at 1, small fire chance; on twins a hit finds one engine, the zone holds the worst), fuel tank (leaks, fire),
   pilot/gunner (not every round in the box finds the man; each pilot hit adds 0.22 wound and
   kills with probability (0.07 + 0.25 × wounds) × severity, the fifth hit certainly), wings/tail/fuselage
   (structural failure at 1), controls, guns (random jam). Engine/fuel-tank fire chances scale
@@ -118,12 +143,86 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   within 30 s — including structural failure and crashes/ditching ("forced down"). Collisions
   and flak credit nobody. Outcomes: `pilot-killed`, `shot-down`, `crashed`, `ditched`, `collided`.
   Combat never reports `landed-*` / `disengaged` outcomes; the flight session sets those.
-* **Rear gunners** fire automatically on two-seaters: they pick the nearest enemy within range
-  (novice 275 m … ace 425 m), lead with relative velocity, respect the field of fire (not forward
-  through the propeller, not down through the fuselage, not through the tail), fire in bursts with
-  skill-scaled aim error (regular 0.03 rad) that grows with their own turn rate and the target's
-  crossing rate. Override with `setGunnerTarget(ac, id)`; `null` restores auto.
-  `aimFlexibleGun(ac, mountIndex, point)` returns the direction and whether it is in arc.
+* **Gunners** work every flexible gun from its crew station (`crewStations(spec)`, src/data/crew.ts;
+  D-086). There is one AI gunner per crew member who isn't the pilot. Stations that share a
+  `crewIndex` are one man: he fires from one of them at a time, staying where he has the
+  shot, and otherwise moving to the station with the most guns that bears (1 s to move,
+  no fire meanwhile). A station's field of fire is its `FireArc` boxes in the body frame
+  (`inFireArcs`), tested on the drop-compensated aim. Gunners pick the nearest enemy within
+  range (novice 275 m … ace 425 m, searching out to 1.3×), lead with relative velocity, fire in
+  bursts (1.5–2.5 s, pauses 0.8–2.2 s), and have skill-scaled aim error (regular 0.03 rad) that
+  grows with their own turn rate, the target's crossing rate, a wounded pilot (+50%) and
+  their own wounds (× 1 + wound).
+  * **One gunner aboard** (every two-seater): the assigned target, else the nearest enemy,
+    and he holds fire while it's out of his arcs. This is the pre-station behaviour, with the
+    station arcs in place of the old hard-coded field of fire (the derived observer arcs
+    match it over 99.9% of the sphere).
+  * **Several gunners:** each watches for the nearest enemy *his* stations bear on. He
+    falls back to that one when the aircraft-wide target is out of his arcs, so the nose
+    gunner doesn't stare at a fighter on the tail.
+  * **Targets:** `setGunnerTarget(ac, id)` assigns every gunner and clears station
+    overrides. `setGunnerTarget(ac, id, station)` assigns the man at that station only, and
+    he holds to it strictly. `null` restores automatic (with a station: clears that
+    override). `getGunnerTarget(ac, station?)` reads it back.
+  * **Wounds:** types with explicit `crewStations` track `damage.crewWounds` per crew
+    member (combat fills it in on first sight; index 0 mirrors the pilot). A gunner hit
+    wounds one man (+0.34, killed at 1 or with 25% chance, the old gunner rule). A killed
+    man's stations fall silent. The `gunner` zone is the *least*-wounded gunner's wound,
+    so `zones.gunner >= 1` still means "no gunner left", as for a two-seater. For
+    per-man logic read `crewWounds`. Types without explicit stations keep the single
+    `gunner` zone.
+  * **Gunless stations** (a bombsight that shares the nose gunner's `crewIndex`) belong to
+    that man too. The player puts him there, and his hit box is live there while he is.
+    The AI moves him only between armed stations, and back to a gun when the player
+    leaves.
+  * **The player at a station** (`ac.stationInputs`, set by the game layer): his `aim`
+    (world unit vector) and `fire` drive that station's guns continuously. They fire only
+    inside the station's arcs, with the gun's own dispersion (0.0025 rad) and no aim error,
+    subject to heat, jams and drums. `stationInputs.clearJam` hammers that station's guns
+    and is consumed like `controls.clearJam`. His other stations (the same man) are silent,
+    and the other crew stay AI.
+  * `aimFlexibleGun(ac, mountIndex, point)` returns the direction and whether it is in the
+    gun's station arcs. `getStationAim(ac, station)` is where a station's guns are laid this
+    step (the AI solution or the player's aim), null when idle or out of the fight, for the renderer's
+    `setStationAim`. `gun-fired.mountIndex` says which gun fired.
+* **Bombs** (`bombs.ts`, combat). `spec.bombs` is the load, and `ac.bombs` the count left per store.
+  * **Loading:** the game layer calls `loadBombs(ac)` for a sortie that carries bombs. An
+    aircraft whose `bombs` stays unset carries none. `massLoaded` includes the full load,
+    so the flight model subtracts every bomb not aboard. `effectiveMass(ac)` /
+    `effectiveWeight(ac)` give it: use them, not `FlightCoefficients.mass` / `weight` (the
+    full loaded figures, used only for calibration), wherever the aircraft's weight
+    matters. The flight model, the ground contact and the sim autopilot's lift
+    feed-forward do. `createFlightState(…, massKg?)` trims for `massKg` (default the full
+    load), and `createAircraftEntity({ …, bombs })` sets the load and trims for it. A
+    D.H.4 without a bomb load is 204 kg lighter than its loaded weight.
+  * **Release:** both `controls.releaseBomb` (the pilot or an AI bomb aimer) and
+    `stationInputs.releaseBomb` (at the `bombAimer` station) are *held* inputs. The sim
+    releases one bomb per false-to-true change and never resets them, unlike `clearJam`.
+    Holding either releases one bomb.
+  * **Who can release:** the station release needs the bomb aimer alive. The controls
+    release needs the pilot alive. Unless the player himself is in the pilot's seat, it
+    also needs the aimer alive: an AI crew, or the AI flying while the player works a
+    gun, can't release for a dead aimer. There is no release on the ground or below 5 m
+    above it. The heaviest store with bombs left goes first (ties
+    to the lower index). The bomb leaves from the CG with the aircraft's world velocity,
+    and emits `bomb-released`.
+  * **Ballistics:** gravity plus quadratic drag relative to the air, so the wind drifts it.
+    k = ½ ρ C_d A / m with C_d 0.25 and a 0.2 m body for 50 kg (diameter ∝ mass^⅓), about
+    1·10⁻⁴ /m for a 50 kg bomb at sea level (terminal speed about 320 m/s). The ground is `env.groundHeightAt`.
+    `predictBombImpact(ac, env, store?)` runs the same integrator and returns the burst
+    point and fall time, within about a metre of the real fall. A bomb still falling after
+    120 s is discarded without a burst, where the prediction returns null. `combat.bombs`
+    (`BombView[]`) lists the bombs in flight for the renderer.
+  * **Blast:** Hopkinson-Cranz scaling on Z = r / W^⅓ (r to the target box's nearest face,
+    W the charge). A target is destroyed inside Z_kill, and damage falls as the square of
+    the way out to Z_zero. Soft targets (lorry, tent hangar, AA gun) are 3.5 / 10, a trench
+    MG 3 / 8, a hangar, dump or train 2.5 / 7, and a battery 2 / 6. So a 20 kg charge
+    destroys a lorry within 9.5 m and a hangar within 7 m of its walls. Damage goes through
+    the strafing path (`ground-destroyed` with the bomber's kill credit), then
+    `bomb-exploded` (the targets reached, of any side) and `explosion` (size 0.6 W^⅓, at
+    most 4). Blast doesn't touch aircraft or balloons.
+  * **Counts:** `getBombStats(ac)` returns `{ dropped, hits }` for `MissionResult.bombsDropped` /
+    `bombHits`. A hit is a bomb that damaged at least one ground target of the other side.
 * **Archie.** Aircraft above 500 m AGL over enemy ground draw bursts: every 4–7 s within ~5 km of
   the front, 10–18 s deeper, 1.5–3 s near an enemy balloon (and more accurate), faster near live
   enemy `aa-gun` ground targets. Shells arrive after 2 s + altitude/700; aim error ~75 m + 2% of

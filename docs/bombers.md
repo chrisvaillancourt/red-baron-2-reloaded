@@ -117,6 +117,15 @@ reasons. In short:
        optional escort, the bomb-run waypoint and a destroy-ground objective.
      - AI bombers: formation, the straight and level bomb run, release over the target, and
        the way home; AI escorts and interceptors that go for bombers; per-station gunner
-       targeting; the three `crew === 2` checks in `src/ai`.
+       targeting.
+     - **Before the two-seaters become flyable:** `aircraftPool` (`src/campaign/squadronUtil.ts`)
+       keeps only non-flyable two-seaters in AI recon and bomber pools (`!a.flyable`).
+       Flipping `flyable` on the R.E.8, Rumpler and the rest would empty those pools, so
+       separate "the player may fly it" from "the AI flies it" first.
+   - **Lead, at the defence merge (done):** change the three `crew === 2` checks in `src/ai`
+     (`traits.ts` `isTwoSeater`, and two in `controller.ts`) to `crew >= 2`, before track B
+     merges. Track B's bombers enter the career AI pools for bomb-task flights as soon as they
+     exist (historically right: Gotha raids to intercept), and until then the AI would treat
+     a three-crew Gotha as a single-seater.
 3. **Merge, re-baseline and playtest,** then career bomber squadrons (wave 2), then night
    bombing.

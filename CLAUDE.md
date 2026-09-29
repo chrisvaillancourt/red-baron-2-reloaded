@@ -13,6 +13,8 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
 - Pure-logic modules (`sim`, `ai`, `world`, `campaign`) must not import `three` scene/renderer
   code — only `three` math classes (Vector3, Quaternion, Matrix4, Euler, MathUtils).
 - Tests: Vitest, co-located as `*.test.ts`. `pnpm test`, `pnpm typecheck` must pass before commit.
+  This pnpm rejects `-s`: use the plain forms (`pnpm typecheck`, `pnpm test`,
+  `pnpm exec vitest run <paths>`).
 - **Commit before you call work done.** Run `git status` before reporting a task complete,
   finished or ready to merge, and commit everything you changed. A final report with
   uncommitted work in it is not finished. If something is left uncommitted on purpose,
@@ -55,6 +57,11 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   Any `cd` is refused, including in a subshell `( … )`, and so are `for`/`while`/`until`
   loops and `<(…)` process substitution. Write a small Node script to the scratchpad instead. To run something from another
   directory, set `cwd` in `spawnSync` from a script.
+  The repo's own path contains "github", which can trip the sandbox's git guard even for
+  commands with no git in them (FRICTION F-24). If a plain `jq` or `grep` on such a path is
+  refused, do it from a Node script.
+  Don't reach into another agent's worktree (`git -C <path>` is refused); ask the lead
+  what another track exports.
 - **A/B with `node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`) and
   wait on background outputs with `node tools/dev/waitfor.mjs <file> <regex> …`. Don't
   hand-launch paired soaks or write sleep loops. Quote a difference only when the tool says
@@ -74,6 +81,8 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   GPU, and the user may be playing on `pnpm dev`. Re-run the failing specs alone, then
   compare with a baseline `git worktree` at the previous commit before blaming your change
   (FRICTION F-20).
+- **Don't edit `src/` while an e2e run is going.** Vite hot-reloads the page under test, and
+  the run goes red for no real reason (FRICTION F-40).
 - **Test helpers:** never import from a `*.test.ts` file, because Vitest registers its tests
   again in the importing file. Shared fixtures go in a `testing/` module, like
   `src/game/testing/`. Vitest can swallow `console.log` in tests, so print soak output

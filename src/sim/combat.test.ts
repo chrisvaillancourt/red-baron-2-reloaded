@@ -1,78 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
-import type { WorldQuery } from '../core/interfaces';
-import type { AircraftEntity, AircraftId, BalloonEntity, GameEvent, GroundTargetEntity, RealismSettings } from '../core/types';
-import { createEventBus } from '../core/events';
-import { getAircraft } from '../data/aircraft';
-import { Autopilot } from './autopilot';
-import { createCombatSystem, setGunnerTarget } from './combat';
-import { createAircraftEntity } from './entity';
-import { SIM_DT, orientationFrom, stepFlight } from './flightModel';
-import { flatEnv, realism } from './testUtil';
-import { createRng } from './rng';
-
-function scenario(opts: { realism?: Partial<RealismSettings>; flak?: boolean; groundFire?: boolean; sideOfFront?: (x: number) => 'allied' | 'central' } = {}) {
-  const env = flatEnv(50);
-  const bus = createEventBus();
-  const events: GameEvent[] = [];
-  bus.onAny((e) => events.push(e));
-  const r = realism(opts.realism);
-  const combat = createCombatSystem(bus, () => r, { rng: createRng(42), flak: opts.flak ?? false, groundFire: opts.groundFire ?? false });
-  const aircraft: AircraftEntity[] = [];
-  const balloons: BalloonEntity[] = [];
-  const groundTargets: GroundTargetEntity[] = [];
-  const side = opts.sideOfFront ?? (() => 'allied');
-  const world: WorldQuery & { time: number } = {
-    time: 0,
-    date: '1917-06-01',
-    aircraft,
-    balloons,
-    groundTargets,
-    getEntity: (id) => aircraft.find((a) => a.id === id) ?? balloons.find((b) => b.id === id) ?? groundTargets.find((g) => g.id === id),
-    groundHeightAt: () => 50,
-    sideOfFrontAt: (x) => side(x),
-    getFlight: () => undefined,
-    env,
-  };
-  const add = (id: number, type: AircraftId, x: number, z: number, alt: number, heading = 0, nation?: AircraftEntity['nation']) => {
-    const ac = createAircraftEntity({ id, spec: getAircraft(type), env, nation, start: { x, z, altitude: alt, heading, airspeed: 45 } });
-    aircraft.push(ac);
-    return ac;
-  };
-  const autopilots = new Map<number, Autopilot>();
-  const step = (seconds: number, each?: () => void, fly: boolean | 'kinematic' = true) => {
-    for (let t = 0; t < seconds; t += SIM_DT) {
-      each?.();
-      if (fly === 'kinematic') {
-        for (const ac of aircraft) if (!ac.damage.destroyed) ac.state.position.addScaledVector(ac.state.velocity, SIM_DT);
-      } else if (fly) {
-        for (const ac of aircraft) {
-          if (ac.controller !== 'none') {
-            let ap = autopilots.get(ac.id);
-            if (!ap) autopilots.set(ac.id, (ap = new Autopilot()));
-            const fire = ac.controls.fireGuns;
-            if (!ac.damage.destroyed) ap.update(ac, { altitude: 1000, heading: 0, throttle: 0.9 }, SIM_DT);
-            ac.controls.fireGuns = fire;
-          }
-          stepFlight(ac, env, r, SIM_DT);
-        }
-      }
-      combat.update(world, SIM_DT);
-      env.advance(SIM_DT);
-      world.time += SIM_DT;
-    }
-  };
-  return { env, bus, events, combat, world, aircraft, balloons, groundTargets, add, step, r };
-}
-
-/** Point the shooter's sight line (eye 0.8 m above CG) at the target's centre. */
-function aimAt(shooter: AircraftEntity, target: AircraftEntity) {
-  const eye = shooter.state.position.clone().add(new Vector3(0, 0.8, 0));
-  const d = target.state.position.clone().sub(eye).normalize();
-  orientationFrom(Math.atan2(d.x, -d.z), Math.asin(d.y), 0, shooter.state.orientation);
-}
-
-const count = (events: GameEvent[], type: GameEvent['type']) => events.filter((e) => e.type === type).length;
+import type { GameEvent } from '../core/types';
+import { setGunnerTarget } from './combat';
+import { SIM_DT, orientationFrom } from './flightModel';
+import { aimAt, count, scenario } from './testing/scenario';
 
 describe('guns', () => {
   it('fires at the synchronised rate and spends ammunition', () => {
