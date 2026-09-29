@@ -19,8 +19,12 @@ test('Quick Mission: Tab moves between groups, arrows within them', async ({ pag
   await page.reload();
   await page.waitForFunction(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen') === 'title');
   await page.click('text=Quick Mission');
-  await page.waitForFunction(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen') === 'quick');
-  await page.waitForTimeout(400);
+  // Wait for the title screen to finish leaving: while both are in the DOM, Tab walks both
+  // (under load that took longer than a fixed pause; FRICTION F-20).
+  await page.waitForFunction(() => {
+    const screens = document.querySelectorAll('.rb-screen');
+    return screens.length === 1 && screens[0].getAttribute('data-screen') === 'quick';
+  });
 
   // Tab from the first control to the fly button, noting every stop.
   const stops: string[] = [];
