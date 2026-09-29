@@ -112,12 +112,16 @@ export class CameraRig {
   private freeYaw = 0;
   private freePitch = 0;
   private freeLookActive = false;
+  /** Gunner's free look (head yaw/pitch), held until the gun swings off `gunLookAim`; null: follow the gun. */
+  private gunLook: { yaw: number; pitch: number } | null = null;
+  private readonly gunLookAim = new Vector3();
 
-  /** Re-centre the head (e.g. on view change or "look forward"). */
+  /** Re-centre the head (e.g. on view change or "look forward"); at a gun, back onto the gun. */
   centreHead(): void {
     this.freeYaw = 0;
     this.freePitch = 0;
     this.freeLookActive = false;
+    this.gunLook = null;
   }
 
   constructor(fovDeg: number, aspect: number, near = 0.2, far = 60000) {
@@ -201,12 +205,27 @@ export class CameraRig {
 
     switch (this.mode) {
       case 'gunner': {
-        // The head follows the gun (azimuth + = right is head yaw - ); a snap look turns it away while held.
+        // The head follows the gun (azimuth + = right is head yaw - ); a snap look turns it away
+        // while held, and a free look (right-drag, or the mouse with mouse aim off) until the gun swings.
         const st = this.station!;
         const a = st.aimBody;
+        if (this.gunLook && a.angleTo(this.gunLookAim) > 1e-5) this.gunLook = null;
+        if (input && (input.lookDelta.yaw !== 0 || input.lookDelta.pitch !== 0)) {
+          if (!this.gunLook) {
+            this.gunLook = { yaw: this.headYaw, pitch: this.headPitch };
+            this.gunLookAim.copy(a);
+          }
+          this.gunLook.yaw = Math.atan2(Math.sin(this.gunLook.yaw + input.lookDelta.yaw), Math.cos(this.gunLook.yaw + input.lookDelta.yaw));
+          this.gunLook.pitch = MathUtils.clamp(this.gunLook.pitch + input.lookDelta.pitch, NECK_PITCH_MIN, NECK_PITCH_MAX);
+        }
         let tYaw = Math.atan2(-a.x, -a.z);
         let tPitch = Math.atan2(a.y, Math.hypot(a.x, a.z));
         let rate = GUNNER_HEAD_RATE;
+        if (this.gunLook) {
+          tYaw = this.gunLook.yaw;
+          tPitch = this.gunLook.pitch;
+          rate = 30;
+        }
         if (input?.snapLook) {
           tYaw = input.snapLook.yaw;
           tPitch = input.snapLook.pitch;

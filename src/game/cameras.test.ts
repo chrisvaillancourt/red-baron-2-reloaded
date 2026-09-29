@@ -105,6 +105,32 @@ describe('CameraRig crew views', () => {
     expect(look.x).toBeLessThan(-0.95); // left of a northbound aircraft is west
   });
 
+  it('a free look (right-drag, or the mouse with mouse aim off) turns the gunner\'s head until the gun swings', () => {
+    const { world, player, rig } = setup(); // heading north
+    rig.station = { eye: STATION_EYE, aimBody: new Vector3(0, 0, 1) }; // over the tail
+    rig.setMode('gunner');
+    run(rig, world, player, frame({}), 1);
+    const look = () => new Vector3(0, 0, -1).applyQuaternion(rig.camera.quaternion);
+    // Drag left 90°: from astern (south) the head turns to the east.
+    run(rig, world, player, frame({ lookDelta: { yaw: Math.PI / 2 / 30, pitch: 0 } }), 0.5);
+    run(rig, world, player, frame({}), 1);
+    expect(look().x).toBeGreaterThan(0.95); // and it stays there, drag released
+    // Swinging the gun hands the head back to it.
+    rig.station.aimBody.set(0.05, 0, 1).normalize();
+    run(rig, world, player, frame({}), 1);
+    expect(look().z).toBeGreaterThan(0.99);
+  });
+
+  it('F1 at a gun (centre the head) ends the free look', () => {
+    const { world, player, rig } = setup();
+    rig.station = { eye: STATION_EYE, aimBody: new Vector3(0, 0, 1) };
+    rig.setMode('gunner');
+    run(rig, world, player, frame({ lookDelta: { yaw: 0.05, pitch: 0 } }), 0.5);
+    rig.centreHead();
+    run(rig, world, player, frame({}), 1);
+    expect(new Vector3(0, 0, -1).applyQuaternion(rig.camera.quaternion).z).toBeGreaterThan(0.99);
+  });
+
   it('the bombsight looks straight down with the heading at the top', () => {
     const { world, player, rig } = setup();
     rig.station = { eye: STATION_EYE, aimBody: new Vector3(0, 0, 1) };
