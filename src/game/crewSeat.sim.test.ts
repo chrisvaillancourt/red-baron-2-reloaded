@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../core/settings';
 import type { MissionDefinition } from '../core/types';
+import { getAIPilot } from '../ai';
 import { headlessModules } from './autoplay';
 import { SimCore, SIM_HZ } from './simCore';
 import { bristolFight, dh4BombRun, playerMember } from './testing/crewMissions';
@@ -89,6 +90,55 @@ describe('player crew seats in the sim core', () => {
     expect(distTo(onward, 1)).toBeLessThan(d1 - 1000); // pressed on toward the second
     expect(distTo(back, 0)).toBeLessThan(d0); // the first waypoint, behind: turned back for it
   }, 30_000);
+});
+
+describe('the AI pilot\'s lifecycle', () => {
+  it('releases the AI pilot on hand-back, so no AI reads the player as AI-flown', () => {
+    const core = new SimCore(headlessModules, bristolFight('observer'), realism);
+    const p = core.world.player!;
+    run(core, 1);
+    expect(getAIPilot(p)).toBeDefined();
+    core.setPlayerStation('pilot');
+    expect(getAIPilot(p)).toBeUndefined();
+  });
+
+  for (const how of ['lost', 'mission over'] as const) {
+    it(`clears the station and the AI pilot when the ${how === 'lost' ? 'aircraft is lost' : 'mission ends'}`, () => {
+      const core = new SimCore(headlessModules, bristolFight('observer'), realism);
+      const p = core.world.player!;
+      run(core, 1);
+      p.stationInputs!.fire = true;
+      if (how === 'lost') p.outcome = 'shot-down';
+      else core.director.ended = true;
+      run(core, 0.1);
+      expect(p.stationInputs).toBeUndefined();
+      expect(core.ai.has(p.id)).toBe(false);
+      expect(getAIPilot(p)).toBeUndefined();
+      expect(core.playerStation).toBe('pilot');
+    });
+  }
+});
+
+describe('bomb run pickup', () => {
+  const bombIndex = (core: SimCore) => playerMember(core.mission).flight.waypoints.findIndex((w) => w.action === 'bomb');
+
+  it('keeps the bomb waypoint in the AI pilot\'s route when the HUD has already passed it', () => {
+    const core = new SimCore(headlessModules, dh4BombRun(), realism);
+    const b = bombIndex(core);
+    expect(b).toBeGreaterThanOrEqual(0);
+    expect(playerMember(core.mission).flight.waypoints.length).toBeGreaterThan(b + 1);
+    core.setPlayerStation('observer', { fromWaypoint: b + 1 });
+    expect(core.playerPilotFrom).toBe(b);
+  });
+
+  it('flies on past the bomb waypoint once the racks are empty', () => {
+    const core = new SimCore(headlessModules, dh4BombRun(), realism);
+    const b = bombIndex(core);
+    const p = core.world.player!;
+    p.bombs = p.bombs!.map(() => 0);
+    core.setPlayerStation('observer', { fromWaypoint: b + 1 });
+    expect(core.playerPilotFrom).toBe(b + 1);
+  });
 });
 
 describe('bomb aimer seat', () => {

@@ -8,7 +8,7 @@
  * ±180 = astern; elevation +90 = straight up, relative to the aircraft's own wings.
  */
 import { MathUtils, Quaternion, Vector3 } from 'three';
-import type { AircraftSpec, CrewStation, CrewStationId, FireArc, StationInputs } from '../core/types';
+import type { AircraftSpec, CrewStation, CrewStationId, FireArc, StationInputs, Waypoint } from '../core/types';
 import { bodyDirectionAngles, crewStations, inFireArcs } from '../data/crew';
 
 const D2R = Math.PI / 180;
@@ -46,6 +46,21 @@ export function stationOf(spec: AircraftSpec, id: CrewStationId): CrewStation | 
 /** The station that aims and releases the bombs, if the type carries any. */
 export function bombAimerStation(spec: AircraftSpec): CrewStation | undefined {
   return crewStations(spec).find((s) => s.bombAimer);
+}
+
+const TARGET_ACTIONS: ReadonlySet<Waypoint['action']> = new Set(['bomb', 'attack-ground', 'attack-balloon']);
+
+/**
+ * The waypoint an AI pilot taking over takes up the route at. `from` is the player's next
+ * waypoint (the HUD's), which moves on within 1.5 km of a waypoint, so on the run-in it can
+ * already lie past the target. A target waypoint (bomb or attack) before it whose work isn't
+ * `done` is never skipped: the pilot picks up at the first of those instead.
+ */
+export function pilotPickupWaypoint(waypoints: readonly Waypoint[], from: number, done: (wp: Waypoint) => boolean): number {
+  if (waypoints.length === 0) return 0;
+  const next = Math.max(0, Math.min(from, waypoints.length - 1));
+  for (let i = 0; i < next; i++) if (TARGET_ACTIONS.has(waypoints[i].action) && !done(waypoints[i])) return i;
+  return next;
 }
 
 /** Azimuth `az` inside the clockwise range [from, to] (which may wrap through astern)? */

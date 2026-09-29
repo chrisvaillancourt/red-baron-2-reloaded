@@ -7,9 +7,10 @@
 import { Vector3 } from 'three';
 import { createEventBus } from '../core/events';
 import type { AIController, CombatSystem, EventBus, WingmanCommand, WorldQuery } from '../core/interfaces';
-import type { AircraftEntity, CrewStationId, MissionDefinition, MissionFlight, RealismSettings } from '../core/types';
+import type { AircraftEntity, CrewStationId, MissionDefinition, MissionFlight, RealismSettings, Waypoint } from '../core/types';
 import type { HumanPilotParams } from '../ai/humanAim';
-import { aimBodyVector, stationInputsFor, stationOf, startStation, StationAim } from './crewSeat';
+import { bombsLeft } from './bombsight';
+import { aimBodyVector, pilotPickupWaypoint, stationInputsFor, stationOf, startStation, StationAim } from './crewSeat';
 import { createHeightCache } from './heightCache';
 import { MissionDirector } from './missionDirector';
 import type { GameModules } from './moduleTypes';
@@ -22,8 +23,11 @@ export type SimCoreModules = Pick<
   GameModules,
   'sim' | 'createFlightEnvironment' | 'createCombatSystem' | 'createAIController' | 'terrainHeightAt' | 'sideOfFrontAt'
 > &
-  /** Resets the player's gunner to his own targeting when the player gives the AI pilot back the aircraft. */
-  Partial<Pick<GameModules, 'setGunnerTarget'>>;
+  /**
+   * When the player takes the controls back from the AI pilot: `setGunnerTarget` resets his
+   * gunner to his own targeting, `releaseAIPilot` makes the AI forget the controller.
+   */
+  Partial<Pick<GameModules, 'setGunnerTarget' | 'releaseAIPilot'>>;
 
 export interface SimCoreOptions {
   bus?: EventBus;
@@ -45,6 +49,7 @@ export class SimCore {
   private station: CrewStationId = 'pilot';
   /** The director recalled the player's flight: an AI pilot taking over later heads home too. */
   private recalled = false;
+  private pilotFrom: number | null = null;
 
   constructor(
     private readonly modules: SimCoreModules,
@@ -93,6 +98,11 @@ export class SimCore {
     return this.station;
   }
 
+  /** The waypoint the AI pilot flying for the player took up the route at; null when none flies. */
+  get playerPilotFrom(): number | null {
+    return this.pilotFrom;
+  }
+
   /**
    * Put the player at a crew station of his aircraft (D-089, docs/bombers.md). At any station
    * but the pilot's an AI pilot flies the aircraft, taking up the route at `fromWaypoint` (the
@@ -106,12 +116,11 @@ export class SimCore {
     if (!p || p.outcome !== null) return false;
     const st = stationOf(p.spec, station);
     if (!st) return false;
-    this.station = station;
     if (station === 'pilot') {
-      p.stationInputs = undefined;
-      if (!this.aiPlayer && this.ai.delete(p.id)) this.modules.setGunnerTarget?.(p, null);
+      this.leaveStation(p);
       return true;
     }
+    this.station = station;
     if (!this.ai.has(p.id)) this.ai.set(p.id, this.createPlayerPilot(p, opts.fromWaypoint ?? 0));
     const aim = new StationAim(st.arcs);
     p.stationInputs = stationInputsFor(st, aimBodyVector(aim.azimuthDeg, aim.elevationDeg, new Vector3()), p.state.orientation, { fire: false, releaseBomb: false, clearJam: false }, p.stationInputs);
@@ -119,13 +128,39 @@ export class SimCore {
   }
 
   /**
+   * Back to the pilot's seat: no station inputs, and (unless the autoplayer flies everything)
+   * the AI pilot is dropped and forgotten. Also when the aircraft is lost or the mission ends.
+   */
+  private leaveStation(p: AircraftEntity): void {
+    this.station = 'pilot';
+    p.stationInputs = undefined;
+    if (this.aiPlayer || !this.ai.delete(p.id)) return;
+    this.pilotFrom = null;
+    this.modules.releaseAIPilot?.(p);
+    this.modules.setGunnerTarget?.(p, null);
+  }
+
+  /** A target waypoint whose work is over: its targets are all destroyed, or (a bomb run) the racks are empty. */
+  private waypointDone(p: AircraftEntity, wp: Waypoint): boolean {
+    if (wp.action === 'bomb' && bombsLeft(p.bombs) <= 0) return true;
+    if (!wp.targetIds?.length) return false;
+    return wp.targetIds.every((ref) => {
+      const id = this.world.missionIdToEntity.get(ref);
+      const e = id === undefined ? undefined : this.world.getEntity(id);
+      return !e || ((e.kind === 'ground' || e.kind === 'balloon') && e.destroyed);
+    });
+  }
+
+  /**
    * An AI pilot for the player's aircraft while he works a gun. It flies the flight's own task
    * (the autoplayer's options), but sees the route from the player's next waypoint on, so a
-   * pilot taking over mid-mission doesn't turn back for waypoints already flown.
+   * pilot taking over mid-mission doesn't turn back for waypoints already flown. A bomb or
+   * attack waypoint not yet done stays in the route (`pilotPickupWaypoint`).
    */
   private createPlayerPilot(p: AircraftEntity, fromWaypoint: number): AIController {
     const flight = this.world.getFlight(p.flightId)!;
-    const from = Math.max(0, Math.min(fromWaypoint, flight.waypoints.length - 1));
+    const from = pilotPickupWaypoint(flight.waypoints, fromWaypoint, (wp) => this.waypointDone(p, wp));
+    this.pilotFrom = from;
     const route: MissionFlight = from > 0 ? { ...flight, waypoints: flight.waypoints.slice(from) } : flight;
     const members = this.world.flightMembers.get(p.flightId) ?? [p];
     const homeAerodromeId = flight.role === 'enemy' ? undefined : this.mission.homeAerodromeId;
@@ -166,6 +201,9 @@ export class SimCore {
     }
     this.combat.update(world, h);
     this.director.update(h);
+    // The aircraft lost or the mission over: nobody works the gun and no AI flies for him.
+    const p = world.player;
+    if (p && this.station !== 'pilot' && (p.outcome !== null || this.director.ended)) this.leaveStation(p);
     return spawned;
   }
 

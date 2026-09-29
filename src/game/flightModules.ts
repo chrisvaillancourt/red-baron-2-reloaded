@@ -4,7 +4,7 @@
  * demand by the launcher (src/game/modules.ts) so the menus start without
  * three's WebGL renderer, the flight model or the AI in the first download.
  */
-import { createAIController } from '../ai';
+import { createAIController, releaseAIPilot } from '../ai';
 import { aiControllerOptions } from './aiOptions';
 import { createHud } from '../ui/hud/hud';
 import { createAircraftVisual, preloadAircraftModels } from '../render/aircraft';
@@ -30,6 +30,7 @@ export const flightModules: FlightOnlyModules = {
   // src/ai — adapt the game's per-slot options to the AI's vic-slot options.
   createAIController: (ac, o) =>
     createAIController(ac, aiControllerOptions(ac, o, setGunnerTarget)),
+  releaseAIPilot,
   // src/ui (in-flight HUD)
   createHud,
   // src/world

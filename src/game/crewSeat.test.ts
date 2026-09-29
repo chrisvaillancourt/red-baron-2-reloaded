@@ -1,6 +1,6 @@
 import { Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import type { FireArc } from '../core/types';
+import type { FireArc, Waypoint } from '../core/types';
 import { getAircraft } from '../data/aircraft';
 import { bodyDirectionAngles, crewStations, inFireArcs, NOSE_GUNNER_ARCS, REAR_OBSERVER_ARCS } from '../data/crew';
 import {
@@ -10,6 +10,7 @@ import {
   clampToArcs,
   cycleStation,
   initialAim,
+  pilotPickupWaypoint,
   StationAim,
   startStation,
   stationInputsFor,
@@ -169,6 +170,35 @@ describe('arc edges for the HUD', () => {
 
   it('traces the nose gunner arcs', () => {
     boundaryIsReal(NOSE_GUNNER_ARCS);
+  });
+});
+
+describe('AI pilot route pickup', () => {
+  const wp = (action: Waypoint['action']): Waypoint => ({ x: 0, z: 0, altitude: 1000, action });
+  const route = [wp('fly'), wp('fly'), wp('bomb'), wp('fly'), wp('land')];
+  const notDone = () => false;
+
+  it('picks up at the next waypoint when nothing unflown lies behind it', () => {
+    expect(pilotPickupWaypoint(route, 1, notDone)).toBe(1);
+    expect(pilotPickupWaypoint(route, 2, notDone)).toBe(2);
+    expect(pilotPickupWaypoint(route, 0, notDone)).toBe(0);
+  });
+
+  it('goes back for a bomb or attack waypoint the HUD has already passed', () => {
+    expect(pilotPickupWaypoint(route, 3, notDone)).toBe(2);
+    expect(pilotPickupWaypoint(route, 4, notDone)).toBe(2);
+    const attack = [wp('fly'), wp('attack-ground'), wp('attack-balloon'), wp('fly')];
+    expect(pilotPickupWaypoint(attack, 3, notDone)).toBe(1);
+    expect(pilotPickupWaypoint(attack, 3, (w) => w.action === 'attack-ground')).toBe(2);
+  });
+
+  it('flies on past a target waypoint whose work is done', () => {
+    expect(pilotPickupWaypoint(route, 3, (w) => w.action === 'bomb')).toBe(3);
+  });
+
+  it('keeps the index inside the route', () => {
+    expect(pilotPickupWaypoint(route, 9, () => true)).toBe(4);
+    expect(pilotPickupWaypoint([], 2, notDone)).toBe(0);
   });
 });
 

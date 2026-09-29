@@ -6,7 +6,7 @@
  * renderer.
  */
 import { Vector3 } from 'three';
-import { createAIController } from '../ai';
+import { createAIController, releaseAIPilot } from '../ai';
 import { aiControllerOptions } from './aiOptions';
 import type { AimTelemetry, GameEvent, MissionDefinition, MissionResult, RealismSettings } from '../core/types';
 import { DEFAULT_SETTINGS } from '../core/settings';
@@ -25,6 +25,7 @@ export const headlessModules: SimCoreModules = {
   createCombatSystem: (bus, getRealism) => createCombatSystem(bus, getRealism),
   createAIController: (ac, o) =>
     createAIController(ac, aiControllerOptions(ac, o, setGunnerTarget)),
+  releaseAIPilot,
   setGunnerTarget,
   terrainHeightAt,
   sideOfFrontAt,
