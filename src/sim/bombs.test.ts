@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import type { AircraftEntity, GameEvent } from '../core/types';
 import { getAircraft } from '../data/aircraft';
+import { Autopilot } from './autopilot';
 import { blastDamage, getBombStats, loadBombs, predictBombImpact } from './bombs';
 import { createAircraftEntity } from './entity';
-import { SIM_DT, stepFlight } from './flightModel';
+import { SIM_DT, effectiveMass, effectiveWeight, stepFlight } from './flightModel';
 import { TEST_TWIN } from './testing/fixtures';
 import { count, scenario, type Scenario } from './testing/scenario';
 import { flatEnv, realism } from './testUtil';
@@ -56,6 +57,41 @@ describe('bomb load', () => {
     expect(empty - full).toBeLessThan(1.25 * expected);
     expect(riseWith(undefined)).toBeCloseTo(empty, 6);
     expect(riseWith([3, 1]) - full).toBeLessThan(0.5 * (empty - full));
+  });
+});
+
+describe('effective mass', () => {
+  it('effectiveMass drops with the bombs; a type without racks is its loaded mass', () => {
+    const { ac } = bomber();
+    expect(effectiveMass(ac)).toBe(TEST_TWIN.performance.massLoaded);
+    ac.bombs = [0, 0];
+    expect(effectiveMass(ac)).toBe(TEST_TWIN.performance.massLoaded - 600);
+    expect(effectiveWeight(ac) / effectiveMass(ac)).toBeCloseTo(9.81, 1);
+    const camel = createAircraftEntity({ id: 2, spec: getAircraft('sopwith_camel'), env: flatEnv(), start: { x: 0, z: 0, altitude: 1000, heading: 0, airspeed: 45 } });
+    expect(effectiveMass(camel)).toBe(camel.spec.performance.massLoaded);
+  });
+
+  it('an aircraft built with its load is trimmed for that weight', () => {
+    const riseAfter = (bombs: number[] | undefined) => {
+      const env = flatEnv(50);
+      const ac = createAircraftEntity({ id: 1, spec: TEST_TWIN, env, bombs, start: { x: 0, z: 0, altitude: 1500, heading: 0, airspeed: 36 } });
+      expect(ac.bombs).toEqual(bombs);
+      ac.controls.throttle = 1;
+      for (let t = 0; t < 0.25; t += SIM_DT) stepFlight(ac, env, realism(), SIM_DT);
+      return ac.state.velocity.y;
+    };
+    // Trimmed for its own weight, the empty bomber starts as level as the loaded one.
+    expect(Math.abs(riseAfter([0, 0]) - riseAfter([6, 1]))).toBeLessThan(0.1);
+  });
+
+  it('the autopilot asks for less lift when the bombs are gone', () => {
+    const pitchFor = (bombs: number[]) => {
+      const { ac } = bomber();
+      ac.bombs = bombs;
+      new Autopilot().update(ac, { altitude: ac.state.position.y, heading: 0, throttle: 1 }, SIM_DT);
+      return ac.controls.pitch;
+    };
+    expect(pitchFor([0, 0])).toBeLessThan(pitchFor([6, 1]) - 0.005);
   });
 });
 

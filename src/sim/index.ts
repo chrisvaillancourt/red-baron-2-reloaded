@@ -12,6 +12,8 @@ export {
   SIM_DT,
   bankAngle,
   createFlightState,
+  effectiveMass,
+  effectiveWeight,
   engineOffsetX,
   getSimInternal,
   headingOf,

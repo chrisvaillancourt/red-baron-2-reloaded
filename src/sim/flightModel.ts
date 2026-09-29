@@ -249,11 +249,34 @@ export function stickForAlpha(co: FlightCoefficients, alpha: number): number {
   return -clamp((co.alphaTrim - alpha) / (co.alphaTrim - co.alphaCmdMin), 0, 1);
 }
 
+/**
+ * Mass the aircraft flies at, kg: `massLoaded` (which includes the full bomb load) less the
+ * bombs not aboard, released or never loaded. Everything that needs the aircraft's mass or
+ * weight (the flight model, autopilots' lift feed-forward, trim) should use this, not
+ * `FlightCoefficients.mass` / `weight`, which are the full loaded figures.
+ */
+export function effectiveMass(ac: AircraftEntity): number {
+  const co = getCoefficients(ac.spec);
+  const lighter = bombMassNotAboard(ac);
+  return lighter > 0 ? co.mass - lighter : co.mass;
+}
+
+/** Weight, N, at `effectiveMass`. */
+export function effectiveWeight(ac: AircraftEntity): number {
+  const lighter = bombMassNotAboard(ac);
+  return lighter > 0 ? effectiveMass(ac) * G : getCoefficients(ac.spec).weight;
+}
+
+/**
+ * A fresh flight state. Airborne, it is trimmed level at `massKg` (default `massLoaded`,
+ * the full load); pass `effectiveMass` for an aircraft built with part of its bombs or none.
+ */
 export function createFlightState(
   spec: AircraftSpec,
   start: { x: number; z: number; altitude: number; heading: number; airspeed: number },
   env: FlightEnvironment,
   onGround: boolean,
+  massKg?: number,
 ): FlightState {
   const co = getCoefficients(spec);
   const ground = env.groundHeightAt(start.x, start.z);
@@ -269,7 +292,8 @@ export function createFlightState(
     const alt = Math.max(start.altitude, ground + 50);
     const v = Math.max(start.airspeed, co.vStallSL * 1.3);
     const rho = env.airDensityAt(alt);
-    const cl = co.weight / (0.5 * rho * v * v * co.wingArea);
+    const weight = massKg !== undefined ? massKg * G : co.weight;
+    const cl = weight / (0.5 * rho * v * v * co.wingArea);
     const alpha = cl / co.clAlpha + co.alpha0;
     orientationFrom(start.heading, alpha, 0, orientation);
     position.set(start.x, alt, start.z);
@@ -319,10 +343,8 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
     return;
   }
 
-  // massLoaded includes the full bomb load: bombs released or never loaded come off.
-  const lighter = bombMassNotAboard(ac);
-  const mass = lighter > 0 ? co.mass - lighter : co.mass;
-  const weight = lighter > 0 ? mass * G : co.weight;
+  const mass = effectiveMass(ac);
+  const weight = effectiveWeight(ac);
 
   const level = realism.flightModel;
   const relaxed = level === 'relaxed';
@@ -553,8 +575,8 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   // ------------------------------------------------------- ground contact
   let onGround = false;
   const pts = contactPoints(co, ac.spec);
-  const k = 60 * co.mass;
-  const cdamp = 8 * co.mass;
+  const k = 60 * mass;
+  const cdamp = 8 * mass;
   let crash: 'crashed' | 'ditched' | null = null;
   const destroyedFalling = dmg.destroyed || dmg.structuralFailure;
   _fwd.set(0, 0, -1).applyQuaternion(s.orientation);

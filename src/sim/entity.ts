@@ -12,7 +12,7 @@ import type {
   SkillLevel,
 } from '../core/types';
 import { NATION_SIDE } from '../core/types';
-import { createFlightState } from './flightModel';
+import { createFlightState, effectiveMass } from './flightModel';
 
 export function createControls(throttle = 0.8): ControlInputs {
   return { pitch: 0, roll: 0, yaw: 0, throttle, blip: false, fireGuns: false, clearJam: false };
@@ -69,12 +69,14 @@ export interface NewAircraftOptions {
   start: { x: number; z: number; altitude: number; heading: number; airspeed: number };
   onGround?: boolean;
   env: FlightEnvironment;
+  /** Bombs aboard per `spec.bombs` store (see `loadBombs`); the state is trimmed for that weight. */
+  bombs?: number[];
 }
 
 /** Build a complete AircraftEntity ready for stepFlight/CombatSystem. */
 export function createAircraftEntity(o: NewAircraftOptions): AircraftEntity {
   const nation = o.nation ?? o.spec.nation;
-  return {
+  const ac: AircraftEntity = {
     id: o.id,
     kind: 'aircraft',
     spec: o.spec,
@@ -92,4 +94,9 @@ export function createAircraftEntity(o: NewAircraftOptions): AircraftEntity {
     damage: createDamageState(),
     outcome: null,
   };
+  if (o.bombs) {
+    ac.bombs = [...o.bombs];
+    ac.state = createFlightState(o.spec, o.start, o.env, o.onGround ?? false, effectiveMass(ac));
+  }
+  return ac;
 }
