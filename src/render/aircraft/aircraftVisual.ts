@@ -16,6 +16,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  Quaternion,
   SRGBColorSpace,
   Sprite,
   SpriteMaterial,
@@ -26,6 +27,7 @@ import {
 import type { AircraftVisual, AircraftVisualFactory } from '../../core/interfaces';
 import type { AircraftEntity, AircraftSpec, CrewStationId, DamageZone, Livery } from '../../core/types';
 import { crewStations } from '../../data/crew';
+import { getStationAim } from '../../sim/combat';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGaugeSet, GAUGE_KINDS, type GaugeKind, type GaugeSet } from './gauges';
 import { getLiveryTextures, type LiveryTextures } from './livery';
@@ -217,6 +219,7 @@ const MAX_HOLES = 160;
 const HOLES_PER_PART = 40;
 const UP = new Vector3(0, 1, 0);
 const _aim = new Vector3();
+const _invQ = new Quaternion();
 const RIGHT = new Vector3(1, 0, 0);
 
 /** One propeller: pivot, blades and its blur disc. Twins have two (`Propeller_L`, `Propeller_R`). */
@@ -237,6 +240,8 @@ interface StationGuns {
   /** Rest pose: yaw and pitch (rad) the guns are stowed at until aimed. */
   stowYaw: number;
   stowPitch: number;
+  /** Laid by the sim's gunner last frame (getStationAim), so stow when he goes idle. */
+  simAimed: boolean;
 }
 
 /** A bomb store's merged meshes: bomb k is index range [k·n, (k+1)·n); draw the first `remaining`. */
@@ -371,7 +376,7 @@ class AircraftVisualImpl implements AircraftVisual {
       firstFlex ??= st.id;
       const firstGun = spec.guns[st.guns[0]];
       const aft = st.id === 'dorsal' || st.id === 'ventral' || st.id === 'rear' || (st.id === 'observer' && !!firstGun && firstGun.position[2] > 0);
-      const g: StationGuns = { pivots, stowYaw: aft ? Math.PI : 0, stowPitch: st.id === 'ventral' ? -0.6 : aft ? 0.12 : 0 };
+      const g: StationGuns = { pivots, stowYaw: aft ? Math.PI : 0, stowPitch: st.id === 'ventral' ? -0.6 : aft ? 0.12 : 0, simAimed: false };
       this.stationGuns.set(st.id, g);
       this.stow(g);
     }
@@ -470,11 +475,23 @@ class AircraftVisualImpl implements AircraftVisual {
     if (this.surfaces.elevator) this.surfaces.elevator.rotation.x = a.elevator;
     if (this.surfaces.rudder) this.surfaces.rudder.rotation.y = a.rudder;
 
-    // Flexible gun aim at a world point (optional, set by the integrator: aimFlexibleGun).
-    const flexGuns = this.firstFlexStation ? this.stationGuns.get(this.firstFlexStation) : undefined;
-    if (flexGuns && this.flexAim) {
-      const local = this.object.worldToLocal(_aim.copy(this.flexAim)).sub(flexGuns.pivots[0].position);
-      this.aimGuns(flexGuns, this.firstFlexStation!, local);
+    // Gun rings follow the sim's gunners (getStationAim: the AI's firing solution, or the
+    // player's aim at his station); an idle station goes back to its rest pose. Without a sim
+    // aim, an integrator's aimFlexibleGun / setStationAim still holds.
+    _invQ.copy(ac.state.orientation).invert();
+    for (const [station, g] of this.stationGuns) {
+      const w = getStationAim(ac, station);
+      if (w) {
+        this.aimGuns(g, station, _aim.copy(w).applyQuaternion(_invQ));
+        g.simAimed = true;
+      } else if (station === this.firstFlexStation && this.flexAim) {
+        const local = this.object.worldToLocal(_aim.copy(this.flexAim)).sub(g.pivots[0].position);
+        this.aimGuns(g, station, local);
+        g.simAimed = false;
+      } else if (g.simAimed) {
+        this.stow(g);
+        g.simAimed = false;
+      }
     }
 
     // Muzzle flashes: detect rounds consumed since the last frame.
@@ -694,7 +711,8 @@ class AircraftVisualImpl implements AircraftVisual {
   aimFlexibleGun(worldTarget: Vector3 | null): void {
     this.flexAim = worldTarget ? (this.flexAim ?? new Vector3()).copy(worldTarget) : null;
     const g = this.firstFlexStation ? this.stationGuns.get(this.firstFlexStation) : undefined;
-    if (!worldTarget && g) this.stow(g);
+    // A station the sim's gunner is laying keeps his aim (the next update applies it).
+    if (!worldTarget && g && !g.simAimed) this.stow(g);
   }
 
   setStationView(station: CrewStationId | null): void {

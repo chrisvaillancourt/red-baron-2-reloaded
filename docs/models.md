@@ -131,6 +131,10 @@ v.dispose();
   costs one draw call per store.
 * `setStationAim` clamps the ventral guns to 0.15 … −1.5 rad of pitch and the others to
   1.45 … −0.6 rad. Guns that face aft at rest (rear rings, the tunnel) are stowed pointing aft.
+* **Gun rings follow the sim:** every update the visual reads `getStationAim(ac, station)`
+  (src/sim), the direction the AI gunner or the player at that station has laid the guns,
+  and swings them there. An idle station returns to its rest pose. `aimFlexibleGun` and
+  `setStationAim` only apply while the sim has no aim for that station.
 
 * Liveries are painted once per (type, livery) and cached; insignia follow `Livery.insignia`
   (iron cross patée with white border, Balkenkreuz, RFC/French/US roundels with period rudder
