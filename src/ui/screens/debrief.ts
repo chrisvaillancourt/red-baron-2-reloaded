@@ -253,7 +253,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
     saveTimer = setTimeout(saveNow, 700);
   }
 
-  /** Send the report to the dev server's sink (vite.config.ts), which writes it to playtests/reports/. */
+  /** Send the report to the dev server's sink (vite.config.ts), which writes it to playtests/inbox/ (git-ignored). */
   function saveNow(): void {
     if (!sinkOn) return;
     clearTimeout(saveTimer);
@@ -268,7 +268,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
       .then(async (res) => {
         const body = (await res.json().catch(() => ({}))) as { file?: string; dir?: string; error?: string };
         if (!res.ok || !body.file) throw new Error(body.error ?? `HTTP ${res.status}`);
-        savedAs = `${body.dir ?? 'playtests/reports'}/${body.file}`;
+        savedAs = `${body.dir ?? 'playtests/inbox'}/${body.file}`;
         savedLabel.textContent = `Saved to ${savedAs}`;
       })
       .catch((e: unknown) => {
@@ -306,7 +306,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
     try {
       if (!navigator.clipboard) throw new Error('no clipboard');
       await navigator.clipboard.writeText(text);
-      ctx.toast('Flight report copied. Paste it into playtests/reports/.');
+      ctx.toast('Flight report copied. Paste it into the chat or save it under playtests/.');
     } catch {
       // Refused (permissions, an insecure origin): show it for copying by hand.
       const box = h('textarea', { class: 'flight-report-text', readonly: '', rows: '14', 'aria-label': 'Flight report', spellcheck: 'false' }, text) as HTMLTextAreaElement;

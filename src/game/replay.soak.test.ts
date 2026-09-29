@@ -3,7 +3,7 @@
  * with the autoplayer at the report's realism settings, REPLAY_REPS times (default 8), and prints
  * the report's own outcome, one line per run, and the fairness soak's summary row.
  *
- *   REPLAY=playtests/reports/<file>.json [REPLAY_REPS=8] [REPLAY_MAXTIME=2400] \
+ *   REPLAY=playtests/<inbox or reports>/<file>.json [REPLAY_REPS=8] [REPLAY_MAXTIME=2400] \
  *     pnpm vitest run src/game/replay.soak.test.ts
  *
  * or `node tools/playtest/replay-report.mjs <file>.json [--reps N]`. Run 0 uses the game's own

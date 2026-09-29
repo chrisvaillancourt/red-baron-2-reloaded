@@ -29,7 +29,7 @@ export default defineConfig({
     // Never reuse: a server left running from another worktree would serve the wrong code.
     reuseExistingServer: false,
     timeout: 60_000,
-    // The dev server's flight-report sink (D-084) writes here, not into playtests/reports/.
+    // The dev server's flight-report sink (D-084) writes here, not into playtests/inbox/.
     env: { ...process.env, RB2R_REPORTS_DIR: 'test-results/flight-reports' } as Record<string, string>,
   },
 });

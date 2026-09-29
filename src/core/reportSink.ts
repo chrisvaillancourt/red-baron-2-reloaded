@@ -1,6 +1,6 @@
 /**
  * Dev-server flight-report sink (D-084). Under `pnpm dev` the debrief sends each flight report to
- * `REPORT_SINK_PATH`, and the Vite plugin in vite.config.ts saves it to `playtests/reports/`, so a
+ * `REPORT_SINK_PATH`, and the Vite plugin in vite.config.ts saves it to `playtests/inbox/`, so a
  * playtester no longer has to copy and paste. This module is the pure part: validation and the
  * file name. The plugin supplies the file write. Production builds have no sink; the debrief
  * falls back to "Copy flight report".

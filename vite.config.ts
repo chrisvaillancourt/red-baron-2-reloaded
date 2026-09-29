@@ -26,12 +26,12 @@ function buildSha(): string {
 
 /**
  * Dev server only (D-084): the debrief POSTs each flight report here, and it is saved to
- * playtests/reports/, or to $RB2R_REPORTS_DIR (e2e points it at test-results/). A production
+ * playtests/inbox/ (git-ignored), or to $RB2R_REPORTS_DIR (e2e points it at test-results/). A production
  * build has no such endpoint. The validation lives in src/core/reportSink.ts, loaded through
  * Vite (ssrLoadModule) so this config imports nothing from src.
  */
 function flightReportSink(): Plugin {
-  const dir = process.env.RB2R_REPORTS_DIR ?? 'playtests/reports';
+  const dir = process.env.RB2R_REPORTS_DIR ?? 'playtests/inbox';
   return {
     name: 'rb2r-flight-report-sink',
     apply: 'serve',

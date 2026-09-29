@@ -37,8 +37,8 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
 
 ## Next up (priority order, 2026-09-28)
 1. **Do: human playtest** on `pnpm dev`, 5–10 missions (one done, see 3a). Every other
-   figure comes from the autoplayer. Each flight's report saves itself to
-   `playtests/reports/` (D-084); rating it and adding a note on the debrief is optional. On
+   figure comes from the autoplayer. Each flight's report saves itself to the git-ignored
+   `playtests/inbox/` (D-084); rating it and adding a note on the debrief is optional. On
    the live URL, press **Copy flight report** and paste it into the chat instead (D-083).
    Look at:
    - whether the new default fight (2 veteran D.VIIs, D-078) is too hard
