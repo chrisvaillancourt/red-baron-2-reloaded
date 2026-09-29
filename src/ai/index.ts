@@ -5,7 +5,7 @@
  *   // each AI tick (30 Hz recommended), before stepFlight:
  *   ai.update(ac, world, dt);
  */
-export { createAIController, getAIPilot, fixedAmmo, AIPilot } from './controller';
+export { createAIController, getAIPilot, releaseAIPilot, splitSide, fixedAmmo, AIPilot } from './controller';
 export type { AIControllerOptions, AIPhase, AIStats } from './controller';
 export { Autopilot } from './autopilot';
 export type { SteerCommand, AutopilotGains } from './autopilot';

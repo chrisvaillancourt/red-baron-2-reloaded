@@ -44,7 +44,7 @@ import {
   type LandingPlan,
   type LandingStage,
 } from './navigation';
-import { cloudHides, isAlive, isAttacking, likelySpottedBy, Perception, sunAngle, threatLevel } from './perception';
+import { cloudHides, forgetPerception, isAlive, isAttacking, likelySpottedBy, Perception, sunAngle, threatLevel } from './perception';
 import { makeSkillProfile, skillValue, type SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
 import { aceTactics, attackSetupPoint, outTurnedBy, TACTICS_FLAGS, tacticsProfile, type TacticsProfile } from './tactics';
@@ -139,6 +139,27 @@ function defenceMode(): DefenceMode {
 
 export function getAIPilot(ac: AircraftEntity): AIPilot | undefined {
   return REGISTRY.get(ac);
+}
+
+/**
+ * Forget the controller that flew `ac`, when the player takes the controls back from the AI
+ * that flew while he worked a gun (src/game). Other AIs then stop reading its frozen phase and
+ * target, and nothing reads its contacts as the player's.
+ */
+export function releaseAIPilot(ac: AircraftEntity): void {
+  REGISTRY.delete(ac);
+  forgetPerception(ac);
+}
+
+/**
+ * Which way `self` splits from `other` when they close dead ahead: +1 up its lift line, -1
+ * down. The two always split opposite ways. Every AI takes the up side against the player's
+ * aircraft, assuming the human won't dodge; when an AI flies the player's aircraft (the
+ * autoplayer, or the player at a gun) it takes the down side, so they don't both climb.
+ */
+export function splitSide(self: AircraftEntity, other: AircraftEntity): 1 | -1 {
+  if (self.controller === 'player' && other.controller !== 'player') return -1;
+  return other.controller === 'player' || self.id < other.id ? 1 : -1;
 }
 
 type AttackStage = 'approach' | 'run' | 'pullout';
@@ -1128,7 +1149,7 @@ export class AIPilot implements AIController {
     const fwd = forwardOf(s.orientation, new Vector3());
     cpa.addScaledVector(fwd, -cpa.dot(fwd));
     if (cpa.length() > 4) this.breakDir.copy(cpa).normalize().negate().addScaledVector(up, 0.5).normalize();
-    else this.breakDir.copy(up).multiplyScalar(other.controller === 'player' || self.id < other.id ? 1 : -1);
+    else this.breakDir.copy(up).multiplyScalar(splitSide(self, other));
     this.breakUntil = this.now + seconds;
   }
 
@@ -1518,9 +1539,8 @@ export class AIPilot implements AIController {
       const radius = !isAlive(o) ? 40 : o.controller === 'player' || sameTarget ? 45 : 32;
       if (dcpa >= radius) continue;
       const w = (1 - dcpa / radius) * (1 - tcpa / 4.2);
-      // Dead ahead: split by id (up / down the lift line, no roll needed); the AI always
-      // takes the up side against the player.
-      if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).multiplyScalar(o.controller === 'player' || self.id < o.id ? -1 : 1);
+      // Dead ahead: split up or down the lift line, no roll needed (splitSide).
+      if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).multiplyScalar(-splitSide(self, o));
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
     }
