@@ -4,7 +4,7 @@ import { Box3, Mesh, Object3D, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_LIST } from '../../data/aircraft';
-import { crewStations } from '../../data/crew';
+import { crewStations, inFireArcs } from '../../data/crew';
 import { controlSurfaceAngles, insigniaSlots, metaFromUserData, roundelRings, rudderStripes } from './meta';
 import { headingDeg } from './gauges';
 import { buildFallbackModel } from './fallbackModel';
@@ -145,6 +145,37 @@ describe('propeller spin', () => {
     const ref = products.get('sopwith_camel Propeller')!;
     const wrong = [...products].filter(([, v]) => v !== ref).map(([k]) => k);
     expect(wrong).toEqual([]);
+  });
+});
+
+describe('fields of fire', () => {
+  it("keeps every gunner's arcs clear of the propeller discs", async () => {
+    const hits: string[] = [];
+    for (const spec of AIRCRAFT_LIST) {
+      const scene = await parse(`${MODELS}${spec.id}.glb`);
+      const root = scene.getObjectByName(`Aircraft_${spec.id}`)!;
+      root.updateMatrixWorld(true);
+      const R = root.userData.prop_radius as number;
+      for (const st of crewStations(spec)) {
+        if (st.id === 'pilot') continue;
+        const gun = root.worldToLocal(root.getObjectByName(`Gun_${st.id}`)!.getWorldPosition(new Vector3()));
+        for (const node of ['Propeller', 'Propeller_L', 'Propeller_R']) {
+          const pivot = root.getObjectByName(node);
+          if (!pivot) continue;
+          // Points over the disc (the pivot's XY plane), in the body frame, seen from the gun.
+          let blocked = 0;
+          for (const r of [0.35, 0.7, 1]) {
+            for (let k = 0; k < 48; k++) {
+              const a = (k / 48) * Math.PI * 2;
+              const p = root.worldToLocal(pivot.localToWorld(new Vector3(Math.cos(a) * r * R, Math.sin(a) * r * R, 0))).sub(gun);
+              if (inFireArcs(st.arcs, p.x, p.y, p.z)) blocked++;
+            }
+          }
+          if (blocked) hits.push(`${spec.id} ${st.id} through ${node} (${blocked} of 144 points)`);
+        }
+      }
+    }
+    expect(hits).toEqual([]);
   });
 });
 

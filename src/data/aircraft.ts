@@ -44,7 +44,10 @@ const twinLewis = (y: number, z: number, spareDrums = 5): GunMount[] => [flex('l
 
 // Fields of fire for the bomber stations (FireArc, body frame; see src/core/types.ts). Read
 // from photographs of the positions: what the wings, propellers and tail leave open.
-/** A nose gunner well ahead of the wings: open ahead, to the sides and below; aft only high. */
+/**
+ * A nose gunner well ahead of the wings and propellers (Gotha, O/400, whose discs lie beyond
+ * 120° either side): open ahead, to the sides and below; aft only high.
+ */
 const BOMBER_NOSE_ARCS: FireArc[] = [
   { azimuthDeg: [-120, 120], elevationDeg: [-60, 90] },
   { azimuthDeg: [-180, 180], elevationDeg: [35, 90] },
@@ -53,6 +56,25 @@ const BOMBER_NOSE_ARCS: FireArc[] = [
 const BOMBER_DORSAL_ARCS: FireArc[] = [
   { azimuthDeg: [-180, 180], elevationDeg: [40, 90] },
   { azimuthDeg: [45, -45], elevationDeg: [12, 40] },
+  { azimuthDeg: [100, -100], elevationDeg: [-8, 12] },
+];
+/**
+ * The AEG's nose gunner sits barely ahead of his tractor propellers, whose discs fill about
+ * 104–140° either side from level down: open ahead and to the sides only to 100° (models.test.ts
+ * "fields of fire" checks every station against the discs).
+ */
+const AEG_NOSE_ARCS: FireArc[] = [
+  { azimuthDeg: [-100, 100], elevationDeg: [-60, 90] },
+  { azimuthDeg: [-180, 180], elevationDeg: [35, 90] },
+];
+/**
+ * The Gotha's dorsal gunner, between the pusher propellers (their discs about 64–83° either side,
+ * up to 27° high): the dorsal arcs with the sides forward of the beam kept above the discs.
+ */
+const PUSHER_TWIN_DORSAL_ARCS: FireArc[] = [
+  { azimuthDeg: [-180, 180], elevationDeg: [40, 90] },
+  { azimuthDeg: [45, -45], elevationDeg: [32, 40] },
+  { azimuthDeg: [90, -90], elevationDeg: [12, 40] },
   { azimuthDeg: [100, -100], elevationDeg: [-8, 12] },
 ];
 /** Firing down and aft through the floor (the Gotha tunnel, the O/400's ventral hatch). */
@@ -202,7 +224,7 @@ const SPECS: AircraftSpec[] = [
     guns: [flex('parabellum', [0, 0.9, -2.75]), flex('parabellum', [0, 0.89, 2.0])],
     crewStations: [
       { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
-      { id: 'nose', label: 'Nose gunner', crewIndex: 1, guns: [0], arcs: arcs(BOMBER_NOSE_ARCS), bombAimer: true, eye: [0, 1.18, -2.75] },
+      { id: 'nose', label: 'Nose gunner', crewIndex: 1, guns: [0], arcs: arcs(AEG_NOSE_ARCS), bombAimer: true, eye: [0, 1.18, -2.75] },
       { id: 'dorsal', label: 'Rear gunner', crewIndex: 2, guns: [1], arcs: arcs(BOMBER_DORSAL_ARCS), eye: [0, 1.17, 2.0] },
     ],
     bombs: [{ name: 'P.u.W. 50 kg', massKg: 50, explosiveKg: 23, count: 8 }],
@@ -217,7 +239,7 @@ const SPECS: AircraftSpec[] = [
     crewStations: [
       { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
       { id: 'nose', label: 'Nose gunner', crewIndex: 1, guns: [0], arcs: arcs(BOMBER_NOSE_ARCS), bombAimer: true, eye: [0, 1.12, -3.15] },
-      { id: 'dorsal', label: 'Rear gunner', crewIndex: 2, guns: [1], arcs: arcs(BOMBER_DORSAL_ARCS), eye: [0, 1.24, 2.3] },
+      { id: 'dorsal', label: 'Rear gunner', crewIndex: 2, guns: [1], arcs: arcs(PUSHER_TWIN_DORSAL_ARCS), eye: [0, 1.24, 2.3] },
       // The same man, lying at the tunnel: his eye at the opening in the floor, behind the gun.
       { id: 'ventral', label: 'Tunnel gun', crewIndex: 2, guns: [2], arcs: arcs(BOMBER_VENTRAL_ARCS), eye: [0, -0.62, 3.5] },
     ],
@@ -351,8 +373,8 @@ const SPECS: AircraftSpec[] = [
       {
         id: 'observer', label: 'Observer', crewIndex: 1, guns: [0],
         arcs: [
-          { azimuthDeg: [30, 150], elevationDeg: [-30, 25] },
-          { azimuthDeg: [-150, -30], elevationDeg: [-30, 25] },
+          { azimuthDeg: [35, 150], elevationDeg: [-30, 25] },
+          { azimuthDeg: [-150, -35], elevationDeg: [-30, 25] },
           { azimuthDeg: [140, -140], elevationDeg: [12, 60] },
         ],
       },
