@@ -55,7 +55,7 @@ import { getCoefficients } from '../sim/coefficients';
 import { getSimInternal } from '../sim/flightModel';
 import { gunnerFacesForward } from '../sim/hitboxes';
 import { getBombStats, predictBombImpact } from '../sim/bombs';
-import { bodyDirection, bombsAboard, canBomb, chooseAimTarget, crewAlive, gunnersOf, MAX_RUNS, RELEASE_CROSS_M, RUN_START_M, stationBearing, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
+import { blindSpot, bodyDirection, bombsAboard, canBomb, isBomber, chooseAimTarget, crewAlive, gunnersOf, MAX_RUNS, RELEASE_CROSS_M, RUN_START_M, stationBearing, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
 
 export interface AIControllerOptions {
   role: FlightRole;
@@ -711,6 +711,9 @@ export class AIPilot implements AIController {
       escortees = this.escortees(self, world);
       if (escortees.length) radius = 1800;
     }
+    // Bombers' escorts stay with them (docs/ai.md "Bombers"): they go for a scout coming at
+    // the bombers or at themselves, and let one that runs off, or only shadows, go.
+    const guardsBombers = escortees.length > 0 && world.getFlight(escortees[0].flightId)?.task === 'bomb';
 
     let best: AircraftEntity | null = null;
     let bestScore = -Infinity;
@@ -718,6 +721,10 @@ export class AIPilot implements AIController {
       const r = e.state.position.distanceTo(self.state.position);
       let inScope = e.state.position.distanceTo(anchor) < radius || r < 900;
       if (escortees.length) inScope = escortees.some((m) => m.state.position.distanceTo(e.state.position) < radius) || r < 700;
+      if (guardsBombers)
+        inScope =
+          escortees.some((m) => isAttacking(e, m, 1500) || (e.id === this.targetId && m.state.position.distanceTo(e.state.position) < 1200)) ||
+          (r < 700 && isAttacking(e, self, 700));
       if (this.order === 'cover-me' && leader) inScope = isAttacking(e, leader, 1000) || (r < 500 && isAttacking(e, self, 600));
       if (!inScope) continue;
       let s = 1 / (1 + r / 800);
@@ -725,7 +732,9 @@ export class AIPilot implements AIController {
       for (const m of escortees) if (isAttacking(e, m, 900)) s += 0.7;
       if (isAttacking(e, self)) s += 0.4;
       if (damageSum(e) > 0.3 || e.damage.smoking) s += 0.25;
-      if (task === 'defend' && e.spec.role !== 'fighter') s += 0.5;
+      if (task === 'defend' && e.spec.role !== 'fighter') s += isBomber(e) ? 0.9 : 0.5;
+      // Interceptors are sent for the bombers: an escort that isn't attacking us or ours can wait.
+      if (task === 'defend' && e.spec.role === 'fighter' && world.getFlight(e.flightId)?.task === 'escort' && !isAttacking(e, self) && !(leader && isAttacking(e, leader)) && !world.aircraft.some((m) => m !== self && m.side === self.side && m.flightId === self.flightId && isAttacking(e, m))) s -= 0.3;
       if (this.traits.style === 'energy' && e.state.position.y > self.state.position.y + 500) s -= 0.2;
       // Signatures: stragglers (nobody of his own within 800 m) and two-seaters.
       if (this.tactics.twoSeaterBias && e.spec.geometry.crew >= 2) s += this.tactics.twoSeaterBias;
@@ -994,6 +1003,7 @@ export class AIPilot implements AIController {
       return true;
     }
 
+    if (this.steerBlindSpot(self, tgt, world, steer, r)) return true;
     if (this.steerStalk(self, tgt, world, steer, r)) return true;
     // Aces gain height before engaging a distant enemy (and approach two-seaters from below).
     if (r > 1500 && p.energyTactics > 0.5 && s.position.y < ts.position.y + 250 && this.now - this.hitAt > 5) {
@@ -1108,6 +1118,30 @@ export class AIPilot implements AIController {
     steer.speed = dh < tp.heightAdv * 0.8 ? Math.max(this.traits.bestClimbSpeed * 1.2, this.traits.cruiseSpeed * 0.8) : Infinity;
     steer.maxG = 3;
     steer.minAgl = this.profile.groundMargin;
+    return true;
+  }
+
+  /**
+   * Against a bomber (docs/ai.md "Bombers"): a pilot above novice works round to where the
+   * fewest of its live gunners can bear, below and behind for most types (bombing.ts
+   * blindSpot, from the station arcs), 300-600 m out, before he closes in to fire. Inside
+   * 250 m, or once in that cone, the ordinary pursuit takes over.
+   */
+  private steerBlindSpot(self: AircraftEntity, tgt: AircraftEntity, world: WorldQuery, steer: SteerCommand, r: number): boolean {
+    if (!TACTICS_FLAGS.blindSpot || this.profile.t < 0.3 || r < 250 || r > 1800 || !isBomber(tgt)) return false;
+    const s = self.state;
+    const ts = tgt.state;
+    const spot = blindSpot(tgt, s.position, _tmp2);
+    const from = _tmp3.copy(s.position).sub(ts.position);
+    if (from.angleTo(spot.dir) < 25 * DEG) return false;
+    const standoff = clamp(r * 0.7, 300, 600);
+    const p = from.copy(ts.position).addScaledVector(spot.dir, standoff).addScaledVector(ts.velocity, 2);
+    // Never below the ground margin: the spot under a low bomber is the ground.
+    p.y = Math.max(p.y, world.groundHeightAt(p.x, p.z) + this.profile.groundMargin + 50);
+    steer.dir.copy(p).sub(s.position);
+    steer.speed = Infinity;
+    steer.maxG = Math.min(this.profile.maxG, 4);
+    steer.minAgl = this.profile.groundMargin * 0.6;
     return true;
   }
 

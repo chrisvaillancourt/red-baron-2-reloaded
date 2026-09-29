@@ -184,6 +184,36 @@ false-to-true change; it sets the flag for one AI tick and clears it the next).
   nothing in his arcs, or dead, his override is cleared and the sim's own choice stands
   (docs/sim.md "Gunners"). `stationGunners.test.ts` checks it on the sim's twin fixture.
 
+### Fighters against bombers
+
+- **Interceptors go for the bombers.** A `defend`-tasked fighter (the quick raid's
+  interceptors, career defenders) scores a bomber (`role: 'bomber'`, or bombs aboard) +0.9
+  instead of the +0.5 any other two-seater gets, and an escort fighter that isn't attacking
+  him or his flight −0.3. An escort that comes at him is fought as before (+0.4), and
+  defence (D-085) is unchanged.
+- **From the blind spot** (`steerBlindSpot`, `TACTICS_FLAGS.blindSpot`, on). A pilot above
+  novice attacking a bomber from 250 m to 1.8 km first works round to where the fewest of
+  its live gunners can bear (`blindSpot`): candidate directions below and behind, below the
+  beam and ahead and below, tested against the station arcs (`inFireArcs`, dead men left
+  out). Of the least covered he takes the one nearest his present bearing, with ahead of the
+  beam costing 150° more, so below and behind wins for every type whose tail it leaves open
+  (every two-seater and the D.H.4). He flies to a point 300-600 m out along it, never below
+  the ground margin, and once inside a 25° cone of it (or inside 250 m) the ordinary pursuit
+  takes over.
+- **Escorts stay with the bombers.** A bombers' escort (`escort` task on a `bomb` flight)
+  goes only for a scout coming at a bomber (`isAttacking` within 1.5 km) or at itself
+  within 700 m, and keeps its target only while he stays within 1.2 km of a bomber. It lets a
+  shadower or a runner go and returns to its station 300 m above and 250 m behind the
+  leading bomber. Escorts of recon two-seaters keep the older rule (anything within 1.8 km of
+  them).
+
+`interceptors.realsim.test.ts` (CI, ~3 s): a veteran D.VII meeting a pair of D.H.4s from
+ahead, 8 seeds, with the blind-spot approach off and on: within 700 m it spends 57% and 87%
+of the time outside the bombers' gunner arcs, and takes 33 and 5 hits from them, for about
+the same hits on the bombers (347 and 341). An interceptor picks the bombers 2.5 km off over
+an escort crossing 250 m away. An escort Camel doesn't chase a D.V shadowing its bombers
+1.3 km off and stays within 700 m of them, and it engages a D.V that attacks them.
+
 `bombers.realsim.test.ts` (CI, ~4 s): three D.H.4s bomb a depot of three dumps 45 m apart.
 All 12 bombs go, at least 7 burst within blast range (about 19 m from a dump's walls), the
 wingmen release after the leader, the run's last 20 s are within 12° of bank and 80 m of

@@ -58,6 +58,11 @@ export const TACTICS_FLAGS = {
    * they break and go home hurt like any two-seater.
    */
   bomberFormation: true,
+  /**
+   * Fighters attacking a bomber work round to where its gunners can't bear (below and behind
+   * for most types, from the station arcs) before closing in (bombing.ts blindSpot).
+   */
+  blindSpot: true,
 };
 
 export function applyTacticsFlagsFromEnv(env: Record<string, string | undefined>): void {

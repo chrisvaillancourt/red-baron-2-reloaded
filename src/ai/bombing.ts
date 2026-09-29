@@ -1,12 +1,14 @@
 /**
- * Bombers (docs/ai.md "Bombers"): who can still bomb, where a formation leader aims, and
- * who of the crew can work which guns. Pure helpers; the controller (controller.ts) flies them.
+ * Bombers and the fighters that meet them (docs/ai.md "Bombers"): who can still bomb, where
+ * a formation leader aims, and where an attacker finds a bomber's blind spot. Pure helpers;
+ * the controller (controller.ts) flies them.
  */
 import { Vector3 } from 'three';
 import type { AircraftEntity, CrewStation, GroundTargetEntity } from '../core/types';
 import { crewStations, inFireArcs } from '../data/crew';
 import { blastDamage, nextBombStore } from '../sim/bombs';
 import { GROUND_TARGET_BOXES } from '../sim/hitboxes';
+import { DEG } from './math';
 
 /** Seconds between the bombs of one aircraft's stick (about 13 m apart at a D.H.4's cruise). */
 export const STICK_INTERVAL_S = 0.25;
@@ -119,4 +121,65 @@ export function chooseAimTarget(
     }
   }
   return best;
+}
+
+/**
+ * Candidate attack directions against a bomber, in its body frame (azimuth clockwise from the
+ * nose, elevation above the wings, degrees): below and behind first, then below the beam,
+ * then ahead and below. Most two-seaters and bombers can't depress a gun far below the tail
+ * or the nose (src/data/crew.ts arcs).
+ */
+const BLIND_CANDIDATES: readonly (readonly [number, number])[] = [
+  [180, -20], [160, -25], [-160, -25], [180, -35], [135, -35], [-135, -35], [110, -45], [-110, -45], [0, -30], [30, -30], [-30, -30],
+];
+/** Ahead of the beam costs this much more than astern: from below and behind he gets a long shot, not a head-on pass. */
+const FRONT_PENALTY = 150 * DEG;
+
+/**
+ * The world direction from `target` in which an attacker is covered by the fewest of its live
+ * gunners' fields of fire, preferring the one nearest the attacker's present bearing (and
+ * astern of the beam, where he gets a long shot rather than a head-on pass). `covered` is
+ * how many gunners bear there (0 = a true blind spot).
+ */
+export function blindSpot(target: AircraftEntity, attackerPos: Vector3, out = new Vector3()): { dir: Vector3; covered: number } {
+  const gunners = [...gunnersOf(target)].filter(([i]) => crewAlive(target, i)).map(([, st]) => st);
+  const now = bodyDirection(target, attackerPos, new Vector3());
+  let best = -1;
+  let bestCovered = Infinity;
+  let bestCost = Infinity;
+  const d = new Vector3();
+  for (let k = 0; k < BLIND_CANDIDATES.length; k++) {
+    const [az, el] = BLIND_CANDIDATES[k];
+    bodyVector(az, el, d);
+    let covered = 0;
+    for (const st of gunners) if (stationBearing(st, d)) covered++;
+    const cost = d.angleTo(now) + (Math.abs(az) < 90 ? FRONT_PENALTY : 0);
+    if (covered < bestCovered || (covered === bestCovered && cost < bestCost)) {
+      best = k;
+      bestCovered = covered;
+      bestCost = cost;
+    }
+  }
+  const [az, el] = BLIND_CANDIDATES[Math.max(0, best)];
+  bodyVector(az, el, out).applyQuaternion(target.state.orientation);
+  return { dir: out, covered: bestCovered };
+}
+
+/** Body-frame unit vector for a FireArc azimuth and elevation (degrees). */
+export function bodyVector(azDeg: number, elDeg: number, out = new Vector3()): Vector3 {
+  const az = azDeg * DEG;
+  const el = elDeg * DEG;
+  return out.set(Math.cos(el) * Math.sin(az), Math.sin(el), -Math.cos(el) * Math.cos(az));
+}
+
+/** A bomber, for the fighters that meet it: its role, or bombs aboard. */
+export function isBomber(ac: AircraftEntity): boolean {
+  return ac.spec.role === 'bomber' || bombsAboard(ac) > 0;
+}
+
+/** Is `p` inside any live gunner's field of fire from `target`? */
+export function inGunnersArcs(target: AircraftEntity, p: Vector3): boolean {
+  const d = bodyDirection(target, p, new Vector3());
+  for (const [i, st] of gunnersOf(target)) if (crewAlive(target, i) && stationBearing(st, d)) return true;
+  return false;
 }
