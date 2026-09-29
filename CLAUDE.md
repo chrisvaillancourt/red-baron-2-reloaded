@@ -13,6 +13,8 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
 - Pure-logic modules (`sim`, `ai`, `world`, `campaign`) must not import `three` scene/renderer
   code — only `three` math classes (Vector3, Quaternion, Matrix4, Euler, MathUtils).
 - Tests: Vitest, co-located as `*.test.ts`. `pnpm test`, `pnpm typecheck` must pass before commit.
+  This pnpm rejects `-s`: use the plain forms (`pnpm typecheck`, `pnpm test`,
+  `pnpm exec vitest run <paths>`).
 - **Commit before you call work done.** Run `git status` before reporting a task complete,
   finished or ready to merge, and commit everything you changed. A final report with
   uncommitted work in it is not finished. If something is left uncommitted on purpose,
