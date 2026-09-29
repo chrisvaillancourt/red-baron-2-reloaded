@@ -8,6 +8,7 @@ import { crewStations } from '../../data/crew';
 import { controlSurfaceAngles, insigniaSlots, metaFromUserData, roundelRings, rudderStripes } from './meta';
 import { headingDeg } from './gauges';
 import { buildFallbackModel } from './fallbackModel';
+import { propSpinSign } from './propSpin';
 import { Quaternion } from 'three';
 
 const MODELS = fileURLToPath(new URL('../../../public/models/', import.meta.url));
@@ -95,6 +96,56 @@ describe('aircraft GLB models', () => {
       expect(meta.uv_fuselage_perim).toBeGreaterThan(1);
     });
   }
+});
+
+/**
+ * Pitch handedness of a propeller's blades, from the geometry: the blades lie in the pivot's
+ * XY plane and turn about Z; a blade's chord is offset along Z as it twists. Summing
+ * (tangential offset × axial offset) over the outer blade vertices gives a sign that flips
+ * with the blades' handedness (invariant under the 90° and 180° copies of the blades).
+ */
+function bladeHandedness(pivot: Object3D, blades: Object3D): number {
+  const pts: Vector3[] = [];
+  pivot.updateMatrixWorld(true);
+  const toPivot = pivot.matrixWorld.clone().invert();
+  blades.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh) return;
+    const pos = m.geometry.getAttribute('position');
+    const toLocal = toPivot.clone().multiply(m.matrixWorld);
+    for (let i = 0; i < pos.count; i++) pts.push(new Vector3().fromBufferAttribute(pos, i).applyMatrix4(toLocal));
+  });
+  const rMax = Math.max(...pts.map((p) => Math.hypot(p.x, p.y)));
+  let h = 0;
+  for (const p of pts) {
+    if (Math.hypot(p.x, p.y) < rMax * 0.4) continue;
+    h += Math.abs(p.y) > Math.abs(p.x) ? p.x * p.z * Math.sign(p.y) : -p.y * p.z * Math.sign(p.x);
+  }
+  return Math.sign(h);
+}
+
+describe('propeller spin', () => {
+  it('turns every propeller the way its blades are pitched', async () => {
+    const products = new Map<string, number>();
+    for (const spec of AIRCRAFT_LIST) {
+      const scene = await parse(`${MODELS}${spec.id}.glb`);
+      const root = scene.getObjectByName(`Aircraft_${spec.id}`)!;
+      root.updateMatrixWorld(true);
+      for (const node of ['Propeller', 'Propeller_L', 'Propeller_R'] as const) {
+        const pivot = root.getObjectByName(node);
+        if (!pivot) continue;
+        const blades = root.getObjectByName(node.replace('Propeller', 'PropBlades'))!;
+        const hubZ = root.worldToLocal(pivot.getWorldPosition(new Vector3())).z;
+        const h = bladeHandedness(pivot, blades);
+        expect(h, `${spec.id} ${node} handedness`).not.toBe(0);
+        products.set(`${spec.id} ${node}`, h * propSpinSign(node, hubZ));
+      }
+    }
+    // Spin sign × handedness is the same for every propeller: none turns against its pitch.
+    const ref = products.get('sopwith_camel Propeller')!;
+    const wrong = [...products].filter(([, v]) => v !== ref).map(([k]) => k);
+    expect(wrong).toEqual([]);
+  });
 });
 
 describe('livery & animation helpers', () => {

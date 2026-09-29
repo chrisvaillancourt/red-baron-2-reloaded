@@ -28,6 +28,7 @@ import type { AircraftVisual, AircraftVisualFactory } from '../../core/interface
 import type { AircraftEntity, AircraftSpec, CrewStationId, DamageZone, Livery } from '../../core/types';
 import { crewStations } from '../../data/crew';
 import { getStationAim } from '../../sim/combat';
+import { propSpinSign, type PropNode } from './propSpin';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGaugeSet, GAUGE_KINDS, type GaugeKind, type GaugeSet } from './gauges';
 import { getLiveryTextures, type LiveryTextures } from './livery';
@@ -396,14 +397,19 @@ class AircraftVisualImpl implements AircraftVisual {
     // Propellers, each with a blur disc (blurred arc at speed).
     const discGeo = new CircleGeometry(this.meta.prop_radius, 40);
     this.discGeometry = discGeo;
-    const pivots: [Object3D | undefined, Object3D | undefined, number, number][] = [
-      [root.getObjectByName('Propeller'), root.getObjectByName('PropBlades'), 0, spec.geometry.pusher ? -1 : 1],
-      // Twins: handed propellers turning opposite ways.
-      [root.getObjectByName('Propeller_L'), root.getObjectByName('PropBlades_L'), 0, -1],
-      [root.getObjectByName('Propeller_R'), root.getObjectByName('PropBlades_R'), 1, 1],
+    // Twins have handed propellers turning opposite ways; pushers turn the other way from
+    // tractors, judged from where the hub sits (propSpinSign).
+    const pivots: [PropNode, string, number][] = [
+      ['Propeller', 'PropBlades', 0],
+      ['Propeller_L', 'PropBlades_L', 0],
+      ['Propeller_R', 'PropBlades_R', 1],
     ];
-    for (const [pivot, blades, engine, sign] of pivots) {
+    root.updateMatrixWorld(true);
+    for (const [node, bladesName, engine] of pivots) {
+      const pivot = root.getObjectByName(node);
       if (!pivot) continue;
+      const blades = root.getObjectByName(bladesName);
+      const sign = propSpinSign(node, root.worldToLocal(pivot.getWorldPosition(new Vector3())).z);
       const discMat = new MeshBasicMaterial({ map: propDiscTexture(), transparent: true, depthWrite: false, side: DoubleSide, opacity: 0 });
       this.ownedMaterials.push(discMat);
       const disc = new Mesh(discGeo, discMat);
