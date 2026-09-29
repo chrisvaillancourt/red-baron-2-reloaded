@@ -826,3 +826,55 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **The D.H.4** carries four 112 lb bombs as the reference load (charge approximate; the data track calibrates it). It stays AI-only until the gunner seat and bomb release exist.
 - **Not in the contracts:** new key bindings (the game track adds `stationNext` C, `stationPrev` V, `stationPilot` F, `releaseBomb` R, `viewBombsight` F6 with the code that reads them, so Options never lists a key that does nothing), and new ground-target kinds (raids use hangars, dumps, trains and batteries in wave 1).
 **Consequences.** Nothing a player can reach changed: every aircraft fights as before, and no screen offers a bombing raid yet. Four tracks now build against these shapes (docs/bombers.md). Any contract they need beyond this goes in their final report, stays additive, and the lead reconciles at merge.
+
+## D-XXX — Bomber specifications: loaded figures, and which source wins (track B, bombers wave 1)
+**Context.** The six new types (AEG G.IV, Gotha G.V, Handley Page O/400, Voisin III, Breguet 14 B2, D.H.9) need specs the flight model can be calibrated to. Published figures mix loaded and empty performance, and several disagree by thousands of metres of ceiling.
+**Decision.**
+- **Loaded figures.** Every bomber's speed, climb and ceiling are with its historical bomb load, and `massLoaded` includes it (D-086), so a bomber that drops its load outperforms its card, as the real ones did. Where a loaded figure exists it wins over a higher empty one: the Gotha's 4650 m ceiling and 3000 m in 28 min with bombs (Grosz), not 6500 m; the Breguet's 5550 m with 256 kg of bombs; the AEG from an Allied test of a captured aircraft.
+- **O/400:** ceiling 3960 m (13,000 ft, Barnes), climb to 3000 m in 40 min (aeropedia).
+- **Estimates, marked in the data:** the Breguet's loaded climb (18 min) and the Michelin bomb's 2.5 kg charge; the Voisin's climb, 45 min. The first guess of 52 min fails calibration because it needs a power lapse beyond the 0.55 bound.
+- **Twins:** `enginePowerHp` is the total (2 × 260 hp Mercedes D.IVa, 2 × 360 hp Eagle VIII), and `nacelleOffsetX` puts each propeller clear of the fuselage (`aircraft.test.ts` and `models.test.ts` check it).
+- **The Gotha keeps `pusher: false`.** Its nacelles push, but the fuselage is an ordinary tractor-style one with the tail on it, and `pusher` means the boom layout to the generator and the sim.
+- **D.H.4 charge:** 16 kg, not 20: the 112 lb R.L. bomb carried 35 lb of amatol (GWAS table, "Details of Aerial Bombs").
+- Sources and the full table are in docs/models.md, "Bomber specifications and sources".
+**Consequences.** Every new type passes `coefficients.test.ts` and the 6-DOF `performance.test.ts` inside the existing tolerances, with no change to `src/sim`. The O/400's rate of climb at 1.12 × its ceiling is 0.69 m/s against the test's 1.0 limit, the closest of the roster.
+
+## D-XXX — Crew stations for the bombers, and three two-seaters corrected (track B, bombers wave 1)
+**Context.** D-086 derives a pilot and one observer for any type without its own stations. That is wrong for the multi-gun bombers, and thin for three existing types.
+**Decision.**
+- **Gotha G.V:** nose (bomb aimer), dorsal and ventral ("Tunnel gun"). The dorsal and ventral share crew member 2: one gunner worked both, firing down through the tunnel. **O/400:** nose (twin Lewis, bomb aimer), dorsal (two pillar Lewis), ventral (a fourth crew member at the floor hatch). **AEG G.IV:** nose (bomb aimer) and dorsal.
+- **Arcs** for the bomber positions are read from photographs of what wings, propellers and tail leave open. The nose is open ahead, to the sides and below. The dorsal is open high and to the sides, and level astern. The ventral fires down and aft.
+- **D.H.9 and Breguet 14 B2** list their stations so the observer's eye sits over the ring between his twin Lewis guns, not beside the first one. Their arcs copy `REAR_OBSERVER_ARCS` (`REAR_RING_ARCS`, tested equal).
+- **Voisin III:** the observer stands behind the pilot, fires a strip-fed Hotchkiss over the pilot's head from a tripod, and drops the shells.
+- **F.E.2b** gains its second Lewis, on the telescopic pillar between the cockpits, fired back over the top wing (arc 80° to −80° through astern, 8° to 80° up). The observer works both guns; D-066 left this gun out.
+- **B.E.2c:** the observer sits in the front seat under the centre section. His arcs are now the sides and back over the pilot's head, not ahead or straight up. The derived arcs had treated him as an aft-facing observer.
+- Every bomber marks exactly one bomb aimer (`aircraft.test.ts`), and `crewStationProblems` stays empty.
+**Consequences.** Fights involving the F.E.2b (a second gun) and the B.E.2c (a different field of fire) change once track A's combat reads stations. The D.H.4 and Bristol keep one Lewis each, although some carried twin Lewis; adding a second gun there is a balance change and was not done.
+
+## D-XXX — Models for stations, twins and bombs; the triangle budget (track B, bombers wave 1)
+**Context.** The station views, twin engines and visible bomb loads all need things the one-observer GLB contract didn't have.
+**Decision.**
+- **Node contract** (docs/models.md):
+  - `Gun_<station>` pivots, with `_2` and up for separate mounts, and `EyePoint_<station>` empties.
+  - `Propeller_L/_R` and `Engine_L/_R` for twins, with engine 0 on the left.
+  - `Bombs` > `Bomb_<store>_<k>`.
+  - `Gunner_2` and `Gunner_3` for crew members 2 and 3.
+  - The older `Gun_Flexible` is still read.
+- **Runtime:** each bomb store merges into one mesh, and `setDrawRange` shows the bombs left (`AircraftEntity.bombs`). A store costs one draw call, and without `bombs` nothing is drawn.
+- **Additive contract:** `AircraftVisual.setStationView?(station | null)` hides the figure of the crew member at the camera's station, as `setCockpitView` hides the pilot. From the dorsal eye the camera would otherwise sit inside the gunner's head.
+- **`Livery.pattern` gains `'disruptive'`:** the French five-colour camouflage of 1917–18, used by the Breguet.
+- **Triangle budget:** a twin is 10.3–10.8k triangles, about 1.45× a Bristol F.2b (7.3k), for two nacelles and propellers, paired wheels (12-sided), three gun positions and a bomb load. The Breguet is 9.2k, most of it its 32 bombs; the D.H.9 and Voisin are 7.5k and 8.0k. In the hangar with shadows, a Gotha draws 134 calls and 21.6k triangles, against a Bristol's 108 and 14.5k.
+**Consequences.** The GLBs grew from 6.6 MB (27 types) to 9.0 MB (33 types). Track C reads `stationEyes` for the gunner camera and calls `setStationAim` and `setStationView`.
+
+## D-XXX — Falling bombs are drawn from the event; bursts sized by the charge (track B, bombers wave 1)
+**Context.** Combat simulates bombs (D-086) but exposes no bomb view to the renderer, only `bomb-released` and `bomb-exploded`.
+**Decision.**
+- **Falling bombs:** the renderer drops its own bomb on `bomb-released`. It is a visual-only ballistic path from the releasing aircraft's velocity, with gravity and light drag (Cd 0.3), and is removed at the ground or by the matching `bomb-exploded`.
+- **Bursts:** the flash, fireball and earth fountain scale with 1.2 · kg^⅓ of charge.
+- **Craters:** a crater decal is draped over the terrain. All the mission's craters are one merged mesh, reused as a ring of 128.
+- **Audio:**
+  - The release clunk.
+  - A whistle heard only within 700 m of the predicted impact, timed to end at it.
+  - A burst whose loudness, reach and pitch follow the charge.
+  - Twin engines: two voices, the second 1.3% fast so the pair beats, each with its own `damage.engines[i]`.
+**Consequences.** No contract change: a bomb view (`CombatQuery.bombs`) would let the renderer follow the sim's own bombs, and is worth adding if the two ever visibly disagree (for example, with wind drift). The crater texture is created with the effects system, so the first burst doesn't recompile a shader (a 150 ms frame before).
