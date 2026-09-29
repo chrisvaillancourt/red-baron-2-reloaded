@@ -16,13 +16,14 @@ import { describe, expect, it } from 'vitest';
 import { missionFromReport, parseFlightReport, realismFromReport } from '../core/flightReport';
 import { runAutoplay, seededHeadlessModules, type AutoplayReport } from './autoplay';
 import { FAIRNESS_HEADER, fairnessLine } from './autoplaySummary';
+import { positiveIntEnv } from './testing/env';
 
 const FILE = process.env.REPLAY ?? '';
-const REPS = Number(process.env.REPLAY_REPS ?? 8);
-const MAX_TIME = Number(process.env.REPLAY_MAXTIME ?? 2400);
 
 describe.skipIf(!FILE)('flight report replay', () => {
   it('flies the report again', { timeout: 60 * 60 * 1000 }, () => {
+    const REPS = positiveIntEnv('REPLAY_REPS', process.env.REPLAY_REPS, 8);
+    const MAX_TIME = positiveIntEnv('REPLAY_MAXTIME', process.env.REPLAY_MAXTIME, 2400);
     const report = parseFlightReport(readFileSync(FILE, 'utf8'));
     const o = report.outcome;
     const out: string[] = [

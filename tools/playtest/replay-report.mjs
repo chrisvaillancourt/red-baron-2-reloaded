@@ -15,36 +15,69 @@ import { chromium } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
-const args = process.argv.slice(2);
-const file = args.find((a) => !a.startsWith('--') && !/^\d+$/.test(a));
-const opt = (name, def) => {
-  const i = args.indexOf(`--${name}`);
-  return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : def;
-};
-const flag = (name) => args.includes(`--${name}`);
-if (!file) {
-  console.error('usage: node tools/playtest/replay-report.mjs <report.json> [--reps N] [--maxtime S] | --browser [--port P] [--out dir] [--timeout S] [--vulnerable]');
+const USAGE = 'usage: node tools/playtest/replay-report.mjs <report.json> [--reps N] [--maxtime S] | <report.json> --browser [--port P] [--out dir] [--timeout S] [--vulnerable]';
+/** Repo root, whatever the cwd (this file is tools/playtest/replay-report.mjs). */
+const ROOT = fileURLToPath(new URL('../../', import.meta.url));
+
+function fail(msg) {
+  console.error(msg);
   process.exit(2);
 }
-const path = resolve(file);
-const report = JSON.parse(readFileSync(path, 'utf8'));
-if (report.kind !== 'rb2r-flight-report' || report.schema !== 1) {
-  console.error(`${file}: not a schema-1 flight report (kind ${report.kind}, schema ${report.schema})`);
-  process.exit(2);
+/** Same rule as src/game/testing/env.ts positiveIntEnv. */
+function positiveInt(name, raw) {
+  const s = String(raw).trim();
+  if (!/^\d+$/.test(s) || Number(s) < 1 || !Number.isSafeInteger(Number(s))) fail(`--${name} must be a positive integer, got ${JSON.stringify(raw)}.\n${USAGE}`);
+  return Number(s);
 }
 
-if (!flag('browser')) {
-  const r = spawnSync('./node_modules/.bin/vitest', ['run', 'src/game/replay.soak.test.ts'], {
-    stdio: 'inherit',
-    env: { ...process.env, REPLAY: path, REPLAY_REPS: opt('reps', '8'), REPLAY_MAXTIME: opt('maxtime', '2400') },
+let parsed;
+try {
+  parsed = parseArgs({
+    allowPositionals: true,
+    options: {
+      reps: { type: 'string', default: '8' },
+      maxtime: { type: 'string', default: '2400' },
+      browser: { type: 'boolean', default: false },
+      port: { type: 'string', default: '5173' },
+      out: { type: 'string' },
+      timeout: { type: 'string', default: '300' },
+      vulnerable: { type: 'boolean', default: false },
+    },
   });
+} catch (e) {
+  fail(`${e.message}\n${USAGE}`);
+}
+const { values: o, positionals } = parsed;
+if (positionals.length !== 1) fail(positionals.length ? `expected one report file, got: ${positionals.join(' ')}\n${USAGE}` : USAGE);
+const file = positionals[0];
+const path = resolve(file);
+let report;
+try {
+  report = JSON.parse(readFileSync(path, 'utf8'));
+} catch (e) {
+  fail(`${file}: ${e.message}`);
+}
+if (report?.kind !== 'rb2r-flight-report' || report.schema !== 1) fail(`${file}: not a schema-1 flight report (kind ${report?.kind}, schema ${report?.schema})`);
+
+if (!o.browser) {
+  const reps = positiveInt('reps', o.reps);
+  const maxtime = positiveInt('maxtime', o.maxtime);
+  const r = spawnSync(resolve(ROOT, 'node_modules/.bin/vitest'), ['run', 'src/game/replay.soak.test.ts'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    env: { ...process.env, REPLAY: path, REPLAY_REPS: String(reps), REPLAY_MAXTIME: String(maxtime) },
+  });
+  if (r.error) fail(`could not run vitest (${resolve(ROOT, 'node_modules/.bin/vitest')}): ${r.error.message}. Run \`sfw pnpm install\` in ${ROOT} first?`);
   process.exit(r.status ?? 1);
 }
 
-const port = Number(opt('port', '5173'));
-const out = opt('out', `test-results/replay-${basename(file, '.json')}`);
-const timeout = Number(opt('timeout', '300'));
+const port = positiveInt('port', o.port);
+const out = o.out ?? resolve(ROOT, `test-results/replay-${basename(file, '.json')}`);
+const timeout = positiveInt('timeout', o.timeout);
+const flag = (name) => o[name] === true;
 mkdirSync(out, { recursive: true });
 try {
   await fetch(`http://localhost:${port}/`);
