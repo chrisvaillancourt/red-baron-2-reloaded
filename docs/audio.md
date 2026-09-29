@@ -61,8 +61,8 @@ propeller is heard (`min(rpm, airspeed × 9)`, as the visual spins it). Each voi
 **Bombs.** `bomb-released`: the release clunk (the latch and the rack springing back) in the
 cockpit when it's the player's, positional within 250 m otherwise. The whistle (2.2 s,
 sliding from about 1650 to 750 Hz and swelling) is heard only within 700 m of where the bomb
-will land: the engine predicts the impact from the release (level fall, no drag, the
-releasing aircraft's velocity) and ends the whistle there. `bomb-exploded`: a deep
+will land: the engine asks the sim (`predictBombImpact(aircraft, world.env, storeIndex)`, the
+same ballistics, drag and wind as the real fall) and ends the whistle there. `bomb-exploded`: a deep
 concussion with a crack, then earth pattering back for about two seconds; bigger charges are
 louder, carry further (`ref` 25 · kg^⅓ m) and play lower. Sound travel delays it like
 every distant bang.

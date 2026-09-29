@@ -11,6 +11,7 @@ import { Quaternion, Vector3, type Camera } from 'three';
 import type { AudioEngine, BulletView, MusicCue, WorldQuery } from '../core/interfaces';
 import type { AircraftEntity, DamageZone, GameEvent } from '../core/types';
 import { GUNS } from '../data/aircraft';
+import { predictBombImpact } from '../sim/bombs';
 import { SoundBank, type SoundId } from './bank';
 import { MusicPlayer } from './music/player';
 import { airAbsorptionCutoff, dopplerFactor, selectNearest, soundDelay } from './spatial';
@@ -402,15 +403,13 @@ export class WebAudioEngine implements ReloadedAudioEngine {
         const a = this.world?.getEntity(e.aircraftId);
         if (isPlayer(e.aircraftId)) this.oneShot('bomb-release', { gain: 0.75, rate: 0.95 + Math.random() * 0.1 });
         else if (near(e.position, 250)) this.oneShot('bomb-release', { position: e.position.clone(), ref: 6, gain: 0.7, delayBySound: true });
-        // The whistle, heard near where it will land: predict the impact from the release
-        // (level ballistic fall, no drag) and end the whistle there, just before the burst.
+        // The whistle, heard near where it will land: the sim's own prediction for that store
+        // from the releasing aircraft (the bomb leaves the CG with its velocity; same
+        // ballistics, drag and wind as the real fall), ending just before the burst.
         if (a && a.kind === 'aircraft' && this.world) {
-          const h = Math.max(0, e.position.y - this.world.groundHeightAt(e.position.x, e.position.z));
-          const t = Math.sqrt((2 * h) / 9.81);
-          const v = a.state.velocity;
-          const hit = new Vector3(e.position.x + v.x * t, e.position.y - h, e.position.z + v.z * t);
-          if (t > BOMB_WHISTLE_SECONDS * 0.6 && near(hit, BOMB_WHISTLE_RANGE)) {
-            this.oneShot('bomb-whistle', { position: hit, ref: 30, gain: 0.55, delay: Math.max(0, t - BOMB_WHISTLE_SECONDS), rate: 0.94 + Math.random() * 0.12 });
+          const hit = predictBombImpact(a, this.world.env, e.storeIndex);
+          if (hit && hit.time > BOMB_WHISTLE_SECONDS * 0.6 && near(hit.point, BOMB_WHISTLE_RANGE)) {
+            this.oneShot('bomb-whistle', { position: hit.point, ref: 30, gain: 0.55, delay: Math.max(0, hit.time - BOMB_WHISTLE_SECONDS), rate: 0.94 + Math.random() * 0.12 });
           }
         }
         return;
