@@ -6,7 +6,7 @@
  * the craters they leave (bombEffects.ts).
  */
 import { Color, Group, Vector3, type Camera } from 'three';
-import type { BulletView, WorldQuery } from '../../core/interfaces';
+import type { BombView, BulletView, WorldQuery } from '../../core/interfaces';
 import type { GameEvent, Side } from '../../core/types';
 import { landUseAt } from '../../world/landuse';
 import { BombEffects } from './bombEffects';
@@ -50,6 +50,10 @@ export class EffectsSystem {
     this.glow = new ParticlePool(Math.round(maxParticles * 0.3), true);
     this.group.add(this.smoke.mesh, this.glow.mesh, this.tracers.mesh, this.bombs.group);
     this.bombs.onBurst = (e, gy, water) => this.bombBurst(e.position.x, gy, e.position.z, e.explosiveKg, water);
+    this.bombs.isWater = (x, z) => {
+      const lu = landUseAt(x, z, this.date);
+      return lu === 'water' || lu === 'sea';
+    };
   }
 
   setWind(w: [number, number, number]): void {
@@ -295,9 +299,9 @@ export class EffectsSystem {
 
   // --- per-frame ---------------------------------------------------------------
 
-  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[]): void {
+  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[], bombs?: readonly BombView[]): void {
     this.tracers.update(bullets, camera, dt);
-    this.bombs.update(dt, world);
+    this.bombs.update(world, bombs);
     // Smoke/fire trails from damaged aircraft (emitted by distance travelled).
     for (const ac of world.aircraft) {
       const d = ac.damage;

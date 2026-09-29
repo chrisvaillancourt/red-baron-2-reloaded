@@ -1,58 +1,18 @@
-import { Vector3 } from 'three';
+import { Mesh, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import type { WorldQuery } from '../../core/interfaces';
-import type { AircraftEntity, GameEvent } from '../../core/types';
-import { AIRCRAFT } from '../../data/aircraft';
-import { BombEffects, bombDragK, bombSize, craterRadius, stepBomb } from './bombEffects';
+import type { BombView, WorldQuery } from '../../core/interfaces';
+import { BombEffects, bombSize, craterRadius, MAX_DRAWN_BOMBS } from './bombEffects';
 import { bombBurstSize } from './effectsSystem';
 
-/** Drop from rest-relative level flight until the ground; returns the fall time and range. */
-function drop(massKg: number, h: number, v: number, dt = 1 / 60) {
-  const pos = new Vector3(0, h, 0);
-  const vel = new Vector3(0, 0, -v);
-  const k = bombDragK(massKg);
-  let t = 0;
-  while (pos.y > 0 && t < 120) {
-    stepBomb(pos, vel, k, dt);
-    t += dt;
-  }
-  return { t, range: -pos.z, vel };
+const world = { groundHeightAt: () => 0 } as unknown as WorldQuery;
+
+function view(x: number, y: number, vx: number, vy: number, massKg = 50): BombView {
+  return { position: new Vector3(x, y, 0), velocity: new Vector3(vx, vy, 0), storeIndex: 0, massKg, shooterId: 7, side: 'central', age: 1 };
 }
 
-function fakeWorld(entities: AircraftEntity[], ground = 0): WorldQuery {
-  return {
-    aircraft: entities,
-    getEntity: (id: number) => entities.find((e) => e.id === id),
-    groundHeightAt: () => ground,
-  } as unknown as WorldQuery;
-}
+const drawn = (fx: BombEffects) => fx.group.children.filter((c): c is Mesh => c.name === 'FallingBomb' && c.visible);
 
-function gotha(id: number, y: number): AircraftEntity {
-  return {
-    id,
-    kind: 'aircraft',
-    spec: AIRCRAFT.gotha_gv,
-    state: { position: new Vector3(0, y, 0), velocity: new Vector3(0, 0, -38) },
-  } as unknown as AircraftEntity;
-}
-
-describe('bomb ballistics', () => {
-  it('falls close to the vacuum time and keeps most of the release speed', () => {
-    const vacuum = Math.sqrt((2 * 2000) / 9.81);
-    for (const m of [11, 50, 104]) {
-      const r = drop(m, 2000, 40);
-      expect(r.t).toBeGreaterThan(vacuum);
-      expect(r.t).toBeLessThan(vacuum * 1.08);
-      expect(r.range).toBeGreaterThan(40 * r.t * 0.8);
-      expect(r.range).toBeLessThan(40 * r.t);
-    }
-  });
-
-  it('slows a small bomb more than a heavy one', () => {
-    expect(bombDragK(11)).toBeGreaterThan(bombDragK(104));
-    expect(drop(11, 2000, 40).range).toBeLessThan(drop(104, 2000, 40).range);
-  });
-
+describe('bomb sizes', () => {
   it('sizes bombs, bursts and craters by mass and charge', () => {
     const b = bombSize(50);
     expect(b.length).toBeGreaterThan(1.2);
@@ -64,29 +24,48 @@ describe('bomb ballistics', () => {
 });
 
 describe('BombEffects', () => {
-  it('drops a bomb on release and takes it out at the ground', () => {
+  it('draws each of the sim bombs where it is, nose along its velocity', () => {
     const fx = new BombEffects();
-    const world = fakeWorld([gotha(7, 300)]);
-    const release: GameEvent = { type: 'bomb-released', aircraftId: 7, storeIndex: 0, position: new Vector3(0, 299, 0) };
-    fx.handleEvent(release);
-    fx.update(1 / 60, world);
-    expect(fx.fallingCount).toBe(1);
-    for (let i = 0; i < 60 * 12 && fx.fallingCount; i++) fx.update(1 / 60, world);
-    // sqrt(2·299/9.81) ≈ 7.8 s of fall.
-    expect(fx.fallingCount).toBe(0);
+    const bombs = [view(0, 500, 40, -10), view(30, 300, 38, -60, 12.5)];
+    fx.update(world, bombs);
+    const meshes = drawn(fx);
+    expect(meshes).toHaveLength(2);
+    for (let i = 0; i < 2; i++) {
+      const m = meshes[i];
+      expect(m.position.distanceTo(bombs[i].position)).toBeLessThan(1e-6);
+      const nose = new Vector3(0, 0, 1).applyQuaternion(m.quaternion);
+      expect(nose.angleTo(bombs[i].velocity)).toBeLessThan(1e-3);
+    }
+    // The small bomb is drawn smaller.
+    expect(meshes[1].scale.z).toBeLessThan(meshes[0].scale.z);
     fx.dispose();
   });
 
-  it('removes the falling bomb and leaves a crater when the sim reports the burst', () => {
+  it('stops drawing a bomb once the sim no longer carries it', () => {
     const fx = new BombEffects();
-    const world = fakeWorld([gotha(7, 300)]);
-    fx.handleEvent({ type: 'bomb-released', aircraftId: 7, storeIndex: 0, position: new Vector3(0, 299, 0) });
-    fx.update(1 / 60, world);
+    fx.update(world, [view(0, 500, 40, -10), view(0, 400, 40, -30)]);
+    fx.update(world, [view(0, 480, 40, -12)]);
+    expect(drawn(fx)).toHaveLength(1);
+    expect(fx.fallingCount).toBe(1);
+    fx.update(world);
+    expect(drawn(fx)).toHaveLength(0);
+    fx.dispose();
+  });
+
+  it('caps the bombs drawn at once', () => {
+    const fx = new BombEffects();
+    const many = Array.from({ length: MAX_DRAWN_BOMBS + 20 }, (_, i) => view(i * 5, 600, 40, -5));
+    fx.update(world, many);
+    expect(drawn(fx)).toHaveLength(MAX_DRAWN_BOMBS);
+    fx.dispose();
+  });
+
+  it('plays a burst and leaves a crater when the sim reports one', () => {
+    const fx = new BombEffects();
     let bursts = 0;
     fx.onBurst = () => bursts++;
-    fx.handleEvent({ type: 'bomb-exploded', shooterId: 7, position: new Vector3(0, 280, -10), explosiveKg: 23, damagedTargetIds: [] });
-    fx.update(1 / 60, world);
-    expect(fx.fallingCount).toBe(0);
+    fx.handleEvent({ type: 'bomb-exploded', shooterId: 7, position: new Vector3(0, 0, -10), explosiveKg: 23, damagedTargetIds: [] });
+    fx.update(world, []);
     expect(bursts).toBe(1);
     expect(fx.craterTotal).toBe(1);
     fx.dispose();
@@ -94,7 +73,6 @@ describe('BombEffects', () => {
 
   it('keeps a bounded ring of craters', () => {
     const fx = new BombEffects();
-    const world = fakeWorld([]);
     for (let i = 0; i < 300; i++) fx.addCrater(i * 10, 0, 3, world);
     expect(fx.craterTotal).toBeGreaterThan(0);
     expect(fx.craterTotal).toBeLessThanOrEqual(128);

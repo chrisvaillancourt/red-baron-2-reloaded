@@ -1,10 +1,11 @@
 /**
- * Bombs in the world (docs/bombers.md): bombs falling from the racks after a `bomb-released`
- * event, and the craters and scorch marks that `bomb-exploded` leaves on the ground.
+ * Bombs in the world (docs/bombers.md): the combat system's bombs as they fall
+ * (`CombatSystem.bombs`, drawn where the sim has them, wind drift included), and the
+ * craters and scorch marks that `bomb-exploded` leaves on the ground.
  *
- * Falling bombs: combat has no bomb view yet, so each one is drawn from the release event on
- * a ballistic path of its own (the releasing aircraft's velocity, gravity and a little drag).
- * It lands close to where the sim's bomb does; a matching `bomb-exploded` removes it early.
+ * Falling bombs: a pool of meshes, one per `BombView` in flight, nose along the velocity and
+ * sized from the bomb's mass. Views may be pooled objects, so they are matched by index
+ * each frame.
  *
  * Craters: one merged mesh for every crater of the mission (one draw call), each a 3×3 grid
  * of vertices draped over the ground heights, with a ring buffer once full.
@@ -24,15 +25,13 @@ import {
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { WorldQuery } from '../../core/interfaces';
-import type { AircraftEntity, BombStore, GameEvent } from '../../core/types';
+import type { BombView, WorldQuery } from '../../core/interfaces';
+import type { GameEvent } from '../../core/types';
 
-type Released = Extract<GameEvent, { type: 'bomb-released' }>;
 type Exploded = Extract<GameEvent, { type: 'bomb-exploded' }>;
 
-const G = 9.81;
-const RHO = 1.1;
-const MAX_FALLING = 48;
+/** Most bombs drawn at once; a raid's later bombs beyond this aren't drawn until some land. */
+export const MAX_DRAWN_BOMBS = 96;
 const MAX_CRATERS = 128;
 /** Vertices per crater (3×3 grid) and indices (8 triangles). */
 const CV = 9;
@@ -47,33 +46,6 @@ export function bombSize(massKg: number): { diameter: number; length: number } {
 /** Crater radius, m, for a charge (about 2.6 m for the P.u.W. 50 kg's 23 kg). */
 export function craterRadius(explosiveKg: number): number {
   return 0.9 * Math.cbrt(Math.max(0.1, explosiveKg));
-}
-
-/**
- * Per-second drag factor k for dv/dt = -k·|v|·v: a streamlined bomb (Cd 0.3) of the given
- * mass. Heavy bombs fall almost as in vacuum; the small ones slow a little.
- */
-export function bombDragK(massKg: number): number {
-  const d = bombSize(massKg).diameter;
-  return (0.5 * RHO * 0.3 * Math.PI * d * d * 0.25) / massKg;
-}
-
-/** Advance a falling bomb one step (semi-implicit Euler). */
-export function stepBomb(pos: Vector3, vel: Vector3, k: number, dt: number): void {
-  const s = vel.length();
-  vel.x -= k * s * vel.x * dt;
-  vel.z -= k * s * vel.z * dt;
-  vel.y -= (G + k * s * vel.y) * dt;
-  pos.addScaledVector(vel, dt);
-}
-
-interface Falling {
-  mesh: Mesh;
-  pos: Vector3;
-  vel: Vector3;
-  k: number;
-  shooter: number;
-  age: number;
 }
 
 let bombGeo: BufferGeometry | null = null;
@@ -130,8 +102,8 @@ function craterTexture(): CanvasTexture {
 
 export class BombEffects {
   readonly group = new Group();
-  private readonly falling: Falling[] = [];
-  private readonly released: Released[] = [];
+  private readonly pool: Mesh[] = [];
+  private drawn = 0;
   private readonly exploded: Exploded[] = [];
   private readonly bombMat = new MeshStandardMaterial({ color: 0x55583f, metalness: 0.35, roughness: 0.55 });
   private readonly craterGeo = new BufferGeometry();
@@ -141,6 +113,8 @@ export class BombEffects {
   private craterNext = 0;
   /** Called for each burst so the particle effects can play it (EffectsSystem.bombBurst). */
   onBurst: ((e: Exploded, groundY: number, water: boolean) => void) | null = null;
+  /** Is (x, z) open water (a burst there leaves a plume, no crater)? EffectsSystem sets it from land use. */
+  isWater: (x: number, z: number) => boolean = () => false;
 
   constructor() {
     this.group.name = 'bombs';
@@ -176,8 +150,9 @@ export class BombEffects {
     this.group.add(this.craters);
   }
 
+  /** Bombs drawn in the air after the last update. */
   get fallingCount(): number {
-    return this.falling.length;
+    return this.drawn;
   }
 
   get craterTotal(): number {
@@ -185,57 +160,38 @@ export class BombEffects {
   }
 
   handleEvent(e: GameEvent): void {
-    if (e.type === 'bomb-released') this.released.push(e);
-    else if (e.type === 'bomb-exploded') this.exploded.push(e);
+    if (e.type === 'bomb-exploded') this.exploded.push(e);
   }
 
-  update(dt: number, world: WorldQuery): void {
-    for (const e of this.released.splice(0)) this.launch(e, world);
+  /** Draw `bombs` (the combat system's bombs in flight; none when absent) and resolve bursts. */
+  update(world: WorldQuery, bombs: readonly BombView[] = []): void {
     for (const e of this.exploded.splice(0)) this.burst(e, world);
-    for (let i = this.falling.length - 1; i >= 0; i--) {
-      const b = this.falling[i];
-      b.age += dt;
-      stepBomb(b.pos, b.vel, b.k, dt);
-      const ground = world.groundHeightAt(b.pos.x, b.pos.z);
-      if (b.pos.y <= ground || b.age > 90) {
-        this.remove(i);
-        continue;
-      }
-      b.mesh.position.copy(b.pos);
-      b.mesh.lookAt(_look.copy(b.pos).add(b.vel));
+    const n = Math.min(bombs.length, MAX_DRAWN_BOMBS);
+    for (let i = 0; i < n; i++) {
+      const b = bombs[i];
+      const mesh = this.pool[i] ?? this.addMesh();
+      const { diameter, length } = bombSize(b.massKg);
+      mesh.scale.set(diameter / 0.15, diameter / 0.15, length);
+      mesh.position.copy(b.position);
+      if (b.velocity.lengthSq() > 1e-4) mesh.lookAt(_look.copy(b.position).add(b.velocity));
+      mesh.visible = true;
     }
+    for (let i = n; i < this.drawn; i++) this.pool[i].visible = false;
+    this.drawn = n;
   }
 
-  private launch(e: Released, world: WorldQuery): void {
-    const ac = world.getEntity(e.aircraftId) as AircraftEntity | undefined;
-    const store: BombStore | undefined = ac?.kind === 'aircraft' ? ac.spec.bombs?.[e.storeIndex] : undefined;
-    const mass = store?.massKg ?? 50;
-    if (this.falling.length >= MAX_FALLING) this.remove(0);
-    const { diameter, length } = bombSize(mass);
+  private addMesh(): Mesh {
     const mesh = new Mesh(unitBomb(), this.bombMat);
-    mesh.scale.set(diameter / 0.15, diameter / 0.15, length);
+    mesh.name = 'FallingBomb';
     mesh.castShadow = true;
-    const vel = ac?.kind === 'aircraft' ? ac.state.velocity.clone() : new Vector3();
-    const pos = e.position.clone();
-    mesh.position.copy(pos);
+    this.pool.push(mesh);
     this.group.add(mesh);
-    this.falling.push({ mesh, pos, vel, k: bombDragK(mass), shooter: e.aircraftId, age: 0 });
+    return mesh;
   }
 
   private burst(e: Exploded, world: WorldQuery): void {
-    // The sim's bomb has landed: take ours (the nearest of that aircraft's) out of the air.
-    let best = -1;
-    let bestD = 60 * 60;
-    this.falling.forEach((b, i) => {
-      const d = b.pos.distanceToSquared(e.position);
-      if (b.shooter === e.shooterId && d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    });
-    if (best >= 0) this.remove(best);
     const gy = world.groundHeightAt(e.position.x, e.position.z);
-    const water = gy <= 0.05 && e.position.y <= 0.5;
+    const water = this.isWater(e.position.x, e.position.z);
     this.onBurst?.(e, gy, water);
     if (!water) this.addCrater(e.position.x, e.position.z, craterRadius(e.explosiveKg) * 2.2, world);
   }
@@ -261,21 +217,19 @@ export class BombEffects {
     this.craterGeo.setDrawRange(0, this.craterCount * CI);
   }
 
-  private remove(i: number): void {
-    const [b] = this.falling.splice(i, 1);
-    b.mesh.removeFromParent();
-  }
-
   /** Clear the falling bombs and craters (a new mission). */
   clear(): void {
-    while (this.falling.length) this.remove(0);
-    this.released.length = this.exploded.length = 0;
+    for (const m of this.pool) m.visible = false;
+    this.drawn = 0;
+    this.exploded.length = 0;
     this.craterCount = this.craterNext = 0;
     this.craterGeo.setDrawRange(0, 0);
   }
 
   dispose(): void {
     this.clear();
+    for (const m of this.pool) m.removeFromParent();
+    this.pool.length = 0;
     this.craterGeo.dispose();
     this.craterMat.map?.dispose();
     this.craterMat.dispose();
