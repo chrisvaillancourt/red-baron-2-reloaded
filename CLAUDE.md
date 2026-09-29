@@ -52,7 +52,8 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   worktree (`cd … &&`, `$PWD`/`$VAR` in paths, multi-file heredoc pipelines). Use single commands
   with worktree-relative or absolute paths. Create files and append to docs with the
   Write/Edit tools, not heredocs, `cat >>` or `sed -i`. Use one plain command per Bash call.
-  Any `cd` is refused, including in a subshell `( … )`. To run something from another
+  Any `cd` is refused, including in a subshell `( … )`, and so are `for`/`while`/`until`
+  loops and `<(…)` process substitution. Write a small Node script to the scratchpad instead. To run something from another
   directory, set `cwd` in `spawnSync` from a script.
 - **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,
   perception) shifts them. Compare with an independent count, or assert a range, unless the
@@ -61,6 +62,14 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`) instead of downloading.
   Modals fade in over about 0.5 s, and Playwright counts a fading modal as visible, so wait
   for the fade to finish before a screenshot.
+- **Playtest reports:** the dev server saves every human flight to `playtests/inbox/`, which
+  is git-ignored, so worktrees don't have it. Read an inbox report through the main
+  checkout's absolute path. Move it to the tracked `playtests/reports/` only when your change
+  cites it (D-084).
+- **A red full e2e run under load isn't proof of a bug.** Spec files run in parallel on one
+  GPU, and the user may be playing on `pnpm dev`. Re-run the failing specs alone, then
+  compare with a baseline `git worktree` at the previous commit before blaming your change
+  (FRICTION F-20).
 - **Test helpers:** never import from a `*.test.ts` file, because Vitest registers its tests
   again in the importing file. Shared fixtures go in a `testing/` module, like
   `src/game/testing/`. Vitest can swallow `console.log` in tests, so print soak output

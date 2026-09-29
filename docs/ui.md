@@ -80,7 +80,14 @@ the versioned JSON report (`src/core/flightReport.ts`; docs/PLAYTEST.md "Human
 playtests") and writes it to the clipboard. If the clipboard refuses (browser
 permissions, or an origin that isn't secure), the report opens in a modal
 textarea, selected for copying by hand. A toast says which happened.
-`tests/e2e/flight-report.spec.ts` covers both paths.
+
+Under `pnpm dev` the strip also saves the report through the dev server's sink (D-084):
+it POSTs to `/__rb2r/flight-report` (`src/core/reportSink.ts`, and the plugin in
+`vite.config.ts`) when the page opens, on a rating, on blur of the note field, and 0.7 s
+after typing stops. Every save uses one timestamp, so they all overwrite one file, and the
+strip shows "Saved to <path>". The sink is off in production builds and under browser
+automation (`navigator.webdriver`), unless the URL has `?reportSink=1`.
+`tests/e2e/flight-report.spec.ts` covers the clipboard, the fallback box and the sink.
 
 ## Navigation
 

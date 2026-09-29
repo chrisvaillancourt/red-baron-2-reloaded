@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 /**
  * The debrief's flight report (docs/PLAYTEST.md "Human playtests"): fly the default quick
  * mission for a few seconds, abandon, rate it, and copy the report. First with the clipboard
  * refused (the fallback box), then with it granted. Both must be the same valid schema-1 JSON.
+ * The dev server's sink (D-084) must also have saved it, rating and note included, to
+ * $RB2R_REPORTS_DIR (playwright.config.ts points it at test-results/flight-reports).
  */
 
 async function expectScreen(page: Page, id: string): Promise<void> {
@@ -58,7 +61,8 @@ test('debrief: rate the flight and copy the flight report', async ({ page, conte
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && !m.text().startsWith('Failed to load resource') && errors.push(m.text()));
 
-  await page.goto('/');
+  // ?reportSink=1: the sink is off under browser automation unless a test asks for it.
+  await page.goto('/?reportSink=1');
   await expectScreen(page, 'title');
   await page.click('text=Quick Mission');
   await expectScreen(page, 'quick');
@@ -76,6 +80,11 @@ test('debrief: rate the flight and copy the flight report', async ({ page, conte
   // Rate it and leave a note.
   const strip = page.locator('.playtest');
   await expect(strip).toBeVisible();
+  // Saved on arrival, before any rating.
+  const saved = strip.locator('[data-testid="flight-report-saved"]');
+  await expect(saved).toContainText('Saved to test-results/flight-reports/', { timeout: 10_000 });
+  const savedPath = (await saved.textContent())!.replace('Saved to ', '');
+  expect(savedPath).toMatch(/\/\d{4}-\d{2}-\d{2}-\d{6}-dogfight-sopwith-camel-v-2-fokker-dvii\.json$/);
   await strip.locator('button:has-text("Fair")').click();
   await expect(strip.locator('button:has-text("Fair")')).toHaveAttribute('aria-pressed', 'true');
   const noteInput = strip.locator('input[aria-label="Playtest note"]');
@@ -86,6 +95,9 @@ test('debrief: rate the flight and copy the flight report', async ({ page, conte
   expect(await page.evaluate(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen'))).toBe('debrief');
   await expect(noteInput).not.toBeFocused();
   await expect(noteInput).toHaveValue('Headed straight for them.');
+  // The rating and the note (saved on blur) reach the same file.
+  await expect.poll(() => (JSON.parse(readFileSync(savedPath, 'utf8')) as Report).note, { timeout: 10_000 }).toBe('Headed straight for them.');
+  checkReport(JSON.parse(readFileSync(savedPath, 'utf8')) as Report);
   await page.screenshot({ path: 'test-results/flight-report-debrief.png' });
 
   // Clipboard refused: the report appears in a box to copy by hand.

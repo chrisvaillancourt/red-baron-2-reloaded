@@ -8,3 +8,4 @@ tools/blender/out/
 .vite/
 .claude/worktrees/
 __pycache__/
+playtests/inbox/
