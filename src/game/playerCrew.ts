@@ -11,7 +11,8 @@ import type { AircraftEntity, CrewStation, CrewStationId } from '../core/types';
 import { crewStations, stationEye } from '../data/crew';
 import { codeLabel } from '../ui/bindings';
 import type { HudBombs, HudBombsight, HudGunnerSight, HudSeat, HudView } from '../ui/hud/types';
-import { bombsLeft, driftAngle, nextStoreIndex, predictBombImpact, releaseSolution } from './bombsight';
+import { nextBombStore, predictBombImpact } from '../sim';
+import { bombsLeft, driftAngle, releaseRadiusM, releaseSolution } from './bombsight';
 import type { CameraRig } from './cameras';
 import { arcBoundary, aimBodyVector, bombAimerStation, cycleStation, stationInputsFor, StationAim, stationOf } from './crewSeat';
 import { pinToEdge, toScreen } from './hudView';
@@ -35,15 +36,6 @@ export type CrewHudFields = Pick<HudView, 'seat' | 'gunnerSight' | 'bombsight' |
   /** At a gunner's station: only his guns show on the HUD, as the player's own. */
   stationGuns?: readonly number[];
 };
-
-/**
- * Radius (m) round a target inside which the predicted impact counts as on target: the
- * target's own size plus a blast that grows with the cube root of the charge.
- * Keep near track A's blast radius (src/sim) when it lands.
- */
-export function releaseRadiusM(explosiveKg: number): number {
-  return 10 + 4 * Math.cbrt(Math.max(0, explosiveKg));
-}
 
 export class PlayerCrew {
   /** The gun's aim at a non-pilot station; null in the pilot's seat. */
@@ -265,8 +257,8 @@ export class PlayerCrew {
       out.seat = seat;
     }
     if (p.bombs && p.spec.bombs) {
-      const next = nextStoreIndex(p.spec, p.bombs);
-      const bombs: HudBombs = { left: bombsLeft(p.bombs), total: p.spec.bombs.reduce((a, b) => a + b.count, 0), next: next === null ? null : p.spec.bombs[next].name };
+      const next = nextBombStore(p);
+      const bombs: HudBombs = { left: bombsLeft(p.bombs), total: p.spec.bombs.reduce((a, b) => a + b.count, 0), next: next < 0 ? null : p.spec.bombs[next].name };
       out.bombs = bombs;
     }
     if (st && st.id !== 'pilot') out.stationGuns = st.guns;
@@ -313,12 +305,14 @@ export class PlayerCrew {
     if (!p || this.d.rig.mode !== 'bombsight') return;
     const s = p.state;
     const world = this.d.core.world;
-    const store = nextStoreIndex(p.spec, p.bombs) ?? 0;
+    // The racks empty, the sight still shows where the first store would have fallen.
+    const next = nextBombStore(p);
+    const store = next < 0 ? 0 : next;
     const bomb = p.spec.bombs?.[store];
-    // TODO(bombers merge): src/sim predictBombImpact(p, env, store) runs the sim's own integrator.
-    const impact = bomb ? predictBombImpact(s.position, s.velocity, world.env, bomb.massKg) : null;
-    const targets = world.groundTargets.filter((g) => !g.destroyed && g.side !== p.side).map((g) => ({ id: g.id, position: g.position }));
-    const solution = impact ? releaseSolution(impact.point, s.velocity, targets, releaseRadiusM(bomb?.explosiveKg ?? 0)) : null;
+    const impact = bomb ? predictBombImpact(p, world.env, store) : null;
+    const kg = bomb?.explosiveKg ?? 0;
+    const targets = world.groundTargets.filter((g) => !g.destroyed && g.side !== p.side).map((g) => ({ id: g.id, position: g.position, radiusM: releaseRadiusM(g.type, kg) }));
+    const solution = impact ? releaseSolution(impact.point, s.velocity, targets) : null;
     this.sight = { impact: impact?.point ?? null, solution };
     if (impact) {
       const eye = this.eye(this.eyeTmp).applyQuaternion(s.orientation).add(s.position);

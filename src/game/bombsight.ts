@@ -1,91 +1,34 @@
 /**
- * The bombsight (docs/bombers.md): where a bomb released now would land, the drift between
- * the heading and the ground track, and when to release on a target. Pure logic, tested in
- * Node; the flight session feeds the HUD from it.
- *
- * The ballistics copy track A's bomb model (src/sim, bombers wave 1): quadratic drag relative
- * to the air, dv/dt = g - k|v_air|v_air with v_air = v - wind, k = ½ρ·Cd·A/m, Cd 0.25 and a
- * body diameter of 0.2 m·(m/50 kg)^⅓; the bomb leaves at the aircraft's position and ground
- * velocity. TODO(bombers merge): call src/sim `predictBombImpact(ac, env, storeIndex)` instead,
- * which runs the sim's own integrator, and drop the copy here.
+ * The bombsight (docs/bombers.md): the drift between the heading and the ground track, how
+ * close a burst must fall to hurt each target, and when to release on a target. Pure logic,
+ * tested in Node; the flight session feeds the HUD from it. The impact point itself is the
+ * sim's own prediction (src/sim `predictBombImpact`, docs/sim.md "Bombs").
  */
-import { Vector3 } from 'three';
-import type { AircraftSpec, FlightEnvironment } from '../core/types';
+import type { Vector3 } from 'three';
+import type { GroundTargetType } from '../core/types';
+import { blastDamage, GROUND_TARGET_BOXES } from '../sim';
 
-const G = 9.81;
-const BOMB_CD = 0.25;
-
-export type BombEnv = Pick<FlightEnvironment, 'groundHeightAt' | 'airDensityAt' | 'windAt'>;
-
-export interface BombPrediction {
-  point: Vector3;
-  /** Seconds of fall. */
-  time: number;
-}
-
-/** Drag factor k (1/m) for a bomb of this mass in air of density rho. */
-export function bombDragK(massKg: number, rho: number): number {
-  const d = 0.2 * Math.cbrt(Math.max(1, massKg) / 50);
-  const area = Math.PI * (d / 2) ** 2;
-  return (0.5 * rho * BOMB_CD * area) / Math.max(1, massKg);
-}
-
-const _p = new Vector3();
-const _v = new Vector3();
-const _air = new Vector3();
-const _wind = new Vector3();
-const _prev = new Vector3();
+/** The burst the release cue aims for: one that does at least this much damage. */
+export const RELEASE_DAMAGE = 0.25;
 
 /**
- * Where a bomb released at `pos` with ground velocity `vel` meets the ground, and when.
- * Null when it starts on or under the ground or hasn't landed within `maxTime` seconds.
+ * Radius (m) round a target's centre inside which a burst of `explosiveKg` does at least
+ * `RELEASE_DAMAGE`: the sim's blast reach (`blastDamage`, measured from the target's nearest
+ * face) plus the half-width of its narrower side. 0 for no charge.
  */
-export function predictBombImpact(pos: Vector3, vel: Vector3, env: BombEnv, massKg: number, opts: { drag?: boolean; dt?: number; maxTime?: number } = {}): BombPrediction | null {
-  const drag = opts.drag !== false;
-  const dt = opts.dt ?? 0.05;
-  const maxTime = opts.maxTime ?? 90;
-  _p.copy(pos);
-  _v.copy(vel);
-  if (_p.y <= env.groundHeightAt(_p.x, _p.z)) return null;
-  let t = 0;
-  while (t < maxTime) {
-    _prev.copy(_p);
-    // Semi-implicit Euler; 0.05 s steps keep the error to a metre or so over a 30 s fall.
-    if (drag) {
-      _air.copy(_v).sub(env.windAt(_p, _wind));
-      const k = bombDragK(massKg, env.airDensityAt(_p.y));
-      _v.addScaledVector(_air, -k * _air.length() * dt);
-    }
-    _v.y -= G * dt;
-    _p.addScaledVector(_v, dt);
-    t += dt;
-    const gh = env.groundHeightAt(_p.x, _p.z);
-    if (_p.y <= gh) {
-      // Interpolate back to the ground crossing within the last step.
-      const prevGh = env.groundHeightAt(_prev.x, _prev.z);
-      const above = _prev.y - prevGh;
-      const below = gh - _p.y;
-      const f = above + below > 0 ? above / (above + below) : 1;
-      const point = _prev.clone().lerp(_p, f);
-      point.y = env.groundHeightAt(point.x, point.z);
-      return { point, time: t - dt + f * dt };
-    }
+export function releaseRadiusM(type: GroundTargetType, explosiveKg: number): number {
+  if (explosiveKg <= 0) return 0;
+  // blastDamage falls monotonically with distance: bisect for the RELEASE_DAMAGE edge.
+  let lo = 0;
+  let hi = 500;
+  if (blastDamage(type, lo, explosiveKg) < RELEASE_DAMAGE) return 0;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (blastDamage(type, mid, explosiveKg) >= RELEASE_DAMAGE) lo = mid;
+    else hi = mid;
   }
-  return null;
-}
-
-/**
- * The store released next: the heaviest with bombs left, ties to the lower index (track A's
- * order). TODO(bombers merge): src/sim `nextBombStore(ac)`.
- */
-export function nextStoreIndex(spec: AircraftSpec, bombs: readonly number[] | undefined): number | null {
-  if (!spec.bombs || !bombs) return null;
-  let best: number | null = null;
-  spec.bombs.forEach((s, i) => {
-    if ((bombs[i] ?? 0) <= 0) return;
-    if (best === null || s.massKg > spec.bombs![best].massKg) best = i;
-  });
-  return best;
+  const box = GROUND_TARGET_BOXES[type];
+  return lo + Math.min(box.hx, box.hz);
 }
 
 /** Bombs left aboard, all stores together. */
@@ -121,11 +64,19 @@ export interface ReleaseSolution {
 const RUN_AHEAD_M = 4000;
 const RUN_CROSS_M = 400;
 
+/** A target on the bomb run, and how close the burst must fall (`releaseRadiusM`). */
+export interface SightTarget {
+  id: number;
+  position: Vector3;
+  radiusM: number;
+}
+
 /**
  * The bomb run on the best target: the one nearest the ground track ahead of the predicted
- * impact. `release` while the impact lies within `radiusM` of it, `past` once it has gone by.
+ * impact. `release` while the impact lies within the target's `radiusM`, `past` once it has
+ * gone by.
  */
-export function releaseSolution(impact: Vector3, groundVel: Vector3, targets: readonly { id: number; position: Vector3 }[], radiusM: number): ReleaseSolution {
+export function releaseSolution(impact: Vector3, groundVel: Vector3, targets: readonly SightTarget[]): ReleaseSolution {
   const gs = Math.hypot(groundVel.x, groundVel.z);
   const none: ReleaseSolution = { cue: 'none', targetId: null, alongM: 0, crossM: 0, timeToRelease: null };
   if (gs < 1) return none;
@@ -134,6 +85,7 @@ export function releaseSolution(impact: Vector3, groundVel: Vector3, targets: re
   let best: ReleaseSolution | null = null;
   let bestScore = Infinity;
   for (const t of targets) {
+    const radiusM = t.radiusM;
     const dx = t.position.x - impact.x;
     const dz = t.position.z - impact.z;
     const along = dx * fx + dz * fz;
