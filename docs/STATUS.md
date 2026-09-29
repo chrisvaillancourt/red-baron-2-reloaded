@@ -36,11 +36,16 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
 - **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
 
 ## Next up (priority order, 2026-09-28)
-1. **Do: human playtest** on the live URL, 5–10 missions. Every wave-8 number comes from
-   the autoplayer. Note whether the new default fight (2 veteran D.VIIs, D-078) is too hard,
-   whether default balloon attacks feel punishing, whether sun attacks feel
-   fair, and whether cloud escapes are satisfying. Turn fights that felt wrong into
-   seeded scenes (`tools/playtest/ai-depth-shots.mjs` shows the pattern).
+1. **Do: human playtest** on the live URL, 5–10 missions. Every figure so far comes from
+   the autoplayer. After each flight, rate it on the debrief, add a note, press **Copy flight
+   report**, and save the report under `playtests/reports/` (steps in its README, D-083). Look
+   at:
+   - whether the new default fight (2 veteran D.VIIs, D-078) is too hard
+   - whether default balloon attacks feel punishing
+   - whether sun attacks feel fair
+   - whether a dive into cloud shakes a pursuer (D-081)
+   The lead then replays each report (`node tools/playtest/replay-report.mjs <file>`) and
+   turns the fights that felt wrong into seeded scenes or tests.
 2. **Done (wave 9, D-078): the default quick fight** is now 2 veteran D.VIIs, at 28% player
    down over 96 runs (was 4% against D.Vs). Every other quick type got harder too, balloon
    attacks most of all (31% killed). See docs/ai.md "Wave 9".
@@ -125,7 +130,7 @@ Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073
 ## How it was built
 Parallel agents in git worktrees, one subsystem each, merged by the lead over
 eight waves. Rationale for every significant choice is in `DECISIONS.md`
-(D-001..D-082); module docs are in `docs/*.md`; playtest findings are in
+(D-001..D-083); module docs are in `docs/*.md`; playtest findings are in
 `docs/PLAYTEST.md`.
 
 ## Wave 7 release-check leftovers (docs/PLAYTEST.md)

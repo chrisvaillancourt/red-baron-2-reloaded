@@ -52,6 +52,11 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   worktree (`cd … &&`, `$PWD`/`$VAR` in paths, multi-file heredoc pipelines). Use single commands
   with worktree-relative or absolute paths. Create files and append to docs with the
   Write/Edit tools, not heredocs, `cat >>` or `sed -i`. Use one plain command per Bash call.
+  Any `cd` is refused, including in a subshell `( … )`. To run something from another
+  directory, set `cwd` in `spawnSync` from a script.
+- **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,
+  perception) shifts them. Compare with an independent count, or assert a range, unless the
+  test is about determinism.
 - **Playwright:** the cached Chromium revision doesn't match `@playwright/test`; launch with
   `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`) instead of downloading.
   Modals fade in over about 0.5 s, and Playwright counts a fading modal as visible, so wait
