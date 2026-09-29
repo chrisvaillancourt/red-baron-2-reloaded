@@ -55,6 +55,10 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   Any `cd` is refused, including in a subshell `( … )`, and so are `for`/`while`/`until`
   loops and `<(…)` process substitution. Write a small Node script to the scratchpad instead. To run something from another
   directory, set `cwd` in `spawnSync` from a script.
+- **A/B with `node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`) and
+  wait on background outputs with `node tools/dev/waitfor.mjs <file> <regex> …`. Don't
+  hand-launch paired soaks or write sleep loops. Quote a difference only when the tool says
+  "differs" (docs/ai.md "Tests").
 - **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,
   perception) shifts them. Compare with an independent count, or assert a range, unless the
   test is about determinism.

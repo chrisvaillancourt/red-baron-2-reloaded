@@ -204,6 +204,15 @@ every gain with dynamic pressure automatically.
 
 ## Tests
 
+**A/B measurement.** Use `node tools/dev/ab.mjs` rather than hand-launching paired soaks.
+It runs a soak with a tactic off and on (`--flag <TACTICS_FLAGS name>`), or at another
+commit (`--base <ref>`), on the same seeds and in parallel. It prints both sides with 95%
+intervals and a "within noise" or "differs" verdict. For example:
+`node tools/dev/ab.mjs --soak career --flag stalk` runs 3 seed sets per side, and
+`node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk`. The
+career and quick surveys end with a `RATES` line: killed or captured and collisions per 100
+missions, both with intervals. Collisions count every event; `playerColl` is the player's.
+
 - `realsim.test.ts` (CI, ~13 s): scenario tests on the real `stepFlight` +
   `createCombatSystem`, standard realism, engine torque on — every type flies a
   route/patrol; vic formation < 40 m; take-off → mission → RTB → landing for seven
