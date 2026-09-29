@@ -202,6 +202,96 @@ export function segmentBox(ax: number, ay: number, az: number, bx: number, by: n
   return t0;
 }
 
+/** The zone a `bullet-hit` event names when a round crosses several boxes: the first of these. */
+export const HIT_PRIORITY: readonly DamageZone[] = ['pilot', 'engine', 'fuelTank', 'gunner', 'controls', 'guns', 'tail', 'leftWing', 'rightWing', 'fuselage'];
+
+/** A zone box on a round's path: the crew or engine index, and the entry parameter along the path. */
+export interface PathHit {
+  zone: DamageZone;
+  index: number | undefined;
+  t: number;
+}
+
+export interface RoundTrace {
+  /** Entry into the airframe along the step's segment (0..1). */
+  entry: number;
+  /** Every occupied box the round crosses on its way through the airframe, in zone-list order. */
+  crossed: PathHit[];
+  /** The ones it damages, in zone-list order: `crossed` less those the engine block shields. */
+  damaged: PathHit[];
+}
+
+type Point = { readonly x: number; readonly y: number; readonly z: number };
+
+/**
+ * A round through an aircraft, in its body frame. `a` -> `b` is the round's motion this step
+ * relative to the aircraft; `occupied` drops boxes nobody is in (a station its man has left).
+ * Rounds pass through fabric, so the trace runs on from the entry point through the whole
+ * airframe (twice the bounding radius). Null: the round misses every box.
+ *
+ * The engine block stops a round. With `pathOrder` the first engine along the path stops it,
+ * so every zone entered after it is spared. Without it, the older cut by zone-list order: in a
+ * tractor the engine is listed first, so it shields everything else on the path
+ * (docs/sim.md "Hit boxes").
+ */
+export function traceRound(hm: AircraftHitModel, a: Point, b: Point, occupied: (zb: ZoneBox) => boolean, pathOrder: boolean): RoundTrace | null {
+  let entry = 2;
+  for (const zb of hm.zones) {
+    if (!occupied(zb)) continue;
+    const t = segmentBox(a.x, a.y, a.z, b.x, b.y, b.z, zb);
+    if (t >= 0 && t < entry) entry = t;
+  }
+  if (entry > 1) return null;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dz = b.z - a.z;
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  const k = 1 / Math.max(len, 1e-6);
+  const ux = dx * k;
+  const uy = dy * k;
+  const uz = dz * k;
+  const s = len * entry;
+  const sx = a.x + ux * s;
+  const sy = a.y + uy * s;
+  const sz = a.z + uz * s;
+  const r = hm.radius * 2;
+  const ex = sx + ux * r;
+  const ey = sy + uy * r;
+  const ez = sz + uz * r;
+  const crossed: PathHit[] = [];
+  for (const zb of hm.zones) {
+    if (!occupied(zb)) continue;
+    const t = segmentBox(sx, sy, sz, ex, ey, ez, zb);
+    if (t < 0) continue;
+    crossed.push({ zone: zb.zone, index: zb.crewIndex ?? zb.engineIndex, t });
+  }
+  if (crossed.length === 0) return null;
+  let damaged = crossed;
+  if (pathOrder) {
+    let stop = Infinity;
+    for (const h of crossed) if (h.zone === 'engine') stop = Math.min(stop, h.t);
+    damaged = crossed.filter((h) => h.t <= stop);
+  } else {
+    const e = crossed.findIndex((h) => h.zone === 'engine');
+    if (e >= 0) damaged = crossed.slice(0, e + 1);
+  }
+  return { entry, crossed, damaged };
+}
+
+/** The zone of `hits` first in HIT_PRIORITY (the earliest listed on a tie). */
+export function priorityZone(hits: readonly PathHit[]): DamageZone {
+  let best = hits[0].zone;
+  let bestPri = HIT_PRIORITY.indexOf(best);
+  for (const h of hits) {
+    const p = HIT_PRIORITY.indexOf(h.zone);
+    if (p < bestPri) {
+      bestPri = p;
+      best = h.zone;
+    }
+  }
+  return best;
+}
+
 /** Closest distance from point p to segment a-b (all world coords). */
 export function pointSegmentDistanceSq(
   px: number, py: number, pz: number,
