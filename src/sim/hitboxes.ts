@@ -6,6 +6,7 @@
  */
 import type { AircraftSpec, CrewStationId, DamageZone, GroundTargetType } from '../core/types';
 import { crewStations, stationEye } from '../data/crew';
+import { engineOffsetX } from './flightModel';
 
 export interface Box {
   min: [number, number, number];
@@ -154,14 +155,12 @@ function stationBoxes(spec: AircraftSpec, zones: ZoneBox[]) {
 function nacelleBoxes(spec: AircraftSpec, zones: ZoneBox[], zFront: number, zBack: number) {
   const g = spec.geometry;
   const n = spec.performance.engineCount ?? 1;
-  const off = g.nacelleOffsetX ?? 0;
   const k = zones.findIndex((b) => b.zone === 'engine');
   if (k >= 0) zones.splice(k, 1);
   // Tractor engines sit ahead of the wing's leading edge, pushers behind its trailing edge.
   const [z0, z1] = g.pusher ? [zBack - 0.6, zBack + 1.4] : [zFront - 1.4, zFront + 0.6];
-  // Engines spread evenly from -off to +off (two: one each side).
   for (let i = 0; i < n; i++) {
-    const x = n === 1 ? 0 : -off + (2 * off * i) / (n - 1);
+    const x = engineOffsetX(spec, i);
     zones.push({ ...box('engine', x - 0.5, x + 0.5, -0.65, 0.45, z0, z1), engineIndex: i });
   }
 }
