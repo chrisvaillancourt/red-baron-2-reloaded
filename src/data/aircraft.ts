@@ -7,7 +7,9 @@
  * Geometry is consumed by the model pipeline (tools/blender) and the runtime
  * fallback mesh builder. Gun positions are in body frame (fwd = -Z, up = +Y).
  */
-import type { AircraftGeometry, AircraftId, AircraftPerformance, AircraftSpec, GunMount, GunSpec, GunType } from '../core/types';
+// Leaf module: type imports only, so tools/export-aircraft-json.ts can run it under
+// `node --experimental-strip-types` (which can't resolve extensionless relative imports).
+import type { AircraftGeometry, AircraftId, AircraftPerformance, AircraftSpec, FireArc, GunMount, GunSpec, GunType } from '../core/types';
 
 export const GUNS: Record<GunType, GunSpec> = {
   spandau: { type: 'spandau', name: 'LMG 08/15 "Spandau"', rpmSynchronized: 450, rpmFree: 550, muzzleVelocity: 870, bulletMass: 0.0128, jamChancePerRound: 0.0006, drumChangeTime: 0 },
@@ -29,6 +31,15 @@ const overwingLewis = (y = 1.6, z = -0.9): GunMount => ({ type: 'lewis', positio
 const rearGun = (type: 'lewis' | 'parabellum'): GunMount => ({ type, position: [0, 0.9, 0.9], mount: 'flexible', rounds: 97, spareDrums: 6 });
 /** Observer's gun ahead of the pilot (B.E.2c front seat, pusher nose); early 47-round Lewis drums. */
 const frontGun = (position: [number, number, number]): GunMount => ({ type: 'lewis', position, mount: 'flexible', rounds: 47, spareDrums: 8 });
+/**
+ * The pusher nose gunner's field of fire: a copy of `NOSE_GUNNER_ARCS` in src/data/crew.ts,
+ * which this leaf module can't import (aircraft.test.ts checks they agree).
+ */
+export const PUSHER_NOSE_ARCS: readonly FireArc[] = [
+  { azimuthDeg: [-104, 104], elevationDeg: [-37, 90] },
+  { azimuthDeg: [-180, 180], elevationDeg: [33, 90] },
+];
+const arcs = (a: readonly FireArc[]): FireArc[] => a.map((x) => ({ azimuthDeg: [x.azimuthDeg[0], x.azimuthDeg[1]], elevationDeg: [x.elevationDeg[0], x.elevationDeg[1]] }));
 
 function geom(g: Partial<AircraftGeometry> & Pick<AircraftGeometry, 'layout' | 'span' | 'length' | 'chord'>): AircraftGeometry {
   return {
@@ -260,6 +271,20 @@ const SPECS: AircraftSpec[] = [
     geometry: geom({ layout: 'biplane', span: 11.28, lowerSpan: 10.7, length: 8.31, chord: 1.68, gap: 1.9, stagger: 0.6, height: 3.39, dihedralDeg: 3.5, crew: 2, tailShape: 'rounded', fuselageWidth: 0.85, wheelTrack: 1.9 }),
     performance: perf({ massLoaded: 972, massEmpty: 623, wingArea: 34.8, enginePowerHp: 90, engineType: 'inline', engineName: 'RAF 1a', maxSpeedKmh: 116, maxSpeedAltM: 1000, ceilingM: 3400, climbTo3000mMin: 40, enduranceHours: 3.25, rollRate: 0.35, pitchRate: 0.45, structuralStrength: 0.7, fuelCapacityL: 145 }),
     guns: [frontGun([0, 0.9, -1.0])],
+    // The front-seat observer sits under the centre section, hemmed in by struts, wires and
+    // the propeller: his Lewis moves between sockets to fire out to the sides and back over
+    // the pilot's head, but not ahead or straight up.
+    crewStations: [
+      { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
+      {
+        id: 'observer', label: 'Observer', crewIndex: 1, guns: [0],
+        arcs: [
+          { azimuthDeg: [30, 150], elevationDeg: [-30, 25] },
+          { azimuthDeg: [-150, -30], elevationDeg: [-30, 25] },
+          { azimuthDeg: [140, -140], elevationDeg: [12, 60] },
+        ],
+      },
+    ],
   },
   {
     id: 'fe2b', name: 'Royal Aircraft Factory F.E.2b', shortName: 'F.E.2b', manufacturer: 'Royal Aircraft Factory', nation: 'britain', alsoUsedBy: [],
@@ -267,7 +292,15 @@ const SPECS: AircraftSpec[] = [
     description: 'A big pusher fighter-reconnaissance machine. The observer stands in the open nose with a Lewis gun and a clear field of fire forward; behind him the pilot, and behind them both the Beardmore engine. Formations of them fought back hard in circles.',
     geometry: geom({ layout: 'biplane', pusher: true, span: 14.55, lowerSpan: 14.55, length: 9.83, chord: 1.68, gap: 1.83, stagger: 0, height: 3.85, dihedralDeg: 3, crew: 2, tailShape: 'rounded', fuselageWidth: 0.9, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1378, massEmpty: 935, wingArea: 45.9, enginePowerHp: 160, engineType: 'inline', engineName: 'Beardmore 160 hp', maxSpeedKmh: 147, maxSpeedAltM: 0, ceilingM: 3350, climbTo3000mMin: 38, enduranceHours: 2.5, rollRate: 0.35, pitchRate: 0.45, structuralStrength: 0.8, fuelCapacityL: 180 }),
-    guns: [frontGun([0, 0.7, -2.6])],
+    // The nose Lewis, and a second on a telescopic pillar between the cockpits that the observer
+    // stood up on his seat to fire back over the top wing (D-066 left it out; stations let one
+    // man work both).
+    guns: [frontGun([0, 0.7, -2.6]), { ...frontGun([0, 1.55, -1.4]), rounds: 97, spareDrums: 4 }],
+    crewStations: [
+      { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
+      { id: 'observer', label: 'Nose gunner', crewIndex: 1, guns: [0], arcs: arcs(PUSHER_NOSE_ARCS) },
+      { id: 'dorsal', label: 'Pillar gun', crewIndex: 1, guns: [1], arcs: [{ azimuthDeg: [80, -80], elevationDeg: [8, 80] }], eye: [0, 1.82, -1.9] },
+    ],
   },
   {
     id: 'farman_f40', name: 'Farman F.40', shortName: 'F.40', manufacturer: 'Farman', nation: 'france', alsoUsedBy: [],

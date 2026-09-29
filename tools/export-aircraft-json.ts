@@ -6,6 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AIRCRAFT_LIST } from '../src/data/aircraft.ts';
+import { crewStations, stationEye } from '../src/data/crew.ts';
 import { COASTLINE, RIVERS, TOWNS } from '../src/data/geography.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -18,7 +19,11 @@ const data = AIRCRAFT_LIST.map((s) => ({
   role: s.role,
   geometry: s.geometry,
   engineType: s.performance.engineType,
+  engineCount: s.performance.engineCount ?? 1,
   guns: s.guns,
+  // Resolved through crew.ts, so the models' EyePoint_<id> empties match the sim's defaults.
+  stations: crewStations(s).map((st) => ({ id: st.id, crewIndex: st.crewIndex, guns: st.guns, bombAimer: !!st.bombAimer, eye: stationEye(s, st) })),
+  bombs: s.bombs ?? [],
 }));
 writeFileSync(out, JSON.stringify(data, null, 2));
 console.log(`wrote ${data.length} aircraft to ${out}`);

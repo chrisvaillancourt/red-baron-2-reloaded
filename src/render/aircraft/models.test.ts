@@ -4,12 +4,16 @@ import { Box3, Mesh, Object3D, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_LIST } from '../../data/aircraft';
+import { crewStations } from '../../data/crew';
 import { controlSurfaceAngles, insigniaSlots, metaFromUserData, roundelRings, rudderStripes } from './meta';
 import { headingDeg } from './gauges';
 import { buildFallbackModel } from './fallbackModel';
 import { Quaternion } from 'three';
 
 const MODELS = fileURLToPath(new URL('../../../public/models/', import.meta.url));
+/** Mirrors of the generator's tables (tools/blender/aircraft_gen.py). */
+const INTERNAL_BOMBS = new Set<string>(['handley_page_o400']); // bombs inside: no rack nodes
+const PUSHER_NACELLES = new Set<string>(['gotha_gv']); // propellers behind the wings, not ahead of the CG
 
 function parse(file: string): Promise<Object3D> {
   const buf = readFileSync(file);
@@ -25,8 +29,24 @@ describe('aircraft GLB models', () => {
       const scene = await parse(file);
       const root = scene.getObjectByName(`Aircraft_${spec.id}`)!;
       expect(root).toBeTruthy();
-      for (const n of ['Exterior', 'Propeller', 'Elevator', 'Rudder', 'Pilot', 'Cockpit', 'EyePoint', 'Contact_WheelL', 'Contact_WheelR', 'Contact_Skid', 'Fuselage'])
+      const twin = (spec.performance.engineCount ?? 1) >= 2;
+      const props = twin ? ['Propeller_L', 'Propeller_R', 'PropBlades_L', 'PropBlades_R', 'Engine_L', 'Engine_R'] : ['Propeller', 'PropBlades'];
+      for (const n of ['Exterior', ...props, 'Elevator', 'Rudder', 'Pilot', 'Cockpit', 'EyePoint', 'Contact_WheelL', 'Contact_WheelR', 'Contact_Skid', 'Fuselage'])
         expect(root.getObjectByName(n), n).toBeTruthy();
+      // Every gunner's station: its gun mount and its eye point (AircraftVisual.stationEyes).
+      for (const st of crewStations(spec)) {
+        if (st.id === 'pilot') continue;
+        expect(root.getObjectByName(`Gun_${st.id}`), `Gun_${st.id}`).toBeTruthy();
+        expect(root.getObjectByName(`EyePoint_${st.id}`), `EyePoint_${st.id}`).toBeTruthy();
+        for (const g of st.guns) expect(root.getObjectByName(`Muzzle_${g}`)!.parent!.name, `Muzzle_${g}`).toMatch(new RegExp(`^Gun_${st.id}`));
+      }
+      // Bombs on racks, one mesh per bomb (the runtime merges each store); the O/400 carries its inside.
+      if (spec.bombs && !INTERNAL_BOMBS.has(spec.id)) {
+        spec.bombs.forEach((b, s) => {
+          for (let k = 0; k < b.count; k++) expect(root.getObjectByName(`Bomb_${s}_${k}`), `Bomb_${s}_${k}`).toBeTruthy();
+          expect(root.getObjectByName(`Bomb_${s}_${b.count}`)).toBeFalsy();
+        });
+      }
       if (spec.id !== 'fokker_eiii') {
         expect(root.getObjectByName('Aileron_L')).toBeTruthy();
         expect(root.getObjectByName('Aileron_R')).toBeTruthy();
@@ -49,11 +69,16 @@ describe('aircraft GLB models', () => {
 
       // Body frame: nose toward -Z, tail toward +Z, up +Y, span along X.
       root.updateMatrixWorld(true);
-      const prop = root.getObjectByName('Propeller')!.getWorldPosition(new Vector3());
+      const prop = root.getObjectByName(twin ? 'Propeller_R' : 'Propeller')!.getWorldPosition(new Vector3());
+      if (twin) {
+        // Nacelles where the spec puts them, their propellers clear of the fuselage.
+        expect(prop.x).toBeCloseTo(spec.geometry.nacelleOffsetX!, 1);
+        expect(prop.x - root.userData.prop_radius).toBeGreaterThan(spec.geometry.fuselageWidth / 2);
+      }
       const skid = root.getObjectByName('Contact_Skid')!.getWorldPosition(new Vector3());
       const wheel = root.getObjectByName('Contact_WheelR')!.getWorldPosition(new Vector3());
       const eye = root.getObjectByName('EyePoint')!.getWorldPosition(new Vector3());
-      if (!spec.geometry.pusher) expect(prop.z).toBeLessThan(-0.5);
+      if (!spec.geometry.pusher && !PUSHER_NACELLES.has(spec.id)) expect(prop.z).toBeLessThan(-0.5);
       expect(skid.z).toBeGreaterThan(2);
       expect(wheel.x).toBeGreaterThan(0.4);
       expect(wheel.y).toBeLessThan(-0.6);
