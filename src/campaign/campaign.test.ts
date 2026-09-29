@@ -183,6 +183,14 @@ describe('pilot creation & persistence', () => {
     }
   });
 
+  it('varies the posting of the same pilot with a posting seed, and repeats it with the same seed', () => {
+    const s = newService();
+    const opts = { firstName: 'John', lastName: 'Smith', nation: 'britain', startDate: '1917-09-15', difficulty: 'pilot' } as const;
+    const postings = new Set(Array.from({ length: 30 }, (_, i) => s.createPilot({ ...opts, postingSeed: i }).squadronId));
+    expect(postings.size).toBeGreaterThan(1);
+    for (const seed of [3, 17]) expect(s.createPilot({ ...opts, postingSeed: seed }).squadronId).toBe(s.createPilot({ ...opts, postingSeed: seed }).squadronId);
+  });
+
   it('moves the start date forward when a nation has no squadrons yet', () => {
     const s = newService();
     const p = s.createPilot({ firstName: 'Tom', lastName: 'Hitchcock', nation: 'usa', startDate: '1915-08-01', difficulty: 'pilot' });

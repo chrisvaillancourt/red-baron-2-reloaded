@@ -15,6 +15,12 @@ export interface NewPilotOptions {
   /** Optional preferred squadron; otherwise campaign assigns one. */
   squadronId?: string;
   difficulty: CareerDifficulty;
+  /**
+   * Varies the assigned squadron (when `squadronId` is absent) between pilots of the same name,
+   * nation and date. The enlistment screen fills it randomly; soaks leave it out, so a seeded
+   * career gets the same posting every run (FRICTION F-33).
+   */
+  postingSeed?: number;
 }
 
 export interface Rank {

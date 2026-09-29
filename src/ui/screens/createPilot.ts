@@ -214,7 +214,8 @@ export const createPilotScreen: ScreenFactory = (ctx) => {
       onClick: () => {
         if (!valid()) return;
         try {
-          const p = campaign.createPilot({ firstName: first.trim(), lastName: last.trim(), nation, startDate: date, squadronId, difficulty });
+          // A random posting seed: two John Smiths enlisting on the same day needn't share a squadron.
+          const p = campaign.createPilot({ firstName: first.trim(), lastName: last.trim(), nation, startDate: date, squadronId, difficulty, postingSeed: Math.floor(Math.random() * 2 ** 31) });
           ctx.services.audio.playUi('stamp');
           ctx.router.replace('hq', { pilotId: p.id, welcome: true });
         } catch (e) {
