@@ -638,7 +638,7 @@ export class FlightSession {
     this.handleCommands(inp.commands);
     if (player && player.outcome === null && !this.paused) {
       // At a gun the AI pilot owns the controls; the player's input swings and fires the gun.
-      if (!this.crew.atGun) Object.assign(player.controls, inp.controls);
+      this.crew.pilotControls(inp, player.controls);
       this.crew.applyInput(inp);
     }
 

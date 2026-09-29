@@ -43,6 +43,13 @@ export class PlayerCrew {
   private fire = false;
   /** The release key is down (a held input: the sim drops one bomb per false-to-true edge). */
   private releaseHeld = false;
+  /**
+   * The release key has been up since the last seat change. A key still held from the old
+   * seat would be a rising edge at the new one, so it releases nothing until pressed again.
+   */
+  private releaseArmed = true;
+  /** The player just took the controls back: this frame's input was built at the gun. */
+  private handedBack = false;
   private jamPending = false;
   private readonly eyeTmp = new Vector3();
   private readonly aimTmp = new Vector3();
@@ -92,6 +99,8 @@ export class PlayerCrew {
         return true;
       case 'viewCockpit':
         if (!this.atGun) return false;
+        // As in the pilot's seat: F1 in the view re-centres the head (back onto the gun).
+        if (this.d.rig.mode === 'gunner') this.d.rig.centreHead();
         this.d.rig.setMode('gunner');
         return true;
       case 'viewBombsight':
@@ -111,19 +120,38 @@ export class PlayerCrew {
     if (!p || p.outcome !== null) return;
     const from = this.d.core.playerStation;
     if (!this.d.core.setPlayerStation(id, { fromWaypoint: waypointIndex })) return;
+    if (id !== from) {
+      this.releaseArmed = false;
+      this.releaseHeld = false;
+    }
     if (id === 'pilot') {
-      this.aim = null;
-      this.fire = false;
-      this.d.rig.station = null;
-      this.d.input.stationMode = false;
-      if (from !== 'pilot') this.d.input.syncTo(p);
-      if (this.d.rig.mode === 'gunner' || this.d.rig.mode === 'bombsight') this.d.rig.setMode('cockpit');
+      this.leaveGun(view);
+      if (from !== 'pilot') {
+        this.d.input.syncTo(p);
+        this.handedBack = true;
+      }
       this.d.message('You have the controls.');
       return;
     }
     this.enterStation(id, view);
     const st = this.station!;
     this.d.message(`${st.label}. The pilot flies; ${this.key('stationPilot')} takes the controls back.`);
+  }
+
+  /** Local seat state back to the pilot's: no aim, no station view; `view` the bombsight to keep it. */
+  private leaveGun(view?: 'gunner' | 'bombsight'): void {
+    this.aim = null;
+    this.fire = false;
+    this.d.rig.station = null;
+    this.d.input.stationMode = false;
+    const rig = this.d.rig;
+    if (view === 'bombsight') rig.setMode('bombsight');
+    else if (rig.mode === 'gunner' || rig.mode === 'bombsight') rig.setMode('cockpit');
+  }
+
+  /** The sim dropped the seat (aircraft lost, mission over): follow it, without a message. */
+  private followSimSeat(): void {
+    if (this.aim && !this.atGun) this.leaveGun();
   }
 
   private enterStation(id: CrewStationId, view?: 'gunner' | 'bombsight'): void {
@@ -174,7 +202,10 @@ export class PlayerCrew {
 
   /** Per rendered frame: the release key, and at a gun: swing it, read fire and clear-jam, keep the view on the seat. */
   applyInput(inp: InputFrame): void {
-    this.releaseHeld = !!inp.controls.releaseBomb;
+    this.followSimSeat();
+    const held = !!inp.controls.releaseBomb;
+    if (!held) this.releaseArmed = true;
+    this.releaseHeld = held && this.releaseArmed;
     if (!this.aim || !this.atGun) return;
     if (inp.stationAim) this.aim.move(MathUtils.radToDeg(inp.stationAim.azimuth), MathUtils.radToDeg(inp.stationAim.elevation));
     this.fire = inp.controls.fireGuns;
@@ -197,6 +228,7 @@ export class PlayerCrew {
    * false for any other (the session copies the key into the controls).
    */
   beforeStep(first: boolean): void {
+    this.followSimSeat();
     const p = this.player;
     if (!p || p.outcome !== null) return;
     if (this.atGun) {
@@ -207,6 +239,21 @@ export class PlayerCrew {
       p.controls.releaseBomb = this.releaseHeld && bombAimerStation(p.spec)?.id === 'pilot';
     }
     if (first) this.jamPending = false;
+  }
+
+  /**
+   * Per rendered frame, after the commands: the player's stick, rudder and throttle into the
+   * flight controls, in the pilot's seat only. On the frame he takes the controls back the
+   * input was built at the gun (centred stick, old throttle), so the controls stay where the
+   * AI pilot left them; the input is synced to them and flies from the next frame.
+   */
+  pilotControls(inp: InputFrame, controls: AircraftEntity['controls']): void {
+    if (this.atGun) return;
+    if (this.handedBack) {
+      this.handedBack = false;
+      return;
+    }
+    Object.assign(controls, inp.controls);
   }
 
   /** Body-frame eye of the player's seat (for the camera rig's `eye`). */

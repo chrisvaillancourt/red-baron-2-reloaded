@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_KEY_BINDINGS, DEFAULT_SETTINGS } from '../core/settings';
 import type { AircraftEntity } from '../core/types';
 import { getAircraft } from '../data/aircraft';
+import { crewStations } from '../data/crew';
 import { headlessModules } from './autoplay';
 import { CameraRig } from './cameras';
 import type { InputFrame } from './input';
@@ -98,6 +99,59 @@ describe('PlayerCrew seat switching', () => {
     expect(si.releaseBomb).toBe(false);
   });
 
+  it('on the hand-back frame keeps the controls where the AI left them', () => {
+    const t = setup(bristolFight('observer'));
+    t.crew.start();
+    step(t.core, t.crew, 60);
+    const left = { ...t.player.controls };
+    // The frame's input was built at the gun: a centred stick and a stale throttle.
+    const stale = frame({ controls: { pitch: 0, roll: 0, yaw: 0, throttle: 0.1, blip: false, fireGuns: false, clearJam: false } });
+    t.crew.command('stationPilot', 0);
+    t.crew.pilotControls(stale, t.player.controls);
+    expect(t.player.controls).toEqual(left);
+    // From the next frame (input synced to the controls) the player flies.
+    t.crew.pilotControls(stale, t.player.controls);
+    expect(t.player.controls.throttle).toBe(0.1);
+  });
+
+  it('leaves the flight controls to the AI at a gun', () => {
+    const t = setup(bristolFight('observer'));
+    t.crew.start();
+    const before = { ...t.player.controls };
+    t.crew.pilotControls(frame({ controls: { pitch: 1, roll: 1, yaw: 0, throttle: 0.1, blip: false, fireGuns: true, clearJam: false } }), t.player.controls);
+    expect(t.player.controls).toEqual(before);
+  });
+
+  it('F1 at the gun re-centres the head on the gun', () => {
+    const t = setup(bristolFight('observer'));
+    t.crew.start();
+    let centred = 0;
+    const orig = t.rig.centreHead.bind(t.rig);
+    t.rig.centreHead = () => {
+      centred++;
+      orig();
+    };
+    t.crew.command('viewCockpit', 0);
+    expect(centred).toBe(1);
+    expect(t.rig.mode).toBe('gunner');
+  });
+
+  it('drops the seat when the aircraft is lost: no gun, no station view', () => {
+    const t = setup(bristolFight('observer'));
+    t.crew.start();
+    step(t.core, t.crew, 10);
+    t.player.outcome = 'shot-down';
+    step(t.core, t.crew, 1);
+    t.crew.beforeStep(true);
+    expect(t.core.playerStation).toBe('pilot');
+    expect(t.player.stationInputs).toBeUndefined();
+    expect(t.crew.aim).toBeNull();
+    expect(t.crew.atGun).toBe(false);
+    expect(t.input.stationMode).toBe(false);
+    expect(t.rig.station).toBeNull();
+    expect(t.rig.mode).not.toBe('gunner');
+  });
+
   it('does not touch the flight controls while the AI flies', () => {
     const t = setup(bristolFight('observer'));
     t.crew.start();
@@ -145,6 +199,36 @@ describe('PlayerCrew bombs', () => {
     t.crew.applyInput(frame({ controls: { ...c, releaseBomb: false } }));
     t.crew.beforeStep(true);
     expect(t.player.controls.releaseBomb).toBe(false);
+  });
+
+  it('F6 from the gun on a type whose pilot aims the bombs goes to the pilot\'s bombsight', () => {
+    const t = setup(bristolFight());
+    const base = getAircraft('bristol_f2b');
+    const [pilot, observer] = crewStations(base);
+    t.player.spec = { ...base, bombs: [{ name: '20 lb Cooper', massKg: 9, explosiveKg: 2, count: 4 }], crewStations: [{ ...pilot, bombAimer: true }, { ...observer, bombAimer: undefined }] };
+    loadBombs(t.player);
+    t.crew.command('stationNext', 0);
+    expect(t.core.playerStation).toBe('observer');
+    t.crew.command('viewBombsight', 0);
+    expect(t.core.playerStation).toBe('pilot');
+    expect(t.rig.mode).toBe('bombsight');
+  });
+
+  it('a release key held while taking the aimer\'s seat drops nothing until pressed again', () => {
+    const t = setup(dh4BombRun());
+    const c = { pitch: 0, roll: 0, yaw: 0, throttle: 0.8, blip: false, fireGuns: false, clearJam: false };
+    t.crew.applyInput(frame({ controls: { ...c, releaseBomb: true } }));
+    t.crew.command('viewBombsight', 0);
+    expect(t.core.playerStation).toBe('observer');
+    t.crew.applyInput(frame({ controls: { ...c, releaseBomb: true } }));
+    t.crew.beforeStep(true);
+    expect(t.player.stationInputs!.releaseBomb).toBe(false);
+    t.crew.applyInput(frame({ controls: { ...c, releaseBomb: false } }));
+    t.crew.beforeStep(true);
+    expect(t.player.stationInputs!.releaseBomb).toBe(false);
+    t.crew.applyInput(frame({ controls: { ...c, releaseBomb: true } }));
+    t.crew.beforeStep(true);
+    expect(t.player.stationInputs!.releaseBomb).toBe(true);
   });
 
   it('says so on a type without bombs, or with none left', () => {
