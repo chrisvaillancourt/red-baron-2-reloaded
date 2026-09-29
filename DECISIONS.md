@@ -813,7 +813,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 **Consequences.** On `pnpm dev` every flight leaves a report with no clicks. Unrated flights are saved too, since outcome data is useful without a rating. "Copy flight report" stays as the live-build path.
 
 ## D-085 — Escalating defence: keep turning, brake-turn, reverse on a lagging pursuer (defence, wave 9)
-**Context.** The first human playtest report (5 ace D.VIIs at 300 m, rated too easy) said enemies "just fly in circles when you get into position behind them". `AI_SOAK=tailhold` confirmed it: with an enemy on his tail a defender spends 43–61% of that time circling. Every turning manoeuvre turns toward the attacker, and a pursuer inside the turn stays on that side, so re-picking a manoeuvre every 3–5 s chains into one circle. The brief proposed changing plane after a failed break: scissors, a dive and zoom, a climbing spiral or a split-S, chosen by airframe. The first round was measured against the veteran autoplayer only, whose computed lead punishes any change of direction (FRICTION F-23), so the second round measured every design against the human-like pursuer too (D-XXX "Human-like pursuer").
+**Context.** The first human playtest report (5 ace D.VIIs at 300 m, rated too easy) said enemies "just fly in circles when you get into position behind them". `AI_SOAK=tailhold` confirmed it: with an enemy on his tail a defender spends 43–61% of that time circling. Every turning manoeuvre turns toward the attacker, and a pursuer inside the turn stays on that side, so re-picking a manoeuvre every 3–5 s chains into one circle. The brief proposed changing plane after a failed break: scissors, a dive and zoom, a climbing spiral or a split-S, chosen by airframe. The first round was measured against the veteran autoplayer only, whose computed lead punishes any change of direction (FRICTION F-23), so the second round measured every design against the human-like pursuer too (D-087 "Human-like pursuer").
 **Decision.**
 - **The ladder was built, measured and rejected, against both pursuers.** Real sim, 24 seeds, D.VII with a Camel 200 m behind at 2,000 m: 441 → 647 hits and 7 → 14 of 24 shot down against the veteran; 172 → 399 hits and 0 → 6 down against the human-like pursuer. At 300 m against a Bristol: 0 → 8 and 1 → 5 down. The climbing turn never shakes him and the jink is the worst state (0.34–2.65 hits/s); anything that stops turning hands the pursuer the shot. It stays behind `TACTICS_FLAGS.defenceLadder` (off) for A/B runs.
 - **What shipped, behind `TACTICS_FLAGS.escalateDefence` (on):**
@@ -911,7 +911,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 **Decision.** Straight down from the D.H.4 observer's eye showed the fuselage and lower wing, and from typical heights the impact point was near the top edge or off the view. The sight view is wings-level and heading-up, looks down the sight line to the predicted impact (as a course-setting sight was set for height and speed), and hides the player's own aircraft. The impact is the sim's own prediction (src/sim `predictBombImpact`: quadratic drag relative to the air, wind, the aircraft's velocity at release). The drift wire is the ground track projected into the view, and the cue picks the enemy target nearest the track ahead: run-in with seconds and a steer call, release when the impact lies within the target's release radius, overshot once it is past. The radius is where the sim's `blastDamage` for that target type falls to 0.25 under the next store's charge, plus the half-width of the target's narrower side (about 19 m for a lorry, 12 m for a battery, with 20 kg). A release key held across a seat change is ignored until released. Pilot-aimed types release through `controls.releaseBomb`, others through `stationInputs.releaseBomb` at the aimer's station, both held while R is down (the lead's call: the sim drops one bomb per rising edge, and the game never pulses or clears the flag); F6 takes that station. The Quick Mission "Bombing raid" is wired but offered only on a dev server with `?bombing` (with a stand-in builder, a ground attack turned into a bomb run) until track D's builder lands.
 **Consequences.** The target runs down the wire to the mark, which is easy to read. The cue follows any change to the sim's blast table without an edit here.
 
-## D-XXX — Bomber specifications: loaded figures, and which source wins (track B, bombers wave 1)
+## D-093 — Bomber specifications: loaded figures, and which source wins (track B, bombers wave 1)
 **Context.** The six new types (AEG G.IV, Gotha G.V, Handley Page O/400, Voisin III, Breguet 14 B2, D.H.9) need specs the flight model can be calibrated to. Published figures mix loaded and empty performance, and several disagree by thousands of metres of ceiling.
 **Decision.**
 - **Loaded figures.** Every bomber's speed, climb and ceiling are with its historical bomb load, and `massLoaded` includes it (D-086), so a bomber that drops its load outperforms its card, as the real ones did. Where a loaded figure exists it wins over a higher empty one: the Gotha's 4650 m ceiling and 3000 m in 28 min with bombs (Grosz), not 6500 m; the Breguet's 5550 m with 256 kg of bombs; the AEG from an Allied test of a captured aircraft.
@@ -923,7 +923,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - Sources and the full table are in docs/models.md, "Bomber specifications and sources".
 **Consequences.** Every new type passes `coefficients.test.ts` and the 6-DOF `performance.test.ts` inside the existing tolerances, with no change to `src/sim`. The O/400's rate of climb at 1.12 × its ceiling is 0.69 m/s against the test's 1.0 limit, the closest of the roster.
 
-## D-XXX — Crew stations for the bombers, and three two-seaters corrected (track B, bombers wave 1)
+## D-094 — Crew stations for the bombers, and three two-seaters corrected (track B, bombers wave 1)
 **Context.** D-086 derives a pilot and one observer for any type without its own stations. That is wrong for the multi-gun bombers, and thin for three existing types.
 **Decision.**
 - **Gotha G.V:** nose (bomb aimer), dorsal and ventral ("Tunnel gun"). The dorsal and ventral share crew member 2: one gunner worked both, firing down through the tunnel. **O/400:** nose (twin Lewis, bomb aimer), dorsal (two pillar Lewis), ventral (a fourth crew member at the floor hatch). **AEG G.IV:** nose (bomb aimer) and dorsal.
@@ -935,7 +935,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - Every bomber marks exactly one bomb aimer (`aircraft.test.ts`), and `crewStationProblems` stays empty.
 **Consequences.** Fights involving the F.E.2b (a second gun) and the B.E.2c (a different field of fire) change once track A's combat reads stations. The D.H.4 and Bristol keep one Lewis each, although some carried twin Lewis; adding a second gun there is a balance change and was not done.
 
-## D-XXX — Models for stations, twins and bombs; the triangle budget (track B, bombers wave 1)
+## D-095 — Models for stations, twins and bombs; the triangle budget (track B, bombers wave 1)
 **Context.** The station views, twin engines and visible bomb loads all need things the one-observer GLB contract didn't have.
 **Decision.**
 - **Node contract** (docs/models.md):
@@ -950,7 +950,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Triangle budget:** a twin is 10.3–10.8k triangles, about 1.45× a Bristol F.2b (7.3k), for two nacelles and propellers, paired wheels (12-sided), three gun positions and a bomb load. The Breguet is 9.2k, most of it its 32 bombs; the D.H.9 and Voisin are 7.5k and 8.0k. In the hangar with shadows, a Gotha draws 134 calls and 21.6k triangles, against a Bristol's 108 and 14.5k.
 **Consequences.** The GLBs grew from 6.6 MB (27 types) to 9.0 MB (33 types). Track C reads `stationEyes` for the gunner camera and calls `setStationAim` and `setStationView`.
 
-## D-XXX — Falling bombs drawn from the sim; bursts sized by the charge (track B, bombers wave 1)
+## D-096 — Falling bombs drawn from the sim; bursts sized by the charge (track B, bombers wave 1)
 **Context.** Combat simulates bombs (D-086, D-088) and exposes them as `CombatSystem.bombs` (`BombView`), with `predictBombImpact` for where one will land and `getStationAim` for where each station's guns are laid.
 **Decision.**
 - **Falling bombs:** the renderer draws the sim's bombs, not a copy of its own, so wind drift and drag match. `WorldRenderer.update` takes them as an optional fifth argument, `bombs?: readonly BombView[]` (additive). Without it none are drawn. The game layer passes `this.combat.bombs`. A falling bomb is drawn at the size of its store on the rack: one table, `bombDimensions()` in `src/data/aircraft.ts`, which the aircraft JSON export hands to the Blender generator.

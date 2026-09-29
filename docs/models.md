@@ -152,7 +152,7 @@ v.dispose();
 
 ## Bomber specifications and sources
 
-Figures for the bombers wave (D-XXX, "Bomber specifications"). The mass and performance are
+Figures for the bombers wave (D-093, "Bomber specifications"). The mass and performance are
 **loaded, with the historical bomb load aboard**; `massLoaded` includes the bombs. Where the
 sources disagree the table says which one it follows.
 
@@ -179,7 +179,7 @@ Sources:
   256 kg of bombs; 3000 m in 12 min without bombs. The 18 min loaded climb is our estimate.
 * **Voisin III:** no loaded climb figure found. 3000 m is near its ceiling; the 45 min is an
   estimate. 52 min (our first guess) fails calibration: matching both it and the 3500 m
-  ceiling needs a power lapse beyond the calibrator's 0.55 bound (D-XXX, "Bomber specifications").
+  ceiling needs a power lapse beyond the calibrator's 0.55 bound (D-093, "Bomber specifications").
 * **Bombs:** Imperial War Museum descriptions of the P.u.W. bombs (the 50 kg is 46% explosive,
   1.70 × 0.18 m; the 12.5 kg 12%, 0.75 × 0.09 m); the Great War Aviation Society bomb table and
   the RFC/RAF "Details of Aerial Bombs" manual (the 112 lb R.L. carries 35 lb of amatol, the

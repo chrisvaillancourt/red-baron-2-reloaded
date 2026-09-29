@@ -9,7 +9,7 @@ export const SIM_FLAGS = {
    * Single-engined types: a round damages every zone it passes through, in order along its
    * path, until the engine block stops it (as twins already do). Off: the older cut by
    * zone-list order, in which a tractor's engine shields everything else on the path, the
-   * pilot and fuel tank included (docs/sim.md "Hit boxes"; measured, not shipped, D-XXX).
+   * pilot and fuel tank included (docs/sim.md "Hit boxes"; measured, not shipped, D-089).
    */
   damagePath: false,
 };
