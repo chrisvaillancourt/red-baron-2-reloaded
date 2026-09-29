@@ -14,8 +14,12 @@ import { parseArgs } from 'node:util';
 
 const { values: o, positionals } = parseArgs({
   allowPositionals: true,
-  options: { timeout: { type: 'string', default: '3600' }, every: { type: 'string', default: '5' } },
+  options: { timeout: { type: 'string', default: '3600' }, every: { type: 'string', default: '5' }, help: { type: 'boolean', short: 'h' } },
 });
+if (o.help) {
+  process.stdout.write(readFileSync(new URL(import.meta.url), 'utf8').split('*/')[0] + '*/\n');
+  process.exit(0);
+}
 const num = (name, v) => {
   if (!/^\d+(\.\d+)?$/.test(v) || Number(v) <= 0) {
     process.stderr.write(`waitfor: --${name} must be a positive number of seconds\n`);
