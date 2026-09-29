@@ -4,6 +4,9 @@ import { ACTION_GROUPS, ACTIONS, codeLabel } from '../bindings';
 import { screenShell, withHints } from '../components';
 import { showFlyingSchool } from '../flyingSchool';
 
+/** The first key bound to an action, as the Manual prints it. */
+const keyOf = (b: Record<string, string[]>, action: string) => (b[action]?.[0] ? codeLabel(b[action][0]) : 'unbound');
+
 const BG = artBackground('art/briefing-desk.jpg', 'radial-gradient(ellipse at 50% 30%, #4a3421, #150e08 80%)');
 
 const tactics = (key: (action: string) => string): [string, string][] => [
@@ -14,6 +17,14 @@ const tactics = (key: (action: string) => string): [string, string][] => [
   ['Know your machine', 'A Camel turns right like nothing else, a SPAD dives away from anything, an Albatros must not be dived too steeply.'],
   ['Balloons', 'Observation balloons are ringed with anti-aircraft guns. Come in fast and low, fire, and leave.'],
   ['Getting home', `Land at your aerodrome or, when no enemy is near and you are over friendly ground, end the flight (${key('endFlight')}).`],
+  [
+    'The gunner',
+    `In a two-seater, ${key('stationNext')} takes you back to the observer's gun while your pilot flies on. Lead a crossing target by the outer ring of the sight. The dashed line is the edge of your field of fire: the tail, wings and propeller are inside it. ${key('stationPilot')} gives you the controls back.`,
+  ],
+  [
+    'The bomb aimer',
+    `${key('viewBombsight')} takes the bomb aimer's seat and looks down the sight line to where a bomb would fall. Your pilot flies the route; the cue counts down the run-in and calls left or right. Release (${key('releaseBomb')}) as the target meets the mark on the wire.`,
+  ],
 ];
 
 export const controlsScreen: ScreenFactory = (ctx) => {
@@ -66,6 +77,21 @@ export const controlsScreen: ScreenFactory = (ctx) => {
         ['L3', 'Cockpit view'],
         ['View / Back', 'Map'],
         ['Menu / Start', 'Pause'],
+      ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
+    ),
+    // Mirrors InputManager.stationMode in src/game/input.ts; keep the two in step.
+    h('h3', null, 'At a gun or the bombsight'),
+    h('p', { class: 'typed muted' }, 'Your pilot flies while you work a gun or the bombsight; the throttle and flight keys are his.'),
+    h(
+      'div',
+      { class: 'key-grid' },
+      ...[
+        ['Move mouse', 'Swing the gun'],
+        [`${keyOf(b, 'pitchUp')} ${keyOf(b, 'pitchDown')} ${keyOf(b, 'rollLeft')} ${keyOf(b, 'rollRight')} / left stick`, 'Swing the gun: up, down, left, right'],
+        [`Left button / ${keyOf(b, 'fire')} / RT`, 'Fire the gun'],
+        [`${keyOf(b, 'clearJam')} / A`, 'Hammer a jam (drums change by themselves)'],
+        ['Right button (hold)', 'Look away from the gun'],
+        [keyOf(b, 'releaseBomb'), 'Release a bomb (bomb aimer)'],
       ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
     ),
     h('h3', null, 'Tactics'),
