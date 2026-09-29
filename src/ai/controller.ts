@@ -52,6 +52,8 @@ import type { AceTactics } from '../data/aces';
 import { getCoefficients } from '../sim/coefficients';
 import { getSimInternal } from '../sim/flightModel';
 import { gunnerFacesForward } from '../sim/hitboxes';
+import { getBombStats, predictBombImpact } from '../sim/bombs';
+import { bombsAboard, canBomb, chooseAimTarget, MAX_RUNS, RELEASE_CROSS_M, RUN_START_M, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
 
 export interface AIControllerOptions {
   role: FlightRole;
@@ -100,6 +102,8 @@ export type AIPhase =
   | 'defend'
   | 'attack-balloon'
   | 'attack-ground'
+  /** A bomber's straight and level run over its 'bomb' waypoint (bombing.ts). */
+  | 'bomb-run'
   | 'rtb'
   | 'landing'
   | 'landed'
@@ -127,6 +131,8 @@ const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort compl
 const BREAK_LEAD_S = 1.8;
 /** Seconds of full-g break away from the merge before the extension. */
 const BREAK_S = 0.8;
+/** A bomber formation's leader flies at this fraction of his top speed (a lone machine cruises at 0.8). */
+const BOMBER_FORMATION_SPEED = 0.72;
 /** Shortest stay inside a refuge cloud, s (plus up to 15 s). */
 const REFUGE_MIN_S = 25;
 /** Largest circle flown round a refuge cloud's core, m (an overcast deck has no edge). */
@@ -235,6 +241,14 @@ export class AIPilot implements AIController {
   /** Defensive manoeuvres flown in a row against one attacker (escalation). */
   private readonly defenceStreak = new DefenceStreak();
   private loiter: Vector3 | null = null;
+  /** The bomb run at the current 'bomb' waypoint (a formation leader, or a bomber alone). */
+  private bombRun: { stage: 'approach' | 'run' | 'reverse'; targetId: number | null; runs: number; dir: Vector3 } | null = null;
+  /** A stick being released: bombs still to go in it, and when the next goes. */
+  private stick: { left: number; next: number } | null = null;
+  /** The formation leader's bombs dropped when last seen: a bomber releases on his leader's. */
+  private leaderDrops: { id: number; dropped: number } | null = null;
+  /** Released on the leader: where his first bomb will fall, his track, and until when to wait. */
+  private onLeader: { x: number; z: number; dir: Vector3; until: number } | null = null;
   private readonly steer: SteerCommand = { dir: new Vector3(0, 0, -1), speed: Infinity };
   private readonly lead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
   private readonly trueLead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
@@ -311,7 +325,7 @@ export class AIPilot implements AIController {
 
     this.perception.sweep(self, world, this.rng);
     this.checkDamage(self, world);
-    this.checkDisengage(self);
+    this.checkDisengage(self, world);
     this.decide(self, world);
 
     const steer = this.steer;
@@ -325,11 +339,14 @@ export class AIPilot implements AIController {
     steer.landing = false;
     steer.speed = Infinity;
     this.computeSteer(self, world, dt, steer);
+    // A bomber leading a formation flies slower than a lone machine, so his formation can keep station.
+    if (this.opts.task === 'bomb' && this.phase !== 'landing' && this.phase !== 'defend' && this.leadsFormation(self, world)) steer.speed = Math.min(steer.speed, this.traits.maxSpeed * BOMBER_FORMATION_SPEED);
     if (this.opts.avoidCollisions !== false) this.avoidCollisions(self, world, steer);
     this.autopilot.fly(self, steer, world, dt);
 
     this.weapons(self, world, dt);
     this.gunner(self, world);
+    this.releaseBombs(self, world);
     if (this.phase === 'defend') this.stats.defendTime += dt;
     if (this.phase === 'engage' || this.phase === 'extend') {
       this.stats.engageTime += dt;
@@ -413,7 +430,7 @@ export class AIPilot implements AIController {
     this.lastDamage = d;
   }
 
-  private checkDisengage(self: AircraftEntity): void {
+  private checkDisengage(self: AircraftEntity, world: WorldQuery): void {
     if (this.phase === 'rtb' || this.phase === 'landing') return;
     const dm = self.damage;
     const z = dm.zones;
@@ -427,6 +444,9 @@ export class AIPilot implements AIController {
     else if (damageSum(self) > this.tactics.disengageDamage) reason = 'airframe damaged';
     else if (self.state.fuelL < 0.12 * self.spec.performance.fuelCapacityL) reason = 'low fuel';
     else if (this.traits.hasFixedGuns && this.opts.task !== 'recon' && this.opts.task !== 'bomb' && fixedAmmo(self) === 0) reason = 'out of ammunition';
+    // A bomber hurt but still flying keeps his place in the formation, which is his best
+    // protection and goes home when the job is done; only a failing engine, fire or fuel sends him off alone.
+    if ((reason === 'wounded' || reason === 'airframe damaged') && this.holdsFormation(self, world)) reason = '';
     if (reason) this.startRtb(reason);
   }
 
@@ -441,11 +461,12 @@ export class AIPilot implements AIController {
     const lid = this.opts.leaderId;
     if (lid != null && lid !== self.id) {
       const l = world.getEntity(lid);
-      if (l && l.kind === 'aircraft' && isAlive(l)) return l;
+      if (l && l.kind === 'aircraft' && isAlive(l) && this.canLead(self, l)) return l;
     }
     let lowest: AircraftEntity | null = null;
     for (const a of world.aircraft) {
       if (a.flightId !== self.flightId || !isAlive(a)) continue;
+      if (a !== self && !this.canLead(self, a)) continue;
       if (!lowest || a.id < lowest.id) lowest = a;
     }
     if (!lowest || lowest.id === self.id) return null;
@@ -453,6 +474,37 @@ export class AIPilot implements AIController {
     const lc = REGISTRY.get(lowest);
     if (lc && (lc.phase === 'landed' || lc.phase === 'landing') && this.phase !== 'rtb') return null;
     return lowest;
+  }
+
+  /**
+   * Bombers with bombs still aboard don't follow a leader who has turned for home hurt before
+   * bombing: the next man leads them on to the target (a leader going home with the job done
+   * still leads). Everyone else follows as before.
+   */
+  private canLead(self: AircraftEntity, a: AircraftEntity): boolean {
+    if (this.opts.task !== 'bomb') return true;
+    const c = REGISTRY.get(a);
+    return !(c && c.phase === 'rtb' && !VOLUNTARY_RTB.has(c.rtbReason) && canBomb(self));
+  }
+
+  /**
+   * A bomber in formation holds it under attack instead of breaking (its gunners and its
+   * formation-mates' cover it), and nobody jinks on the bomb run. Only a bomber alone, 600 m
+   * or more from any of his flight, defends himself like a two-seater.
+   */
+  private holdsFormation(self: AircraftEntity, world: WorldQuery): boolean {
+    if (this.opts.task !== 'bomb' || !TACTICS_FLAGS.bomberFormation) return false;
+    if (this.phase === 'bomb-run') return true;
+    const near = (a: AircraftEntity) => a.state.position.distanceToSquared(self.state.position) < 600 * 600;
+    const leader = this.resolveLeader(self, world);
+    if (leader) return near(leader) && this.phase !== 'rtb';
+    return world.aircraft.some((a) => a !== self && a.flightId === self.flightId && isAlive(a) && near(a) && REGISTRY.get(a)?.phase !== 'rtb');
+  }
+
+  /** Leading: no leader of our own, and a flight-mate within 800 m keeping station on us. */
+  private leadsFormation(self: AircraftEntity, world: WorldQuery): boolean {
+    if (this.resolveLeader(self, world)) return false;
+    return world.aircraft.some((a) => a !== self && a.flightId === self.flightId && isAlive(a) && REGISTRY.get(a)?.phase === 'formation' && a.state.position.distanceToSquared(self.state.position) < 800 * 800);
   }
 
   private formationSlot(self: AircraftEntity, world: WorldQuery, leader: AircraftEntity): number {
@@ -500,7 +552,12 @@ export class AIPilot implements AIController {
       }
     }
 
-    if (maxThreat >= p.defensiveThreshold && !fixated) {
+    const steady = this.holdsFormation(self, world);
+    if (steady && this.phase === 'defend') {
+      this.maneuver = null;
+      this.phase = 'mission';
+    }
+    if (maxThreat >= p.defensiveThreshold && !fixated && !steady) {
       if (this.threatSince < 0) this.threatSince = this.now;
       if (this.now - this.threatSince >= p.reactionDelay) {
         const expired = !this.maneuver || this.now >= this.maneuver.until;
@@ -735,6 +792,12 @@ export class AIPilot implements AIController {
       steer.speed = fs.speed;
       steer.maxG = fs.distance > 400 ? Math.min(this.profile.maxG, 3.5) : 3;
       this.phase = 'formation';
+      // A bomber keeps his place on the route, so if he has to lead he goes on from there.
+      const lc = this.opts.task === 'bomb' ? REGISTRY.get(leader) : undefined;
+      if (lc && lc.wpIndex > this.wpIndex) {
+        this.wpIndex = lc.wpIndex - 1;
+        this.nextWaypoint();
+      }
       return;
     }
     // Leader: escort station, else waypoints.
@@ -812,6 +875,14 @@ export class AIPilot implements AIController {
           return this.nextWaypoint();
         }
         break;
+      case 'bomb':
+        // Nothing (more) to drop, or nobody left to drop it: fly over it like a 'fly' waypoint.
+        if (!canBomb(self)) {
+          if (dist < 700) return this.nextWaypoint();
+          break;
+        }
+        if (this.steerBombRun(self, world, wp, steer)) return;
+        return this.nextWaypoint();
       case 'land': {
         const a = nearestFriendlyAerodrome(self.side, wp.x, wp.z, world.date);
         if (a && dist < 5000) {
@@ -832,6 +903,7 @@ export class AIPilot implements AIController {
 
   private nextWaypoint(): void {
     this.wpIndex++;
+    this.bombRun = null;
     this.patrolUntil = -1;
     this.wpStarted = -1;
     this.attackPhaseStarted = -1;
@@ -1323,6 +1395,160 @@ export class AIPilot implements AIController {
       this.pulloutSide = rgt.x * _rel.x + rgt.z * _rel.z > 0 ? -1 : 1;
     }
     return true;
+  }
+
+  /**
+   * The bomb run at a 'bomb' waypoint, for a formation's leader or a bomber alone (docs/ai.md
+   * "Bombers"). He approaches at the waypoint's height and picks the target whose stick
+   * puts the most of his formation's tracks over a target. From RUN_START_M out he flies
+   * straight and level, steering only small heading corrections to lay the predicted impact
+   * (`predictBombImpact`) onto it, and starts his stick when the impact reaches it (so the
+   * stick straddles it). Too far off to one side, he goes round for another run; on the last
+   * he releases anyway. Returns false when there is nothing left to bomb.
+   */
+  private steerBombRun(self: AircraftEntity, world: WorldQuery, wp: Waypoint, steer: SteerCommand): boolean {
+    let targets = world.groundTargets.filter((g) => !g.destroyed && g.side !== self.side && Math.hypot(g.position.x - wp.x, g.position.z - wp.z) < TARGET_AREA_M);
+    // Flak is there to defend the target, not to be it (as for strafers).
+    const real = targets.filter((g) => g.type !== 'aa-gun');
+    if (real.length) targets = real;
+    if (!targets.length) return false;
+    const s = self.state;
+    const hv = _tmp3.set(s.velocity.x, 0, s.velocity.z);
+    if (hv.lengthSq() < 1) forwardOf(s.orientation, hv).setY(0);
+    hv.normalize();
+    if (!this.bombRun) this.bombRun = { stage: 'approach', targetId: null, runs: 0, dir: hv.clone() };
+    const br = this.bombRun;
+    let aim = br.targetId != null ? targets.find((t) => t.id === br.targetId) : undefined;
+    const alt = wp.altitude;
+    steer.speed = this.traits.cruiseSpeed;
+    steer.maxG = 2;
+    if (br.stage === 'reverse') {
+      // Round for another run: out to 4.5 km back along the last run, in banked turns.
+      const px = wp.x - br.dir.x * 4500;
+      const pz = wp.z - br.dir.z * 4500;
+      steer.dir.copy(toPointSteer(self, px, alt, pz));
+      limitTurnDemand(self, steer.dir, 40 * DEG);
+      if (Math.hypot(px - s.position.x, pz - s.position.z) < 1200) br.stage = 'approach';
+      return true;
+    }
+    if (br.stage === 'approach' || !aim) {
+      const to = _tmp2.set(wp.x - s.position.x, 0, wp.z - s.position.z);
+      if (to.lengthSq() < 1) to.copy(hv);
+      to.normalize();
+      aim = chooseAimTarget(targets, this.formationLateral(self, world, to), s.position, to, this.bombCharge(self)) ?? targets[0];
+      br.targetId = aim.id;
+      const d = Math.hypot(aim.position.x - s.position.x, aim.position.z - s.position.z);
+      if (d > RUN_START_M) {
+        steer.dir.copy(toPointSteer(self, aim.position.x, alt, aim.position.z));
+        return true;
+      }
+      br.stage = 'run';
+      br.dir.copy(to);
+    }
+    this.phase = 'bomb-run';
+    const pred = predictBombImpact(self, world.env);
+    if (!pred) return false;
+    const ex = aim.position.x - pred.point.x;
+    const ez = aim.position.z - pred.point.z;
+    const along = ex * hv.x + ez * hv.z;
+    const cross = -ex * hv.z + ez * hv.x;
+    // Straight and level: small heading corrections only (about 11° at most), gentle g.
+    const corr = clamp(cross / Math.max(along, 400), -0.2, 0.2);
+    steer.dir.set(hv.x - hv.z * corr, 0, hv.z + hv.x * corr).normalize();
+    steer.dir.y = clamp((alt - s.position.y) / 800, -0.04, 0.04);
+    steer.maxG = 1.4;
+    if (!this.stick) {
+      const gs = Math.hypot(s.velocity.x, s.velocity.z);
+      const half = ((bombsAboard(self) - 1) / 2) * this.stickInterval() * gs;
+      if (along <= half && along > -60 && (Math.abs(cross) < RELEASE_CROSS_M || br.runs >= MAX_RUNS - 1)) {
+        this.stick = { left: bombsAboard(self), next: this.now };
+      } else if (along < -60) {
+        br.runs++;
+        br.stage = 'reverse';
+        br.dir.copy(hv);
+      }
+    }
+    return true;
+  }
+
+  /** Each formation member's offset (m) to our right across `dir`, ours (0) first: bombers with bombs, following us, within 400 m. */
+  private formationLateral(self: AircraftEntity, world: WorldQuery, dir: Vector3): number[] {
+    const out = [0];
+    for (const a of world.aircraft) {
+      if (a === self || a.flightId !== self.flightId || !isAlive(a) || !canBomb(a)) continue;
+      const rel = _tmp.copy(a.state.position).sub(self.state.position);
+      if (rel.lengthSq() > 400 * 400) continue;
+      out.push(-rel.x * dir.z + rel.z * dir.x);
+    }
+    return out;
+  }
+
+  /** The stick's real interval: STICK_INTERVAL_S rounded up to whole AI ticks. */
+  private stickInterval(): number {
+    const dt = this.dt > 0 ? this.dt : 1 / 30;
+    return Math.max(1, Math.ceil((STICK_INTERVAL_S - 1e-3) / dt)) * dt;
+  }
+
+  /** The charge (kg) of the next bomb, for aiming. */
+  private bombCharge(self: AircraftEntity): number {
+    const st = self.spec.bombs ?? [];
+    let best = 0;
+    for (let i = 0; i < st.length; i++) if ((self.bombs?.[i] ?? 0) > 0) best = Math.max(best, st[i].explosiveKg);
+    return best || 10;
+  }
+
+  /**
+   * Bomb release (the sim's held input: one bomb per false-to-true change). A leader's stick
+   * is started by his bomb run. A bomber in formation releases on his leader's first bomb, as
+   * crews did, once he reaches the point where the leader let go (his distance behind at his
+   * speed, 0.2-3 s), so the formation's bombs fall abreast rather than short.
+   */
+  private releaseBombs(self: AircraftEntity, world: WorldQuery): void {
+    const c = self.controls;
+    const was = !!c.releaseBomb;
+    c.releaseBomb = false;
+    if (this.opts.task !== 'bomb' || !self.bombs) return;
+    if (!canBomb(self)) {
+      this.stick = null;
+      this.onLeader = null;
+      return;
+    }
+    const leader = this.phase === 'formation' ? this.resolveLeader(self, world) : null;
+    if (leader) {
+      const d = getBombStats(leader).dropped;
+      const seen = this.leaderDrops;
+      if (!seen || seen.id !== leader.id) this.leaderDrops = { id: leader.id, dropped: d };
+      else if (d > seen.dropped) {
+        seen.dropped = d;
+        if (!this.stick && !this.onLeader && leader.state.position.distanceToSquared(self.state.position) < 400 * 400) {
+          // His first bomb falls about where his next would now, less the ground he has covered since.
+          const p = predictBombImpact(leader, world.env)?.point ?? leader.state.position;
+          const dir = new Vector3(leader.state.velocity.x, 0, leader.state.velocity.z);
+          if (dir.lengthSq() < 1) forwardOf(leader.state.orientation, dir).setY(0);
+          dir.normalize();
+          this.onLeader = { x: p.x, z: p.z, dir, until: this.now + 4 };
+        }
+      }
+    }
+    // Let go when our own bombs would fall abreast of his: our speed and place in the
+    // formation change how far ours are thrown, so time it on our own sight.
+    const ol = this.onLeader;
+    if (ol && !this.stick) {
+      const mine = predictBombImpact(self, world.env)?.point;
+      const along = mine ? (ol.x - mine.x) * ol.dir.x + (ol.z - mine.z) * ol.dir.z : 0;
+      if (along <= 0 || this.now >= ol.until) {
+        this.stick = { left: bombsAboard(self), next: this.now };
+        this.onLeader = null;
+      }
+    }
+    const st = this.stick;
+    if (!st) return;
+    if (this.now >= st.next && !was) {
+      c.releaseBomb = true;
+      st.left--;
+      st.next = this.now + this.stickInterval() - 1e-3;
+    }
+    if (st.left <= 0) this.stick = null;
   }
 
   private steerRtb(self: AircraftEntity, world: WorldQuery, steer: SteerCommand): void {

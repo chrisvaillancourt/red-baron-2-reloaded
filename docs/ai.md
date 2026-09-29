@@ -102,7 +102,7 @@ their leader is doing).
    point, or up the lift line when dead ahead (DECISIONS.md "Collision avoidance:
    early committed head-on break").
 3. **Mission** (`navigation.ts`). Waypoints (`fly`, `patrol`, `rendezvous`,
-   `attack-balloon`, `attack-ground`, `land`), vic formation keeping, escort
+   `attack-balloon`, `attack-ground`, `bomb` (see "Bombers"), `land`), vic formation keeping, escort
    station 300 m above and behind the escorted flight, balloon and strafing
    runs, RTB (damage, fuel, ammo, orders, route complete) and a full landing
    approach (approach point, 5° final, flare, rollout). With no route and no
@@ -132,6 +132,56 @@ their leader is doing).
 Skill is continuous (`skill.ts`): novice → ace changes spotting, reaction
 delay, aim noise, lead error, fire range and cone, burst discipline, g
 tolerance, target fixation and check-six frequency.
+
+## Bombers (`bombing.ts`, bombers wave 1)
+
+A flight tasked `bomb` is a bomber formation. The game layer loads its bombs (`loadBombs`,
+src/sim); the AI only releases them, through the held `controls.releaseBomb` (one bomb per
+false-to-true change; it sets the flag for one AI tick and clears it the next).
+
+- **The bomb run** (`'bomb'` waypoint, phase `bomb-run`). The leader, or a bomber alone,
+  approaches at the waypoint's height and aims at one of the live enemy ground targets within
+  1.5 km of it (flak only when nothing else is left). He picks the target whose stick puts
+  the most of his formation's tracks within blast reach of a target: each bomber that
+  releases on him passes a fixed distance to his side, so the pick is scored over those
+  offsets, ties going to the least correction (`chooseAimTarget`). From 5 km out
+  (`RUN_START_M`) he flies straight and level: heading corrections of at most about 11°, at
+  most 1.4 g, holding the height, to lay the predicted impact (`predictBombImpact`) onto the
+  target.
+- **Release.** He starts his stick when the predicted impact is half a stick short of the
+  target, so the stick straddles it: all his bombs, 0.25 s apart (rounded up to whole AI
+  ticks, about 13 m apart at a D.H.4 formation's speed). More than 35 m off to one side, he
+  goes round (4.5 km back along the run, in banked turns) for another run; on the third he
+  releases anyway.
+- **The formation releases on its leader**, as crews did. A bomber keeping station sees his
+  leader's first bomb go (`getBombStats(leader).dropped`, so a human leader works the same
+  way), notes where it falls, and starts his own stick when his own predicted impact comes
+  abreast of it (at most 4 s later). His speed and his place in the vic change how far his
+  bombs are thrown, so he times it on his own sight rather than a fixed delay. The quick
+  raid's targets are laid out 45-50 m apart across the run for this reason.
+- **Straight and level, and together.** A bomber in formation (a leader or a flight-mate
+  within 600 m, not going home alone) holds it under attack: no defensive manoeuvres, and a
+  hurt man ('wounded', 'airframe damaged') keeps his place instead of going home alone. His
+  gunner does the fighting. Nobody jinks on the run. A bomber alone defends himself like a
+  two-seater, and a failing engine, fire or fuel still sends a man home
+  (`TACTICS_FLAGS.bomberFormation`, on).
+- **Leading.** A formation's leader flies at 0.72 of his top speed (a lone machine cruises at
+  0.8), so the formation can keep station, on the run and on the way home. Wingmen keep his
+  place on the route, so if he falls the next man leads on from there. Bombers with bombs
+  still aboard don't follow a leader who turns for home hurt before bombing: the next man
+  takes them on to the target.
+- **Nothing to drop** (no bombs aboard, or the bomb aimer dead: the sim refuses a release
+  without him): the `'bomb'` waypoint is flown over like a `'fly'` one.
+- **Home.** After the run the formation flies on over the target, to the next waypoint and
+  home (the quick raid's rally point, then its aerodrome).
+
+`bombers.realsim.test.ts` (CI, ~4 s): three D.H.4s bomb a depot of three dumps 45 m apart.
+All 12 bombs go, at least 7 burst within blast range (about 19 m from a dump's walls), the
+wingmen release after the leader, the run's last 20 s are within 12° of bank and 80 m of
+height, and the formation then heads for its rally point together. Under attack by two
+veteran D.VIIs (3 seeds), nobody breaks off to defend while a flight-mate flies beside him,
+the wingmen hold their slots within 60 m on average up to the release, and the leader bombs
+every time.
 
 ## Control law on the real flight model
 
