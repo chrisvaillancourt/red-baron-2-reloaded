@@ -5,7 +5,8 @@
  * home in formation, holding it under attack.
  */
 import { describe, expect, it } from 'vitest';
-import type { AircraftEntity, GameEvent, GroundTargetEntity, Waypoint } from '../core/types';
+import type { AircraftEntity, AircraftId, GameEvent, GroundTargetEntity, Side, Waypoint } from '../core/types';
+import { AIRCRAFT } from '../data/aircraft';
 import { getBombStats, loadBombs } from '../sim';
 import { formationOffset, slotPosition } from './navigation';
 import { runSim, SimWorld } from './testing/realSimHarness';
@@ -14,21 +15,27 @@ import { Vector3 } from 'three';
 
 const DEG = Math.PI / 180;
 
-/** Three D.H.4s heading east at 2,500 m toward a depot 10 km away: three dumps 45 m apart across the run. */
-function raid(seed = 1, withEnemy = false) {
+/**
+ * Three D.H.4s (or `type`) heading east at 2,500 m toward a depot 10 km away: three dumps 45 m
+ * apart across the run. A German type raids an allied depot (the ids and the lines are the
+ * same; only the sides swap).
+ */
+function raid(seed = 1, withEnemy = false, type: AircraftId = 'dh4') {
   const tgtX = 6000;
+  const own: Side = AIRCRAFT[type].nation === 'germany' ? 'central' : 'allied';
+  const foe: Side = own === 'allied' ? 'central' : 'allied';
   const world = new SimWorld({ seed, frontX: 0 });
-  const dumps = [-45, 0, 45].map((z) => world.addGroundTarget('supply-dump', 'central', tgtX, z));
-  world.addGroundTarget('aa-gun', 'central', tgtX - 300, 400);
+  const dumps = [-45, 0, 45].map((z) => world.addGroundTarget('supply-dump', foe, tgtX, z));
+  world.addGroundTarget('aa-gun', foe, tgtX - 300, 400);
   const rally: Waypoint = { x: -3000, z: 4000, altitude: 2500, action: 'fly' };
   const wps: Waypoint[] = [{ x: tgtX, z: 0, altitude: 2500, action: 'bomb', targetIds: ['a', 'b', 'c'] }, rally];
-  world.addFlight(routeFlight('b', 'allied', 'dh4', wps, { task: 'bomb' }));
+  world.addFlight(routeFlight('b', own, type, wps, { task: 'bomb' }));
   const east = Math.PI / 2;
-  const lead = world.addAircraft({ aircraftId: 'dh4', side: 'allied', x: -4000, z: 0, alt: 2500, heading: east, flightId: 'b' });
+  const lead = world.addAircraft({ aircraftId: type, side: own, x: -4000, z: 0, alt: 2500, heading: east, flightId: 'b' });
   const wings = [1, 2].map((slot) => {
     const o = formationOffset(slot);
     // Heading east: the leader's right is +z and back is -x.
-    return world.addAircraft({ aircraftId: 'dh4', side: 'allied', x: -4000 - o.z, z: o.x, alt: 2500 + o.y, heading: east, flightId: 'b' });
+    return world.addAircraft({ aircraftId: type, side: own, x: -4000 - o.z, z: o.x, alt: 2500 + o.y, heading: east, flightId: 'b' });
   });
   const bombers = [lead, ...wings];
   for (const b of bombers) loadBombs(b);
@@ -74,10 +81,10 @@ describe('AI bombers on the real flight model', { timeout: 60_000 }, () => {
     if (process.env.BOMB_DEBUG) process.stdout.write(bursts.map((b) => `burst ${b.shooterId} x=${b.position.x.toFixed(1)} z=${b.position.z.toFixed(1)} hit=${b.damagedTargetIds.length}`).join('\n') + '\n' + [...released].map(([k, v]) => `rel ${k}: ${v.map((t) => t.toFixed(2)).join(',')}`).join('\n') + '\n');
     const dropped = bombers.map((b) => getBombStats(b).dropped);
     expect(dropped, 'every bomber dropped its four bombs').toEqual([4, 4, 4]);
-    // Within blast range: a 112 lb bomb's 20 kg charge still damages a dump out to Z = 7 from
-    // its walls (docs/sim.md "Blast"), about 19 m. (A burst on a dump already destroyed
+    // Within blast range: a 112 lb bomb's charge (16 kg) still damages a dump out to Z = 7 from
+    // its walls (docs/sim.md "Blast"), about 18 m. (A burst on a dump already destroyed
     // reaches no live target, so count by distance, not `damagedTargetIds`.)
-    const reach = 7 * Math.cbrt(20);
+    const reach = 7 * Math.cbrt(lead.spec.bombs![0].explosiveKg);
     const fromWalls = (p: Vector3, d: GroundTargetEntity) => Math.hypot(Math.max(0, Math.abs(p.x - d.position.x) - 5), Math.max(0, Math.abs(p.z - d.position.z) - 5));
     const onTarget = bursts.filter((b) => dumps.some((d) => fromWalls(b.position, d) < reach)).length;
     expect(bursts.length).toBe(12);
@@ -92,6 +99,24 @@ describe('AI bombers on the real flight model', { timeout: 60_000 }, () => {
     // Then home: toward the rally, still together.
     expect(Math.hypot(rally.x - lead.state.position.x, rally.z - lead.state.position.z)).toBeLessThan(rallyDistAtRelease - 2000);
     for (const [i, w] of wings.entries()) expect(slotPosition(lead, formationOffset(i + 1)).distanceTo(w.state.position)).toBeLessThan(150);
+    for (const b of bombers) expect(b.outcome).toBeNull();
+  });
+
+  it('a Gotha formation bombs the same way: every bomb goes, most of them on the depot', () => {
+    const { world, bombers, dumps } = raid(1, false, 'gotha_gv');
+    const load = bombers[0].spec.bombs!.reduce((n, b) => n + b.count, 0);
+    const bursts: Vector3[] = [];
+    runSim(world, 480, {
+      onStep: () => {
+        for (const e of world.events.splice(0)) {
+          if (e.type === 'bomb-exploded') bursts.push(e.position.clone());
+        }
+        return bursts.length >= 3 * load;
+      },
+    });
+    expect(bombers.map((b) => getBombStats(b).dropped)).toEqual([load, load, load]);
+    const near = bursts.filter((b) => dumps.some((d) => Math.hypot(b.x - d.position.x, b.z - d.position.z) < 60)).length;
+    expect(near, `${near} of ${bursts.length} bursts within 60 m of a dump`).toBeGreaterThan(bursts.length / 2);
     for (const b of bombers) expect(b.outcome).toBeNull();
   });
 

@@ -161,6 +161,11 @@ false-to-true change; it sets the flag for one AI tick and clears it the next).
   abreast of it (at most 4 s later). His speed and his place in the vic change how far his
   bombs are thrown, so he times it on his own sight rather than a fixed delay. The quick
   raid's targets are laid out 45-50 m apart across the run for this reason.
+  While he waits for it and drops his stick he flies straight and level on the leader's
+  heading instead of sliding into his slot: a bomb keeps the aircraft's sideways drift through
+  its 20-odd second fall, so 10 m/s sideways puts it 200 m off. After his own stick the leader
+  holds the run (at most 8 s, `RUN_HOLD_S`) while the men releasing on him still have bombs,
+  or his own stick is still going with the targets gone under it.
 - **Straight and level, and together.** A bomber in formation (a leader or a flight-mate
   within 600 m, not going home alone) holds it under attack: no defensive manoeuvres, and a
   hurt man ('wounded', 'airframe damaged') keeps his place instead of going home alone. His
@@ -220,12 +225,13 @@ an escort crossing 250 m away. An escort Camel doesn't chase a D.V shadowing its
 1.3 km off and stays within 700 m of them, and it engages a D.V that attacks them.
 
 `bombers.realsim.test.ts` (CI, ~4 s): three D.H.4s bomb a depot of three dumps 45 m apart.
-All 12 bombs go, at least 7 burst within blast range (about 19 m from a dump's walls), the
+All 12 bombs go, at least 7 burst within blast range (about 18 m from a dump's walls with the D.H.4's 16 kg charges), the
 wingmen release after the leader, the run's last 20 s are within 12° of bank and 80 m of
 height, and the formation then heads for its rally point together. Under attack by two
 veteran D.VIIs (3 seeds), nobody breaks off to defend while a flight-mate flies beside him,
 the wingmen hold their slots within 60 m on average up to the release, and the leader bombs
-every time. A lone bomber started 3 km past the target heading away, or 1 km short and 450 m
+every time. A Gotha G.V formation (ten bombs each, of two sizes) drops them all and puts
+most within 60 m of a dump. A lone bomber started 3 km past the target heading away, or 1 km short and 450 m
 off the line (a certain miss), comes round and bombs the target on a later run. When the leader turns for home with an engine
 hit on the way in, the other two bomb and fly on for their rally, not after him.
 

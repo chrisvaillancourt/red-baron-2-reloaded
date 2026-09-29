@@ -20,6 +20,8 @@ export const RUN_FACING = (30 * Math.PI) / 180;
 export const RUN_MIN_TURN_IN_M = 2500;
 /** Going round: out to this far (m) from the aim point, beyond the run's start, then back in. */
 export const REVERSE_OUT_M = RUN_START_M + 1000;
+/** Longest the leader holds the run (s) after his own stick, while his formation releases on him. */
+export const RUN_HOLD_S = 8;
 /** Largest cross-track miss (m) at which the leader still releases, on his first two runs. */
 export const RELEASE_CROSS_M = 35;
 /** Runs over the target before the leader releases whatever the cross-track miss. */

@@ -56,7 +56,7 @@ import { getSimInternal } from '../sim/flightModel';
 import { gunnerFacesForward } from '../sim/hitboxes';
 import { getBombStats, predictBombImpact } from '../sim/bombs';
 import { crewStations } from '../data/crew';
-import { blindSpot, bodyDirection, bombsAboard, canBomb, isBomber, chooseAimTarget, crewAlive, gunnersOf, MAX_RUNS, RELEASE_CROSS_M, REVERSE_OUT_M, RUN_FACING, RUN_MIN_TURN_IN_M, RUN_START_M, stationBearing, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
+import { blindSpot, bodyDirection, bombsAboard, canBomb, isBomber, chooseAimTarget, crewAlive, gunnersOf, MAX_RUNS, RELEASE_CROSS_M, REVERSE_OUT_M, RUN_FACING, RUN_HOLD_S, RUN_MIN_TURN_IN_M, RUN_START_M, stationBearing, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
 
 export interface AIControllerOptions {
   role: FlightRole;
@@ -248,13 +248,15 @@ export class AIPilot implements AIController {
   private readonly defenceStreak = new DefenceStreak();
   private loiter: Vector3 | null = null;
   /** The bomb run at the current 'bomb' waypoint (a formation leader, or a bomber alone). */
-  private bombRun: { stage: 'approach' | 'run' | 'reverse'; targetId: number | null; runs: number; dir: Vector3 } | null = null;
+  private bombRun: { stage: 'approach' | 'run' | 'reverse'; targetId: number | null; runs: number; dir: Vector3; alt: number } | null = null;
   /** A stick being released: bombs still to go in it, and when the next goes. */
   private stick: { left: number; next: number } | null = null;
   /** The formation leader's bombs dropped when last seen: a bomber releases on his leader's. */
   private leaderDrops: { id: number; dropped: number } | null = null;
   /** Released on the leader: where his first bomb will fall, his track, and until when to wait. */
   private onLeader: { x: number; z: number; dir: Vector3; until: number } | null = null;
+  /** After his stick, the leader holds the run for the bombers releasing on him (holdRun). */
+  private runHold: { dir: Vector3; alt: number; until: number } | null = null;
   /** Several gunners aboard: each man's target and the station it was set on. */
   private readonly manTargets = new Map<number, { id: number; station: CrewStationId }>();
   private readonly steer: SteerCommand = { dir: new Vector3(0, 0, -1), speed: Infinity };
@@ -816,6 +818,17 @@ export class AIPilot implements AIController {
       steer.speed = fs.speed;
       steer.maxG = fs.distance > 400 ? Math.min(this.profile.maxG, 3.5) : 3;
       this.phase = 'formation';
+      // Releasing on the leader: straight and level on his heading, no sideways correction
+      // into the slot. A bomb keeps the aircraft's drift through a 20-odd second fall, so
+      // 10 m/s sideways at release puts it 200 m off.
+      if (this.opts.task === 'bomb' && (this.stick || this.onLeader)) {
+        const lv = leader.state.velocity;
+        steer.dir.set(lv.x, 0, lv.z);
+        if (steer.dir.lengthSq() < 1) forwardOf(leader.state.orientation, steer.dir).setY(0);
+        steer.dir.normalize();
+        steer.dir.y = clamp((leader.state.position.y - self.state.position.y) / 800, -0.04, 0.04);
+        steer.maxG = 1.4;
+      }
       // A bomber keeps his place on the route, so if he has to lead he goes on from there.
       const lc = this.opts.task === 'bomb' ? REGISTRY.get(leader) : undefined;
       if (lc && lc.wpIndex > this.wpIndex) {
@@ -868,6 +881,7 @@ export class AIPilot implements AIController {
     const wp = wps[this.wpIndex];
     if (this.wpStarted < 0) this.wpStarted = this.now;
     this.phase = 'mission';
+    if (this.holdRun(self, world, steer)) return;
     const p = self.state.position;
     const dist = Math.hypot(wp.x - p.x, wp.z - p.z);
     switch (wp.action) {
@@ -902,7 +916,8 @@ export class AIPilot implements AIController {
       case 'bomb':
         // Nothing (more) to drop, or nobody left to drop it: fly over it like a 'fly' waypoint.
         if (!canBomb(self)) {
-          if (dist < 700) return this.nextWaypoint();
+          // His stick has just gone (or his bomb aimer with it): the run is over.
+          if (dist < 700 || this.bombRun?.stage === 'run') return this.nextWaypoint();
           break;
         }
         if (this.steerBombRun(self, world, wp, steer)) return;
@@ -927,6 +942,9 @@ export class AIPilot implements AIController {
 
   private nextWaypoint(): void {
     this.wpIndex++;
+    // Off a bomb run: hold it a little for the formation (holdRun).
+    const br = this.bombRun;
+    this.runHold = br?.stage === 'run' ? { dir: br.dir.clone(), alt: br.alt, until: this.now + RUN_HOLD_S } : null;
     this.bombRun = null;
     this.patrolUntil = -1;
     this.wpStarted = -1;
@@ -1465,7 +1483,7 @@ export class AIPilot implements AIController {
     const hv = _tmp3.set(s.velocity.x, 0, s.velocity.z);
     if (hv.lengthSq() < 1) forwardOf(s.orientation, hv).setY(0);
     hv.normalize();
-    if (!this.bombRun) this.bombRun = { stage: 'approach', targetId: null, runs: 0, dir: hv.clone() };
+    if (!this.bombRun) this.bombRun = { stage: 'approach', targetId: null, runs: 0, dir: hv.clone(), alt: wp.altitude };
     const br = this.bombRun;
     let aim = br.targetId != null ? targets.find((t) => t.id === br.targetId) : undefined;
     const alt = wp.altitude;
@@ -1525,6 +1543,29 @@ export class AIPilot implements AIController {
         br.dir.copy(hv);
       }
     }
+    return true;
+  }
+
+  /**
+   * After his own stick, the leader holds the run's heading and height while the bombers
+   * releasing on him still have bombs to drop (at most RUN_HOLD_S): turning off at once would
+   * swing their sticks across the target.
+   */
+  private holdRun(self: AircraftEntity, world: WorldQuery, steer: SteerCommand): boolean {
+    const h = this.runHold;
+    if (!h || this.now >= h.until) return false;
+    // His own stick still going (the targets gone under it), or bombers releasing on him.
+    const following = !!this.stick || world.aircraft.some(
+      (a) => a !== self && a.flightId === self.flightId && isAlive(a) && canBomb(a) && REGISTRY.get(a)?.phase === 'formation' && a.state.position.distanceToSquared(self.state.position) < 600 * 600,
+    );
+    if (!following) {
+      this.runHold = null;
+      return false;
+    }
+    steer.dir.copy(h.dir);
+    steer.dir.y = clamp((h.alt - self.state.position.y) / 800, -0.04, 0.04);
+    steer.speed = this.traits.cruiseSpeed;
+    steer.maxG = 1.4;
     return true;
   }
 
