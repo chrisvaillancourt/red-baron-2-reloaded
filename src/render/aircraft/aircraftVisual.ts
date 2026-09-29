@@ -29,8 +29,8 @@ import type { AircraftEntity, AircraftSpec, CrewStationId, DamageZone, FireArc, 
 import { crewStations } from '../../data/crew';
 import { getStationAim } from '../../sim/combat';
 import { gunPitchLimits } from './gunAim';
+import { mergeBombStores, showBombs, type BombStoreView } from './bombRacks';
 import { propSpinSign, type PropNode } from './propSpin';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGaugeSet, GAUGE_KINDS, type GaugeKind, type GaugeSet } from './gauges';
 import { getLiveryTextures, type LiveryTextures } from './livery';
 import { controlSurfaceAngles, metaFromUserData, type AircraftMeta } from './meta';
@@ -249,14 +249,6 @@ interface StationGuns {
   simAimed: boolean;
 }
 
-/** A bomb store's merged meshes: bomb k is index range [k·n, (k+1)·n); draw the first `remaining`. */
-interface BombStoreView {
-  mesh: Mesh;
-  perBomb: number;
-  count: number;
-  shown: number;
-}
-
 class AircraftVisualImpl implements AircraftVisual {
   readonly object: Object3D;
   readonly eyePoint = new Vector3();
@@ -274,7 +266,7 @@ class AircraftVisualImpl implements AircraftVisual {
   private readonly crewFigures = new Map<number, Object3D>();
   /** The first flexible station, for the older single-gunner `aimFlexibleGun`. */
   private readonly firstFlexStation: CrewStationId | null;
-  private readonly bombStores: BombStoreView[] = [];
+  private bombStores: ReadonlyMap<number, BombStoreView> = new Map();
   private readonly muzzles: { node: Object3D; sprite: Sprite; lastRounds: number; flash: number }[] = [];
   private readonly zoneMats = new Map<ZoneGroup, MeshStandardMaterial[]>();
   private readonly zoneMeshes = new Map<ZoneGroup, Mesh[]>();
@@ -301,7 +293,12 @@ class AircraftVisualImpl implements AircraftVisual {
     root.userData = { ...template.userData };
     const tex = getLiveryTextures(spec, livery, this.meta);
     const sm = sharedMaterials();
-    this.mergeBombs(root);
+    const bombHolder = root.getObjectByName('Bombs');
+    if (bombHolder) {
+      const racks = mergeBombStores(bombHolder);
+      this.bombStores = racks.stores;
+      this.ownedGeometries.push(...racks.geometries);
+    }
 
     // Per-instance livery materials, split by damage zone so each zone can char independently.
     const cache = new Map<string, MeshStandardMaterial>();
@@ -468,15 +465,7 @@ class AircraftVisualImpl implements AircraftVisual {
     }
 
     // Bombs on the racks: draw as many as are left in each store (none when the sortie carries none).
-    for (let s = 0; s < this.bombStores.length; s++) {
-      const b = this.bombStores[s];
-      const shown = Math.max(0, Math.min(b.count, ac.bombs?.[s] ?? 0));
-      if (shown !== b.shown) {
-        b.shown = shown;
-        b.mesh.geometry.setDrawRange(0, shown * b.perBomb);
-        b.mesh.visible = shown > 0;
-      }
-    }
+    showBombs(this.bombStores, ac.bombs);
 
     // Control surfaces
     const a = controlSurfaceAngles(ac.controls);
@@ -557,42 +546,6 @@ class AircraftVisualImpl implements AircraftVisual {
       p.rotation.set(0, 0, 0);
       p.rotateY(g.stowYaw);
       p.rotateX(g.stowPitch);
-    }
-  }
-
-  /**
-   * Merge each bomb store's `Bomb_<store>_<k>` meshes into one mesh (one draw call per store),
-   * bomb k's triangles at index range [k·n, (k+1)·n), so drawing the first `remaining` bombs
-   * hides the rest. The generator lists each store's bombs in reverse release order.
-   */
-  private mergeBombs(root: Object3D): void {
-    const holder = root.getObjectByName('Bombs');
-    if (!holder) return;
-    const stores = new Map<number, { k: number; mesh: Mesh }[]>();
-    for (const c of holder.children) {
-      const m = /^Bomb_(\d+)_(\d+)$/.exec(c.name);
-      if (!m || !(c as Mesh).isMesh) continue;
-      const list = stores.get(+m[1]) ?? [];
-      list.push({ k: +m[2], mesh: c as Mesh });
-      stores.set(+m[1], list);
-    }
-    for (const [s, list] of [...stores].sort((a, b) => a[0] - b[0])) {
-      list.sort((a, b) => a.k - b.k);
-      holder.updateMatrixWorld(true);
-      const geos = list.map(({ mesh }) => {
-        const g = mesh.geometry.clone().applyMatrix4(mesh.matrix);
-        return g.index ? g : g.setIndex([...Array(g.getAttribute('position').count).keys()]);
-      });
-      const n = geos[0].index!.count;
-      const merged = geos.every((g) => g.index!.count === n) ? mergeGeometries(geos, false) : null;
-      geos.forEach((g) => g.dispose());
-      if (!merged) continue;
-      const mesh = new Mesh(merged, list[0].mesh.material);
-      mesh.name = `Bombs_${s}`;
-      for (const { mesh: m } of list) m.removeFromParent();
-      holder.add(mesh);
-      this.ownedGeometries.push(merged);
-      this.bombStores[s] = { mesh, perBomb: n, count: list.length, shown: -1 };
     }
   }
 
