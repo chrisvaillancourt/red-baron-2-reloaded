@@ -275,13 +275,26 @@ missions, both with intervals. Collisions count every event; `playerColl` is the
   enemy held its tail (inside 400 m, within 60° of astern), and meanwhile its circling
   share, bank, height change, AI states, and hits taken per state. It also counts crashes.
   `low` is the wave-9 playtest report's setup.
-- `defence.realsim.test.ts` (CI): an enemy parked 200 m behind a veteran D.VII at
-  2,000 m and an ace D.VII at 300 m, with escalating defence on and off. With it on he
-  takes fewer hits and is shot down no more often, nobody crashes, and at height he
-  spends more of the fight attacking. `DEFENCE_TRACE=1` prints hits per second by state.
+  The tail-hold lines also give the visible variety: `varied` (the share of held time not
+  in a constant-direction turn) and `kinds/episode` (distinct AI states per tail-hold of
+  3 s or more). `AUTOPLAY_PILOT=human` flies the player with the human-like aim, and the
+  `vs player` lines count only tail-holds by the player.
+- `defence.realsim.test.ts` (CI, ~7 s): an enemy parked 200 m behind a veteran D.VII at
+  2,000 m and an ace D.VII at 300 m, 24 seeds, with escalating defence on and off, against
+  both the veteran autoplayer and the human-like pursuer. With it on he takes no more hits
+  (fewer at height), is shot down no more often, nobody flies into the ground untouched, at
+  height he spends more of the fight attacking, and against the human-like pursuer less of
+  the tail-hold is one constant-direction turn. `DEFENCE_AB=off,brake,ladder,mix` prints
+  each defence instead (with `AUTOPLAY_PILOT=human` for the human-like pursuer), and
+  `DEFENCE_TRACE=1` hits per second by state.
 - In-engine proof: `node tools/playtest/ai-depth-shots.mjs <out> <port> sun|cloud|defence`
   (dev server, seeded with `SEED=n`) logs each shot's AI state, range, sun angle and cloud
-  density, and for the `defence` scene the wingman's state, range and both speeds.
+  density, and for the `defence` scene the wingman's state, range and both speeds. The
+  browser fight isn't deterministic, so `WHEN=<regex>` shoots only while the enemy's AI
+  state matches (e.g. `WHEN=reversal`); `SHOTS=from:to:step` and `CAMS=` override the
+  scene's times and cameras.
+- `humanAim.test.ts` (CI): the human-like aim's lag, reaction delay and fire discipline.
+  `src/game/aimStats.test.ts`: the gunnery telemetry's split by mount and its histograms.
 - `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
   at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
   the flak gun at the waypoint.
@@ -507,7 +520,7 @@ and the default tactics flags. They supersede earlier figures wherever the two d
 line, whichever aircraft were involved. Collisions involving the player are the
 `player-*` entries.
 
-### Wave 9: defence (DECISIONS "Escalating defence")
+### Wave 9: defence (D-085)
 
 **The complaint.** The first human playtest report
 (`playtests/reports/2026-09-28-chris-brisfit-v-5-ace-dvii-low.json`) was a Bristol and 3
@@ -619,6 +632,116 @@ the player's ace Camel wingman 230 m behind at 2,000 m.
 - The frame at t = 12 s, the D.VII banked hard with the Camel 66 m behind, is
   `docs/screenshots/ai-defence-brake-turn.jpg`.
 
+**Round 2: re-measured against a human-like pursuer.** Every figure above was against the
+veteran autoplayer, which aims with a computed lead and near-instant reactions (FRICTION
+F-23), so a change of direction may be punished harder than any human would. The four
+designs were measured again against the human-like pursuer ("Human-like pursuer" below):
+(a) `off`, main before wave 9; (b) `brake`, the brake turn without the reversal; (c)
+`ladder`, `TACTICS_FLAGS.defenceLadder` (scissors, dive and zoom, climbing spiral, split-S
+by airframe); (d) `final`, the brake turn plus a reversal (shipped).
+
+Real sim (`DEFENCE_AB`, 24 seeds, 60 s each). *Varied* is the share of tail-hold time not
+in a constant-direction turn. The 300 m hits include the Bristol observer's; its pilot's
+fixed-gun hits are in brackets:
+
+| Case, pursuer | (a) off | (b) brake | (c) ladder | (d) final |
+|---|---|---|---|---|
+| 2,000 m, human-like: hits / down / varied | 172 / 0 / 37% | 99 / 0 / 40% | 399 / 6 / 48% | 128 / 0 / 54% |
+| 2,000 m, veteran | 441 / 7 / 39% | 227 / 3 / 41% | 647 / 14 / 40% | 193 / 2 / 45% |
+| 300 m, human-like | 150 (51) / 1 / 55% | 155 (51) / 1 / 54% | 305 (216) / 5 / 49% | 176 (65) / 1 / 63% |
+| 300 m, veteran | 160 (44) / 0 / 53% | 156 (40) / 0 / 53% | 488 (359) / 8 / 59% | 162 (48) / 0 / 62% |
+
+Tail-hold soak, tail-holds by the player only (`vs player`, 36 runs each), hits the enemy
+takes per run / varied / longest single tail-hold:
+
+| Setup, player | (a) off | (b) brake | (c) ladder | (d) final |
+|---|---|---|---|---|
+| default, human-like | 11.1 / 31% / 289 s | 8.8 / 35% / 179 s | 15.4 / 61% / 175 s | 10.4 / 45% / 476 s |
+| report 300 m, human-like | 12.5 / 51% / 182 s | 9.9 / 51% / 182 s | 12.6 / 51% / 124 s | 11.1 / 56% / 74 s |
+| default, veteran | 31.6 / 42% / 73 s | 31.3 / 37% / 100 s | 33.1 / 66% / 279 s | 29.3 / 35% / 305 s |
+| report 300 m, veteran | 17.4 / 54% / 63 s | 16.1 / 54% / 39 s | 24.8 / 48% / 90 s | 12.5 / 53% / 120 s |
+
+Fairness default (96 runs), player down / enemies lost: veteran player (a) 30% / 161,
+(b) 26% / 157, (c) 24% / 148, (d) 32% / 160; human-like player (a) 64% / 76, (b) 56% / 87,
+(c) 39% / 83, (d) 48% / 87. `ab.mjs` calls every (a)-(d) pair here within noise.
+
+What the human-like pursuer changes, and what it doesn't:
+- **The ladder is still the worst in a one-on-one**, against either pursuer: 2-4x the hits
+  and 5-14 of 24 shot down. Its climbing turn (the D.VII out-climbs the Camel) never shakes
+  him (0.23 hits/s, 873 s of it at 2,000 m), and the jink is again the worst state (0.34
+  hits/s low down). The human-like pursuer's reaction delay doesn't rescue a manoeuvre that
+  stops turning. In the default fight it looks different: D.VIIs climb out of the fight, so
+  both sides lose less (39% player down against the human-like player, enemy losses about
+  the same). It disengages; it doesn't evade.
+- **The brake turn is still the cheapest escape**: against the human-like pursuer the D.VII
+  at 2,000 m takes 99 hits against 172. But it leaves the circle as it was (varied 37 → 40%).
+- **A reversal breaks up the circle.** Flown whenever a third manoeuvre came up, it doubled
+  the hits per second of tail-hold in the default fight against the human-like player
+  (0.106 against 0.051). Gated on the attacker lagging (his nose more than 10° off and
+  behind the defender, so no shot is on), from the second failed manoeuvre, it costs
+  nothing measurable and raises *varied* in every setup: 37 → 54% at 2,000 m and 55 → 63%
+  at 300 m in the real sim, 31 → 45% and 51 → 56% against the human-like player in the
+  soak, where the report's longest single tail-hold falls from 182 to 74 s. That is (d).
+- **The distinct-manoeuvres count barely moves** (1.7-2.7 per episode in every design):
+  episodes are short, and a reversal is one more state, not a new repertoire.
+
+Other checks of (d), `ab.mjs --flag escalateDefence` (A: off, B: final):
+- fairness mirrors (48 runs each): all within noise; SPAD XIII 31 → 29%, back inside the
+  30-70% band (the brake turn alone had taken it to 10-17%)
+- energy set: all within noise (the player's D.VII against Camels 79 → 81%)
+- quick survey (360 missions): killed or captured 35.8 → 34.7%, collisions 4.2 → 3.6 per
+  100 missions (within noise); player collisions 4 → 4; AI-against-enemy 7 → 7, nearly all
+  still both aircraft in *extend* after a pass; self-crashes on the way home 1 → 3
+- career (3 seed sets): killed or captured 21.3 → 25.1%, collisions 4.9 → 5.5 per 100
+  missions, both within noise
+
+**In game** (`WHEN=reversal`, seed 1): the veteran D.VII, with the ace Camel wingman 73 m
+behind at 2,000 m, reverses at t = 13.5-15 s and the Camel is left rolling after him
+(`docs/screenshots/ai-defence-reversal.jpg`, two frames side by side). The in-game
+wingman aims like the AI, not the human-like pilot.
+
+### Human-like pursuer (`src/ai/humanAim.ts`)
+
+`AIControllerOptions.human` (the autoplayer's `pilot: 'human'`, or `AUTOPLAY_PILOT=human`
+for any soak, the replay and `defence.realsim`) keeps the AI pilot's tactics but aims and
+fires like a mouse-aim player. The parameters are `HUMAN_PILOT`:
+- reads the target's motion 0.35 s late and extrapolates, so a reversal goes unnoticed that long
+- holds 85% of the lead (the standard flight model has no lead marker)
+- a slowly drifting misjudgement of the lead (0.42° 1-sigma, 3 s) and hand jitter (0.21°, 0.25 s)
+- a 0.3 s first-order lag from where the nose pointed when he took up the target
+- opens fire inside 380 m when the nose is within 3° plus the target's size of where he
+  *believes* the lead is, in 0.9-2.1 s bursts, holding through misses inside 6°; no snap
+  shots at other aircraft
+
+`AUTOPLAY_HUMAN=aimLagS=0.4,biasDeg=1,...` overrides any field for sweeps.
+
+**Calibration against the user's mouse-aim flights**, fixed guns only:
+- `outcome.hits` counts the Bristol observer's AI-aimed Lewis with the pilot's Vickers. The
+  Vickers carries 500 rounds, so the tracked report's 1,035 rounds include at least 535 from
+  the Lewis (at most 679). At the Lewis's replayed accuracy (5.6-8.2%), the pilot hit with
+  10-14% of his own rounds (10-20% if the Lewis did anywhere from 5 to 10%). The inbox
+  8-D.VII dogfight (35 hits of 399) is about 9% whatever the split, because the total is
+  near the Lewis's own rate.
+- The veteran autoplayer, the same scene (Bristol behind an ace D.VII at 300 m,
+  `defence.realsim`): 12%. The human-like pilot with bias and jitter at 1, 0.6 and 0.35x
+  the shipped values: 6, 8 and 12%. The shipped values fit that scene. At 2,000 m behind a
+  D.VII in a Camel the fit gives 6% against the veteran's 20%.
+- **Replays don't fit.** Replaying the reports (`replay.soak`, 8 runs) the human-like pilot
+  hits with 5% (tracked report) and 1% (inbox dogfight) of 38 and 17 fixed rounds a run. The
+  human fired 356-500. The autoplayer's tactics never give it the human's firing
+  geometry: it defends against the aces while the human sat behind circling ones. So the fit
+  is to the tail-chase scene, and it is loose: two usable flights, a split that is only
+  bounded, and one scene.
+- **Balloons don't fit either**: the human hit 2 of 97 rounds (triplane, N.11), the
+  human-like pilot 49-56% on the autoplayer's steady diving runs, the veteran 69-75%. Aim
+  error can't explain that; the human's approach and firing range probably can, and the new
+  telemetry records the range.
+- **Future refits:** reports now carry `aim` (docs/game.md "Flight report"): fixed and
+  flexible rounds and hits, the aim error with the trigger held, the firing range, and the
+  time from a target entering the 10° cone to the first shot. Replaying a report prints the
+  same figures for the autoplayer (`CALIB` line), so the next human flights can be compared
+  directly.
+
 ### Known weaknesses
 
 - **The D.V can't threaten a Camel.** This is why the default quick dogfight changed in
@@ -643,15 +766,24 @@ the player's ace Camel wingman 230 m behind at 2,000 m.
   contact model, but it means sun tactics never help in a turning fight.
 - Quick ground attacks against *veteran* scouts remain very dangerous (63% killed or
   captured, wave 6).
-- **Defenders still circle, by design.** With an enemy on his tail a pilot spends about half
-  that time in a sustained turn, with escalation on or off. Measured, the hard break and the
-  descending spiral are his best defences in this flight model; everything that stops
-  turning gets him hit more (see "Wave 9: defence"). What changed in wave 9 is what a
-  veteran does inside the circle: he brake-turns to make you overshoot, then turns on you.
-  Equal turn fights between regulars can still go on for minutes. The high yo-yo was
-  measured with no effect in wave 7 and was not rebuilt.
-- **Low down there is no better answer yet.** Below 500 m (D-060) the escalation keeps the
-  level break, because the brake turn, climbing breaks and jinks all measured worse there.
+- **Defenders still turn most of the time, by design.** Measured against both the veteran
+  autoplayer and the human-like pursuer, the hard break, the spiral and the brake turn are
+  the best defences in this flight model; everything that stops turning gets him hit more
+  (see "Wave 9: defence"). What changed in wave 9: a veteran brake-turns to make you
+  overshoot, and anyone above novice reverses when you fall into lag, so about half the
+  tail-hold is out of one constant-direction turn (45-63%, from 31-55%). The count of
+  distinct manoeuvres per tail-hold barely moved (about 2), and equal turn fights between
+  regulars can still go on for minutes. The high yo-yo was measured with no effect in
+  wave 7 and was not rebuilt.
+- **Low down there is no new manoeuvre.** Below 500 m (D-060) there is no brake turn; the
+  level break and now the reversal are all there is, because climbing breaks and jinks
+  measured worse. The report's setup is still the one the user called too easy: what it
+  lacks is threat from the aces nobody is chasing (mutual support), not evasion.
+- **The human-like pursuer is a stand-in, fitted loosely** (see "Human-like pursuer"): one
+  scene, two usable flights, and replays whose firing geometry doesn't match the human's.
+  In the default fight it goes down 48-64% of the time against the veteran's 30%, so
+  judge fairness targets on the veteran and use the human-like pilot for relative
+  comparisons.
   In the wave-9 playtest report (5 ace D.VIIs at 300 m), the aces spend nearly half their
   tail-held time in breaks either way. They take fewer hits with the jinks gone.
 - The old survey setups (Camel+2 v 3 Dr.I at random start, D.VII+1 v 2 veteran SPADs)

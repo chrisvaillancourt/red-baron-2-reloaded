@@ -11,15 +11,19 @@
  * tried and measured worse: reversing at low speed hands a better-turning
  * attacker the shot; see DECISIONS "Low-level defence".)
  *
- * Escalation (TACTICS_FLAGS.escalateDefence, DECISIONS "Escalating defence"): every
- * turning manoeuvre turns toward the attacker, so repeating them chains into a circle he
- * can sit in. Measured, the hard break and the descending spiral still get a defender hit
- * least (jinks, climbs, straight dives and scissors against a better turner all get him
- * hit more), so once a manoeuvre has not shaken the same attacker he keeps turning: a
- * spiral with plenty of height to spare (never two running), else the break. A veteran or ace closed on fast from close
- * behind flies a brake turn instead, above 500 m, throttled back to make the attacker
- * overshoot, and reverses onto him when he does. Pilots above novice don't jink with a man close behind.
- * None of this applies on the way home: a hurt pilot's job is to get there, or into cloud.
+ * Escalation (TACTICS_FLAGS.escalateDefence, D-085): every turning manoeuvre turns toward
+ * the attacker, so repeating them chains into a circle he can sit in. Measured against the
+ * veteran autoplayer and a human-like pursuer, the hard break, the spiral and the brake
+ * turn get a defender hit least (jinks, climbs, straight dives and scissors against a
+ * better turner all get him hit more), so once a manoeuvre has not shaken the same attacker
+ * he keeps turning: a veteran or ace closed on fast from close behind flies a brake turn
+ * (above 500 m, throttled back to make the attacker overshoot); a pilot two manoeuvres in
+ * reverses his turn while the attacker is lagging (TACTICS_FLAGS.defenceReversal), which
+ * breaks up the circle at no measured cost; otherwise a spiral with plenty of height to
+ * spare (never two running), else the break. Pilots above novice don't jink with a man
+ * close behind. None of this applies on the way home: a hurt pilot's job is to get there,
+ * or into cloud. TACTICS_FLAGS.defenceLadder swaps in the brief's ladder (scissors, dive
+ * and zoom, climbing spiral, split-S by airframe) for A/B runs; it measured worst.
  */
 import { Vector3 } from 'three';
 import type { AircraftEntity } from '../core/types';
