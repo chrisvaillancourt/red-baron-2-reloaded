@@ -9,3 +9,4 @@ tools/blender/out/
 .claude/worktrees/
 __pycache__/
 playtests/inbox/
+tools/dev/scratch/

@@ -69,6 +69,13 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
 - **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,
   perception) shifts them. Compare with an independent count, or assert a range, unless the
   test is about determinism.
+- **Scratch scripts that import project packages** (Playwright, three) go in the git-ignored
+  `tools/dev/scratch/`, not the session scratchpad: Node resolves `@playwright/test` only
+  from inside the repo (FRICTION F-48).
+- **Edit source with Write/Edit, never heredocs.** The sandbox refuses heredoc edits
+  inconsistently, so one that worked before can be refused the next time (F-46).
+- **Back up a branch before a rebase with a tag,** not another branch: `rebase.updateRefs`
+  moves branches along with the rewrite (F-50).
 - **Playwright:** the cached Chromium revision doesn't match `@playwright/test`; launch with
   `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`) instead of downloading.
   Modals fade in over about 0.5 s, and Playwright counts a fading modal as visible, so wait
