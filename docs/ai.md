@@ -225,6 +225,45 @@ veteran D.VIIs (3 seeds), nobody breaks off to defend while a flight-mate flies 
 the wingmen hold their slots within 60 m on average up to the release, and the leader bombs
 every time.
 
+**Raid survey** (`AI_SOAK=raid AI_RAID_REPS=24`, commit 6216291; the autoplayer leads a
+D.H.4 vic, 24 raids a setup, 3 bombers each; "on target" is a burst that damaged a target):
+
+| setup | tactics | dropped | on target | targets destroyed | success | bombers lost | escorts lost | interceptors lost |
+|---|---|---|---|---|---|---|---|---|
+| v 3 reg D.V | default | 100% | 50% | 59/102 | 79% | 43% | - | 0/72 |
+| v 3 reg D.V, 2 Camel escort | default | 100% | 51% | 63/102 | 83% | 26% | 21/48 | 2/72 |
+| v 2 vet D.VII, 2 S.E.5a escort | default | 100% | 44% | 57/102 | 79% | 25% | 14/48 | 2/48 |
+| v 3 reg D.V | `blindSpot=0` | 93% | 43% | 44/102 | 75% | 46% | - | 0/72 |
+| v 3 reg D.V, 2 Camel escort | `blindSpot=0` | 99% | 42% | 49/102 | 88% | 35% | 6/48 | 15/72 |
+| v 2 vet D.VII, 2 S.E.5a escort | `blindSpot=0` | 100% | 40% | 40/102 | 54% | 33% | 17/48 | 5/48 |
+| v 3 reg D.V | `bomberFormation=0` | 19% | 46% | 13/102 | 21% | 22% | - | 3/72 |
+| v 3 reg D.V, 2 Camel escort | `bomberFormation=0` | 21% | 50% | 15/102 | 21% | 0% | 4/48 | 26/72 |
+| v 2 vet D.VII, 2 S.E.5a escort | `bomberFormation=0` | 71% | 46% | 46/102 | 63% | 4% | 17/48 | 7/48 |
+
+These are single surveys, not `ab.mjs` compares, so read only the large gaps. Without
+`bomberFormation` the bombers break off to defend and go home with their bombs: a fifth of
+them are dropped against D.Vs. With it every bomb goes and about half burst on a target, at
+the price of a quarter to two fifths of the bombers. The blind-spot switch mainly changes
+what the interceptors lose to the gunners once escorts are about (15 of 72 lost with it off,
+2 with it on, against Camels). The autoplayer is one of the bombers and goes down in 29-67%
+of raids, highest unescorted.
+
+**A/B against the wave's base** (`node tools/dev/ab.mjs --base <ref> --head HEAD`): nothing
+the tool calls a difference.
+
+| soak | base | metric | base | head | verdict |
+|---|---|---|---|---|---|
+| quick, 24 reps | 1612485 | killed or captured | 35.0% (30.3-40.1) n=360 | 35.0% (30.3-40.1) n=360 | within noise |
+| quick, 24 reps | 1612485 | collisions per 100 | 5.6 | 5.6 | within noise |
+| career, seeds 0/1000/2000 | 1612485 | killed or captured | 25.0% (19.9-30.9) n=232 | 21.2% (16.4-26.9) n=231 | within noise |
+| career, seeds 0/1000/2000 | 1612485 | collisions per 100 | 4.7 | 6.5 | within noise |
+| career, seeds 0/1000/2000 | 1612485 + F-33 fix | killed or captured | 26.2% (20.7-32.4) n=214 | 24.7% (19.4-30.8) n=219 | within noise |
+| career, seeds 0/1000/2000 | 1612485 + F-33 fix | collisions per 100 | 6.1 | 5.0 | within noise |
+
+The quick survey is identical: no quick type but the raid flies bombers. The fairness
+default set is identical too. The second career row pins the posting on both sides (F-33),
+so it compares the same squadrons.
+
 ## Control law on the real flight model
 
 `createAIController` uses `controlLaw: 'sim'` by default: the autopilot inverts
@@ -368,7 +407,9 @@ missions, both with intervals. Collisions count every event; `playerColl` is the
   escorts and interceptors lost (docs "Bombers"). It loads the bombs itself for `bomb`
   flights until the game layer does. `AI_TACTICS=bomberFormation=0` or `blindSpot=0` for
   A/B runs. `AI_FAIR_SET=twoseat` in the fairness soak flies two-seaters (Bristol F.2b v D.V,
-  D.VII v R.E.8).
+  D.VII v R.E.8). Baseline at 6216291, 48 reps: the Bristol wins 79% and goes down 27%
+  (enemy lost 81, wingmen 7); the D.VII against R.E.8s wins 73% and goes down 25%
+  (enemy-fire 7 of its 12 losses).
 - `AI_SOAK=tailhold AI_TH_SET=default,mirror,energy,low AI_TH_REPS=12 pnpm vitest run
   src/ai/tailhold.soak.test.ts` (~3 min): for each defender type and side, how long an
   enemy held its tail (inside 400 m, within 60° of astern), and meanwhile its circling
