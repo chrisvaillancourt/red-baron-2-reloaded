@@ -46,10 +46,11 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
   - **Track A (sim): merged** (D-088), after a code review and ten fixes. The career A/B
     against main is within noise. Its `src/ai/autopilot.ts` effective-weight change is on
     main too.
-  - **Track C (game and UI):** reviewed; it is merging main, swapping its stand-ins for
-    track A's exports, and fixing eight review items. Merge it next, then fly the two hand
-    checks in its report (the Bristol observer firing; the D.H.4 raid via `/?bombing`).
-  - **Track B (data, models and effects):** running.
+  - **Track C (game and UI): merged** (D-090 to D-092), after review fixes. Its hand checks
+    passed: a D.H.4 raid from the observer's seat via `/?bombing` (one bomb, one hit in the
+    debrief) and the Bristol observer's Lewis. The Bombing raid stays behind the dev-only
+    `?bombing` gate until track D's builder lands; the lead removes `devBombingRaid` and
+    `applyPlayerStation` (`src/ui/quickCrew.ts`) at D's merge.
   - **Track D (campaign and AI):** starts now that the defence track has merged. It owns
     `src/ai` and `src/campaign`.
   - **Lead fixes on main from the track C review:** `splitSide` (an AI flying the player's
