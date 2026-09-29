@@ -29,7 +29,8 @@ describe('hit boxes', () => {
       const box = gunners.find((z) => z.station === st.id)!;
       expect(box, st.id).toBeDefined();
       expect(box.crewIndex).toBe(st.crewIndex);
-      const gun = TEST_TWIN.guns[st.guns[0]].position;
+      // A gunless station (the bombsight) stands at its own eye point.
+      const gun = st.guns.length ? TEST_TWIN.guns[st.guns[0]].position : st.eye!;
       // The man stands at his gun: the box spans its fore-aft position and lies within 1.5 m of it.
       expect(box.min[2]).toBeLessThanOrEqual(gun[2] + 0.36);
       expect(box.max[2]).toBeGreaterThanOrEqual(gun[2]);

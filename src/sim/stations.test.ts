@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import type { AircraftEntity, GameEvent } from '../core/types';
-import { aimFlexibleGun, getGunnerTarget, setGunnerTarget } from './combat';
+import { aimFlexibleGun, getGunnerTarget, getStationAim, setGunnerTarget } from './combat';
+import { crewStationProblems } from '../data/crew';
 import { SIM_DT, orientationFrom } from './flightModel';
 import { TEST_TWIN } from './testing/fixtures';
 import { scenario, type Scenario } from './testing/scenario';
@@ -23,6 +24,10 @@ const ABOVE_BEHIND: [number, number, number] = [0, 80, 200];
 const BELOW_BEHIND: [number, number, number] = [0, -80, 190];
 
 describe('crew stations: AI gunners', () => {
+  it('the fixture is a sound spec', () => {
+    expect(crewStationProblems(TEST_TWIN)).toEqual([]);
+  });
+
   it('fires every flexible gun from its own station, each only into its own arcs', () => {
     const ahead = twinWith([AHEAD]);
     ahead.s.step(3, undefined, 'kinematic');
@@ -81,13 +86,53 @@ describe('crew stations: AI gunners', () => {
     expect(after.filter((e) => e.mountIndex === 1 || e.mountIndex === 2).length).toBe(0);
   });
 
-  it('gunner hits wound one crew member, and the gunner zone holds the worst', () => {
+  it('gunner hits wound one crew member; the gunner zone reads 1 only when the last gunner is down', () => {
     const { s, twin } = twinWith([]);
     s.step(SIM_DT, undefined, 'kinematic');
     for (let i = 0; i < 40 && twin.damage.crewWounds![1] < 1; i++) s.combat.damageAircraft(twin, 'gunner', 0.34, 5, 0, 1);
     expect(twin.damage.crewWounds![1]).toBe(1);
     expect(twin.damage.crewWounds![2]).toBe(0);
+    // The rear gunner is still fit: the aircraft still has a gunner.
+    expect(twin.damage.zones.gunner).toBeLessThan(1);
+    for (let i = 0; i < 40 && twin.damage.crewWounds![2] < 1; i++) s.combat.damageAircraft(twin, 'gunner', 0.34, 5, 0, 2);
     expect(twin.damage.zones.gunner).toBe(1);
+  });
+
+  it('station aims clear when the aircraft is out of the fight', () => {
+    const { s, twin } = twinWith([ABOVE_BEHIND]);
+    s.step(1, undefined, 'kinematic');
+    expect(getStationAim(twin, 'dorsal')).not.toBeNull();
+    twin.damage.pilotKilled = true;
+    s.step(SIM_DT, undefined, 'kinematic');
+    expect(getStationAim(twin, 'dorsal')).toBeNull();
+  });
+
+  it('the bomb aimer is in his bombsight box only while he works the bombsight', () => {
+    const woundsFrom = (at: 'nose' | 'observer') => {
+      const s = scenario({ realism: { gunJams: false } });
+      const twin = s.add(1, TEST_TWIN, 0, 0, 1000);
+      twin.controller = 'player';
+      twin.stationInputs = { station: at, aim: new Vector3(0, 0, -1), fire: false, releaseBomb: false, clearJam: false };
+      // A Camel 60 m off the right beam at bombsight height, below the fuselage, aiming across it.
+      const camel = s.add(2, 'sopwith_camel', 60, -4.4, 1000 - 1.0 - 0.8, 0, 'britain');
+      camel.controller = 'none';
+      orientationFrom((3 * Math.PI) / 2, 0, 0, camel.state.orientation);
+      twin.state.orientation.set(0, 0, 0, 1);
+      camel.side = 'central';
+      s.step(SIM_DT, undefined, 'kinematic');
+      twin.damage.crewWounds![2] = 1;
+      camel.controls.fireGuns = true;
+      s.step(1.5, undefined, 'kinematic');
+      const hits = s.events.filter((e) => e.type === 'bullet-hit' && e.targetId === 1).length;
+      return { hits, fired: firedBy(s, 2).length, wound: twin.damage.crewWounds![1] };
+    };
+    const away = woundsFrom('nose');
+    const there = woundsFrom('observer');
+    // Below the fuselage, only the bombsight box is on the line of fire.
+    expect(away.fired).toBeGreaterThan(10);
+    expect(there.hits).toBeGreaterThan(3);
+    expect(away.wound).toBe(0);
+    expect(there.wound).toBeGreaterThan(0);
   });
 
   it('rounds through a gunner position find the man only while he works that station', () => {

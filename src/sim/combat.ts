@@ -176,8 +176,9 @@ interface CombatMemory {
   burnLimit: number;
   /** The rear crew of a type without explicit stations is dead (its `gunner` zone). */
   gunnerKilled: boolean;
-  /** One AI gunner per crew member who works a flexible gun. */
+  /** One entry per crew member after the pilot: an AI gunner if he has guns. */
   gunners: GunnerMem[];
+  armedGunners: number;
   /** Last step's bomb-release inputs, for the rising edge. */
   prevReleaseControls: boolean;
   prevReleaseStation: boolean;
@@ -189,8 +190,12 @@ interface CombatMemory {
 /** One crew member at the flexible guns: his stations, target and burst rhythm. */
 interface GunnerMem {
   crewIndex: number;
-  /** His stations, each with its flexible guns (indices into `spec.guns`). */
+  /**
+   * His stations, each with its flexible guns (indices into `spec.guns`): the `armed` ones
+   * first, then any without guns (a bombsight), where only the player puts him.
+   */
   stations: { station: CrewStation; guns: number[] }[];
+  armed: number;
   /** The station he is at now. */
   active: number;
   /** Seconds left moving between stations; he can't fire meanwhile. */
@@ -257,11 +262,13 @@ function buildGunners(spec: AircraftSpec): GunnerMem[] {
   for (const station of crewStations(spec)) {
     if (station.crewIndex === 0) continue;
     const guns = station.guns.filter((i) => spec.guns[i]?.mount === 'flexible');
-    if (guns.length === 0) continue;
     let g = out.find((x) => x.crewIndex === station.crewIndex);
-    if (!g) out.push((g = { crewIndex: station.crewIndex, stations: [], active: 0, switching: 0, autoTarget: null, retarget: 0, burst: 0, pause: 0 }));
-    g.stations.push({ station, guns });
+    if (!g) out.push((g = { crewIndex: station.crewIndex, stations: [], armed: 0, active: 0, switching: 0, autoTarget: null, retarget: 0, burst: 0, pause: 0 }));
+    // Armed stations first, so the man starts at a gun; gunless ones (a bombsight) after them.
+    if (guns.length > 0) g.stations.splice(g.armed++, 0, { station, guns });
+    else g.stations.push({ station, guns });
   }
+  // A man with no gun at all (a dedicated bomb aimer) is still tracked, for his hit box.
   return out;
 }
 
@@ -316,13 +323,16 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         fireTime: 0,
         burnLimit: 8 + rng() * 12,
         gunnerKilled: false,
-        gunners: buildGunners(ac.spec),
+        gunners: [],
+        armedGunners: 0,
         prevReleaseControls: false,
         prevReleaseStation: false,
         flakTimer: 2 + rng() * 4,
         groundFireTimer: 1,
         outOfAmmoReported: ac.spec.guns.map(() => false),
       };
+      m.gunners = buildGunners(ac.spec);
+      m.armedGunners = m.gunners.filter((g) => g.armed > 0).length;
       memory.set(ac, m);
       if (ac.spec.crewStations && !ac.damage.crewWounds) ac.damage.crewWounds = new Array(ac.spec.geometry.crew).fill(0);
       const engines = ac.spec.performance.engineCount ?? 1;
@@ -426,7 +436,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
             cw[c] = Math.min(1, cw[c] + amount);
             if (cw[c] >= 1 || rng() < 0.25) cw[c] = 1;
           }
-          z.gunner = Math.max(0, ...cw.slice(1));
+          z.gunner = gunnerZone(cw, m);
         } else if (z.gunner >= 1 || rng() < 0.25) {
           z.gunner = 1;
           m.gunnerKilled = true;
@@ -454,6 +464,16 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       default:
         break;
     }
+  }
+
+  /**
+   * Explicit stations: the `gunner` zone is the least-wounded gunner's wound, so it reaches 1
+   * only when the last one is down (`zones.gunner >= 1` still means "no gunner left").
+   */
+  function gunnerZone(cw: number[], m: CombatMemory): number {
+    let best = 1;
+    for (const g of m.gunners) if (g.armed > 0) best = Math.min(best, cw[g.crewIndex] ?? 0);
+    return best;
   }
 
   /** The first crew member after the pilot who isn't dead (the one a stray round finds). */
@@ -568,7 +588,10 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       for (const gi of st?.guns ?? []) hammer(ac, ac.guns[gi]);
       sIn.clearJam = false;
     }
-    if (!alive) return;
+    if (!alive) {
+      stationAims.delete(ac);
+      return;
+    }
 
     // Pilot's fixed guns.
     if (ac.controls.fireGuns) {
@@ -590,7 +613,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     // Gunners: the player at his station, the AI at the others.
     const si = ac.stationInputs;
     const playerStation = si && si.station !== 'pilot' ? crewStations(ac.spec).find((st) => st.id === si.station) : undefined;
-    const multi = m.gunners.length > 1;
+    const multi = m.armedGunners > 1;
     for (const g of m.gunners) {
       if (!gunnerFit(ac, m, g)) {
         for (const st of g.stations) setStationAim(ac, st.station.id, null);
@@ -628,7 +651,8 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
 
   /** Does any of the gunner's stations bear on the aircraft (no lead)? */
   function bearsOn(ac: AircraftEntity, g: GunnerMem, o: AircraftEntity): boolean {
-    for (const st of g.stations) {
+    for (let k = 0; k < g.armed; k++) {
+      const st = g.stations[k];
       const muzzle = mountWorldPosition(ac, ac.spec.guns[st.guns[0]], tmpV);
       tmpDir.copy(o.state.position).sub(muzzle);
       if (inArcsWorld(ac, st.station.arcs, tmpDir)) return true;
@@ -683,11 +707,13 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
    * Returns the station index, or -2 when he has just started moving.
    */
   function stationFor(ac: AircraftEntity, g: GunnerMem, target: AircraftEntity, range: number): number {
-    const r = solve(ac, g, g.active, target, range);
+    // Left at a gunless station (the player just gave up the bombsight): he must move to a gun.
+    const atGun = g.active < g.armed;
+    const r = atGun ? solve(ac, g, g.active, target, range) : 0;
     if (r === 1) return g.active;
-    if (r < 0 || g.stations.length === 1) return -1;
+    if (r < 0 || (atGun && g.armed === 1)) return -1;
     let best = -1;
-    for (let k = 0; k < g.stations.length; k++) {
+    for (let k = 0; k < g.armed; k++) {
       if (k === g.active || solve(ac, g, k, target, range) !== 1) continue;
       if (best < 0 || g.stations[k].guns.length > g.stations[best].guns.length) best = k;
     }
@@ -699,6 +725,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
 
   function updateGunner(ac: AircraftEntity, world: WorldQuery, dt: number, g: GunnerMem, multi: boolean) {
     for (const st of g.stations) setStationAim(ac, st.station.id, null);
+    if (g.armed === 0) return;
     if (g.switching > 0) {
       g.switching -= dt;
       return;

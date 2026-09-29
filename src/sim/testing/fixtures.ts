@@ -6,7 +6,7 @@ import type { AircraftId, AircraftSpec } from '../../core/types';
 
 /**
  * A Gotha-like heavy twin: three crew, explicit stations (the nose gunner is the bomb
- * aimer; the rear gunner works both the dorsal ring and the ventral tunnel), two engines
+ * aimer, at a gunless bombsight station; the rear gunner works both the dorsal ring and the ventral tunnel), two engines
  * on nacelles 2.4 m out, and two bomb stores so the release order can be tested.
  */
 export const TEST_TWIN: AircraftSpec = {
@@ -72,8 +72,9 @@ export const TEST_TWIN: AircraftSpec = {
       crewIndex: 1,
       guns: [0],
       arcs: [{ azimuthDeg: [-120, 120], elevationDeg: [-50, 90] }],
-      bombAimer: true,
     },
+    // The nose gunner also lies at the bombsight in the nose floor: a station with no guns.
+    { id: 'observer', label: 'Bomb aimer', crewIndex: 1, guns: [], arcs: [], eye: [0, -0.4, -4.4], bombAimer: true },
     {
       id: 'dorsal',
       label: 'Rear gunner (dorsal)',

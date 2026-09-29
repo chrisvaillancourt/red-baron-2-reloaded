@@ -82,7 +82,7 @@ describe('bomb release', () => {
     ac.stationInputs = { station: 'dorsal', aim: new Vector3(0, 0, 1), fire: false, releaseBomb: true, clearJam: false };
     s.step(0.3, undefined, 'kinematic');
     expect(released(s)).toHaveLength(0);
-    ac.stationInputs = { station: 'nose', aim: new Vector3(0, -1, 0), fire: false, releaseBomb: false, clearJam: false };
+    ac.stationInputs = { station: 'observer', aim: new Vector3(0, -1, 0), fire: false, releaseBomb: false, clearJam: false };
     s.step(0.1, undefined, 'kinematic');
     ac.stationInputs.releaseBomb = true;
     s.step(0.3, undefined, 'kinematic');
