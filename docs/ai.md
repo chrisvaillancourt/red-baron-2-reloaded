@@ -170,6 +170,9 @@ false-to-true change; it sets the flag for one AI tick and clears it the next).
   place on the route, so if he falls the next man leads on from there. Bombers with bombs
   still aboard don't follow a leader who turns for home hurt before bombing: the next man
   takes them on to the target.
+- **The player at the bombsight.** While he works the bomb-aimer station
+  (`stationInputs.station`) the AI flying his aircraft flies him the run but releases
+  nothing: his `stationInputs.releaseBomb` does, and his wingmen release on his bombs.
 - **Nothing to drop** (no bombs aboard, or the bomb aimer dead: the sim refuses a release
   without him): the `'bomb'` waypoint is flown over like a `'fly'` one.
 - **Home.** After the run the formation flies on over the target, to the next waypoint and

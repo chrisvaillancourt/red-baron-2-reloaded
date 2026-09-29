@@ -55,6 +55,7 @@ import { getCoefficients } from '../sim/coefficients';
 import { getSimInternal } from '../sim/flightModel';
 import { gunnerFacesForward } from '../sim/hitboxes';
 import { getBombStats, predictBombImpact } from '../sim/bombs';
+import { crewStations } from '../data/crew';
 import { blindSpot, bodyDirection, bombsAboard, canBomb, isBomber, chooseAimTarget, crewAlive, gunnersOf, MAX_RUNS, RELEASE_CROSS_M, RUN_START_M, stationBearing, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
 
 export interface AIControllerOptions {
@@ -1556,7 +1557,11 @@ export class AIPilot implements AIController {
     const was = !!c.releaseBomb;
     c.releaseBomb = false;
     if (this.opts.task !== 'bomb' || !self.bombs) return;
-    if (!canBomb(self)) {
+    // The player at the bombsight releases for himself (StationInputs.releaseBomb): the AI
+    // flying his aircraft meanwhile only flies him the run.
+    const si = self.stationInputs;
+    const playerAims = !!si && !!crewStations(self.spec).find((st) => st.id === si.station)?.bombAimer;
+    if (!canBomb(self) || playerAims) {
       this.stick = null;
       this.onLeader = null;
       return;

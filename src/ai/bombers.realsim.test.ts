@@ -95,6 +95,24 @@ describe('AI bombers on the real flight model', { timeout: 60_000 }, () => {
     for (const b of bombers) expect(b.outcome).toBeNull();
   });
 
+  it('leaves the release to the player when he is at the bombsight, and flies him the run', () => {
+    const drops = (atSight: boolean) => {
+      const { world, lead, wings } = raid();
+      for (const w of wings) w.outcome = 'disengaged'; // alone
+      if (atSight) lead.stationInputs = { station: 'observer', aim: new Vector3(0, -1, 0), fire: false, releaseBomb: false, clearJam: false };
+      let minMiss = Infinity;
+      runSim(world, 260, {
+        onStep: () => void (minMiss = Math.min(minMiss, Math.abs(lead.state.position.z))),
+      });
+      return { dropped: getBombStats(lead).dropped, minMiss, phase: world.controllers.get(lead.id)!.phase };
+    };
+    expect(drops(false).dropped).toBe(4);
+    const player = drops(true);
+    expect(player.dropped).toBe(0);
+    // Still flown down the run line over the target for him.
+    expect(player.minMiss).toBeLessThan(30);
+  });
+
   it('holds formation under attack and does not jink on the run', () => {
     let defended = 0;
     let slotErr = 0;
