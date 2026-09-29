@@ -690,6 +690,40 @@ export interface FlightTelemetry {
    */
   fps: { p50: number; p95: number; frames: number } | null;
   enemies: EnemyEntryTelemetry[];
+  /** The player's gunnery (src/game/aimStats.ts); absent from older builds. */
+  aim?: AimTelemetry;
+}
+
+/**
+ * The player's gunnery, for fitting the autoplayer's human-like pilot (src/ai/humanAim.ts)
+ * to real flights. Rounds and hits split by who worked the gun: the station the player is
+ * at (`stationInputs.station`, the pilot's by default) apart from the AI crew, so a
+ * two-seater's AI-aimed rear gun doesn't count toward the player's accuracy.
+ */
+export interface AimTelemetry {
+  playerRoundsFired: number;
+  playerHits: number;
+  crewRoundsFired: number;
+  crewHits: number;
+  /**
+   * Seconds with the player's fixed guns firing and an enemy aircraft inside 400 m and 30
+   * degrees of the gun line, by the angle from the gun line to that enemy's true lead (the
+   * enemy nearest the gun line): one bucket per degree, [0,1) ... [19,20), then 20 and over.
+   */
+  triggerErrorDeg: number[];
+  /**
+   * Seconds with the player's guns firing, by range to the target nearest the gun line (an enemy
+   * aircraft, balloon or ground target within 30 degrees): 50 m buckets, [0,50) ...
+   * [950,1000), then 1,000 m and over, then no target.
+   */
+  triggerRangeM: number[];
+  /**
+   * Seconds from an enemy (inside 400 m) coming within 10 degrees of the gun line's true
+   * lead to the player's first fixed-gun shot, once per such entry (first 200).
+   */
+  coneToShotS: number[];
+  /** Entries into that cone that ended without a shot. */
+  coneNoShot: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -699,7 +733,15 @@ export interface FlightTelemetry {
 export type GameEvent =
   /** `mountIndex` (additive) is the index into the shooter's `spec.guns`, e.g. to tell a flexible rear gun from the pilot's. */
   | { type: 'gun-fired'; shooterId: number; gun: GunType; position: Vector3; mountIndex?: number }
-  | { type: 'bullet-hit'; targetId: number; shooterId: number; position: Vector3; zone: DamageZone | 'balloon' | 'ground' }
+  | {
+      type: 'bullet-hit';
+      targetId: number;
+      shooterId: number;
+      position: Vector3;
+      zone: DamageZone | 'balloon' | 'ground';
+      /** The shooter's gun mount (index into spec.guns) the round came from. */
+      mountIndex?: number;
+    }
   | { type: 'bullet-impact-ground'; position: Vector3 }
   | { type: 'gun-jammed'; aircraftId: number; mountIndex: number }
   | { type: 'gun-cleared'; aircraftId: number; mountIndex: number }

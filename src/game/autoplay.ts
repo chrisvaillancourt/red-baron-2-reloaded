@@ -8,11 +8,13 @@
 import { Vector3 } from 'three';
 import { createAIController } from '../ai';
 import { aiControllerOptions } from './aiOptions';
-import type { GameEvent, MissionDefinition, MissionResult, RealismSettings } from '../core/types';
+import type { AimTelemetry, GameEvent, MissionDefinition, MissionResult, RealismSettings } from '../core/types';
 import { DEFAULT_SETTINGS } from '../core/settings';
 import { bankAngle, createCombatSystem, createFlightEnvironment, createRng, pitchAngle, setGunnerTarget, sim } from '../sim';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
+import { humanPilotFromEnv, type HumanPilotParams } from '../ai/humanAim';
+import { AimTracker } from './aimStats';
 import { LossCauseTracker } from './lossCause';
 import { SIM_HZ, SimCore, type SimCoreModules } from './simCore';
 
@@ -58,6 +60,24 @@ export interface AutoplayOptions {
   passivePlayer?: boolean;
   /** Modules to fly with (default `headlessModules`; see `seededHeadlessModules`). */
   modules?: SimCoreModules;
+  /**
+   * Who flies the player's aircraft: the AI pilot (`'ai'`), or the same AI aiming and firing
+   * like a human mouse-aim player (`'human'`: src/ai/humanAim.ts HUMAN_PILOT, or explicit
+   * parameters). Default: `AUTOPLAY_PILOT` / `AUTOPLAY_HUMAN` from the environment, else `'ai'`.
+   */
+  pilot?: 'ai' | 'human' | HumanPilotParams;
+}
+
+/** The human-like pilot from the environment (AUTOPLAY_PILOT=human), when run under Node. */
+export function envHumanPilot(): HumanPilotParams | undefined {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  return env ? humanPilotFromEnv(env) : undefined;
+}
+
+function resolvePilot(p: AutoplayOptions['pilot']): HumanPilotParams | undefined {
+  if (p === undefined) return envHumanPilot();
+  if (p === 'ai') return undefined;
+  return p === 'human' ? humanPilotFromEnv({ AUTOPLAY_PILOT: 'human' }) : p;
 }
 
 export interface AutoplayReport {
@@ -99,13 +119,18 @@ export interface AutoplayReport {
    */
   collisions: string[];
   events: Partial<Record<GameEvent['type'], number>>;
+  /** The player's gunnery (src/game/aimStats.ts): by mount, aim error with the trigger held. */
+  aim: AimTelemetry;
+  /** The player's aircraft aimed like a human (AutoplayOptions.pilot). */
+  humanPilot: boolean;
 }
 
 export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = {}): AutoplayReport {
   const realism = opts.realism ?? DEFAULT_SETTINGS.realism;
   const maxTime = opts.maxTime ?? 2400;
   const contactRange = opts.contactRange ?? 3000;
-  const core = new SimCore(opts.modules ?? headlessModules, mission, () => realism, { aiPlayer: !opts.passivePlayer });
+  const human = opts.passivePlayer ? undefined : resolvePilot(opts.pilot);
+  const core = new SimCore(opts.modules ?? headlessModules, mission, () => realism, { aiPlayer: !opts.passivePlayer, humanPlayer: human });
   const { world, director, bus } = core;
   const player = world.player;
 
@@ -117,8 +142,10 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
   const acesDowned = new Set<string>();
   const loss = new LossCauseTracker(world, player, () => (core.ai.get(player!.id) as { phase?: string } | undefined)?.phase ?? '?');
   const collisions: string[] = [];
+  const aim = new AimTracker(world, player);
   bus.onAny((e) => {
     loss.onEvent(e);
+    aim.onEvent(e);
     if (e.type === 'collision') {
       const a = world.getEntity(e.aId);
       const b = world.getEntity(e.bId);
@@ -179,6 +206,7 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
     }
     core.step(h);
     loss.step();
+    aim.afterStep();
     if (player && player.outcome === null && ++stepN % 30 === 0) {
       if (firstContact === null && nearestEnemy(core, player.state.position) < contactRange) firstContact = world.time;
       // Like a human player: once heading home with the job done, end the flight when it's safe.
@@ -215,6 +243,8 @@ export function runAutoplay(mission: MissionDefinition, opts: AutoplayOptions = 
     playerLossCause: loss.cause,
     collisions,
     events,
+    aim: aim.telemetry(),
+    humanPilot: !!human,
   };
 }
 

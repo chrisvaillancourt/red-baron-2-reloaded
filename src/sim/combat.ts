@@ -107,6 +107,7 @@ interface Bullet extends BulletView {
   age: number;
   shooterId: number;
   gun: GunType;
+  mountIndex: number;
 }
 
 interface CombatMemory {
@@ -351,6 +352,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     b.age = 0;
     b.shooterId = ac.id;
     b.gun = m.type;
+    b.mountIndex = mountIndex;
     bullets.push(b);
     bus.emit({ type: 'gun-fired', shooterId: ac.id, gun: m.type, position: b.position.clone(), mountIndex });
   }
@@ -546,7 +548,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       if (!best) continue;
       const hitPos = tmpV.copy(b.prev).lerp(b.position, Math.min(1, firstT)).clone();
       const shooter = b.shooterId;
-      bus.emit({ type: 'bullet-hit', targetId: ac.id, shooterId: shooter, position: hitPos, zone: best });
+      bus.emit({ type: 'bullet-hit', targetId: ac.id, shooterId: shooter, position: hitPos, zone: best, mountIndex: b.mountIndex });
       // The engine block stops a round; anything behind it along the path is spared.
       const engineIdx = hitZones.indexOf('engine');
       if (engineIdx >= 0) hitZones.length = engineIdx + 1;
@@ -565,7 +567,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         BALLOON_RADIUS * BALLOON_RADIUS
       )
         continue;
-      bus.emit({ type: 'bullet-hit', targetId: bl.id, shooterId: b.shooterId, position: b.position.clone(), zone: 'balloon' });
+      bus.emit({ type: 'bullet-hit', targetId: bl.id, shooterId: b.shooterId, position: b.position.clone(), zone: 'balloon', mountIndex: b.mountIndex });
       damageBalloon(bl, b.shooterId);
       return true;
     }
@@ -611,7 +613,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         max: [spec.hx, spec.h, spec.hz],
       });
       if (t < 0) continue;
-      bus.emit({ type: 'bullet-hit', targetId: gt.id, shooterId: b.shooterId, position: b.position.clone(), zone: 'ground' });
+      bus.emit({ type: 'bullet-hit', targetId: gt.id, shooterId: b.shooterId, position: b.position.clone(), zone: 'ground', mountIndex: b.mountIndex });
       damageGround(gt, spec.damagePerHit, b.shooterId);
       return true;
     }

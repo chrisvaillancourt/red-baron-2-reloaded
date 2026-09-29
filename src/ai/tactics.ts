@@ -37,6 +37,21 @@ export const TACTICS_FLAGS = {
   meetBounce: true,
   /** Pursuers fly to where they last saw a target they can no longer see. */
   memoryPursuit: true,
+  /**
+   * A pilot whose manoeuvre didn't shake an attacker escalates (maneuvers.ts): veterans and
+   * aces brake-turn to force an overshoot, others spiral; no jinks with a man close behind.
+   */
+  escalateDefence: true,
+  /**
+   * With escalateDefence: escalate by the brief's ladder instead (scissors, dive and zoom,
+   * climbing spiral, split-S by airframe; maneuvers.ts DefenceMode). Off: measured worse.
+   */
+  defenceLadder: false,
+  /**
+   * With escalateDefence (brake mode): a pilot two manoeuvres into the same attacker reverses
+   * his turn when the attacker lags, so the fight isn't one endless circle (maneuvers.ts).
+   */
+  defenceReversal: true,
 };
 
 export function applyTacticsFlagsFromEnv(env: Record<string, string | undefined>): void {
