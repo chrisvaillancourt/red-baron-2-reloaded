@@ -175,8 +175,11 @@ export interface WorldRenderer {
   setGroundTargetDestroyed?(obj: Object3D): void;
   /** Configure sky/sun/fog/clouds for date & weather. */
   setEnvironment(date: string, timeOfDay: TimeOfDay, weather: Weather): void;
-  /** Stream terrain tiles and update effects around the camera. */
-  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[]): void;
+  /**
+   * Stream terrain tiles and update effects around the camera. `bombs` (optional): the
+   * combat system's bombs in flight (`CombatSystem.bombs`), drawn as they fall.
+   */
+  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[], bombs?: readonly BombView[]): void;
   /** Feed game events to the effects system (explosions, smoke, hits, flak). */
   handleEvent(e: GameEvent): void;
   render(camera: Camera): void;
