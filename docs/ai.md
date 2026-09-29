@@ -359,6 +359,13 @@ missions, both with intervals. Collisions count every event; `playerColl` is the
   by skill where stalking can apply (the stalk test's geometry, 7 start bearings), for
   novice, regular, veteran, ace and a stalker-signature ace: first passes from above,
   up-sun and unseen. It takes ~4 min.
+- `AI_SOAK=raid AI_RAID_SET=default|escort AI_RAID_REPS=24 pnpm vitest run src/ai/raid.soak.test.ts`:
+  quick bombing raids flown by the autoplayer leading a D.H.4 vic; per setup the bombs
+  dropped and on target (`getBombStats`), targets destroyed, success, and the bombers,
+  escorts and interceptors lost (docs "Bombers"). It loads the bombs itself for `bomb`
+  flights until the game layer does. `AI_TACTICS=bomberFormation=0` or `blindSpot=0` for
+  A/B runs. `AI_FAIR_SET=twoseat` in the fairness soak flies two-seaters (Bristol F.2b v D.V,
+  D.VII v R.E.8).
 - `AI_SOAK=tailhold AI_TH_SET=default,mirror,energy,low AI_TH_REPS=12 pnpm vitest run
   src/ai/tailhold.soak.test.ts` (~3 min): for each defender type and side, how long an
   enemy held its tail (inside 400 m, within 60° of astern), and meanwhile its circling
