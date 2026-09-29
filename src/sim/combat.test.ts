@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import type { GameEvent } from '../core/types';
 import { setGunnerTarget } from './combat';
+import { SIM_FLAGS } from './flags';
 import { SIM_DT, orientationFrom } from './flightModel';
 import { aimAt, count, scenario } from './testing/scenario';
 
@@ -91,6 +92,48 @@ describe('hits and kills', () => {
     expect(target.damage.destroyed).toBe(true);
     expect(target.outcome).not.toBeNull();
     expect(target.damage.lastAttackerId).toBe(1);
+  });
+
+  describe('the engine block (SIM_FLAGS.damagePath)', () => {
+    const saved = SIM_FLAGS.damagePath;
+    afterEach(() => {
+      SIM_FLAGS.damagePath = saved;
+    });
+
+    /** A 1.5 s burst from 150 m dead astern, the sight on the cockpit 0.1 m above the CG. */
+    function burstFromAstern(damagePath: boolean, seed: number) {
+      SIM_FLAGS.damagePath = damagePath;
+      const s = scenario({ realism: { gunJams: false }, seed });
+      const t = s.add(1, 'sopwith_camel', 0, 0, 1000);
+      const camel = s.add(2, 'sopwith_camel', 0, 150, 1000 + 0.1 - 0.8);
+      for (const ac of [t, camel]) {
+        ac.controller = 'none';
+        ac.state.orientation.set(0, 0, 0, 1);
+      }
+      camel.state.velocity.copy(t.state.velocity);
+      camel.controls.fireGuns = true;
+      s.step(1.5, undefined, 'kinematic');
+      return { t, pilotHits: count(s.events, 'pilot-hit'), hits: s.events.filter((e) => e.type === 'bullet-hit' && e.targetId === 1).length };
+    }
+
+    const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
+    const sum = (runs: ReturnType<typeof burstFromAstern>[], f: (r: ReturnType<typeof burstFromAstern>) => number) => runs.reduce((a, r) => a + f(r), 0);
+
+    it('in path order, a burst from astern through the cockpit hits the pilot and the fuel tank on its way to the engine', () => {
+      const on = SEEDS.map((seed) => burstFromAstern(true, seed));
+      const off = SEEDS.map((seed) => burstFromAstern(false, seed));
+      for (const r of [...on, ...off]) expect(r.hits).toBeGreaterThan(10);
+      // Today only the rounds that clear the engine block reach the cockpit; in path order most do.
+      expect(sum(on, (r) => r.pilotHits)).toBeGreaterThan(2 * sum(off, (r) => r.pilotHits));
+      for (const r of on) {
+        expect(r.t.damage.zones.fuelTank).toBeGreaterThan(0);
+        expect(r.t.damage.zones.engine).toBeGreaterThan(0);
+      }
+      // From dead astern every path through the tank runs on into the engine box, which shields it
+      // today: no round reaches it to hole it (a fire still scorches it).
+      for (const r of off) expect(r.t.damage.fuelLeak).toBe(false);
+      expect(on.filter((r) => r.t.damage.fuelLeak).length).toBeGreaterThan(0);
+    });
   });
 
   it('a wing shot away is a structural failure credited to the attacker', () => {

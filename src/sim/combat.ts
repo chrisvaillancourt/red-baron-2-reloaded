@@ -39,6 +39,7 @@ import {
   type ZoneBox,
 } from './hitboxes';
 import { blastDamage, blastSize, groundCrossing, nextBombStore, recordBomb, stepBomb } from './bombs';
+import { SIM_FLAGS } from './flags';
 import { createRng, gaussian, type Rng } from './rng';
 
 // ---------------------------------------------------------------------------
@@ -832,13 +833,17 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       tmpA.set(ax, ay, az).applyQuaternion(tmpQ);
       tmpB.set(bx, by, bz).applyQuaternion(tmpQ);
       // The engine block stops a round. Nacelles: the first engine along the path stops it (a
-      // beam shot spares the far one). Single-engined types keep the zone-list cut
-      // (docs/sim.md "Hit boxes").
-      const tr = traceRound(hm, tmpA, tmpB, (zb) => !zb.station || atStation(ac, zb), !!hm.multiEngine);
+      // beam shot spares the far one). Single-engined types keep the zone-list cut unless
+      // SIM_FLAGS.damagePath (docs/sim.md "Hit boxes").
+      const pathOrder = !!hm.multiEngine || SIM_FLAGS.damagePath;
+      const tr = traceRound(hm, tmpA, tmpB, (zb) => !zb.station || atStation(ac, zb), pathOrder);
       if (!tr) continue;
       const hitPos = tmpV.copy(b.prev).lerp(b.position, Math.min(1, tr.entry)).clone();
       const shooter = b.shooterId;
-      bus.emit({ type: 'bullet-hit', targetId: ac.id, shooterId: shooter, position: hitPos, zone: priorityZone(tr.crossed), mountIndex: b.mountIndex });
+      // The event names a zone the round crossed; under the flag, one it damaged (not the
+      // cockpit behind the engine that stopped it).
+      const shown = priorityZone(SIM_FLAGS.damagePath ? tr.damaged : tr.crossed);
+      bus.emit({ type: 'bullet-hit', targetId: ac.id, shooterId: shooter, position: hitPos, zone: shown, mountIndex: b.mountIndex });
       for (const h of tr.damaged) damageAircraft(ac, h.zone, ZONE_DAMAGE[h.zone], shooter, now, h.index);
       return true;
     }
