@@ -249,8 +249,9 @@ const SPECS: AircraftSpec[] = [
     geometry: geom({ layout: 'biplane', span: 12.92, lowerSpan: 12.92, length: 9.35, chord: 1.7, gap: 1.75, stagger: 0.3, height: 3.35, crew: 2, tailShape: 'squared', fuselageWidth: 0.95, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1575, massEmpty: 1083, wingArea: 40.32, enginePowerHp: 375, engineType: 'inline', engineName: 'Rolls-Royce Eagle VIII', maxSpeedKmh: 230, maxSpeedAltM: 1000, ceilingM: 6700, climbTo3000mMin: 11, enduranceHours: 3.75, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.85, fuelCapacityL: 300 }),
     guns: [sync('vickers', 0), rearGun('lewis')],
-    // Four 112 lb bombs under the wings (up to 460 lb). The charge figure is approximate.
-    bombs: [{ name: '112 lb R.L. HE', massKg: 51, explosiveKg: 20, count: 4 }],
+    // Four 112 lb bombs under the wings (up to 460 lb). Charge: 35 lb of amatol (the Great War
+    // Aviation Society's bomb table; "Details of Aerial Bombs" gives 28 lb stem-filled, 35 lb TNT).
+    bombs: [{ name: '112 lb R.L. HE', massKg: 51, explosiveKg: 16, count: 4 }],
   },
   {
     id: 'be2c', name: 'Royal Aircraft Factory B.E.2c', shortName: 'B.E.2c', manufacturer: 'Royal Aircraft Factory', nation: 'britain', alsoUsedBy: [],
