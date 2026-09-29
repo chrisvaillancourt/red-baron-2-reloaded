@@ -11,6 +11,7 @@ import { sunGlareStrength } from '../ai/perception';
 import type { HudCameraView, HudGun, HudScreenPoint, HudTarget, HudThreat, HudView, HudWingman, WingmanStatus } from '../ui/hud/types';
 import type { CameraMode } from './cameras';
 import { wingmanLabels } from './wingmanNames';
+import type { CrewHudFields } from './playerCrew';
 
 const tmp = new Vector3();
 const tmp2 = new Vector3();
@@ -46,6 +47,8 @@ const HUD_VIEW: Record<CameraMode, HudCameraView> = {
   padlock: 'padlock',
   flyby: 'flyby',
   target: 'target',
+  gunner: 'gunner',
+  bombsight: 'bombsight',
 };
 
 export interface HudBuildInput {
@@ -70,6 +73,8 @@ export interface HudBuildInput {
    * threat triangles and the automatic target box skip the rest. Absent = all known.
    */
   knowsEnemy?: (id: number) => boolean;
+  /** The player's crew seat, sight and bombs (src/game/playerCrew.ts); absent for none. */
+  crew?: CrewHudFields;
 }
 
 const AUTO_TARGET_RANGE = 2500;
@@ -208,7 +213,10 @@ export function buildHudView(i: HudBuildInput): HudView {
   const fwd = new Vector3(0, 0, -1).applyQuaternion(s.orientation);
   const heading = Math.atan2(fwd.x, -fwd.z);
 
-  const guns: HudGun[] = player.guns.map((g) => {
+  // At a gunner's station only his guns show, as the player's own; in the pilot's seat the observer's are dimmed.
+  const stationGuns = i.crew?.stationGuns;
+  const shown = stationGuns ? player.guns.filter((g) => stationGuns.includes(g.mountIndex)) : player.guns;
+  const guns: HudGun[] = shown.map((g) => {
     const mount = spec.guns[g.mountIndex];
     const sameType = spec.guns.filter((m) => m.type === mount.type).length;
     const side = sameType > 1 ? (mount.position[0] < 0 ? ' L' : ' R') : '';
@@ -221,7 +229,7 @@ export function buildHudView(i: HudBuildInput): HudView {
       jamClearProgress: g.jamClearProgress,
       reloading: g.reloading > 0 ? Math.max(0.01, Math.min(1, 1 - g.reloading / Math.max(0.1, GUNS[mount.type].drumChangeTime))) : 0,
       heat: g.heat,
-      observer: mount.mount === 'flexible',
+      observer: !stationGuns && mount.mount === 'flexible',
     };
   });
 
@@ -244,8 +252,9 @@ export function buildHudView(i: HudBuildInput): HudView {
     };
   }
 
+  const crewView = i.cameraMode === 'gunner' || i.cameraMode === 'bombsight';
   let mouseAim: HudView['mouseAim'] = null;
-  if (i.aimDirection) {
+  if (i.aimDirection && !crewView) {
     const aimPt = tmp.copy(i.aimDirection).multiplyScalar(1000).add(camera.position);
     // The cockpit head only leads the aim a little (cameras.ts), so in hard turns the aim
     // point leaves the view: pin the ring to the screen edge in its direction instead.
@@ -260,7 +269,7 @@ export function buildHudView(i: HudBuildInput): HudView {
   return {
     nation: player.nation,
     view: HUD_VIEW[i.cameraMode],
-    showInstruments: i.cameraMode !== 'cockpit' && i.cameraMode !== 'padlock',
+    showInstruments: i.cameraMode !== 'cockpit' && i.cameraMode !== 'padlock' && !crewView,
     airspeed: s.airspeed,
     altitude: s.altitude,
     heightAboveGround: s.heightAboveGround,
@@ -300,12 +309,16 @@ export function buildHudView(i: HudBuildInput): HudView {
     threats: threats(i),
     wingmen: wingmen(i),
     waypoint,
-    gunReticle: toScreen(camera, convergence),
+    gunReticle: crewView ? null : toScreen(camera, convergence),
     mouseAim,
     timeCompression: i.timeScale,
     missionTime: world.time,
     hint: i.hint,
     sunGlare: sunGlare(camera, world),
+    seat: i.crew?.seat ?? null,
+    gunnerSight: i.crew?.gunnerSight ?? null,
+    bombsight: i.crew?.bombsight ?? null,
+    bombs: i.crew?.bombs ?? null,
   };
 }
 

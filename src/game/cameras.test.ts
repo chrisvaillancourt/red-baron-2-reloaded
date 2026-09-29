@@ -80,3 +80,49 @@ describe('CameraRig cockpit view with mouse-aim', () => {
     expect(s.rig.headPitch).toBeGreaterThan(deg(80));
   });
 });
+
+describe('CameraRig crew views', () => {
+  const STATION_EYE = new Vector3(0, 1.3, 1.6);
+
+  it('the gunner view sits at the station eye and looks along the gun', () => {
+    const { world, player, rig } = setup(); // heading north
+    rig.station = { eye: STATION_EYE, aimBody: new Vector3(0, 0, 1) }; // over the tail
+    rig.setMode('gunner');
+    run(rig, world, player, frame({}), 1);
+    const look = new Vector3(0, 0, -1).applyQuaternion(rig.camera.quaternion);
+    expect(look.z).toBeGreaterThan(0.99); // south, astern
+    expect(rig.camera.position.distanceTo(player.state.position.clone().add(STATION_EYE))).toBeLessThan(0.05);
+    expect(rig.inCockpit).toBe(true);
+    expect(rig.inPilotCockpit).toBe(false);
+  });
+
+  it("a snap look turns the gunner's head off the gun while held", () => {
+    const { world, player, rig } = setup();
+    rig.station = { eye: STATION_EYE, aimBody: new Vector3(0, 0, 1) };
+    rig.setMode('gunner');
+    run(rig, world, player, frame({ snapLook: { yaw: Math.PI / 2, pitch: 0 } }), 2);
+    const look = new Vector3(0, 0, -1).applyQuaternion(rig.camera.quaternion);
+    expect(look.x).toBeLessThan(-0.95); // left of a northbound aircraft is west
+  });
+
+  it('the bombsight looks straight down with the heading at the top', () => {
+    const { world, player, rig } = setup();
+    rig.station = { eye: STATION_EYE, aimBody: new Vector3(0, 0, 1) };
+    rig.setMode('bombsight');
+    run(rig, world, player, frame({}), 0.1);
+    const look = new Vector3(0, 0, -1).applyQuaternion(rig.camera.quaternion);
+    const up = new Vector3(0, 1, 0).applyQuaternion(rig.camera.quaternion);
+    expect(look.y).toBeLessThan(-0.999);
+    expect(up.z).toBeLessThan(-0.999); // screen up = north = the nose
+  });
+
+  it('the gunner view needs a station; the bombsight works from the pilot eye too', () => {
+    const { world, player, rig } = setup();
+    rig.setMode('gunner');
+    expect(rig.mode).toBe('cockpit');
+    rig.setMode('bombsight');
+    run(rig, world, player, frame({}), 0.1);
+    expect(rig.mode).toBe('bombsight');
+    expect(rig.camera.position.distanceTo(player.state.position.clone().add(EYE))).toBeLessThan(0.05);
+  });
+});

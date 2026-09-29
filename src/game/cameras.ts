@@ -7,7 +7,14 @@ import type { AircraftEntity, Entity } from '../core/types';
 import type { WorldQuery } from '../core/interfaces';
 import type { InputFrame } from './input';
 
-export type CameraMode = 'cockpit' | 'chase' | 'padlock' | 'flyby' | 'target' | 'orbit';
+/**
+ * 'gunner': from a crew station's eye along its gun (docs/bombers.md). 'bombsight': straight
+ * down from the bomb aimer's eye (or the pilot's), the nose at the top of the screen.
+ */
+export type CameraMode = 'cockpit' | 'chase' | 'padlock' | 'flyby' | 'target' | 'orbit' | 'gunner' | 'bombsight';
+
+/** Head easing toward the gun in the gunner view (1/s): he looks where the gun points. */
+const GUNNER_HEAD_RATE = 30;
 
 export const NECK_YAW_LIMIT = MathUtils.degToRad(165);
 export const NECK_PITCH_MIN = MathUtils.degToRad(-40);
@@ -84,6 +91,17 @@ export class CameraRig {
   headPitch = 0;
   /** Angle between the mouse-aim point and the nose (rad), from the last cockpit update; null without mouse-aim. */
   aimOffNose: number | null = null;
+  /**
+   * The crew station the player works, when it isn't the pilot's: its eye and its gun's aim,
+   * both body frame. Set by the flight session; the gunner view needs it.
+   */
+  station: { eye: Vector3; aimBody: Vector3 } | null = null;
+  /**
+   * Bombsight: how far below the horizon the sight line points (rad). The session sets it to
+   * the line to the predicted impact, as a period course-setting sight was set; π/2 is
+   * straight down.
+   */
+  bombsightDepression = Math.PI / 2;
   private chaseQuat = new Quaternion();
   private chaseInit = false;
   private flybyPos: Vector3 | null = null;
@@ -116,7 +134,13 @@ export class CameraRig {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Inside the aircraft (cockpit sound): the pilot's views and the crew stations'. */
   get inCockpit(): boolean {
+    return this.mode === 'cockpit' || this.mode === 'padlock' || this.mode === 'gunner' || this.mode === 'bombsight';
+  }
+
+  /** In the pilot's seat looking out: the model shows its 3D cockpit and hides the pilot. */
+  get inPilotCockpit(): boolean {
     return this.mode === 'cockpit' || this.mode === 'padlock';
   }
 
@@ -129,6 +153,7 @@ export class CameraRig {
   setMode(mode: CameraMode, world?: WorldQuery, player?: AircraftEntity | null): void {
     if (mode === 'padlock' && this.padlockId === null && world && player) this.padlockNearest(world, player);
     if (mode === 'padlock' && this.padlockId === null) mode = 'cockpit';
+    if (mode === 'gunner' && !this.station) mode = 'cockpit';
     if (mode === 'flyby') this.flybyPos = null;
     this.mode = mode;
   }
@@ -172,8 +197,45 @@ export class CameraRig {
     }
     if (this.targetId !== null && !world.getEntity(this.targetId)) this.targetId = null;
     if (this.mode === 'padlock' && this.padlockId === null) this.mode = 'cockpit';
+    if (this.mode === 'gunner' && !this.station) this.mode = 'cockpit';
 
     switch (this.mode) {
+      case 'gunner': {
+        // The head follows the gun (azimuth + = right is head yaw - ); a snap look turns it away while held.
+        const st = this.station!;
+        const a = st.aimBody;
+        let tYaw = Math.atan2(-a.x, -a.z);
+        let tPitch = Math.atan2(a.y, Math.hypot(a.x, a.z));
+        let rate = GUNNER_HEAD_RATE;
+        if (input?.snapLook) {
+          tYaw = input.snapLook.yaw;
+          tPitch = input.snapLook.pitch;
+          rate = 10;
+        }
+        // Take the short way round through astern.
+        let dYaw = tYaw - this.headYaw;
+        dYaw = Math.atan2(Math.sin(dYaw), Math.cos(dYaw));
+        const k = 1 - Math.exp(-rate * dt);
+        this.headYaw += dYaw * k;
+        this.headYaw = Math.atan2(Math.sin(this.headYaw), Math.cos(this.headYaw));
+        this.headPitch += (tPitch - this.headPitch) * k;
+        const head = new Quaternion().setFromEuler(new Euler(this.headPitch, this.headYaw, 0, 'YXZ'));
+        cam.quaternion.copy(q).multiply(head);
+        cam.position.copy(st.eye).applyQuaternion(q).add(s.position);
+        this.padlockObstructed = false;
+        this.applyShake(dt, player);
+        break;
+      }
+      case 'bombsight': {
+        // Stabilised: wings level whatever the attitude, screen-up along the heading, looking
+        // down the sight line (straight down by default).
+        const fwd = new Vector3(0, 0, -1).applyQuaternion(q);
+        const hdg = Math.atan2(fwd.x, -fwd.z);
+        const dep = MathUtils.clamp(this.bombsightDepression, MathUtils.degToRad(15), Math.PI / 2);
+        cam.quaternion.setFromEuler(new Euler(-dep, -hdg, 0, 'YXZ'));
+        cam.position.copy(this.station?.eye ?? eye).applyQuaternion(q).add(s.position);
+        break;
+      }
       case 'cockpit':
       case 'padlock': {
         let tYaw: number;

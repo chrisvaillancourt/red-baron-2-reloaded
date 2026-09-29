@@ -34,6 +34,11 @@ export const EDGE_ACTIONS = [
   'wingmenCover',
   'wingmenHome',
   'toggleHud',
+  'stationNext',
+  'stationPrev',
+  'stationPilot',
+  'releaseBomb',
+  'viewBombsight',
 ] as const;
 export type EdgeAction = (typeof EDGE_ACTIONS)[number];
 
@@ -48,6 +53,33 @@ export interface InputFrame {
   aimDirection: Vector3 | null;
   /** True if the player is actively overriding with keys/pad this frame. */
   manualOverride: boolean;
+  /**
+   * At a gunner's station (`InputManager.stationMode`): how far to swing the gun this frame,
+   * radians, azimuth + = right, elevation + = up. The flight controls are the AI pilot's then.
+   */
+  stationAim?: { azimuth: number; elevation: number };
+}
+
+/** Degrees per second a gun swings at full key or stick deflection. */
+export const STATION_KEY_AIM_RATE_DEG = 60;
+/** Radians per mouse pixel at sensitivity 1 (the mouse-aim instructor's scale). */
+const MOUSE_AIM_RAD_PER_PX = 0.0022;
+
+/**
+ * A gunner's aim swing for one frame from the mouse (pixels; moved right and up swings right
+ * and up), the keys and the stick (-1..1 each: right and up positive).
+ */
+export function stationAimDelta(
+  i: { mouseDX: number; mouseDY: number; keyAz: number; keyEl: number; padAz: number; padEl: number },
+  cs: Pick<ControlSettings, 'mouseSensitivity' | 'invertPitch'>,
+  dt: number,
+): { azimuth: number; elevation: number } {
+  const inv = cs.invertPitch ? -1 : 1;
+  const rate = (STATION_KEY_AIM_RATE_DEG * Math.PI) / 180;
+  return {
+    azimuth: i.mouseDX * MOUSE_AIM_RAD_PER_PX * cs.mouseSensitivity + (i.keyAz + i.padAz) * rate * dt,
+    elevation: (-i.mouseDY * MOUSE_AIM_RAD_PER_PX * cs.mouseSensitivity + (i.keyEl + i.padEl) * rate * dt) * inv,
+  };
 }
 
 /** Map a set of held KeyboardEvent.codes to the set of actions they trigger. */
@@ -340,6 +372,12 @@ export class InputManager {
   private aimState = createMouseAimState();
   private detachFns: (() => void)[] = [];
   enabled = true;
+  /**
+   * The player works a gun, not the controls: the mouse, the flight keys and the left stick
+   * swing the gun (`InputFrame.stationAim`), the left button and fire key fire it, and the
+   * right button drags the view. Flight controls come from the AI pilot meanwhile.
+   */
+  stationMode = false;
 
   constructor(
     private readonly element: HTMLElement,
@@ -414,6 +452,20 @@ export class InputManager {
   }
 
   /**
+   * Take over from the AI pilot without a jolt: the throttle and the mouse stick where the AI
+   * left them, key axes centred, the mouse-aim point on the nose and its instructor fresh.
+   */
+  syncTo(ac: AircraftEntity): void {
+    this.throttle = clamp(ac.controls.throttle, 0, 1);
+    this.stickX = clamp(ac.controls.roll, -1, 1);
+    this.stickY = clamp(ac.controls.pitch, -1, 1);
+    this.keyPitch = this.keyRoll = this.keyYaw = 0;
+    this.mouseDX = this.mouseDY = 0;
+    this.aimState = createMouseAimState();
+    this.resetAim(ac);
+  }
+
+  /**
    * Build this frame's input. `cameraMovesWithAim` should be true in views
    * where mouse movement steers (chase/cockpit); orbit/padlock use it for look.
    */
@@ -485,7 +537,23 @@ export class InputManager {
     let mouseYaw = 0;
     const leftDown = (this.mouseButtons & 1) !== 0;
     const rightDown = (this.mouseButtons & 2) !== 0;
-    if (cs.mouseMode === 'mouse-aim' && player) {
+    let stationAim: InputFrame['stationAim'];
+    if (this.stationMode) {
+      // Gunner: every mouse mode aims the gun (right button drags the view instead).
+      const aimMouse = !rightDown && cs.mouseMode !== 'off';
+      if (!aimMouse && (cs.mouseMode !== 'off' || leftDown || rightDown)) {
+        lookDelta.yaw -= mdx * 0.003 * sens;
+        lookDelta.pitch -= mdy * 0.003 * sens;
+      }
+      const inv = cs.invertPitch ? -1 : 1;
+      stationAim = stationAimDelta(
+        // readGamepad has applied invert pitch to padPitch already; stationAimDelta applies it once.
+        { mouseDX: aimMouse ? mdx : 0, mouseDY: aimMouse ? mdy : 0, keyAz: kr, keyEl: kp, padAz: padRoll, padEl: padPitch * inv },
+        cs,
+        dt,
+      );
+      if (leftDown && cs.mouseMode !== 'off') fire = true;
+    } else if (cs.mouseMode === 'mouse-aim' && player) {
       if (!this.aim) this.resetAim(player);
       if (mouseSteers && !rightDown) {
         // Rotate the aim direction: yaw about world up, pitch about the aim's right axis.
@@ -531,10 +599,13 @@ export class InputManager {
 
     const keyActive = Math.abs(this.keyPitch) + Math.abs(this.keyRoll) + Math.abs(this.keyYaw) > 0.01;
     const padActive = Math.abs(padPitch) + Math.abs(padRoll) + Math.abs(padYaw) > 0.01;
-    const manualOverride = keyActive || padActive;
+    // At a gun the keys and stick aim it; they don't fly (and don't reset the mouse-aim point).
+    const manualOverride = !this.stationMode && (keyActive || padActive);
     const invertKeys = cs.invertPitch ? -1 : 1;
     let pitch: number, roll: number, yaw: number;
-    if (cs.mouseMode === 'mouse-aim' && manualOverride) {
+    if (this.stationMode) {
+      pitch = roll = yaw = 0;
+    } else if (cs.mouseMode === 'mouse-aim' && manualOverride) {
       pitch = this.keyPitch * invertKeys + padPitch;
       roll = this.keyRoll + padRoll;
       yaw = this.keyYaw + padYaw;
@@ -560,6 +631,7 @@ export class InputManager {
       lookDelta,
       aimDirection,
       manualOverride,
+      stationAim,
     };
   }
 }

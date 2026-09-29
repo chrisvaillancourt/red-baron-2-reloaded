@@ -23,8 +23,12 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `world.ts` | `buildWorld`: entities from a `MissionDefinition` (formation offsets, ground starts, spawn delays), `WorldQuery`. |
 | `missionDirector.ts` | Objectives, kill credit → `VictoryClaim`, radio chatter, end conditions, `MissionResult`. |
 | `input.ts` | Keyboard (rebindable actions), mouse (direct stick / mouse-aim instructor), gamepad. |
-| `cameras.ts` | Cockpit (head look, snap views), chase, padlock, fly-by, target, orbit. |
+| `cameras.ts` | Cockpit (head look, snap views), chase, padlock, fly-by, target, orbit, and the crew views: gunner and bombsight. |
 | `hudView.ts` | `buildHudView` → the UI's `HudView` each frame; `toScreen`, `advanceWaypoint`. |
+| `crewSeat.ts` | Crew-seat logic (pure): seat cycling, the starting seat, a flexible gun's aim clamped to its station's fire arcs, the arcs' outer edge, `StationInputs` from aim and buttons. See "Crew stations". |
+| `playerCrew.ts` | `PlayerCrew`: the player's seat in flight. Seat keys, gunner aim, bombsight and release, camera and input mode, the HUD's seat, sight and bomb fields. |
+| `bombsight.ts` | Bomb impact prediction (a copy of track A's model until it merges), drift, the release solution. |
+| `testing/crewMissions.ts` | Fixtures: a Bristol fight at a chosen seat, a D.H.4 bomb run (until track D's raid builder). |
 | `stubs/` | `sim`/`campaign` stand-ins used by unit tests (no stub is bound in the game any more). |
 
 ## Loop
@@ -32,10 +36,12 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 ```
 per rAF frame (dt clamped to 0.1 s):
   input.enabled = !hud.menuOpen          (HUD cards own the keyboard)
-  input.update -> player.controls, edge commands (views, time, wingmen, pause...)
+  input.update -> player.controls (pilot's seat), edge commands (views, seats, time, wingmen, pause...)
+  at a crew station: the gun's aim and buttons instead (PlayerCrew.applyInput)
   threats.update (hits, silent damage, enemy rounds within 40 m)
   if time compression > 1 and compressionBlock(): drop to x1 (see Time compression)
   accumulator += dt * timeScale; while accumulator >= 1/120:   (SimCore.step)
+      PlayerCrew.beforeStep: stationInputs (or the pilot's bomb release) for this step
       world.time += h; spawn due flights
       every 4th step (30 Hz): ai.update(ac, world, 4h) for AI aircraft
       sim.stepFlight(ac, env, realism, h)   (skip wrecks on the ground)
@@ -56,7 +62,52 @@ counted exactly once.
 
 `controls.clearJam` is an edge: the session clears it after the first sim
 step of the frame. Flexible (rear) guns are driven by the AI via
-`modules.setGunnerTarget`.
+`modules.setGunnerTarget`, except at the station the player works (below).
+
+## Crew stations
+
+Bombers wave 1 (docs/bombers.md, D-086 contracts). Every aircraft has crew stations,
+pilot first (`crewStations(spec)` in `src/data/crew.ts`); the player can take any of them.
+
+- **Keys.** `stationNext` C and `stationPrev` V cycle the stations, `stationPilot` F goes
+  straight back to the pilot's seat, `viewBombsight` F6 takes the bomb aimer's seat and
+  looks through the sight (again: back to his gun), `releaseBomb` R releases. The starting
+  seat is `MissionFlightMember.station` of the player (the autoplayer ignores it).
+- **Who flies** (D-XXX). At any station but the pilot's, `SimCore.setPlayerStation` gives the
+  player's aircraft an AI controller on the flight's own task, as the autoplayer does. It
+  sees the route from the player's next waypoint on (a `WorldQuery` view whose `getFlight`
+  returns the trimmed route), so a pilot taking over mid-mission doesn't turn back for
+  waypoints already flown; a recalled flight's new pilot heads home. The aircraft keeps
+  `controller: 'player'`: combat's invulnerability, the AI's collision rules for the human,
+  the HUD and the director still find him. The session stops copying input into
+  `controls`. Back at the pilot's seat the AI is dropped, the gunner's target is reset to
+  automatic, and `InputManager.syncTo` takes the throttle and mouse stick from where the AI
+  left them, re-centres the mouse-aim point on the nose and starts a fresh instructor, so
+  the hand-back has no jolt.
+- **Station inputs.** Before each sim step `PlayerCrew.beforeStep` writes
+  `AircraftEntity.stationInputs` in place: `aim` is the gun's body-frame aim turned into a
+  world direction by that step's orientation, `fire` is held, and `clearJam` and
+  `releaseBomb` are true for the frame's first step only (track A consumes the jam press
+  and detects the release's rising edge). A pilot who aims his own bombs releases through
+  `controls.releaseBomb`, the same way. R in a seat that doesn't aim says who does.
+- **Aim** (D-XXX). In `InputManager.stationMode` the mouse (0.0022 rad per pixel, as
+  mouse-aim), the flight keys and the left stick (60°/s) swing the gun; left button, the
+  fire key and RT fire; the right button drags the view. The aim is held in the body frame
+  (the gun turns with the airframe) and clamped to the station's arcs: an aim outside is
+  pulled to the nearest point of the union of arc boxes, by angle on the sphere, so pushing
+  past an edge slides along it. `StationAim.limited` marks the HUD edge red.
+- **Views.** `gunner`: the camera at the station's eye (`AircraftVisual.stationEyes`, else
+  `stationEye(spec, station)`), looking along the gun; snap-look keys turn the head away
+  while held; F1 at a gun is this view, and padlock works from the station's eye.
+  `bombsight`: wings-level and heading-up, looking down the sight line to the predicted
+  impact (D-XXX), with the player's own aircraft hidden. External views are unchanged. The
+  3D cockpit (pilot hidden) shows only from the pilot's seat.
+- **Bombs.** A flight tasked to bomb, or the player's flight on a bombing raid, starts with
+  its full load (`world.ts` `loadBombs`, to be replaced by track A's). `MissionResult`
+  `bombsDropped` / `bombHits` count the player's aircraft's `bomb-released` events and the
+  `bomb-exploded` bursts that reached an enemy target, only for a sortie that carried bombs.
+- **Until track A merges** a station's guns don't fire and bombs don't fall; everything the
+  game layer writes is in place and tested.
 
 ## HUD wiring
 
@@ -181,7 +232,7 @@ statically lands in the boot bundle (see Robustness → Bundles).
 ## Debug hook and tests
 
 `window.__rb2 = { services, session }`. `session` exposes `time`,
-`timeScale`, `paused`, `player`, `world`, `frames`, `samplePixels()` (reads
+`timeScale`, `paused`, `cameraMode`, `station` (the player's crew station), `player`, `world`, `frames`, `samplePixels()` (reads
 back the WebGL drawing buffer right after a render), `command(action)`,
 `endFlight()`, `abandon()`, and test hooks: `aiState(id)` (an AI's
 behaviour label, e.g. `formation`, `engage #4`, `rtb`), `placeAtHome()`
@@ -207,6 +258,10 @@ behaviour label, e.g. `formation`, `engage #4`, `rtb`), `placeAtHome()`
     refused near enemies, abandon = aborted failure, landing at home =
     returned, a career balloon attack at x8 (balloons on the enemy side).
   - `robustness.spec.ts`: see Robustness below.
+  - `crew.spec.ts`: Bristol seat switch (C, keyboard aim, the arc limit, F hands back with
+    the throttle unchanged, V, F1 at a gun), a mission starting at the gun, and a D.H.4 bomb
+    run (R from the pilot's seat, F6 to the bombsight and back). Screenshots in
+    `test-results/crew/`.
   - `soak.spec.ts` (skipped unless `E2E_SOAK=1`; `pnpm e2e:soak`).
   Screenshots land in `test-results/`.
 
