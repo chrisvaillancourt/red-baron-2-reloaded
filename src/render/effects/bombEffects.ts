@@ -173,7 +173,10 @@ export class BombEffects {
 
   /** Draw `bombs` (the combat system's bombs in flight; none when absent) and resolve bursts. */
   update(world: WorldQuery, bombs: readonly BombView[] = []): void {
-    for (const e of this.exploded.splice(0)) this.burst(e, world);
+    if (this.exploded.length) {
+      for (const e of this.exploded) this.burst(e, world);
+      this.exploded.length = 0;
+    }
     const n = Math.min(bombs.length, MAX_DRAWN_BOMBS);
     for (let i = 0; i < n; i++) {
       const b = bombs[i];
