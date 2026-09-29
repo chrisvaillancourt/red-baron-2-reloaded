@@ -36,6 +36,16 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
   `tailPressureRatio(ac, env)`. Controllers inverting `stickForAlpha` must divide their
   desired wing AoA by it (the AI autopilot does); the relaxed stall cap and the relaxed /
   standard g caps are scaled by it internally.
+* **Twins** (`performance.engineCount` > 1). `enginePowerHp` is the total, split evenly, with a
+  propeller per engine sized for its share. Each engine has its own damage
+  (`damage.engines`, filled in by combat; absent, the `engine` zone stands for all): power
+  × (1 − 0.75 × damage), misfiring above 0.5, dead at 1. Thrust and windmilling drag act at
+  each nacelle (`engineOffsetX`: spread across ±`nacelleOffsetX`, left first), so with an
+  engine out the aircraft yaws toward the dead side. Hands off, the test twin swings about
+  35° further toward it over 15 s than with both running. It flies on the other engine,
+  sinking slowly at full throttle. The aircraft's engine is dead (`engineDead`,
+  `engine-dead`) only when every engine is. Healthy, a twin flies exactly as a
+  single-engined aircraft of the same total power.
 * **Torque** (`realism.engineTorque`, not in relaxed): reaction roll to the left, gyroscopic
   precession `M = H × ω` (yaw right → nose down; pull up → yaw right), and a rotary
   power-on right-yaw bias. Result: a Camel turns ~12% faster right than left and needs
@@ -116,7 +126,7 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   (`engineCount` > 1 with `nacelleOffsetX`) have an engine box per nacelle (left engine 0),
   ahead of the wing for tractors and behind it for pushers, and none in the nose. Every
   other type's boxes are unchanged.
-* **Damage.** Engine (smoke > 0.4, dead at 1, small fire chance), fuel tank (leaks, fire),
+* **Damage.** Engine (smoke > 0.4, dead at 1, small fire chance; on twins a hit finds one engine, the zone holds the worst), fuel tank (leaks, fire),
   pilot/gunner (not every round in the box finds the man; each pilot hit adds 0.22 wound and
   kills with probability (0.07 + 0.25 × wounds) × severity, the fifth hit certainly), wings/tail/fuselage
   (structural failure at 1), controls, guns (random jam). Engine/fuel-tank fire chances scale

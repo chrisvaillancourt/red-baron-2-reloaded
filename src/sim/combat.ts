@@ -306,6 +306,8 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       };
       memory.set(ac, m);
       if (ac.spec.crewStations && !ac.damage.crewWounds) ac.damage.crewWounds = new Array(ac.spec.geometry.crew).fill(0);
+      const engines = ac.spec.performance.engineCount ?? 1;
+      if (engines > 1 && !ac.damage.engines) ac.damage.engines = new Array(engines).fill(ac.damage.zones.engine);
     }
     return m;
   }
@@ -352,15 +354,26 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     z[zone] = Math.min(1, z[zone] + amount);
 
     switch (zone) {
-      case 'engine':
+      case 'engine': {
+        // Multi-engine types: the hit finds one engine; the zone holds the worst, and the
+        // aircraft's engine is dead only when every engine is.
+        const n = ac.spec.performance.engineCount ?? 1;
+        if (n > 1) {
+          const e = (d.engines ??= new Array(n).fill(0));
+          const i = index ?? Math.floor(rng() * n);
+          if (i >= 0 && i < n) e[i] = Math.min(1, e[i] + amount);
+          z.engine = Math.max(...e);
+          if (e.every((x) => x >= 1)) d.engineDead = true;
+        }
         if (z.engine > 0.3 && !m.engineDamagedReported) {
           m.engineDamagedReported = true;
           bus.emit({ type: 'engine-damaged', aircraftId: ac.id });
         }
         if (z.engine > 0.4) d.smoking = true;
         if (rng() < 0.04 * Math.min(1, amount / ZONE_DAMAGE.engine)) startFire(ac);
-        if (z.engine >= 1) d.engineDead = true;
+        if (n === 1 && z.engine >= 1) d.engineDead = true;
         break;
+      }
       case 'fuelTank':
         if (rng() < 0.35) d.fuelLeak = true;
         // Splinters (flak, ground fire) are smaller than a bullet strike: fewer fires.

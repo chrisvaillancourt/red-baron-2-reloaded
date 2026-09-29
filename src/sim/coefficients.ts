@@ -285,8 +285,10 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
 
   const isRotary = p.engineType === 'rotary';
   const rpm = rpmFor(spec);
-  const propDiameter = Math.min(2.8, 1.9 + p.enginePowerHp / 400);
-  const propDiscArea = (Math.PI * propDiameter * propDiameter) / 4;
+  // Multi-engine types: a propeller per engine, sized for that engine's share of the power.
+  const engines = Math.max(1, p.engineCount ?? 1);
+  const propDiameter = Math.min(2.8, 1.9 + p.enginePowerHp / engines / 400);
+  const propDiscArea = (engines * Math.PI * propDiameter * propDiameter) / 4;
 
   // Inertias from mass distribution heuristics (rotaries concentrate mass in the nose).
   const inertiaPitch = mass * Math.pow(0.24 * g.length, 2);

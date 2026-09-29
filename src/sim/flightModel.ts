@@ -178,10 +178,67 @@ export function tailPressureRatio(ac: AircraftEntity, env: FlightEnvironment): n
   const V = Math.max(1, s.airspeed);
   const qd = 0.5 * env.airDensityAt(s.position.y) * V * V;
   const z = ac.damage.zones;
-  const engineAlive = !ac.damage.engineDead && z.engine < 1;
-  const power = powerAtAltitude(co, s.position.y) * getSimInternal(ac).powerFrac * (1 - 0.75 * z.engine);
-  const thrust = engineAlive ? propThrust(co, power, V * Math.cos(s.aoa)) : 0;
+  let thrust: number;
+  if ((ac.spec.performance.engineCount ?? 1) > 1) {
+    thrust = multiEngine(ac, co, s.position.y, getSimInternal(ac), V * Math.cos(s.aoa), qd, true).thrust;
+  } else {
+    const engineAlive = !ac.damage.engineDead && z.engine < 1;
+    const power = powerAtAltitude(co, s.position.y) * getSimInternal(ac).powerFrac * (1 - 0.75 * z.engine);
+    thrust = engineAlive ? propThrust(co, power, V * Math.cos(s.aoa)) : 0;
+  }
   return (qd + slipstreamQ(co, thrust)) / Math.max(qd, 1);
+}
+
+/** Damage of engine `i` of a multi-engine type: `damage.engines`, else the `engine` zone for all. */
+function engineDamage(ac: AircraftEntity, i: number): number {
+  return ac.damage.engines?.[i] ?? ac.damage.zones.engine;
+}
+
+function anyEngineAlive(ac: AircraftEntity): boolean {
+  const n = ac.spec.performance.engineCount ?? 1;
+  for (let i = 0; i < n; i++) if (engineDamage(ac, i) < 1) return true;
+  return false;
+}
+
+/** Lateral position (body x, m) of engine `i` of `n`: spread evenly across ±nacelleOffsetX, left first. */
+export function engineOffsetX(spec: AircraftSpec, i: number): number {
+  const n = spec.performance.engineCount ?? 1;
+  const off = spec.geometry.nacelleOffsetX ?? 0;
+  return n <= 1 ? 0 : -off + (2 * off * i) / (n - 1);
+}
+
+const _multi = { power: 0, thrust: 0, drag: 0, yaw: 0 };
+
+/**
+ * Multi-engine types: each engine delivers its share of `enginePowerHp` scaled by its own
+ * damage, and a dead one windmills. Thrust and propeller drag act at each nacelle, so an
+ * engine out yaws the aircraft toward it: `yaw` is the body-y moment (N m, + nose left).
+ */
+function multiEngine(ac: AircraftEntity, co: FlightCoefficients, altitude: number, it: SimInternal, uFwd: number, qd: number, fuelOk: boolean) {
+  const n = ac.spec.performance.engineCount ?? 1;
+  const perEngine = powerAtAltitude(co, altitude) / n;
+  const disc = co.propDiscArea / n;
+  const allDead = ac.damage.engineDead;
+  _multi.power = 0;
+  _multi.thrust = 0;
+  _multi.drag = 0;
+  _multi.yaw = 0;
+  for (let i = 0; i < n; i++) {
+    const e = engineDamage(ac, i);
+    const alive = !allDead && e < 1 && fuelOk;
+    let health = 1 - 0.75 * e;
+    if (e > 0.5) health *= 0.65 + 0.35 * (0.5 + 0.5 * wobble(it.time * 6, it.seed, 6 + i * 11));
+    const frac = alive ? it.powerFrac : 0;
+    const power = perEngine * frac * health;
+    const thrust = propThrust(co, power, uFwd);
+    const drag = qd * disc * 0.05 * (1 - frac);
+    _multi.power += power;
+    _multi.thrust += thrust;
+    _multi.drag += drag;
+    // Thrust along -Z at body x gives a body-y moment x*T; drag along +Z gives -x*D.
+    _multi.yaw += engineOffsetX(ac.spec, i) * (thrust - drag);
+  }
+  return _multi;
 }
 
 /** Map a desired angle of attack to the stick position that commands it (inverse of the pitch law). */
@@ -301,17 +358,32 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
   const pRate = -s.angularVelocity.z;
 
   // ---------------------------------------------------------------- engine
-  const engineAlive = !dmg.engineDead && z.engine < 1 && (s.fuelL > 0 || !realism.limitedFuel);
+  const fuelOk = s.fuelL > 0 || !realism.limitedFuel;
+  // A twin runs while either engine does (the `engine` zone holds the worst one).
+  const multi = (ac.spec.performance.engineCount ?? 1) > 1;
+  const engineAlive = !dmg.engineDead && fuelOk && (multi ? anyEngineAlive(ac) : z.engine < 1);
   let target = engineAlive ? throttle : 0;
   const blipping = c.blip && co.isRotary;
   if (blipping) target = 0;
   if (blipping) it.powerFrac = Math.min(it.powerFrac, 0.03);
   it.powerFrac += (target - it.powerFrac) * Math.min(1, dt / co.engineLag);
-  let health = 1 - 0.75 * z.engine;
-  if (z.engine > 0.5) health *= 0.65 + 0.35 * (0.5 + 0.5 * wobble(it.time * 6, it.seed, 6));
-  const shaftPower = powerAtAltitude(co, s.position.y) * it.powerFrac * health;
-  const thrust = propThrust(co, shaftPower, uFwd);
-  const windmillDrag = qd * co.propDiscArea * 0.05 * (1 - it.powerFrac);
+  let shaftPower: number;
+  let thrust: number;
+  let windmillDrag: number;
+  let engineYaw = 0;
+  if (multi) {
+    const out = multiEngine(ac, co, s.position.y, it, uFwd, qd, fuelOk);
+    shaftPower = out.power;
+    thrust = out.thrust;
+    windmillDrag = out.drag;
+    engineYaw = out.yaw;
+  } else {
+    let health = 1 - 0.75 * z.engine;
+    if (z.engine > 0.5) health *= 0.65 + 0.35 * (0.5 + 0.5 * wobble(it.time * 6, it.seed, 6));
+    shaftPower = powerAtAltitude(co, s.position.y) * it.powerFrac * health;
+    thrust = propThrust(co, shaftPower, uFwd);
+    windmillDrag = qd * co.propDiscArea * 0.05 * (1 - it.powerFrac);
+  }
   const rpmTarget =
     engineAlive && !blipping
       ? co.rpmIdle + (co.rpmMax - co.rpmIdle) * Math.sqrt(it.powerFrac) * (0.9 + 0.1 * Math.min(1.3, V / co.vMax))
@@ -468,7 +540,7 @@ function stepOnce(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSe
 
   // Convert to body angular acceleration.
   let ax = qDot;
-  let ay = -rDot;
+  let ay = -rDot + engineYaw / co.inertiaYaw;
   let az = -pDot;
 
   // ------------------------------------------------------- ground contact
