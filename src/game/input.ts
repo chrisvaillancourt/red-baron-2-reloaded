@@ -625,6 +625,8 @@ export class InputManager {
         blip,
         fireGuns: fire,
         clearJam,
+        // Held, not an edge (lead decision): the sim drops one bomb per rising edge.
+        releaseBomb: actions.has('releaseBomb'),
       },
       commands,
       snapLook,

@@ -86,10 +86,12 @@ pilot first (`crewStations(spec)` in `src/data/crew.ts`); the player can take an
   the hand-back has no jolt.
 - **Station inputs.** Before each sim step `PlayerCrew.beforeStep` writes
   `AircraftEntity.stationInputs` in place: `aim` is the gun's body-frame aim turned into a
-  world direction by that step's orientation, `fire` is held, and `clearJam` and
-  `releaseBomb` are true for the frame's first step only (track A consumes the jam press
-  and detects the release's rising edge). A pilot who aims his own bombs releases through
-  `controls.releaseBomb`, the same way. R in a seat that doesn't aim says who does.
+  world direction by that step's orientation, and `fire` is held. `clearJam` is true for
+  the frame's first step only (combat consumes the press). `releaseBomb` is a held input
+  (lead decision): true while R is down, never pulsed or cleared by the game; the sim drops
+  one bomb per false-to-true edge, and refuses on the ground or with the bomb aimer dead. A
+  pilot who aims his own bombs releases through `controls.releaseBomb`, held the same way;
+  in any other pilot's seat the game holds it false, and R says who aims.
 - **Aim** (D-XXX). In `InputManager.stationMode` the mouse (0.0022 rad per pixel, as
   mouse-aim), the flight keys and the left stick (60°/s) swing the gun; left button, the
   fire key and RT fire; the right button drags the view. The aim is held in the body frame

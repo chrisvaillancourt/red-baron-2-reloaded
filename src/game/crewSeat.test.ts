@@ -173,7 +173,7 @@ describe('arc edges for the HUD', () => {
 });
 
 describe('station inputs', () => {
-  it('turns the body-frame aim into a world direction and passes fire, jam and release edges', () => {
+  it('turns the body-frame aim into a world direction and passes fire, jam and release', () => {
     const st = crewStations(dh4)[1];
     const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2); // nose west
     const aimBody = aimBodyVector(180, 0, new Vector3()); // over the tail

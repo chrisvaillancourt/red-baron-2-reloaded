@@ -11,6 +11,7 @@ import {
   createMouseAimState,
   EDGE_ACTIONS,
   expo,
+  InputManager,
   STATION_KEY_AIM_RATE_DEG,
   stationAimDelta,
   mouseAimControls,
@@ -62,6 +63,16 @@ describe('gunner aim input', () => {
     const d = stationAimDelta({ mouseDX: 0, mouseDY: 0, keyAz: 1, keyEl: 0, padAz: 0, padEl: -1 }, cs, 0.5);
     expect(d.azimuth).toBeCloseTo((STATION_KEY_AIM_RATE_DEG * 0.5 * Math.PI) / 180, 6);
     expect(d.elevation).toBeCloseTo((-STATION_KEY_AIM_RATE_DEG * 0.5 * Math.PI) / 180, 6);
+  });
+
+  it('release bomb is held: true while the key is down', () => {
+    const im = new InputManager({} as HTMLElement, () => ({ ...cs, gamepadEnabled: false }));
+    const held = (im as unknown as { held: Set<string> }).held;
+    held.add('KeyR');
+    expect(im.update(1 / 60, null, true).controls.releaseBomb).toBe(true);
+    expect(im.update(1 / 60, null, true).controls.releaseBomb).toBe(true);
+    held.delete('KeyR');
+    expect(im.update(1 / 60, null, true).controls.releaseBomb).toBe(false);
   });
 
   it('crew-station keys are edge actions', () => {

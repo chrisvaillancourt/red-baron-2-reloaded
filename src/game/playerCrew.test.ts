@@ -75,12 +75,12 @@ describe('PlayerCrew seat switching', () => {
     expect(t.input.stationMode).toBe(true);
   });
 
-  it('writes the aim and buttons into the station inputs, with jam and release as one-step edges', () => {
+  it('writes the aim and buttons into the station inputs: jam a one-step edge, release held', () => {
     const t = setup(dh4BombRun('observer'));
     t.crew.start();
     const before = t.crew.aim!.azimuthDeg;
-    t.crew.applyInput(frame({ stationAim: { azimuth: 0.1, elevation: 0 }, controls: { pitch: 0, roll: 0, yaw: 0, throttle: 0, blip: false, fireGuns: true, clearJam: true }, commands: [] }));
-    t.crew.command('releaseBomb', 0);
+    const held = { pitch: 0, roll: 0, yaw: 0, throttle: 0, blip: false, fireGuns: true, clearJam: true, releaseBomb: true };
+    t.crew.applyInput(frame({ stationAim: { azimuth: 0.1, elevation: 0 }, controls: held, commands: [] }));
     expect(t.crew.aim!.azimuthDeg).not.toBeCloseTo(before, 3);
     t.crew.beforeStep(true);
     const si = t.player.stationInputs!;
@@ -89,9 +89,13 @@ describe('PlayerCrew seat switching', () => {
     expect(si.aim.angleTo(want)).toBeLessThan(1e-6);
     t.core.step(1 / SIM_HZ);
     t.crew.beforeStep(false);
+    expect(si.clearJam).toBe(false); // an edge: one step
+    expect(si.releaseBomb).toBe(true); // held: the sim drops one bomb per rising edge
+    expect(si.fire).toBe(true);
+    // Key up: the release goes false.
+    t.crew.applyInput(frame({ controls: { ...held, clearJam: false, releaseBomb: false } }));
+    t.crew.beforeStep(true);
     expect(si.releaseBomb).toBe(false);
-    expect(si.clearJam).toBe(false);
-    expect(si.fire).toBe(true); // held
   });
 
   it('does not touch the flight controls while the AI flies', () => {
@@ -114,15 +118,17 @@ describe('PlayerCrew bombs', () => {
     expect(t.rig.mode).toBe('gunner');
   });
 
-  it('R in the D.H.4 pilot seat says the observer aims', () => {
+  it('R in the D.H.4 pilot seat says the observer aims, and releases nothing', () => {
     const t = setup(dh4BombRun());
+    t.player.controls.releaseBomb = true; // as the session copies a held R into the controls
+    t.crew.applyInput(frame({ controls: { pitch: 0, roll: 0, yaw: 0, throttle: 0.8, blip: false, fireGuns: false, clearJam: false, releaseBomb: true } }));
     t.crew.command('releaseBomb', 0);
     t.crew.beforeStep(true);
-    expect(t.player.controls.releaseBomb).toBeFalsy();
+    expect(t.player.controls.releaseBomb).toBe(false);
     expect(t.messages.at(-1)).toMatch(/observer/i);
   });
 
-  it('a pilot-aimed type releases through the controls, one step', () => {
+  it('a pilot-aimed type releases through the controls while R is held', () => {
     const t = setup(bristolFight());
     // A single-seater with a bomb rack: the pilot aims (crewStations derives it).
     t.player.spec = { ...getAircraft('sopwith_camel'), bombs: [{ name: '20 lb Cooper', massKg: 9, explosiveKg: 2, count: 4 }] };
@@ -130,10 +136,14 @@ describe('PlayerCrew bombs', () => {
     t.crew.command('viewBombsight', 0);
     expect(t.core.playerStation).toBe('pilot');
     expect(t.rig.mode).toBe('bombsight');
-    t.crew.command('releaseBomb', 0);
+    const c = { pitch: 0, roll: 0, yaw: 0, throttle: 0.8, blip: false, fireGuns: false, clearJam: false };
+    t.crew.applyInput(frame({ controls: { ...c, releaseBomb: true } }));
     t.crew.beforeStep(true);
     expect(t.player.controls.releaseBomb).toBe(true);
     t.crew.beforeStep(false);
+    expect(t.player.controls.releaseBomb).toBe(true); // still held
+    t.crew.applyInput(frame({ controls: { ...c, releaseBomb: false } }));
+    t.crew.beforeStep(true);
     expect(t.player.controls.releaseBomb).toBe(false);
   });
 

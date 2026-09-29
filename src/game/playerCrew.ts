@@ -49,7 +49,8 @@ export class PlayerCrew {
   /** The gun's aim at a non-pilot station; null in the pilot's seat. */
   aim: StationAim | null = null;
   private fire = false;
-  private releasePending = false;
+  /** The release key is down (a held input: the sim drops one bomb per false-to-true edge). */
+  private releaseHeld = false;
   private jamPending = false;
   private readonly eyeTmp = new Vector3();
   private readonly aimTmp = new Vector3();
@@ -105,7 +106,8 @@ export class PlayerCrew {
         this.toggleBombsight(waypointIndex);
         return true;
       case 'releaseBomb':
-        this.requestRelease();
+        // The press only explains a release that can't happen; the held key does the releasing.
+        this.explainRelease();
         return true;
       default:
         return false;
@@ -161,7 +163,7 @@ export class PlayerCrew {
     this.takeSeat(aimer.id, waypointIndex, 'bombsight');
   }
 
-  private requestRelease(): void {
+  private explainRelease(): void {
     const p = this.player;
     if (!p) return;
     const aimer = bombAimerStation(p.spec);
@@ -175,13 +177,12 @@ export class PlayerCrew {
     }
     if (aimer.id !== this.d.core.playerStation) {
       this.d.message(`Your ${aimer.label.toLowerCase()} aims the bombs: ${this.key('viewBombsight')} takes his seat at the bombsight.`);
-      return;
     }
-    this.releasePending = true;
   }
 
-  /** Per rendered frame: swing the gun, read fire and clear-jam, and keep the view on the seat. */
+  /** Per rendered frame: the release key, and at a gun: swing it, read fire and clear-jam, keep the view on the seat. */
   applyInput(inp: InputFrame): void {
+    this.releaseHeld = !!inp.controls.releaseBomb;
     if (!this.aim || !this.atGun) return;
     if (inp.stationAim) this.aim.move(MathUtils.radToDeg(inp.stationAim.azimuth), MathUtils.radToDeg(inp.stationAim.elevation));
     this.fire = inp.controls.fireGuns;
@@ -199,24 +200,21 @@ export class PlayerCrew {
 
   /**
    * Before each sim step (`first` for the frame's first): the station inputs from the aim,
-   * with jam clearing and bomb release as one-step edges; or, for a pilot who aims his own
-   * bombs, `controls.releaseBomb`.
+   * with jam clearing a one-step edge and the bomb release held while its key is down; in
+   * the pilot's seat, `controls.releaseBomb` held for a pilot who aims his own bombs and
+   * false for any other (the session copies the key into the controls).
    */
   beforeStep(first: boolean): void {
     const p = this.player;
     if (!p || p.outcome !== null) return;
-    const release = first && this.releasePending;
     if (this.atGun) {
       const st = this.station;
       if (!st || !this.aim) return;
-      p.stationInputs = stationInputsFor(st, this.aim.body(this.aimTmp), p.state.orientation, { fire: this.fire, releaseBomb: release, clearJam: first && this.jamPending }, p.stationInputs);
-    } else if (bombAimerStation(p.spec)?.id === 'pilot') {
-      p.controls.releaseBomb = release;
+      p.stationInputs = stationInputsFor(st, this.aim.body(this.aimTmp), p.state.orientation, { fire: this.fire, releaseBomb: this.releaseHeld, clearJam: first && this.jamPending }, p.stationInputs);
+    } else {
+      p.controls.releaseBomb = this.releaseHeld && bombAimerStation(p.spec)?.id === 'pilot';
     }
-    if (first) {
-      this.releasePending = false;
-      this.jamPending = false;
-    }
+    if (first) this.jamPending = false;
   }
 
   /** Body-frame eye of the player's seat (for the camera rig's `eye`). */

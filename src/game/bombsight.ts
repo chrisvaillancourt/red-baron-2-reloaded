@@ -74,7 +74,10 @@ export function predictBombImpact(pos: Vector3, vel: Vector3, env: BombEnv, mass
   return null;
 }
 
-/** The store released next: the heaviest with bombs left, ties to the lower index (track A's order). */
+/**
+ * The store released next: the heaviest with bombs left, ties to the lower index (track A's
+ * order). TODO(bombers merge): src/sim `nextBombStore(ac)`.
+ */
 export function nextStoreIndex(spec: AircraftSpec, bombs: readonly number[] | undefined): number | null {
   if (!spec.bombs || !bombs) return null;
   let best: number | null = null;
