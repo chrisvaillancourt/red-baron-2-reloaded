@@ -843,11 +843,14 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       let bestPri = 99;
       const hitZones: DamageZone[] = [];
       const hitIndex: (number | undefined)[] = [];
+      const hitT: number[] = [];
       for (const zb of hm.zones) {
         if (zb.station && !atStation(ac, zb)) continue;
-        if (segmentBox(tmpA.x, tmpA.y, tmpA.z, tmpB.x, tmpB.y, tmpB.z, zb) < 0) continue;
+        const tz = segmentBox(tmpA.x, tmpA.y, tmpA.z, tmpB.x, tmpB.y, tmpB.z, zb);
+        if (tz < 0) continue;
         hitZones.push(zb.zone);
         hitIndex.push(zb.crewIndex ?? zb.engineIndex);
+        hitT.push(tz);
         const pri = HIT_PRIORITY.indexOf(zb.zone);
         if (pri < bestPri) {
           bestPri = pri;
@@ -859,8 +862,22 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       const shooter = b.shooterId;
       bus.emit({ type: 'bullet-hit', targetId: ac.id, shooterId: shooter, position: hitPos, zone: best });
       // The engine block stops a round; anything behind it along the path is spared.
-      const engineIdx = hitZones.indexOf('engine');
-      if (engineIdx >= 0) hitZones.length = engineIdx + 1;
+      if (hm.multiEngine) {
+        // Nacelles: the first engine along the path stops it (a beam shot spares the far one).
+        let stop = Infinity;
+        for (let k = 0; k < hitZones.length; k++) if (hitZones[k] === 'engine') stop = Math.min(stop, hitT[k]);
+        let n = 0;
+        for (let k = 0; k < hitZones.length; k++) {
+          if (hitT[k] > stop) continue;
+          hitZones[n] = hitZones[k];
+          hitIndex[n++] = hitIndex[k];
+        }
+        hitZones.length = n;
+      } else {
+        // Single-engined types keep the zone-list cut (docs/sim.md "Hit boxes").
+        const engineIdx = hitZones.indexOf('engine');
+        if (engineIdx >= 0) hitZones.length = engineIdx + 1;
+      }
       for (let k = 0; k < hitZones.length; k++) damageAircraft(ac, hitZones[k], ZONE_DAMAGE[hitZones[k]], shooter, now, hitIndex[k]);
       return true;
     }

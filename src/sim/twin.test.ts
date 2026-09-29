@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { AircraftEntity, AircraftSpec } from '../core/types';
 import { Autopilot } from './autopilot';
 import { createAircraftEntity } from './entity';
-import { SIM_DT, headingOf, stepFlight } from './flightModel';
+import { SIM_DT, headingOf, orientationFrom, stepFlight } from './flightModel';
+import { getHitModel } from './hitboxes';
 import { TEST_TWIN } from './testing/fixtures';
 import { count, scenario } from './testing/scenario';
 import { flatEnv, realism } from './testUtil';
@@ -102,5 +103,26 @@ describe('twin engine damage', () => {
     s.step(1.5, undefined, 'kinematic');
     expect(t.damage.engines![1]).toBeGreaterThan(0);
     expect(t.damage.engines![0]).toBe(0);
+  });
+
+  it('a beam shot is stopped by the near engine: the far engine and the fuselage behind it are spared', () => {
+    const s = scenario({ realism: { gunJams: false } });
+    const t = s.add(1, TEST_TWIN, 0, 0, 1000);
+    t.state.orientation.set(0, 0, 0, 1);
+    t.state.velocity.set(0, 0, 0);
+    // A Camel 80 m off the right beam, level with the nacelles, aiming across them.
+    const zEngine = getHitModel(TEST_TWIN).zones.find((z) => z.engineIndex === 1)!;
+    const zc = (zEngine.min[2] + zEngine.max[2]) / 2;
+    const camel = s.add(2, 'sopwith_camel', 80, zc, 1000 - 0.1 - 0.8);
+    camel.controller = 'none';
+    orientationFrom((3 * Math.PI) / 2, 0, 0, camel.state.orientation);
+    camel.state.velocity.set(0, 0, 0);
+    s.step(SIM_DT, undefined, false);
+    t.damage.crewWounds = [0, 1, 1];
+    camel.controls.fireGuns = true;
+    s.step(1.5, undefined, false);
+    expect(t.damage.engines![1]).toBeGreaterThan(0);
+    expect(t.damage.engines![0]).toBe(0);
+    expect(t.damage.zones.leftWing).toBe(0);
   });
 });

@@ -28,6 +28,8 @@ export interface AircraftHitModel {
   radius: number;
   /** Collision radius for mid-air collisions. */
   collisionRadius: number;
+  /** An engine box per nacelle (`engineIndex` set): a round stops at the first engine along its path. */
+  multiEngine?: boolean;
 }
 
 const cache = new Map<string, AircraftHitModel>();
@@ -121,10 +123,11 @@ function deriveHitModel(spec: AircraftSpec): AircraftHitModel {
 
   if (spec.crewStations) stationBoxes(spec, zones);
   const engines = spec.performance.engineCount ?? 1;
-  if (engines > 1 && (g.nacelleOffsetX ?? 0) > 0) nacelleBoxes(spec, zones, zFront, zBack);
+  const multiEngine = engines > 1 && (g.nacelleOffsetX ?? 0) > 0;
+  if (multiEngine) nacelleBoxes(spec, zones, zFront, zBack);
 
   const radius = Math.hypot(semi, Math.max(L * 0.62, 1), 2) + 0.5;
-  return { zones, radius, collisionRadius: Math.max(2.2, 0.38 * g.span) };
+  return { zones, radius, collisionRadius: Math.max(2.2, 0.38 * g.span), ...(multiEngine ? { multiEngine } : {}) };
 }
 
 /**
