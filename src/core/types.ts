@@ -696,29 +696,30 @@ export interface FlightTelemetry {
 
 /**
  * The player's gunnery, for fitting the autoplayer's human-like pilot (src/ai/humanAim.ts)
- * to real flights. Rounds and hits split by mount, so a two-seater's rear gun (AI-aimed)
- * doesn't count toward the pilot's accuracy.
+ * to real flights. Rounds and hits split by who worked the gun: the station the player is
+ * at (`stationInputs.station`, the pilot's by default) apart from the AI crew, so a
+ * two-seater's AI-aimed rear gun doesn't count toward the player's accuracy.
  */
 export interface AimTelemetry {
-  fixedRoundsFired: number;
-  fixedHits: number;
-  flexibleRoundsFired: number;
-  flexibleHits: number;
+  playerRoundsFired: number;
+  playerHits: number;
+  crewRoundsFired: number;
+  crewHits: number;
   /**
-   * Seconds with the trigger held and an enemy aircraft inside 400 m, by the angle from the
-   * gun line to that enemy's true lead (the enemy nearest the gun line): one bucket per
-   * degree, [0,1) ... [19,20), then 20 and over.
+   * Seconds with the player's fixed guns firing and an enemy aircraft inside 400 m and 30
+   * degrees of the gun line, by the angle from the gun line to that enemy's true lead (the
+   * enemy nearest the gun line): one bucket per degree, [0,1) ... [19,20), then 20 and over.
    */
   triggerErrorDeg: number[];
   /**
-   * Seconds with the trigger held, by range to the target nearest the gun line (an enemy
+   * Seconds with the player's guns firing, by range to the target nearest the gun line (an enemy
    * aircraft, balloon or ground target within 30 degrees): 50 m buckets, [0,50) ...
    * [950,1000), then 1,000 m and over, then no target.
    */
   triggerRangeM: number[];
   /**
    * Seconds from an enemy (inside 400 m) coming within 10 degrees of the gun line's true
-   * lead to the first fixed-gun shot, once per such entry (first 200).
+   * lead to the player's first fixed-gun shot, once per such entry (first 200).
    */
   coneToShotS: number[];
   /** Entries into that cone that ended without a shot. */

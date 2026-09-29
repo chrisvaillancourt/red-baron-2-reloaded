@@ -297,13 +297,16 @@ can wrap any `SimCore` (`src/game/testing/recordedFlight.ts`).
 - **Frame rate:** a 0.5 ms histogram of unclamped frame times. `p50` is the
   median, and `p95` is the rate at the 95th-percentile frame time (the slow end).
 - **Gunnery** (`aim`, `aimStats.ts`; the autoplayer records the same): rounds and
-  hits by mount, since `outcome.hits` also counts a two-seater's AI-aimed rear gun
-  (`bullet-hit` carries `mountIndex`). With the trigger held, seconds by angle from
-  the gun line to the true lead of the enemy nearest it inside 400 m (1° buckets to
-  20°), and by range to the target nearest the gun line (50 m buckets to 1 km). Each
-  time an enemy inside 400 m comes within 10° of the gun line's lead, the seconds to
-  the first fixed-gun shot. This is what the autoplayer's human-like pilot is fitted
-  to (docs/ai.md "Human-like pursuer").
+  hits split into the player's and the AI crew's, since `outcome.hits` also counts a
+  two-seater's AI-aimed rear gun. A gun is the player's when it belongs to the
+  station he is at (`stationInputs.station`, the pilot's by default; `bullet-hit`
+  carries `mountIndex`, and `stationForGun` in `src/data/crew.ts` maps it). While
+  his fixed guns fire, seconds by angle from the gun line to the true lead of the
+  enemy nearest it inside 400 m and 30° (1° buckets to 20°); while any of his guns
+  fire, seconds by range to the target nearest the gun line (50 m buckets to 1 km).
+  Each time an enemy inside 400 m comes within 10° of the gun line's lead, the
+  seconds to his first fixed-gun shot. This is what the autoplayer's human-like
+  pilot is fitted to (docs/ai.md "Human-like pursuer").
 
 A recorder failure is logged and the debrief goes on without telemetry.
 

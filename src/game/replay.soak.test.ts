@@ -64,20 +64,20 @@ describe.skipIf(!FILE)('flight report replay', () => {
       const a = rep.aim;
       out.push(
         `  run ${r}: ${rep.result.playerFate} (${rep.result.playerOutcome}${rep.playerLossCause ? `, ${rep.playerLossCause}` : ''}), success ${rep.result.missionSuccess}, kills ${rep.playerKills}, enemy lost ${rep.enemyLosses}, ${rep.time.toFixed(0)} s${rep.timedOut ? ' TIMEOUT' : ''}` +
-          ` | fixed ${a.fixedHits}/${a.fixedRoundsFired} flex ${a.flexibleHits}/${a.flexibleRoundsFired} all ${rep.result.hits}/${rep.result.roundsFired} | trigger err p50 ${histQuantile(a.triggerErrorDeg, 0.5)} deg | cone->shot p50 ${median(a.coneToShotS)} s (${a.coneToShotS.length}, no shot ${a.coneNoShot})`,
+          ` | player ${a.playerHits}/${a.playerRoundsFired} crew ${a.crewHits}/${a.crewRoundsFired} all ${rep.result.hits}/${rep.result.roundsFired} | trigger err p50 ${histQuantile(a.triggerErrorDeg, 0.5)} deg | cone->shot p50 ${median(a.coneToShotS)} s (${a.coneToShotS.length}, no shot ${a.coneNoShot})`,
       );
     }
     const sum = (f: (x: AutoplayReport) => number) => runs.reduce((s, x) => s + f(x), 0);
     const hist = runs.reduce((h, x) => h.map((v, i) => v + x.aim.triggerErrorDeg[i]), new Array<number>(21).fill(0));
     const rangeHist = runs.reduce((h, x) => h.map((v, i) => v + x.aim.triggerRangeM[i]), new Array<number>(22).fill(0)).slice(0, 21);
     const rangeP50 = histQuantile(rangeHist, 0.5);
-    const fr = sum((x) => x.aim.fixedRoundsFired);
-    const fh = sum((x) => x.aim.fixedHits);
-    const xr = sum((x) => x.aim.flexibleRoundsFired);
-    const xh = sum((x) => x.aim.flexibleHits);
+    const fr = sum((x) => x.aim.playerRoundsFired);
+    const fh = sum((x) => x.aim.playerHits);
+    const xr = sum((x) => x.aim.crewRoundsFired);
+    const xh = sum((x) => x.aim.crewHits);
     out.push(
-      `CALIB pilot=${runs[0]?.humanPilot ? 'human' : 'ai'} runs=${runs.length} fixed ${fh}/${fr} (${pct(fh, fr)}) flex ${xh}/${xr} (${pct(xh, xr)}) all ${sum((x) => x.result.hits)}/${sum((x) => x.result.roundsFired)} (${pct(sum((x) => x.result.hits), sum((x) => x.result.roundsFired))}) ` +
-        `| per run: fixed rounds ${(fr / runs.length).toFixed(0)}, flex rounds ${(xr / runs.length).toFixed(0)} | trigger err p50 ${histQuantile(hist, 0.5)} p90 ${histQuantile(hist, 0.9)} deg | cone->shot p50 ${median(runs.flatMap((x) => x.aim.coneToShotS))} s | firing range p50 ${rangeP50 === '-' ? '-' : `${(parseFloat(rangeP50) * 50).toFixed(0)}${rangeP50.endsWith('+') ? '+' : ''}`} m`,
+      `CALIB pilot=${runs[0]?.humanPilot ? 'human' : 'ai'} runs=${runs.length} player ${fh}/${fr} (${pct(fh, fr)}) crew ${xh}/${xr} (${pct(xh, xr)}) all ${sum((x) => x.result.hits)}/${sum((x) => x.result.roundsFired)} (${pct(sum((x) => x.result.hits), sum((x) => x.result.roundsFired))}) ` +
+        `| per run: player rounds ${(fr / runs.length).toFixed(0)}, crew rounds ${(xr / runs.length).toFixed(0)} | trigger err p50 ${histQuantile(hist, 0.5)} p90 ${histQuantile(hist, 0.9)} deg | cone->shot p50 ${median(runs.flatMap((x) => x.aim.coneToShotS))} s | firing range p50 ${rangeP50 === '-' ? '-' : `${(parseFloat(rangeP50) * 50).toFixed(0)}${rangeP50.endsWith('+') ? '+' : ''}`} m`,
     );
     out.push(FAIRNESS_HEADER, fairnessLine(`replay ${report.mission.id}`.slice(0, 30), runs));
     process.stdout.write(out.join('\n') + '\n');

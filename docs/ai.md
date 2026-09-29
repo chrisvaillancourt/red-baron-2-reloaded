@@ -736,8 +736,8 @@ fires like a mouse-aim player. The parameters are `HUMAN_PILOT`:
   human-like pilot 49-56% on the autoplayer's steady diving runs, the veteran 69-75%. Aim
   error can't explain that; the human's approach and firing range probably can, and the new
   telemetry records the range.
-- **Future refits:** reports now carry `aim` (docs/game.md "Flight report"): fixed and
-  flexible rounds and hits, the aim error with the trigger held, the firing range, and the
+- **Future refits:** reports now carry `aim` (docs/game.md "Flight report"): the player's
+  and the AI crew's rounds and hits, the aim error while his fixed guns fire, the firing range, and the
   time from a target entering the 10° cone to the first shot. Replaying a report prints the
   same figures for the autoplayer (`CALIB` line), so the next human flights can be compared
   directly.

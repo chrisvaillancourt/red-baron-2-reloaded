@@ -3,14 +3,16 @@
  * autoplayer, so the autoplayer's human-like pilot (src/ai/humanAim.ts) can be fitted to real
  * flights (docs/ai.md "Human-like pursuer"):
  *
- * - rounds and hits by mount: fixed guns (the pilot's) apart from a flexible rear gun (the
- *   AI observer's);
- * - with the trigger held and an enemy inside 400 m, a histogram of the angle from the gun
- *   line to that enemy's true lead (drag-corrected lead on its velocity and turn);
+ * - rounds and hits by who worked the gun: the player's station (`stationInputs.station`,
+ *   the pilot's by default) apart from the AI crew's (a two-seater's observer while the
+ *   player flies, the pilot's fixed guns while the player works the rear gun);
+ * - while the player's fixed guns are firing, with an enemy inside 400 m and 30 degrees of the
+ *   gun line, a histogram of the angle from the gun line to that enemy's true lead
+ *   (drag-corrected lead on its velocity and turn);
  * - each time an enemy inside 400 m comes within 10 degrees of the gun line's lead, the
- *   time to the first fixed-gun shot;
- * - with the trigger held, a histogram of range to the target nearest the gun line (aircraft,
- *   balloon or ground target), for how far out he opens fire.
+ *   time to the player's first fixed-gun shot;
+ * - with the player's guns firing, a histogram of range to the target nearest the gun line
+ *   (aircraft, balloon or ground target), for how far out he opens fire.
  *
  * Headless: feed it the bus events (`onEvent`) and call `afterStep()` after every sim step.
  */
@@ -19,6 +21,7 @@ import { leadSolution, type LeadSolution } from '../ai/gunnery';
 import { traitsFor } from '../ai/traits';
 import type { AimTelemetry, AircraftEntity, GameEvent } from '../core/types';
 import type { WorldQuery } from '../core/interfaces';
+import { stationForGun } from '../data/crew';
 
 /** Sample every this many mission seconds. */
 const SAMPLE_S = 1 / 30;
@@ -32,6 +35,8 @@ const RANGE_BUCKET_M = 50;
 const RANGE_BUCKETS = 22;
 const RANGE_CONE_RAD = (30 * Math.PI) / 180;
 const MAX_ENTRIES = 200;
+/** A gun counts as firing for this long after its last round, s (longer than its round interval). */
+const FIRING_S = 0.2;
 
 const _f = new Vector3();
 const _acc = new Vector3();
@@ -39,16 +44,15 @@ const _rel = new Vector3();
 
 export class AimTracker {
   private readonly t: AimTelemetry = {
-    fixedRoundsFired: 0,
-    fixedHits: 0,
-    flexibleRoundsFired: 0,
-    flexibleHits: 0,
+    playerRoundsFired: 0,
+    playerHits: 0,
+    crewRoundsFired: 0,
+    crewHits: 0,
     triggerErrorDeg: new Array<number>(BUCKETS).fill(0),
     triggerRangeM: new Array<number>(RANGE_BUCKETS).fill(0),
     coneToShotS: [],
     coneNoShot: 0,
   };
-  private readonly flexible: boolean[];
   private readonly mv: number;
   private nextSample = 0;
   private lastSample = -1;
@@ -56,13 +60,16 @@ export class AimTracker {
   private readonly lead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
   /** Current cone entry: when it began, when the lead was last inside, and whether a shot came. */
   private cone: { since: number; lastIn: number; shot: boolean } | null = null;
+  /** A fixed gun the player works fired since the last sample. */
   private firedFixed = false;
+  /** When a gun the player works, and a fixed one, last fired. */
+  private lastShot = -Infinity;
+  private lastFixedShot = -Infinity;
 
   constructor(
     private readonly world: WorldQuery,
     private readonly player: AircraftEntity | null,
   ) {
-    this.flexible = player ? player.spec.guns.map((g) => g.mount === 'flexible') : [];
     this.mv = player ? traitsFor(player.spec).fixedMuzzleVelocity || 800 : 800;
   }
 
@@ -70,16 +77,26 @@ export class AimTracker {
     const p = this.player;
     if (!p) return;
     if (e.type === 'gun-fired' && e.shooterId === p.id) {
-      if (this.flexible[e.mountIndex ?? 0]) this.t.flexibleRoundsFired++;
+      const m = e.mountIndex ?? 0;
+      if (!this.playerWorks(p, m)) this.t.crewRoundsFired++;
       else {
-        this.t.fixedRoundsFired++;
-        this.firedFixed = true;
+        this.t.playerRoundsFired++;
+        this.lastShot = this.world.time;
+        if (p.spec.guns[m]?.mount !== 'flexible') {
+          this.firedFixed = true;
+          this.lastFixedShot = this.world.time;
+        }
       }
     }
     if (e.type === 'bullet-hit' && e.shooterId === p.id) {
-      if (this.flexible[e.mountIndex ?? 0]) this.t.flexibleHits++;
-      else this.t.fixedHits++;
+      if (this.playerWorks(p, e.mountIndex ?? 0)) this.t.playerHits++;
+      else this.t.crewHits++;
     }
+  }
+
+  /** Is gun `mountIndex` worked from the station the player is at (the pilot's by default)? */
+  private playerWorks(p: AircraftEntity, mountIndex: number): boolean {
+    return (stationForGun(p.spec, mountIndex)?.id ?? 'pilot') === (p.stationInputs?.station ?? 'pilot');
   }
 
   afterStep(): void {
@@ -91,7 +108,7 @@ export class AimTracker {
     this.lastSample = now;
     const s = p.state;
     const f = _f.set(0, 0, -1).applyQuaternion(s.orientation);
-    // The enemy whose true lead is nearest the gun line, inside 400 m.
+    // The enemy whose true lead is nearest the gun line, inside 400 m and 30 degrees of it.
     let best = Infinity;
     for (const e of this.world.aircraft) {
       if (e.side === p.side || e.outcome !== null) continue;
@@ -100,15 +117,16 @@ export class AimTracker {
       if (prev && dt > 0) _acc.copy(e.state.velocity).sub(prev).divideScalar(dt);
       if (prev) prev.copy(e.state.velocity);
       else this.prevVel.set(e.id, e.state.velocity.clone());
-      if (e.state.position.distanceTo(s.position) > RANGE_M) continue;
+      const rel = _rel.copy(e.state.position).sub(s.position);
+      if (rel.length() > RANGE_M || f.angleTo(rel) > RANGE_CONE_RAD) continue;
       leadSolution(s.position, s.velocity, e.state.position, e.state.velocity, _acc, this.mv, 1, this.lead);
       best = Math.min(best, f.angleTo(this.lead.dir));
     }
-    if (best < Infinity && p.controls.fireGuns) {
+    if (best < Infinity && now - this.lastFixedShot < FIRING_S) {
       const deg = (best * 180) / Math.PI;
       this.t.triggerErrorDeg[Math.min(BUCKETS - 1, Math.floor(deg))] += dt;
     }
-    if (p.controls.fireGuns) {
+    if (now - this.lastShot < FIRING_S) {
       const r = this.rangeInCone(p, f);
       this.t.triggerRangeM[r === null ? RANGE_BUCKETS - 1 : Math.min(RANGE_BUCKETS - 2, Math.floor(r / RANGE_BUCKET_M))] += dt;
     }
