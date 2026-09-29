@@ -1,0 +1,398 @@
+{
+  "kind": "rb2r-flight-report",
+  "schema": 1,
+  "createdAt": "2026-09-29T00:52:21.031Z",
+  "build": {
+    "sha": "d012871",
+    "builtAt": "2026-09-29T00:23:30.399Z",
+    "dev": true
+  },
+  "pilot": null,
+  "rating": "too-easy",
+  "note": "enemy pilots just fly in circles when you get into position behind then, there's no evasive maneuvers",
+  "settings": {
+    "realism": {
+      "flightModel": "standard",
+      "engineTorque": true,
+      "gunJams": true,
+      "limitedAmmo": true,
+      "limitedFuel": false,
+      "midairCollisions": true,
+      "invulnerable": false,
+      "autoRudder": true,
+      "gEffects": true,
+      "targetLabels": true,
+      "enemySkillBias": 0
+    },
+    "mouseMode": "mouse-aim",
+    "graphics": "high",
+    "careerDifficulty": null
+  },
+  "mission": {
+    "id": "q-6xelyf",
+    "type": "dogfight",
+    "title": "Dogfight: Brisfit vs 5 D.VII",
+    "briefing": "The enemy is closing head-on.\n\nYou fly the Bristol F.2b Fighter with 3 wingmen against 5 Fokker D.VIIs.\n\nWeather: Cloud 2/10 at 5,800 feet; wind from the west, 9 mph. Visibility 19 miles.",
+    "date": "1918-08-06",
+    "timeOfDay": "dusk",
+    "weather": {
+      "cloudCover": 0.2,
+      "cloudBaseM": 1772,
+      "cloudTopM": 2874,
+      "wind": [
+        4,
+        0,
+        -1
+      ],
+      "visibilityM": 30000,
+      "turbulence": 0.15
+    },
+    "flights": [
+      {
+        "id": "player-1",
+        "role": "player-flight",
+        "side": "allied",
+        "nation": "britain",
+        "aircraftId": "bristol_f2b",
+        "members": [
+          {
+            "isPlayer": true,
+            "pilotName": "You",
+            "skill": "veteran",
+            "livery": {
+              "fuselage": "#5a5436",
+              "wingTop": "#5a5436",
+              "wingBottom": "#d8cdae",
+              "tail": "#5a5436",
+              "cowling": "#a9aba9",
+              "accent": "#a9aba9",
+              "pattern": "pc10",
+              "insignia": "roundel-rfc",
+              "marking": "1"
+            }
+          },
+          {
+            "skill": "novice",
+            "livery": {
+              "fuselage": "#5a5436",
+              "wingTop": "#5a5436",
+              "wingBottom": "#d8cdae",
+              "tail": "#5a5436",
+              "cowling": "#a9aba9",
+              "accent": "#a9aba9",
+              "pattern": "pc10",
+              "insignia": "roundel-rfc",
+              "marking": "2"
+            }
+          },
+          {
+            "skill": "novice",
+            "livery": {
+              "fuselage": "#5a5436",
+              "wingTop": "#5a5436",
+              "wingBottom": "#d8cdae",
+              "tail": "#5a5436",
+              "cowling": "#a9aba9",
+              "accent": "#a9aba9",
+              "pattern": "pc10",
+              "insignia": "roundel-rfc",
+              "marking": "3"
+            }
+          },
+          {
+            "skill": "novice",
+            "livery": {
+              "fuselage": "#5a5436",
+              "wingTop": "#5a5436",
+              "wingBottom": "#d8cdae",
+              "tail": "#5a5436",
+              "cowling": "#a9aba9",
+              "accent": "#a9aba9",
+              "pattern": "pc10",
+              "insignia": "roundel-rfc",
+              "marking": "4"
+            }
+          }
+        ],
+        "start": {
+          "x": -1237,
+          "z": -14182,
+          "altitude": 300,
+          "heading": 1.285357615233012,
+          "airspeed": 44
+        },
+        "waypoints": [
+          {
+            "x": 1257,
+            "z": -14914,
+            "altitude": 300,
+            "action": "patrol",
+            "duration": 900,
+            "label": "Engagement"
+          },
+          {
+            "x": -18132,
+            "z": -1112,
+            "altitude": 423,
+            "action": "land",
+            "label": "Filescamp Farm (Izel-lès-Hameau)"
+          }
+        ],
+        "task": "fighter-sweep"
+      },
+      {
+        "id": "enemy-1",
+        "role": "enemy",
+        "side": "central",
+        "nation": "germany",
+        "aircraftId": "fokker_dvii",
+        "members": [
+          {
+            "skill": "ace",
+            "livery": {
+              "fuselage": "#55643a",
+              "wingTop": "#6a5a7a",
+              "wingBottom": "#9aa0b8",
+              "tail": "#e8e4d8",
+              "cowling": "#55643a",
+              "accent": "#55643a",
+              "pattern": "lozenge",
+              "insignia": "balkenkreuz",
+              "marking": "1"
+            }
+          },
+          {
+            "skill": "ace",
+            "livery": {
+              "fuselage": "#55643a",
+              "wingTop": "#6a5a7a",
+              "wingBottom": "#9aa0b8",
+              "tail": "#e8e4d8",
+              "cowling": "#55643a",
+              "accent": "#55643a",
+              "pattern": "lozenge",
+              "insignia": "balkenkreuz",
+              "marking": "2"
+            }
+          },
+          {
+            "skill": "ace",
+            "livery": {
+              "fuselage": "#55643a",
+              "wingTop": "#6a5a7a",
+              "wingBottom": "#9aa0b8",
+              "tail": "#e8e4d8",
+              "cowling": "#55643a",
+              "accent": "#55643a",
+              "pattern": "lozenge",
+              "insignia": "balkenkreuz",
+              "marking": "3"
+            }
+          },
+          {
+            "skill": "ace",
+            "livery": {
+              "fuselage": "#55643a",
+              "wingTop": "#6a5a7a",
+              "wingBottom": "#9aa0b8",
+              "tail": "#e8e4d8",
+              "cowling": "#55643a",
+              "accent": "#55643a",
+              "pattern": "lozenge",
+              "insignia": "balkenkreuz",
+              "marking": "4"
+            }
+          },
+          {
+            "skill": "ace",
+            "livery": {
+              "fuselage": "#55643a",
+              "wingTop": "#6a5a7a",
+              "wingBottom": "#9aa0b8",
+              "tail": "#e8e4d8",
+              "cowling": "#55643a",
+              "accent": "#55643a",
+              "pattern": "lozenge",
+              "insignia": "balkenkreuz",
+              "marking": "5"
+            }
+          }
+        ],
+        "start": {
+          "x": 1257,
+          "z": -14914,
+          "altitude": 300,
+          "heading": 4.4269502688228055,
+          "airspeed": 44
+        },
+        "waypoints": [
+          {
+            "x": -1237,
+            "z": -14182,
+            "altitude": 300,
+            "action": "patrol",
+            "duration": 900
+          }
+        ],
+        "task": "fighter-sweep"
+      }
+    ],
+    "balloons": [],
+    "groundTargets": [],
+    "objectives": [
+      {
+        "id": "obj-1",
+        "kind": "destroy-aircraft",
+        "description": "Destroy all 5 enemy aircraft.",
+        "targetIds": [
+          "enemy-1"
+        ],
+        "count": 5,
+        "primary": true
+      }
+    ],
+    "homeAerodromeId": "filescamp",
+    "isCareer": false
+  },
+  "quickOptions": {
+    "playerAircraft": "bristol_f2b",
+    "enemyAircraft": "fokker_dvii",
+    "enemyCount": 5,
+    "wingmen": 3,
+    "enemySkill": "ace",
+    "wingmanSkill": "novice",
+    "altitudeM": 300,
+    "startPosition": "head-on",
+    "timeOfDay": "dusk",
+    "cloudCover": 0.2,
+    "type": "dogfight"
+  },
+  "outcome": {
+    "fate": "killed",
+    "playerOutcome": "crashed",
+    "missionSuccess": false,
+    "aborted": false,
+    "endedByPlayer": false,
+    "lossCause": "flak/ground(crashed)",
+    "objectives": [
+      {
+        "id": "obj-1",
+        "description": "Destroy all 5 enemy aircraft.",
+        "primary": true,
+        "completed": false
+      }
+    ],
+    "claims": [
+      {
+        "time": 272.09166666658354,
+        "victimAircraftId": "fokker_dvii",
+        "victimName": "Fokker D.VII",
+        "victimSide": "central",
+        "x": 120.07451970495225,
+        "z": -15091.596760978533,
+        "witnessed": true,
+        "shared": true
+      }
+    ],
+    "enemyLosses": 1,
+    "friendlyLosses": [
+      {
+        "name": "Brisfit #2",
+        "fate": "killed"
+      },
+      {
+        "name": "Brisfit #3",
+        "fate": "wounded"
+      },
+      {
+        "name": "Brisfit #4",
+        "fate": "killed"
+      }
+    ],
+    "roundsFired": 1035,
+    "hits": 104,
+    "hitsTaken": 3,
+    "flightTimeS": 392.2,
+    "combatTimeS": 374.7
+  },
+  "enemies": [
+    {
+      "aircraftId": "fokker_dvii",
+      "flightId": "enemy-1",
+      "callsign": "D.VII #1",
+      "skill": "ace",
+      "outcome": "in-flight",
+      "firstPass": {
+        "t": 36.7,
+        "atPlayer": false,
+        "heightAdvM": -139,
+        "above": false,
+        "upSun": false,
+        "seen": false
+      }
+    },
+    {
+      "aircraftId": "fokker_dvii",
+      "flightId": "enemy-1",
+      "callsign": "D.VII #2",
+      "skill": "ace",
+      "outcome": "in-flight",
+      "firstPass": null
+    },
+    {
+      "aircraftId": "fokker_dvii",
+      "flightId": "enemy-1",
+      "callsign": "D.VII #3",
+      "skill": "ace",
+      "outcome": "shot-down",
+      "firstPass": {
+        "t": 165.8,
+        "atPlayer": false,
+        "heightAdvM": 27,
+        "above": false,
+        "upSun": false,
+        "seen": true
+      }
+    },
+    {
+      "aircraftId": "fokker_dvii",
+      "flightId": "enemy-1",
+      "callsign": "D.VII #4",
+      "skill": "ace",
+      "outcome": "in-flight",
+      "firstPass": {
+        "t": 50.3,
+        "atPlayer": false,
+        "heightAdvM": 82,
+        "above": false,
+        "upSun": false,
+        "seen": true
+      }
+    },
+    {
+      "aircraftId": "fokker_dvii",
+      "flightId": "enemy-1",
+      "callsign": "D.VII #5",
+      "skill": "ace",
+      "outcome": "in-flight",
+      "firstPass": {
+        "t": 118.8,
+        "atPlayer": false,
+        "heightAdvM": -55,
+        "above": false,
+        "upSun": false,
+        "seen": true
+      }
+    }
+  ],
+  "timeCompression": {
+    "realS": 0,
+    "simS": 0,
+    "maxScale": 1
+  },
+  "performance": {
+    "p50": 121.2,
+    "p95": 108.1,
+    "frames": 45704
+  }
+}

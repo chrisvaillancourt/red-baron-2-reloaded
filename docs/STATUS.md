@@ -57,6 +57,17 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
    target, and a refuge that circles the core for 25–40 s. A wounded pilot takes 28 hits
    with refuge against 195 without (was 196 against 213; `cloudEscape.realsim.test.ts`).
    **Check** in the human playtest that a player who dives into cloud shakes a pursuer.
+3a. **From the first human playtest**
+   (`playtests/reports/2026-09-28-chris-brisfit-v-5-ace-dvii-low.json`: a Bristol and 3 novices
+   against 5 ace D.VIIs at 300 m, rated "too easy").
+   - **Doing (defence track): enemies only fly in circles with the player on their tail.**
+     Below `LOW_AGL` (350 m) `chooseDefensive` gives even an ace only flat breaks, and
+     repeated breaks at any height chain into one circle. The fix makes defence escalate by
+     airframe and skill.
+   - **Do next: mutual support.** No D.VII came to clear a mate's tail. The player took 3 hits
+     in 392 s against 5 aces, and every enemy pass went at a wingman. D-070 dropped
+     mutual-support targeting because it favoured the veteran autoplayer. This report is the
+     human evidence against that. Re-measure it after the defence track merges.
 4. **Housekeeping:**
    - **Decide: add a LICENSE.** The repo is public but has none, so no reuse is allowed.
      The original game's names and assets are a separate question.
