@@ -121,6 +121,8 @@ const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort compl
 const BREAK_LEAD_S = 1.8;
 /** Seconds of full-g break away from the merge before the extension. */
 const BREAK_S = 0.8;
+/** A new defensive manoeuvre within this many seconds of the last, against the same attacker, escalates. */
+const DEFENCE_STREAK_S = 8;
 /** Shortest stay inside a refuge cloud, s (plus up to 15 s). */
 const REFUGE_MIN_S = 25;
 /** Largest circle flown round a refuge cloud's core, m (an overcast deck has no edge). */
@@ -200,6 +202,8 @@ export class AIPilot implements AIController {
   /** A cloud to hide in on the way home (damaged, pursued), and until when to stay in it. */
   private refuge: { pos: Vector3; radius: number; until: number; turn: number } | null = null;
   private refugeCheck = 0;
+  /** Defensive manoeuvres flown in a row against one attacker (escalation). */
+  private readonly defenceStreak = { id: -1, n: 0, at: -100 };
   private loiter: Vector3 | null = null;
   private readonly steer: SteerCommand = { dir: new Vector3(0, 0, -1), speed: Infinity };
   private readonly lead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
@@ -473,7 +477,16 @@ export class AIPilot implements AIController {
             return;
           }
           const agl = self.state.heightAboveGround;
-          this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined, TACTICS_FLAGS.meetBounce);
+          // Count manoeuvres in a row against the same attacker: one that is still behind us
+          // after a break gets something else (TACTICS_FLAGS.escalateDefence).
+          const st = this.defenceStreak;
+          st.n = attacker && attacker.id === st.id && this.now - st.at < DEFENCE_STREAK_S ? st.n + 1 : 0;
+          st.id = attacker?.id ?? -1;
+          st.at = this.now;
+          // Not on the way home: a hurt pilot's job is to get there (or into cloud), and an
+          // escalated spiral would drop him out of the bottom of a refuge cloud.
+          const escalation = TACTICS_FLAGS.escalateDefence && this.phase !== 'rtb' ? { level: st.n, lastKind: this.maneuver?.kind } : undefined;
+          this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined, TACTICS_FLAGS.meetBounce, escalation);
           if (this.phase !== 'rtb') this.phase = 'defend';
           this.threatId = attacker?.id ?? null;
         }

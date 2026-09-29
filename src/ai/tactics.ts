@@ -37,6 +37,11 @@ export const TACTICS_FLAGS = {
   meetBounce: true,
   /** Pursuers fly to where they last saw a target they can no longer see. */
   memoryPursuit: true,
+  /**
+   * A pilot whose manoeuvre didn't shake an attacker escalates (maneuvers.ts): veterans and
+   * aces brake-turn to force an overshoot, others spiral; no jinks with a man close behind.
+   */
+  escalateDefence: true,
 };
 
 export function applyTacticsFlagsFromEnv(env: Record<string, string | undefined>): void {
