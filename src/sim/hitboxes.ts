@@ -34,7 +34,7 @@ const box = (zone: DamageZone, x0: number, x1: number, y0: number, y1: number, z
 /** The observer sits ahead of the pilot (B.E.2c front seat, F.E.2b/Farman nose). */
 export function observerForward(spec: AircraftSpec): boolean {
   const flex = spec.guns.find((m) => m.mount === 'flexible');
-  return spec.geometry.crew === 2 && !!flex && flex.position[2] < 0;
+  return spec.geometry.crew >= 2 && !!flex && flex.position[2] < 0;
 }
 
 /** The observer's gun commands the forward hemisphere (pusher nose gunner) rather than the rear. */
@@ -53,7 +53,7 @@ export function getHitModel(spec: AircraftSpec): AircraftHitModel {
   const semi = g.span / 2;
   const zones: ZoneBox[] = [];
 
-  if (g.pusher && g.crew === 2) {
+  if (g.pusher && g.crew >= 2) {
     // F.E.2b / Farman: observer in the nose, pilot behind him, engine at the back of the nacelle.
     const n = Math.max(nose, -3.0);
     zones.push(box('gunner', -0.35, 0.35, -0.2, 0.9, n, n + 0.9));
@@ -78,7 +78,7 @@ export function getHitModel(spec: AircraftSpec): AircraftHitModel {
     zones.push(box('guns', -0.3, 0.3, 0.35, 0.75, nose + 0.4, -0.3));
     zones.push(box('fuelTank', -w * 0.9, w * 0.9, -0.3, 0.4, nose + 0.8, nose + 1.3));
     zones.push(box('pilot', -0.32, 0.32, -0.25, 0.85, -0.3, 0.45));
-    if (g.crew === 2) {
+    if (g.crew >= 2) {
       // B.E.2c-style front observer sits under the upper wing, ahead of the pilot.
       if (observerForward(spec)) zones.push(box('gunner', -0.32, 0.32, -0.25, 0.9, -1.5, -0.6));
       else zones.push(box('gunner', -0.32, 0.32, -0.25, 0.9, 0.6, 1.4));

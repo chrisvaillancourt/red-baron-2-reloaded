@@ -312,7 +312,7 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
   const yawAuthority = 0.21 * weathercock * (0.8 + 0.3 * p.rollRate);
   const yawDamping = (2 * 0.45 * wnYaw) / (rhoRef * vRef);
   const dihedralEffect = (0.0012 + 0.0004 * g.dihedralDeg) * (g.layout === 'parasol' ? 1.4 : 1);
-  const sideForceCoef = 0.35 + (g.crew === 2 ? 0.1 : 0);
+  const sideForceCoef = 0.35 + (g.crew >= 2 ? 0.1 : 0);
   const adverseYaw = 0.12 * rollAuthority;
 
   const alphaCmdMin = -12 * DEG;
@@ -328,7 +328,7 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
   const mainY = g.layout === 'monoplane' ? -1.1 : g.layout === 'parasol' ? -1.0 : -1.2;
   const mainZ = -Math.max(0.25, 0.05 * g.length);
   const tailZ = 0.62 * g.length;
-  const groundPitch = (g.crew === 2 ? 9 : 11) * DEG;
+  const groundPitch = (g.crew >= 2 ? 9 : 11) * DEG;
   const tailY = mainY + Math.tan(groundPitch) * (tailZ - mainZ);
   const cgHeight = -mainY * Math.cos(groundPitch) + mainZ * Math.sin(groundPitch);
 

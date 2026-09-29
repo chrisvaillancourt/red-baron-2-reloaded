@@ -60,11 +60,11 @@ export function estimateMeta(g: AircraftGeometry): AircraftMeta {
     uv_bottom_wing_chord: mono ? g.chord : g.lowerChord || g.chord,
     uv_bottom_wing_span: mono ? g.span : g.lowerSpan || g.span,
     uv_tail_span: Math.max(2.2, Math.min(4.8, 0.32 * g.span)),
-    uv_tail_chord: g.crew === 2 ? 1.2 : 1.0,
-    uv_rudder_chord: g.crew === 2 ? 0.62 : 0.55,
+    uv_tail_chord: g.crew >= 2 ? 1.2 : 1.0,
+    uv_rudder_chord: g.crew >= 2 ? 0.62 : 0.55,
     uv_fin_chord: g.tailShape === 'comma' ? 0 : 0.6,
     uv_vtail_height: Math.max(0.75, Math.min(1.25, 0.1 * g.span)) * 1.1,
-    prop_radius: g.crew === 2 ? 1.45 : 1.3,
+    prop_radius: g.crew >= 2 ? 1.45 : 1.3,
   };
 }
 
