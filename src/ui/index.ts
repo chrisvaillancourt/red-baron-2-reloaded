@@ -280,6 +280,13 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     toast(connected ? `${name} connected — ready to fly.` : `${name} disconnected.`);
   });
   // Dev-only QA hook: lets Playwright scripts jump to screens with real data.
-  if (import.meta.env?.DEV) (window as unknown as { __rb2ui?: UiController }).__rb2ui = controller;
+  if (import.meta.env?.DEV) window.__rb2ui = controller;
   return controller;
+}
+
+declare global {
+  interface Window {
+    /** Dev-only UI router hook for Playwright scripts and e2e (set in dev builds only; FRICTION F-5). */
+    __rb2ui?: UiController;
+  }
 }
