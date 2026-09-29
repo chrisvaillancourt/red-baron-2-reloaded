@@ -64,7 +64,10 @@ export function createCampaignService(storage?: StorageLike): CampaignServiceExt
       }
       const now = new Date().toISOString();
       const rngSeed = seedFrom(firstName, lastName, nation, now, Math.random());
-      const chosen = squadrons.find((s) => s.id === opts.squadronId) ?? new Rng(rngSeed).pick(squadrons);
+      // Without a chosen squadron, the posting follows from who he is and when he starts, so a
+      // seeded career (the autoplay soak) repeats run to run (FRICTION F-33). The career's own
+      // seed stays unique.
+      const chosen = squadrons.find((s) => s.id === opts.squadronId) ?? new Rng(seedFrom(firstName, lastName, nation, date, 'posting')).pick(squadrons);
       const p: CareerPilot = {
         id: `p-${Date.now().toString(36)}-${hashString(`${rngSeed}`).toString(36)}`,
         firstName,
