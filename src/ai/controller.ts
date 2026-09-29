@@ -20,6 +20,8 @@ import type { AIController, WingmanCommand, WorldQuery } from '../core/interface
 import type {
   AircraftEntity,
   BalloonEntity,
+  CrewStation,
+  CrewStationId,
   FlightRole,
   GroundTargetEntity,
   MissionFlight,
@@ -53,7 +55,7 @@ import { getCoefficients } from '../sim/coefficients';
 import { getSimInternal } from '../sim/flightModel';
 import { gunnerFacesForward } from '../sim/hitboxes';
 import { getBombStats, predictBombImpact } from '../sim/bombs';
-import { bombsAboard, canBomb, chooseAimTarget, MAX_RUNS, RELEASE_CROSS_M, RUN_START_M, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
+import { bodyDirection, bombsAboard, canBomb, chooseAimTarget, crewAlive, gunnersOf, MAX_RUNS, RELEASE_CROSS_M, RUN_START_M, stationBearing, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
 
 export interface AIControllerOptions {
   role: FlightRole;
@@ -64,8 +66,11 @@ export interface AIControllerOptions {
   /** 1-based slot in the leader's vic (odd = right, even = left). */
   formationSlot?: number;
   realism: RealismSettings;
-  /** Hook into src/sim combat: point this aircraft's flexible gun(s) at a target. */
-  setGunnerTarget?: (ac: AircraftEntity, targetId: number | null) => void;
+  /**
+   * Hook into src/sim combat: point this aircraft's flexible gun(s) at a target (src/sim
+   * `setGunnerTarget`). With a station, only the man at that station (several gunners aboard).
+   */
+  setGunnerTarget?: (ac: AircraftEntity, targetId: number | null, station?: CrewStationId) => void;
   /** Where to land when the mission is done (defaults to nearest friendly field). */
   homeAerodromeId?: string;
   /** RNG seed (defaults to the entity id) for reproducible behaviour. */
@@ -249,6 +254,8 @@ export class AIPilot implements AIController {
   private leaderDrops: { id: number; dropped: number } | null = null;
   /** Released on the leader: where his first bomb will fall, his track, and until when to wait. */
   private onLeader: { x: number; z: number; dir: Vector3; until: number } | null = null;
+  /** Several gunners aboard: each man's target and the station it was set on. */
+  private readonly manTargets = new Map<number, { id: number; station: CrewStationId }>();
   private readonly steer: SteerCommand = { dir: new Vector3(0, 0, -1), speed: Infinity };
   private readonly lead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
   private readonly trueLead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
@@ -1903,6 +1910,11 @@ export class AIPilot implements AIController {
   private gunner(self: AircraftEntity, world: WorldQuery): void {
     const hook = this.opts.setGunnerTarget;
     if (!hook || !this.traits.hasFlexibleGun) return;
+    const gunners = gunnersOf(self);
+    if (gunners.size >= 2) {
+      this.stationGunners(self, world, gunners, hook);
+      return;
+    }
     let pick: number | null = null;
     if (self.damage.zones.gunner < 1) {
       // Rear gunners watch the tail; a pusher's nose gunner watches ahead.
@@ -1925,6 +1937,48 @@ export class AIPilot implements AIController {
     if (pick !== this.gunnerTarget) {
       this.gunnerTarget = pick;
       hook(self, pick);
+    }
+  }
+
+  /**
+   * Several gunners aboard (the Gotha, the O/400): each live man takes the enemy his own
+   * stations bear on, nearest first, one attacking us counting as half the range and one
+   * attacking a formation-mate within 400 m as 0.7 of it, and gets it through
+   * `setGunnerTarget(ac, id, station)` at the station that bears. With nothing in his arcs his
+   * override is cleared and the sim's own choice (the nearest enemy his arcs bear on) stands.
+   * A man killed (`crewWounds`) gets nothing.
+   */
+  private stationGunners(self: AircraftEntity, world: WorldQuery, gunners: Map<number, CrewStation[]>, hook: NonNullable<AIControllerOptions['setGunnerTarget']>): void {
+    const mates = world.aircraft.filter((a) => a !== self && a.side === self.side && isAlive(a) && a.state.position.distanceToSquared(self.state.position) < 400 * 400);
+    const d = new Vector3();
+    for (const [crew, stations] of gunners) {
+      let pick: number | null = null;
+      let at: CrewStationId | undefined;
+      if (crewAlive(self, crew)) {
+        let best = Infinity;
+        for (const e of world.aircraft) {
+          if (e.side === self.side || !isAlive(e)) continue;
+          const r = e.state.position.distanceTo(self.state.position);
+          if (r > 650) continue;
+          const st = stationBearing(stations, bodyDirection(self, e.state.position, d));
+          if (!st) continue;
+          let score = r;
+          if (isAttacking(e, self)) score *= 0.5;
+          else if (mates.some((m) => isAttacking(e, m))) score *= 0.7;
+          if (score < best) {
+            best = score;
+            pick = e.id;
+            at = st.id;
+          }
+        }
+      }
+      const prev = this.manTargets.get(crew);
+      if (prev && prev.id === pick && prev.station === at) continue;
+      if (prev) hook(self, null, prev.station);
+      if (pick !== null && at) {
+        hook(self, pick, at);
+        this.manTargets.set(crew, { id: pick, station: at });
+      } else this.manTargets.delete(crew);
     }
   }
 

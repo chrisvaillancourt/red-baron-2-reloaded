@@ -17,7 +17,7 @@ const ai = createAIController(ac, {
   formationSlot,                // 1-based vic slot; odd = right, even = left
   realism: settings.realism,    // enemySkillBias shifts enemy skill
   homeAerodromeId: mission.homeAerodromeId, // friendly flights; enemies fall back to nearest field
-  setGunnerTarget: combat.setGunnerTarget,  // src/sim rear-gun hook: (ac, targetId | null) => void
+  setGunnerTarget: combat.setGunnerTarget,  // src/sim gunner hook: (ac, targetId | null, station?) => void
   // controlLaw: 'sim' (default: inverts src/sim's stick laws) | 'generic' (model-agnostic PID)
 });
 // Create the controller after the entity (createAircraftEntity): an aircraft parked
@@ -174,6 +174,15 @@ false-to-true change; it sets the flag for one AI tick and clears it the next).
   without him): the `'bomb'` waypoint is flown over like a `'fly'` one.
 - **Home.** After the run the formation flies on over the target, to the next waypoint and
   home (the quick raid's rally point, then its aerodrome).
+- **Gunners, one per crew member.** On a type with one gunner (every two-seater, the D.H.4)
+  the AI keeps the old choice: the nearest enemy within 650 m in the 115° cone his gun
+  faces, one attacking us counting at half the range, set with `setGunnerTarget(ac, id)`.
+  On a type with several (explicit `crewStations`: the Gotha, the O/400) each live man
+  (`crewWounds`) takes the enemy his own stations bear on (`inFireArcs`), nearest first,
+  one attacking us at half the range and one attacking a formation-mate within 400 m at 0.7
+  of it. It is set with `setGunnerTarget(ac, id, station)` at the station that bears. With
+  nothing in his arcs, or dead, his override is cleared and the sim's own choice stands
+  (docs/sim.md "Gunners"). `stationGunners.test.ts` checks it on the sim's twin fixture.
 
 `bombers.realsim.test.ts` (CI, ~4 s): three D.H.4s bomb a depot of three dumps 45 m apart.
 All 12 bombs go, at least 7 burst within blast range (about 19 m from a dump's walls), the
