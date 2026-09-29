@@ -7,7 +7,8 @@
  *
  * AI_FAIR_SET: `default` (the Quick Mission screen's setup), `mirror` (same type and skill
  * both sides: checks the AI itself is even), `matrix` (common 1917-18 matchups), `survey`
- * (the autoplay survey's quick setups), `vet` (Camel against veteran D.Vs and Dr.Is), `dvii` / `dviiground` (the wave-9 default candidates). AI_FAIR_SKILL forces every pilot, player included,
+ * (the autoplay survey's quick setups), `vet` (Camel against veteran D.Vs and Dr.Is), `twoseat`
+ * (a Bristol F.2b against D.Vs, a D.VII against R.E.8s: rear gunners on both sides), `dvii` / `dviiground` (the wave-9 default candidates). AI_FAIR_SKILL forces every pilot, player included,
  * to one skill.
  */
 import { describe, it } from 'vitest';
@@ -74,6 +75,8 @@ const SETS: Record<string, Setup[]> = {
     { ...base('sopwith_camel', 'fokker_dvii', { type, enemySkill: 'veteran' }), label: `${type} vet d.vii` },
     { ...base('sopwith_camel', 'fokker_dvii', { type }), label: `${type} reg d.vii` },
   ]),
+  // Two-seaters, so an A/B of gunner or crew-station changes measures a rear gunner (FRICTION F-32).
+  twoseat: [base('bristol_f2b', 'albatros_dv'), base('fokker_dvii', 're8')],
   mirror: [base('sopwith_camel', 'sopwith_camel'), base('albatros_dv', 'albatros_dv'), base('fokker_dri', 'fokker_dri'), base('spad_xiii', 'spad_xiii'), base('fokker_dvii', 'fokker_dvii')],
   matrix: [
     base('sopwith_camel', 'albatros_dv'),
