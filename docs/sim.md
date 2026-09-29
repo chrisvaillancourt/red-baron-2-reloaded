@@ -185,7 +185,7 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
     and emits `bomb-released`.
   * **Ballistics:** gravity plus quadratic drag relative to the air, so the wind drifts it.
     k = ½ ρ C_d A / m with C_d 0.25 and a 0.2 m body for 50 kg (diameter ∝ mass^⅓), about
-    8·10⁻⁵ /m for a 50 kg bomb at sea level. The ground is `env.groundHeightAt`.
+    1·10⁻⁴ /m for a 50 kg bomb at sea level (terminal speed about 320 m/s). The ground is `env.groundHeightAt`.
     `predictBombImpact(ac, env, store?)` runs the same integrator and returns the burst
     point and fall time, within about a metre of the real fall. `combat.bombs`
     (`BombView[]`) lists the bombs in flight for the renderer.

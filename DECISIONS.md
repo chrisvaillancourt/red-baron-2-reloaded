@@ -826,3 +826,25 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **The D.H.4** carries four 112 lb bombs as the reference load (charge approximate; the data track calibrates it). It stays AI-only until the gunner seat and bomb release exist.
 - **Not in the contracts:** new key bindings (the game track adds `stationNext` C, `stationPrev` V, `stationPilot` F, `releaseBomb` R, `viewBombsight` F6 with the code that reads them, so Options never lists a key that does nothing), and new ground-target kinds (raids use hangars, dumps, trains and batteries in wave 1).
 **Consequences.** Nothing a player can reach changed: every aircraft fights as before, and no screen offers a bombing raid yet. Four tracks now build against these shapes (docs/bombers.md). Any contract they need beyond this goes in their final report, stays additive, and the lead reconciles at merge.
+
+## D-XXX — Sim on crew stations: gunner switching, twin thrust, bomb release and blast scaling (sim track, bombers wave 1)
+**Context.** D-086 fixed the shapes for crew stations, bombs and twins. The sim had one rear gunner with a hard-coded field of fire, one engine and no bombs. Today's two-seaters had to fight as before (docs/bombers.md, track A).
+**Decision.**
+- **Arcs.** A flexible gun's field of fire is its station's `FireArc` boxes (`inFireArcs`, body frame), tested on the drop-compensated aim. They replace `flexibleArc`. `aimFlexibleGun` keeps its signature.
+- **Gunners.** There is one AI gunner per crew member who isn't the pilot. A man with several stations fires from one at a time. He stays where he has the shot, else he moves to the station with the most guns that bears, and that takes 1 s with no fire. His hit box is only at the station he's working.
+  - With one gunner aboard (every current two-seater), targeting is unchanged: the assigned target or the nearest enemy, holding fire while it is out of arc.
+  - With several gunners, each prefers the nearest enemy his own stations bear on, and falls back to it when the aircraft-wide target is out of his arcs.
+  - `setGunnerTarget(ac, id)` assigns every gunner and clears station overrides. `setGunnerTarget(ac, id, station)` binds that station's man strictly.
+- **Wounds.** Explicit-station types track `crewWounds`: the old gunner rule per man (+0.34, killed at 1 or with 25% chance), with the `gunner` zone holding the worst. A wounded man keeps firing with more aim error (× 1 + wound); a killed one stops. Types without explicit stations keep the single `gunner` zone.
+- **The player at a gun.** His aim and trigger fire continuously, inside the arcs, with the gun's own dispersion and no aim error. His other stations are silent, and the rest of the crew stays AI.
+- **Twins.** The power split is exact: healthy, a twin flies as a single-engined aircraft of the same power, and one propeller per engine sizes the disc. Thrust and windmill drag act at each nacelle, which gives the yaw toward a dead engine. `engineDead` means every engine is dead.
+- **Bomb release.** One bomb per rising edge of either release input, never consumed, so a held key or an AI flag held for several steps releases one. The heaviest store goes first: the big bomb gets the first, best-aimed run, and the most weight comes off soonest. Bombs leave the CG with the aircraft's world velocity.
+- **Ballistics.** Quadratic drag relative to the air: C_d 0.25, and a 0.2 m body for 50 kg scaling with mass^⅓. `predictBombImpact` shares the integrator, so the bombsight and the fall agree.
+- **Blast scaling.** Hopkinson-Cranz: damage depends on Z = r / W^⅓, with r to the target's nearest face. A target is destroyed inside Z_kill, and damage falls as the square of the way out to Z_zero. Soft targets are 3.5 / 10, a trench MG 3 / 8, buildings and trains 2.5 / 7, and a battery 2 / 6. A 20 kg charge destroys a lorry within 9.5 m and a hangar within 7 m. This is plausible, not calibrated. Kill credit goes through the strafing path. A bomb hit (`getBombStats`) is a bomb that damaged an enemy target.
+- **Mass.** Bombs not aboard come off `massLoaded` in the flight model (translational mass and weight; inertias unchanged). An aircraft whose `bombs` is unset carries none, so the AI D.H.4 now flies 204 kg lighter than its loaded figure until the game layer loads it for a bomb sortie.
+**Consequences.**
+- Measured with `tools/dev/ab.mjs --base a3a830e` (career seeds 0/1000/2000; the tool's verdicts):
+  - After the gunner change: killed or captured 20.1% (15.7–25.4, n=259) against 19.8% (15.5–24.9, n=278), and collisions 3.1 against 5.4 per 100 missions. Both within noise.
+  - After all of it, the D.H.4's lighter weight included: 25.2% (20.0–31.3, n=222) against 26.0% (20.7–32.1, n=227), and collisions 3.6 against 5.7. Both within noise.
+  - Fairness (default, 48 reps): 25.0% both times, identical, since that set has no two-seaters.
+- Track B draws `combat.bombs` (`BombView`) and aims gun rings from `getStationAim`. Track C calls `loadBombs`, `predictBombImpact` and `getBombStats`. Track D sets targets per station.
