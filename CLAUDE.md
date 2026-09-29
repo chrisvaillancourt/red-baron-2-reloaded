@@ -52,7 +52,8 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   worktree (`cd … &&`, `$PWD`/`$VAR` in paths, multi-file heredoc pipelines). Use single commands
   with worktree-relative or absolute paths. Create files and append to docs with the
   Write/Edit tools, not heredocs, `cat >>` or `sed -i`. Use one plain command per Bash call.
-  Any `cd` is refused, including in a subshell `( … )`. To run something from another
+  Any `cd` is refused, including in a subshell `( … )`, and so are `for`/`while`/`until`
+  loops and `<(…)` process substitution. Write a small Node script to the scratchpad instead. To run something from another
   directory, set `cwd` in `spawnSync` from a script.
 - **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,
   perception) shifts them. Compare with an independent count, or assert a range, unless the
