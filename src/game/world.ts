@@ -91,6 +91,25 @@ export function createGunStates(ac: Pick<AircraftEntity, 'spec'>, realism: Reali
 }
 
 /**
+ * Does this flight carry its type's bomb load? Bomber sorties do: a flight tasked to bomb, or
+ * any flight of the player's side on a bombing raid. (Loaded bombs are part of
+ * `massLoaded`, so a bomb flight weighs what it did before bombs existed; D-086.)
+ */
+export function sortieCarriesBombs(mission: MissionDefinition, flight: MissionFlight): boolean {
+  if (flight.task === 'bomb') return true;
+  return mission.type === 'bombing' && flight.role === 'player-flight';
+}
+
+/**
+ * Fill `ac.bombs` with the spec's full load (absent spec.bombs: none).
+ * TODO(bombers merge): replace with track A's `loadBombs` from src/sim, which does the same.
+ */
+export function loadBombs(ac: AircraftEntity): number[] | undefined {
+  ac.bombs = ac.spec.bombs?.length ? ac.spec.bombs.map((b) => b.count) : undefined;
+  return ac.bombs;
+}
+
+/**
  * Formation slot offsets in the leader's frame (right, up, back), metres.
  * Slot 0 is the leader; then a loose vic/echelon as flown in 1917-18.
  */
@@ -171,6 +190,7 @@ export function buildWorld(opts: BuildWorldOptions): SessionWorld {
         outcome: null,
       };
       ac.guns = createGunStates(ac, realism);
+      if (sortieCarriesBombs(mission, flight)) loadBombs(ac);
       if (m.isPlayer) player = ac;
       members.push(ac);
       byId.set(id, ac);

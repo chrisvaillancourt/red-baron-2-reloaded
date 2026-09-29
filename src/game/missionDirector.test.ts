@@ -296,6 +296,36 @@ describe('MissionDirector', () => {
     expect(t.director.buildResult().objectives[0].completed).toBe(false);
   });
 
+  it('counts the player aircraft\'s bombs dropped and the hits on enemy targets only', () => {
+    const t = setup((m) => m.groundTargets.push({ id: 'own', type: 'truck', side: 'allied', x: -5000, z: 0, heading: 0 }));
+    const enemyTarget = t.world.missionIdToEntity.get('g1')!;
+    const ownTarget = t.world.missionIdToEntity.get('own')!;
+    const pos = new Vector3();
+    for (let i = 0; i < 3; i++) t.bus.emit({ type: 'bomb-released', aircraftId: t.player.id, storeIndex: 0, position: pos });
+    t.bus.emit({ type: 'bomb-released', aircraftId: t.wingman.id, storeIndex: 0, position: pos });
+    t.bus.emit({ type: 'bomb-exploded', shooterId: t.player.id, position: pos, explosiveKg: 20, damagedTargetIds: [enemyTarget, ownTarget] });
+    t.bus.emit({ type: 'bomb-exploded', shooterId: t.player.id, position: pos, explosiveKg: 20, damagedTargetIds: [ownTarget] });
+    t.bus.emit({ type: 'bomb-exploded', shooterId: t.player.id, position: pos, explosiveKg: 20, damagedTargetIds: [] });
+    t.bus.emit({ type: 'bomb-exploded', shooterId: t.wingman.id, position: pos, explosiveKg: 20, damagedTargetIds: [enemyTarget] });
+    const r = t.director.buildResult();
+    expect(r.bombsDropped).toBe(3);
+    expect(r.bombHits).toBe(1);
+  });
+
+  it('leaves the bomb counts out of a sortie without bombs', () => {
+    const r = setup().director.buildResult();
+    expect('bombsDropped' in r).toBe(false);
+    expect('bombHits' in r).toBe(false);
+  });
+
+  it('reports zero bombs dropped for a bomber that brought its load home', () => {
+    const t = setup();
+    t.player.bombs = [4];
+    const r = t.director.buildResult();
+    expect(r.bombsDropped).toBe(0);
+    expect(r.bombHits).toBe(0);
+  });
+
   it('calls out enemies by clock position', () => {
     const t = setup();
     t.enemies[0].state.position.copy(t.player.state.position).add(new Vector3(0, 600, -3000));
