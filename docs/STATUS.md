@@ -35,7 +35,7 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
   stalker ace 100% (all unseen). Unchanged from wave 8.
 - **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
 
-## Resume here (lead handoff, 2026-09-28, end of session 1 of wave 9)
+## Resume here (lead handoff, 2026-09-28, session 2 of wave 9)
 - **In flight: the defence agent.** Worktree `.claude/worktrees/agent-a62654b98429b6a5d`,
   branch `worktree-agent-a62654b98429b6a5d`, **not merged**. Its first pass (brake turn and
   counter-attack; the full escalation ladder measured worse against the veteran
@@ -55,10 +55,13 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
   figures" with `tools/dev/ab.mjs`. The default fight was 26% with the first defence pass,
   which isn't on main; main is ~30%.
 - **Then: mutual support** (3a below), on the same pursuers.
-- **Then: bombers and gunner seats.** The scope, the survey of today's code and the plan are
-  in `docs/bombers.md`. **Pause and check with the user before starting it** (their
-  standing instruction: save status and pause before any big feature). Its AI track waits
-  for the defence merge.
+- **In progress: bombers and gunner seats** (user said go, 2026-09-28). The lead's contracts
+  landed (D-086, `src/data/crew.ts`). Tracks A (sim), B (data, models and effects) and C (game
+  and UI) run in worktrees; track D (campaign and AI) starts once the defence track has
+  merged. The plan, the file each track owns, and the merge order are in `docs/bombers.md`
+  "Waves". **Lead at merge:** A before C (C's gunner seat needs A's `stationInputs`), then B;
+  run the fairness and career soaks against `main` for A (today's two-seaters must be within
+  noise); flip `flyable` for the bombers only after A, C and D have merged.
 - **Waiting on the user:** 3–5 flights at the default setup (a Camel against 2 veteran
   D.VIIs at 2,500 m) with ratings, and the LICENSE decision.
 

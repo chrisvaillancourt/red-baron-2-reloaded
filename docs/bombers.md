@@ -1,8 +1,7 @@
-# Bombers and gunner seats: plan (not started)
+# Bombers and gunner seats: plan (wave 1 in progress)
 
-This is the plan for the next big feature, agreed with the user on 2026-09-28. No code has been
-written yet. The lead writes the `src/core` contracts first, and parallel agents then build
-against them.
+This is the plan for the next big feature, agreed with the user on 2026-09-28. The lead's
+`src/core` contracts landed as D-086; parallel agents now build against them (see "Tracks").
 
 ## Scope (user decisions, 2026-09-28)
 - **New aircraft, all flyable:**
@@ -49,64 +48,75 @@ against them.
   chase, padlock, fly-by and target.
 - **Wingman order keys are 1–5,** so crew-station keys need other bindings.
 
-## Proposed contracts (additive; lead to finalise before the wave)
-- `AircraftPerformance.engineCount?: number` (default 1). The power is split across the
-  engines, so engines can be damaged one at a time, with asymmetric thrust.
-- `CrewStationId = 'pilot' | 'observer' | 'nose' | 'dorsal' | 'ventral' | 'rear'`.
-- `CrewStation`:
-  - `id`, `label` and `eye` (body frame)
-  - `guns: number[]` (indices into `spec.guns`)
-  - `arc?: { azimuthDeg: [from, to]; elevationDeg: [min, max] }` (0° = ahead, positive =
-    right, the range may wrap)
-  - `bombAimer?: boolean`
-- `AircraftSpec.crewStations?: CrewStation[]`, with a derivation helper for existing types:
-  the pilot, plus an observer when the aircraft has a flexible gun. `GunMount.station?`
-  names the station that works the gun.
-- `AircraftSpec.bombs?: { name, massKg, explosiveKg, count }[]`, the historical loads. The
-  entity gets `bombs?: { loadIndex, remaining }[]`.
-- `ControlInputs`:
-  - `releaseBomb?: boolean` (edge-triggered)
-  - `stations?: Partial<Record<CrewStationId, { aim: world direction; fire: boolean }>>`. A
-    station the player controls overrides the AI gunner.
-- `MissionType` and the quick types gain `'bombing'`. Ground targets gain depot, railhead
-  and hangar kinds.
-- `GameEvent` gains `bomb-released` and `bomb-exploded`.
-- `MissionResult` gains optional `bombsDropped` and `bombHits`.
-- The damage model gets one gunner zone per station.
-- New key actions: next or previous station, jump to the pilot, release bomb, and
-  bombsight view.
+## Contracts (landed, D-086)
+The shapes are in `src/core/types.ts` (search "Crew stations and bombs"), and D-086 gives the
+reasons. In short:
+- `CrewStation { id, label, crewIndex, guns, arcs, eye?, bombAimer? }`, read only through
+  `crewStations(spec)` in `src/data/crew.ts`. Stations sharing a `crewIndex` are one man.
+  `inFireArcs(arcs, x, y, z)` tests a body-frame direction, and `crewStationProblems(spec)`
+  validates a spec (a test runs it over the whole roster).
+- `AircraftEntity.stationInputs?` carries the player's aim, fire, bomb release and jam clearing
+  at a non-pilot station. The player's aircraft keeps `controller: 'player'`.
+- `AircraftSpec.bombs?` (included in `massLoaded`) and `AircraftEntity.bombs?` (left per store);
+  `ControlInputs.releaseBomb?`; events `bomb-released` and `bomb-exploded`; `MissionResult`
+  `bombsDropped?` and `bombHits?`; waypoint action `'bomb'`; mission and quick type
+  `'bombing'`, with `escortCount?` and `escortAircraft?`.
+- `performance.engineCount?`, `geometry.nacelleOffsetX?`, `DamageState.engines?` and
+  `crewWounds?`; `geometry.crew` is `1 | 2 | 3 | 4` (check `crew >= 2`, never `=== 2`).
+- `GunType` `'hotchkiss'`; `AircraftVisual.stationEyes?` and `setStationAim?`.
+- The D.H.4 carries four 112 lb bombs as the reference load; it stays AI-only for now.
+- **Left to the tracks:** the key bindings (game track: `stationNext` C, `stationPrev` V,
+  `stationPilot` F, `releaseBomb` R, `viewBombsight` F6, added with the code that reads them),
+  and new ground-target kinds (wave 1 raids use hangars, dumps, trains and batteries).
 
 ## Waves
-1. **Lead:** the contracts above, with the derivation helper and tests, still green. Then
-   update `docs/ARCHITECTURE.md` and add a DECISIONS entry.
-2. **Parallel agents** (worktrees), after the contracts:
-   - **sim + combat:**
-     - multi-engine thrust and damage
-     - bomb mass and a centre-of-gravity change on release
-     - bomb ballistics and blast damage to ground targets
-     - multi-station flexible guns with per-station arcs and a per-station gunner AI (the
-       refactor of `updateGunner`)
-     - player-controlled stations
-   - **data + models:**
-     - specs for the seven new types, calibrated to historical speed, climb and ceiling
-     - crew stations and arcs for every multi-crew type
-     - the Blender generator: twin nacelles, big spans, gun rings, the ventral tunnel,
-       bomb racks
-     - liveries (Gotha lozenge, O/400 PC10), and a hangar check in-engine (not only in
-       Blender: see CLAUDE.md)
-   - **game + UI:**
-     - seat switching, with the AI flying while the player guns
-     - a gunner camera with mouse aim on a flexible gun
-     - a bombsight view and bomb release
-     - the HUD for gunner and bomb aimer
-     - Quick Mission: a "Bombing raid" type, and a choice of station
-     - Flying Manual and key-binding updates
-   - **campaign + AI:**
-     - bombing-raid mission generation (quick in wave 1, career in wave 2)
-     - AI bomber formations and bomb runs
-     - AI gunners at every station
-     - escorts and interceptors
-     This track **waits for the defence track to merge**, because both touch
-     `src/ai/controller.ts`.
+1. **Lead: done** (D-086). The contracts, `src/data/crew.ts` with tests, the D.H.4 reference
+   bomb load, and `crew >= 2` outside `src/ai`.
+2. **Tracks** (worktree agents). Each owns the files listed and codes against the contracts
+   for everything else; a contract it needs beyond D-086 stays additive and goes in its report.
+   - **A. sim** (owns `src/sim/**`):
+     - combat on crew stations: every flexible gun, per-station arcs through `inFireArcs`,
+       an AI gunner per crew member (stations sharing a `crewIndex` fire one at a time), and
+       `stationInputs` overriding the AI at the player's station. Keep `setGunnerTarget`
+       working, with an optional station argument. Today's two-seaters must fight as before
+       (the fairness and career soaks through `tools/dev/ab.mjs --base main`, within noise).
+     - hit boxes and wounds per crew member (`crewWounds`), twin nacelle hit boxes.
+     - multi-engine thrust split by `engineCount`, per-engine damage and asymmetric thrust
+       (yaw), `nacelleOffsetX` for placement.
+     - bombs: release from `controls.releaseBomb` or `stationInputs.releaseBomb`, the aircraft
+       mass drops as bombs go, ballistics (drag, the aircraft's velocity at release), blast
+       damage to ground targets by charge mass and distance, the two events, and the counts the
+       mission result needs.
+   - **B. data, models and effects** (owns `src/data/aircraft.ts`, `src/data/liveries.ts`,
+     `tools/blender/**`, `public/models/**`, `src/render/**`, `src/audio/**`):
+     - specs for the Gotha G.V, Handley Page O/400, AEG G.IV, Breguet 14 B2, D.H.9 and
+       Voisin III, from references (speed, climb, ceiling, weights, engines, guns and bomb
+       loads); calibrate them with the flight-model tests like the existing types.
+     - `crewStations` for every multi-crew type whose derived stations are wrong or thin: twin
+       Lewis on a Scarff ring, the Gotha's nose, dorsal and tunnel guns, the O/400's positions.
+     - models: twin nacelles, big spans, gun rings, the ventral tunnel, bomb racks, and
+       `EyePoint_<station>` empties; `stationEyes` and `setStationAim` in the visual.
+       Liveries (Gotha lozenge, O/400 PC10). Check the hangar in-engine, not only in Blender.
+     - falling bombs, bomb bursts and craters (render), the release clunk, bomb whistle and
+       burst (audio), twin-engine sound.
+     - set `flyable: true` only in the report's recommendation; the lead flips it when tracks
+       A and C have merged.
+   - **C. game and UI** (owns `src/game/**`, `src/ui/**`, `src/core/settings.ts` bindings):
+     - seat switching (keys above, a seat indicator on the HUD); while the player works a gun,
+       an AI controller flies his aircraft, and he gets the pilot's seat back with one key.
+     - the gunner view: an eye at the station, mouse aim of the flexible gun with its arc
+       shown, the ring sight, and fire, jam and drum controls. Build and test it on the Bristol
+       F.2b, which is flyable today.
+     - the bombsight view (looking down, with drift and a release cue) and bomb release.
+     - the HUD and Flying Manual for gunners and bomb aimers; bomb counts in the debrief.
+     - Quick Mission: the "Bombing raid" type and a seat picker, shown only once track D's
+       builder exists. Until then, test with a hand-built mission in a `testing/` fixture.
+   - **D. campaign and AI** (owns `src/campaign/**`, `src/ai/**`). **Starts after the defence
+     track merges,** since both edit `src/ai/controller.ts`:
+     - the quick "Bombing raid" builder: targets behind the lines, AA, interceptors, an
+       optional escort, the bomb-run waypoint and a destroy-ground objective.
+     - AI bombers: formation, the straight and level bomb run, release over the target, and
+       the way home; AI escorts and interceptors that go for bombers; per-station gunner
+       targeting; the three `crew === 2` checks in `src/ai`.
 3. **Merge, re-baseline and playtest,** then career bomber squadrons (wave 2), then night
    bombing.
