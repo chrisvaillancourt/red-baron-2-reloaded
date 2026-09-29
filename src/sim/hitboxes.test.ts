@@ -9,6 +9,8 @@ const inside = (b: ZoneBox, p: readonly number[]) => [0, 1, 2].every((i) => p[i]
 describe('hit boxes', () => {
   it('existing types keep one gunner box and one engine box, with no per-station or per-engine tags', () => {
     for (const spec of AIRCRAFT_LIST) {
+      // Types with their own stations or two engines get tagged boxes (the next tests).
+      if (spec.crewStations || (spec.performance.engineCount ?? 1) > 1) continue;
       const hm = getHitModel(spec);
       expect(hm.zones.filter((z) => z.zone === 'engine'), spec.id).toHaveLength(1);
       expect(hm.zones.filter((z) => z.zone === 'gunner'), spec.id).toHaveLength(spec.geometry.crew >= 2 ? 1 : 0);
@@ -18,6 +20,45 @@ describe('hit boxes', () => {
         expect(z.engineIndex, spec.id).toBeUndefined();
       }
     }
+  });
+
+  it('every type has a gunner box per station and an engine box per engine, inside its airframe', () => {
+    const outside: string[] = [];
+    for (const spec of AIRCRAFT_LIST) {
+      const hm = getHitModel(spec);
+      const gunners = hm.zones.filter((z) => z.zone === 'gunner');
+      const engines = hm.zones.filter((z) => z.zone === 'engine');
+      const crew = crewStations(spec).filter((s) => s.crewIndex > 0);
+      if (spec.crewStations) {
+        // One box per station, tagged with its man (the F.E.2b's pillar gun has its own).
+        expect(gunners, spec.id).toHaveLength(crew.length);
+        for (const st of crew) {
+          const b = gunners.filter((z) => z.station === st.id);
+          expect(b, `${spec.id} ${st.id}`).toHaveLength(1);
+          expect(b[0].crewIndex, `${spec.id} ${st.id}`).toBe(st.crewIndex);
+        }
+      } else {
+        expect(gunners, spec.id).toHaveLength(crew.length ? 1 : 0);
+      }
+      const n = spec.performance.engineCount ?? 1;
+      expect(engines, spec.id).toHaveLength(n);
+      if (n > 1) expect(engines.map((e) => e.engineIndex).sort(), spec.id).toEqual([...Array(n).keys()]);
+      // The airframe: the fuselage, wings and tail boxes together, from the spec's geometry.
+      const frame = hm.zones.filter((z) => ['fuselage', 'leftWing', 'rightWing', 'tail'].includes(z.zone));
+      const lo = [0, 1, 2].map((i) => Math.min(...frame.map((z) => z.min[i])));
+      const hi = [0, 1, 2].map((i) => Math.max(...frame.map((z) => z.max[i])));
+      for (const b of [...gunners, ...engines]) {
+        const c = [0, 1, 2].map((i) => (b.min[i] + b.max[i]) / 2);
+        const what = `${spec.id} ${b.zone} ${b.station ?? b.engineIndex ?? ''} at ${c.map((v) => v.toFixed(2))}`;
+        // Inside the frame's boxes, and within the span and length as the spec states them.
+        const out = [0, 1, 2].some((i) => c[i] < lo[i] || c[i] > hi[i]) || Math.abs(c[0]) >= spec.geometry.span / 2 || Math.abs(c[2]) >= spec.geometry.length * 0.7;
+        if (out) outside.push(what);
+      }
+    }
+    // Known, reported to track A: stationBoxes hangs a standing man 1.2 m below every eye, so a
+    // ventral gunner (eye at the floor hatch) ends up under the fuselage. When that's fixed this
+    // list empties; any other box outside its airframe fails here.
+    expect(outside.map((w) => w.replace(/ at .*/, ''))).toEqual(['gotha_gv gunner ventral', 'handley_page_o400 gunner ventral']);
   });
 
   it('explicit stations get a gunner box each, at their guns, tagged with the crew member', () => {

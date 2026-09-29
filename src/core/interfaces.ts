@@ -180,8 +180,11 @@ export interface WorldRenderer {
   setGroundTargetDestroyed?(obj: Object3D): void;
   /** Configure sky/sun/fog/clouds for date & weather. */
   setEnvironment(date: string, timeOfDay: TimeOfDay, weather: Weather): void;
-  /** Stream terrain tiles and update effects around the camera. */
-  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[]): void;
+  /**
+   * Stream terrain tiles and update effects around the camera. `bombs` (optional): the
+   * combat system's bombs in flight (`CombatSystem.bombs`), drawn as they fall.
+   */
+  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[], bombs?: readonly BombView[]): void;
   /** Feed game events to the effects system (explosions, smoke, hits, flak). */
   handleEvent(e: GameEvent): void;
   render(camera: Camera): void;
@@ -204,6 +207,11 @@ export interface AircraftVisual {
   readonly stationEyes?: ReadonlyMap<CrewStationId, Vector3>;
   /** Swing a station's gun ring and barrels to point along `aimBody` (body-frame unit vector). */
   setStationAim?(station: CrewStationId, aimBody: Vector3): void;
+  /**
+   * The camera is at this crew station's eye (null: at none): hide the figure of the crew
+   * member who works it, as `setCockpitView` hides the pilot. Other figures stay visible.
+   */
+  setStationView?(station: CrewStationId | null): void;
   /** Sync transform, propeller spin, control surfaces, damage decals, smoke emitters. */
   update(ac: AircraftEntity, dt: number): void;
   /** When true: show the 3D cockpit + instruments, hide the pilot head/parts that clip the camera. */

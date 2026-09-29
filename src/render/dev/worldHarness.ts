@@ -7,6 +7,8 @@ import { BoxGeometry, Euler, Group, Mesh, MeshStandardMaterial, PerspectiveCamer
 import type { BulletView, WorldQuery } from '../../core/interfaces';
 import type { AircraftEntity, BalloonEntity, GraphicsQuality, GroundTargetEntity, GroundTargetType, TimeOfDay, Weather } from '../../core/types';
 import { AERODROMES } from '../../data/aerodromes';
+import { AIRCRAFT } from '../../data/aircraft';
+import { stepBomb } from '../../sim/bombs';
 import { sideOfFrontAt } from '../../world/frontline';
 import { TOWNS_WORLD } from '../../world/landuse';
 import { terrainHeightAt } from '../../world/terrain';
@@ -217,6 +219,45 @@ if (params.get('fx') === 'boom') {
   setTimeout(() => world.handleEvent({ type: 'aircraft-destroyed', victimId: 0, killerId: null, outcome: 'crashed', position: q }), 800);
 }
 
+// A stick of bombs ahead of the camera (fx=bombs, or __harness.bombRun()): a hidden Gotha
+// releases them from `alt` m, and each burst follows at its fall time.
+const bombers: AircraftEntity[] = [];
+function bombRun(dist = 320, alt = 180, n = 6): void {
+  const f = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
+  const side = new Vector3(-f.z, 0, f.x);
+  const c = camera.position.clone().addScaledVector(f, dist);
+  const spec = AIRCRAFT.gotha_gv;
+  const g = { id: nextId++, kind: 'aircraft', spec, state: { position: c.clone(), velocity: new Vector3() } } as unknown as AircraftEntity;
+  bombers.push(g);
+  // Released 38 m/s along the view, back far enough to land about `dist` ahead; they fall with
+  // the sim's own ballistics (stepBomb: drag and the harness wind), as combat's bombs do.
+  const lead = 38 * Math.sqrt((2 * alt) / 9.81);
+  for (let i = 0; i < n; i++) {
+    const p = c.clone().addScaledVector(side, (i - (n - 1) / 2) * 22).addScaledVector(f, (i % 2) * 14 - lead);
+    const store = i % 3 === 2 ? 1 : 0;
+    setTimeout(() => {
+      const position = new Vector3(p.x, terrainHeightAt(p.x, p.z) + alt, p.z);
+      world.handleEvent({ type: 'bomb-released', aircraftId: g.id, storeIndex: store, position: position.clone() });
+      harnessBombs.push({ position, velocity: f.clone().multiplyScalar(38), storeIndex: store, massKg: spec.bombs![store].massKg, shooterId: g.id, side: 'central', age: 0 });
+    }, i * 250);
+  }
+}
+type HarnessBomb = { position: Vector3; velocity: Vector3; storeIndex: number; massKg: number; shooterId: number; side: 'central'; age: number };
+const harnessBombs: HarnessBomb[] = [];
+function stepHarnessBombs(dt: number): void {
+  for (let i = harnessBombs.length - 1; i >= 0; i--) {
+    const b = harnessBombs[i];
+    stepBomb(b.position, b.velocity, b.massKg, worldQuery.env, dt);
+    b.age += dt;
+    const gy = terrainHeightAt(b.position.x, b.position.z);
+    if (b.position.y > gy) continue;
+    harnessBombs.splice(i, 1);
+    const store = AIRCRAFT.gotha_gv.bombs![b.storeIndex];
+    world.handleEvent({ type: 'bomb-exploded', shooterId: b.shooterId, position: new Vector3(b.position.x, gy, b.position.z), explosiveKg: store.explosiveKg, damagedTargetIds: [] });
+  }
+}
+if (params.get('fx') === 'bombs') setTimeout(() => bombRun(), 500);
+
 const worldQuery: WorldQuery = {
   get time() {
     return performance.now() / 1000;
@@ -225,7 +266,7 @@ const worldQuery: WorldQuery = {
   aircraft,
   balloons,
   groundTargets: grounds,
-  getEntity: (id) => [...aircraft, ...balloons, ...grounds].find((e) => e.id === id),
+  getEntity: (id) => [...aircraft, ...balloons, ...grounds, ...bombers].find((e) => e.id === id),
   groundHeightAt: terrainHeightAt,
   sideOfFrontAt: (x, z) => sideOfFrontAt(x, z, date),
   getFlight: () => undefined,
@@ -282,7 +323,8 @@ function frame(now: number) {
     while (bullets.length && bullets[0].age > 2.5) bullets.shift();
   }
   camera.updateMatrixWorld();
-  world.update(dt, camera, worldQuery, bullets as BulletView[]);
+  stepHarnessBombs(dt);
+  world.update(dt, camera, worldQuery, bullets as BulletView[], harnessBombs);
   world.render(camera);
   const s = world.stats();
   $('stats').textContent =
@@ -305,6 +347,7 @@ window.__harness = {
   camera,
   teleport,
   spawnDemo,
+  bombRun,
   setEnv(d: string, t: TimeOfDay, cover: number, vis: number, base = 1500) {
     date = d;
     tod = t;

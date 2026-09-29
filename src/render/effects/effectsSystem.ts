@@ -2,12 +2,14 @@
  * Visual effects driven by GameEvents and live entity state: tracers,
  * muzzle flashes, hit sparks and splinters, flak ("archie": black German,
  * white Allied), explosions, burning/smoking aircraft trails, balloon fires,
- * ground impacts and crash fires.
+ * ground impacts and crash fires, and bombs: falling bombs, bursts sized by the charge and
+ * the craters they leave (bombEffects.ts).
  */
 import { Color, Group, Vector3, type Camera } from 'three';
-import type { BulletView, WorldQuery } from '../../core/interfaces';
+import type { BombView, BulletView, WorldQuery } from '../../core/interfaces';
 import type { GameEvent, Side } from '../../core/types';
 import { landUseAt } from '../../world/landuse';
+import { BombEffects } from './bombEffects';
 import { ParticlePool, type ParticleSpawn } from './particles';
 import { Tracers } from './tracers';
 
@@ -22,11 +24,17 @@ interface GroundFire {
 
 const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
 
+/** Burst size (the `explosion` scale) of a bomb's charge: 3.4 for the 23 kg of a P.u.W. 50 kg. */
+export function bombBurstSize(explosiveKg: number): number {
+  return 1.2 * Math.cbrt(Math.max(0.2, explosiveKg));
+}
+
 export class EffectsSystem {
   readonly group = new Group();
   private readonly smoke: ParticlePool;
   private readonly glow: ParticlePool;
   private readonly tracers = new Tracers();
+  readonly bombs = new BombEffects();
   private readonly wind = new Vector3();
   private readonly fires: GroundFire[] = [];
   private readonly emitAcc = new Map<number, number>();
@@ -40,7 +48,12 @@ export class EffectsSystem {
     this.group.name = 'effects';
     this.smoke = new ParticlePool(Math.round(maxParticles * 0.7), false);
     this.glow = new ParticlePool(Math.round(maxParticles * 0.3), true);
-    this.group.add(this.smoke.mesh, this.glow.mesh, this.tracers.mesh);
+    this.group.add(this.smoke.mesh, this.glow.mesh, this.tracers.mesh, this.bombs.group);
+    this.bombs.onBurst = (e, gy, water) => this.bombBurst(e.position.x, gy, e.position.z, e.explosiveKg, water);
+    this.bombs.isWater = (x, z) => {
+      const lu = landUseAt(x, z, this.date);
+      return lu === 'water' || lu === 'sea';
+    };
   }
 
   setWind(w: [number, number, number]): void {
@@ -138,6 +151,45 @@ export class EffectsSystem {
     if (onGround) this.fires.push({ x: p.x, y: p.y, z: p.z, t: 0, life: 45 + Math.random() * 30, size });
   }
 
+  /**
+   * A bomb bursting on the ground: flash and fireball sized by the charge, a fountain of earth
+   * thrown up and falling back, a dust column drifting on the wind. On water, a white plume.
+   */
+  bombBurst(x: number, y: number, z: number, explosiveKg: number, water: boolean): void {
+    const size = bombBurstSize(explosiveKg);
+    const p = new Vector3(x, y + 0.3, z);
+    if (water) {
+      this.flash({ x, y: y + size * 0.4, z, life: 0.2, size0: size * 2, size1: size * 4, color: [1, 0.7, 0.4], alpha0: 0.6, alpha1: 0 });
+      for (let i = 0; i < 22; i++)
+        this.puff({ x: x + rnd(size * 0.4), y, z: z + rnd(size * 0.4), vx: rnd(size), vy: size * (4 + Math.random() * 4), vz: rnd(size), life: 2.5 + Math.random() * 1.5, size0: size * 0.5, size1: size * 2.2, color: [0.86, 0.89, 0.92], alpha0: 0.85, alpha1: 0, lift: -9.8, drag: 0.8 });
+      return;
+    }
+    this.explosion(p, size, false);
+    const lu = landUseAt(x, z, this.date);
+    const chalk = lu === 'trench-zone' || lu === 'shell-cratered';
+    const earth: [number, number, number] = chalk ? [0.6, 0.56, 0.48] : [0.34, 0.28, 0.21];
+    // The earth fountain: a tall cone of soil, then clods raining back around the crater.
+    for (let i = 0; i < 18; i++) {
+      const a = Math.random() * Math.PI * 2, r = Math.random() * 0.35;
+      this.puff({
+        x, y, z, vx: Math.cos(a) * r * size * 6, vy: size * (3 + Math.random() * 3.5), vz: Math.sin(a) * r * size * 6,
+        life: 1.8 + Math.random() * 1.4, size0: size * 0.5, size1: size * 1.8, color: earth.map((c) => c * (0.85 + Math.random() * 0.3)) as [number, number, number],
+        alpha0: 0.9, alpha1: 0, lift: -9.8, drag: 0.6, spin: rnd(1),
+      });
+    }
+    for (let i = 0; i < Math.round(10 + size * 6); i++) {
+      this.puff({
+        x, y, z, vx: rnd(size * 5), vy: size * (2 + Math.random() * 4), vz: rnd(size * 5),
+        life: 2.5 + Math.random() * 2, size0: 0.2 + size * 0.06, size1: 0.2, color: [earth[0] * 0.6, earth[1] * 0.6, earth[2] * 0.6], alpha0: 1, alpha1: 1, lift: -9.8, drag: 0.25, shape: 1, spin: rnd(6),
+      });
+    }
+    for (let i = 0; i < 6; i++)
+      this.puff({
+        x: x + rnd(size), y: y + size * 0.8, z: z + rnd(size), vx: rnd(1), vy: 1.5 + Math.random(), vz: rnd(1),
+        life: 14 + Math.random() * 10, size0: size * 1.5, size1: size * 5, color: [earth[0] * 1.3, earth[1] * 1.3, earth[2] * 1.3], alpha0: 0.5, alpha1: 0, drag: 0.6, windFollow: 1, lift: 0.2,
+      });
+  }
+
   /** A kite balloon's hydrogen going up: a rolling fireball, a towering smoke plume, burning fabric. */
   hydrogenFireball(p: Vector3): void {
     this.flash({ x: p.x, y: p.y, z: p.z, life: 0.25, size0: 20, size1: 45, color: [1, 0.72, 0.42], alpha0: 0.8, alpha1: 0 });
@@ -198,6 +250,9 @@ export class EffectsSystem {
   // --- events -------------------------------------------------------------------
 
   handleEvent(e: GameEvent): void {
+    // Bombs are resolved in update(), where the world is at hand (the releasing aircraft's
+    // velocity and bomb store, the ground height under a burst).
+    this.bombs.handleEvent(e);
     switch (e.type) {
       case 'gun-fired':
         this.muzzleFlash(e.position);
@@ -244,8 +299,9 @@ export class EffectsSystem {
 
   // --- per-frame ---------------------------------------------------------------
 
-  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[]): void {
+  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[], bombs?: readonly BombView[]): void {
     this.tracers.update(bullets, camera, dt);
+    this.bombs.update(world, bombs);
     // Smoke/fire trails from damaged aircraft (emitted by distance travelled).
     for (const ac of world.aircraft) {
       const d = ac.damage;
@@ -306,5 +362,6 @@ export class EffectsSystem {
     this.smoke.dispose();
     this.glow.dispose();
     this.tracers.dispose();
+    this.bombs.dispose();
   }
 }

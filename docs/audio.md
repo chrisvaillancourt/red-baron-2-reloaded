@@ -28,7 +28,8 @@ audio.stopFlight();
 
 What the engine reads from entities: `state.engineRpm`, `airspeed`, `velocity`, `aoa`,
 `stalled`, `gLoad`, `onGround`, `heightAboveGround`; `controls.throttle/blip/clearJam`;
-`damage.zones.engine`, `engineDead`, `onFire`, `destroyed`; `guns[].jammed`; `outcome`.
+`damage.zones.engine`, `engineDead`, `onFire`, `destroyed`, `engines` (per engine, twins);
+`guns[].jammed`; `outcome`; `spec.performance.engineCount`.
 Hammering sounds come from `controls.clearJam` rising edges while any gun is jammed.
 Falling wrecks produce a crash when they reach the ground (tracked by the audio engine,
 no event needed).
@@ -37,9 +38,9 @@ no event needed).
 
 | File | Role |
 |---|---|
-| `synthBuffers.ts` | Pure-TS offline synthesis (Node-testable): engine pulse loops, guns, hits, flak, explosions, balloon, crash, gun handling, loops, UI, hall IR |
+| `synthBuffers.ts` | Pure-TS offline synthesis (Node-testable): engine pulse loops, guns, hits, flak, explosions, bombs (release, whistle, burst), balloon, crash, gun handling, loops, UI, hall IR |
 | `bank.ts` | Renders those into AudioBuffers per context, with random variants |
-| `voices.ts` | `EngineVoice` (pulse loop → shaper → lowpass → ignition gain + prop wash), `LoopVoice` |
+| `voices.ts` | `EngineVoice` (pulse loop → shaper → lowpass → ignition gain + prop wash), `MultiEngineVoice` (one per engine, detuned), `LoopVoice` |
 | `audioEngine.ts` | `WebAudioEngine`: buses, listener, player voice & loops, nearest-6 remote engines, one-shots |
 | `spatial.ts` | Doppler, air absorption, speed-of-sound delay, nearest-N voice selection |
 | `limiter.ts` | Master compressor + soft clipper (never exceeds full scale) |
@@ -51,6 +52,24 @@ no event needed).
 (Mercedes/BMW: 3 pulses/rev, smooth, deep), `v8` (Hispano/Viper), `v12` (Rolls-Royce).
 Blip switch cuts ignition; engine damage causes random misfires; prop wash is noise
 modulated at blade-passing frequency and keeps windmilling after the engine dies.
+Twins (`MultiEngineVoice`) get one voice per engine through the same panner, the second
+1.3% fast (`ENGINE_DETUNE`), so the pair beats at about 1 Hz like a Gotha overhead. Each
+takes its own `damage.engines[i]`, and an engine at 1 is dead: only its windmilling
+propeller is heard (`min(rpm, airspeed × 9)`, as the visual spins it). Each voice plays at
+0.72 so the pair is about one engine plus 1.5 dB. The Renault 12Fcx maps to `v12`.
+
+**Bombs.** `bomb-released`: the release clunk (the latch and the rack springing back) in the
+cockpit when it's the player's, positional within 250 m otherwise. The whistle (2.2 s,
+sliding from about 1650 to 750 Hz and swelling) is heard only within 700 m of where the bomb
+will land: the engine asks the sim (`predictBombImpact(aircraft, world.env, storeIndex)`, the
+same ballistics, drag and wind as the real fall) and ends the whistle there, as the burst
+is heard: it starts `BOMB_WHISTLE_SECONDS / rate` before the impact and gets the same
+sound-travel delay as the burst. Whistles wait in a queue (`whistles.ts`) instead of being
+scheduled at release, so a falling bomb holds no one-shot voice. At most three play at once,
+nearest first; one that comes due with no free slot is dropped. `bomb-exploded`: a deep
+concussion with a crack, then earth pattering back for about two seconds; bigger charges are
+louder, carry further (`ref` 25 · kg^⅓ m) and play lower. Sound travel delays it like
+every distant bang.
 
 **Spatial.** HRTF panners for the six nearest other aircraft (0.4 s reselection with
 hysteresis), inverse distance model, per-voice low-pass for air absorption, Doppler by

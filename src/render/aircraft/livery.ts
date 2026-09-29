@@ -173,6 +173,38 @@ function paintLozenge(ctx: Ctx, x: number, y: number, w: number, h: number, uppe
   ctx.restore();
 }
 
+/** 1918 French disruptive camouflage (Breguet 14): big soft-edged blotches over the base. */
+const DISRUPTIVE = ['#3f4a2c', '#727a4a', '#6b4a2e', '#b39f76', '#24251d'];
+function paintDisruptive(ctx: Ctx, x: number, y: number, w: number, h: number, base: string, seed: number) {
+  const r = rng(seed);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.fillStyle = base;
+  ctx.fillRect(x, y, w, h);
+  const n = Math.round((w * h) / 5200);
+  for (let i = 0; i < n; i++) {
+    const cx = x + r() * w;
+    const cy = y + r() * h;
+    const rad = 28 + r() * 60;
+    ctx.fillStyle = DISRUPTIVE[Math.floor(r() * (DISRUPTIVE.length - (r() < 0.8 ? 1 : 0)))];
+    ctx.beginPath();
+    const k = 9;
+    for (let j = 0; j < k; j++) {
+      const a = (j / k) * Math.PI * 2;
+      const rr = rad * (0.6 + r() * 0.55);
+      const px = cx + Math.cos(a) * rr * 1.5;
+      const py = cy + Math.sin(a) * rr * 0.8;
+      if (j === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function paintStreaked(ctx: Ctx, x: number, y: number, w: number, h: number, base: string, seed: number, vertical: boolean) {
   const r = rng(seed);
   ctx.save();
@@ -249,6 +281,7 @@ function paintWing(spec: AircraftSpec, liv: Livery, meta: AircraftMeta, top: boo
     const y0 = region * (WING_H / 2);
     if (pattern === 'lozenge') paintLozenge(ctx, 0, y0, WING_W, WING_H / 2, top, seed + region * 7 + (top ? 1 : 2));
     else if (pattern === 'streaked' && top) paintStreaked(ctx, 0, y0, WING_W, WING_H / 2, base, seed + region, false);
+    else if (pattern === 'disruptive' && top) paintDisruptive(ctx, 0, y0, WING_W, WING_H / 2, base, seed + region * 5);
     else {
       ctx.fillStyle = base;
       ctx.fillRect(0, y0, WING_W, WING_H / 2);
@@ -277,6 +310,7 @@ function paintFuselage(spec: AircraftSpec, liv: Livery, meta: AircraftMeta, seed
   const pxV = FUS_H / meta.uv_fuselage_perim;
   const pattern = liv.pattern ?? 'plain';
   if (pattern === 'streaked') paintStreaked(ctx, 0, 0, FUS_W, FUS_H, liv.fuselage, seed, false);
+  else if (pattern === 'disruptive') paintDisruptive(ctx, 0, 0, FUS_W, FUS_H, liv.fuselage, seed + 9);
   else if (pattern === 'lozenge' && spec.id === 'fokker_dvii') {
     ctx.fillStyle = liv.fuselage;
     ctx.fillRect(0, 0, FUS_W, FUS_H);
@@ -368,6 +402,7 @@ function paintTail(liv: Livery, meta: AircraftMeta, seed: number): HTMLCanvasEle
   const [c, ctx] = canvas(TAIL_W, TAIL_H);
   // Lower half: horizontal tail
   if (liv.pattern === 'lozenge') paintLozenge(ctx, 0, TAIL_H / 2, TAIL_W, TAIL_H / 2, true, seed + 21);
+  else if (liv.pattern === 'disruptive') paintDisruptive(ctx, 0, TAIL_H / 2, TAIL_W, TAIL_H / 2, liv.tail, seed + 21);
   else {
     ctx.fillStyle = liv.tail;
     ctx.fillRect(0, TAIL_H / 2, TAIL_W, TAIL_H / 2);

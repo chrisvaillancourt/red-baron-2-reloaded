@@ -65,7 +65,7 @@ export function engineKindFor(engineType: string, engineName: string): EngineKin
   if (engineType === 'rotary') return 'rotary9';
   const n = engineName.toLowerCase();
   if (n.includes('hispano') || n.includes('viper')) return 'v8';
-  if (n.includes('falcon') || n.includes('eagle')) return 'v12';
+  if (n.includes('falcon') || n.includes('eagle') || n.includes('renault 12')) return 'v12';
   return 'inline6';
 }
 
@@ -329,6 +329,91 @@ export function crashCrunch(sampleRate: number, seed = 1): Float32Array {
     const s = hitSound(mat, sampleRate, seed * 13 + k);
     const t = Math.pow(rand(), 1.5) * 0.9;
     mixInto(out, s, Math.round(t * sampleRate), (mat === 'metal' ? 0.25 : 0.6) * (1 - t * 0.6));
+  }
+  return normalize(removeDc(out), 0.95);
+}
+
+// ---------------------------------------------------------------------------
+// Bombs
+// ---------------------------------------------------------------------------
+
+/** A bomb leaving the rack: the release latch snapping open and the rack springing back. */
+export function bombRelease(sampleRate: number, seed = 1): Float32Array {
+  const rand = rng(seed * 4231);
+  const n = Math.round(0.35 * sampleRate);
+  const out = new Float32Array(n);
+  const f0 = 420 + 60 * rand();
+  for (let i = 0; i < n; i++) {
+    const t = i / sampleRate;
+    // Rack thunk (low, damped) with a ringing steel latch over it.
+    out[i] =
+      0.9 * Math.exp(-t / 0.035) * Math.sin(2 * Math.PI * 95 * t) +
+      0.35 * Math.exp(-t / 0.06) * Math.sin(2 * Math.PI * f0 * t) +
+      0.18 * Math.exp(-t / 0.04) * Math.sin(2 * Math.PI * f0 * 2.7 * t);
+  }
+  const snap = biquad(whiteNoise(Math.round(0.006 * sampleRate), rand), 'bandpass', 3200, 1.2, sampleRate);
+  mixInto(out, snap, 0, 1.3);
+  // The spring-back a moment later.
+  const back = biquad(whiteNoise(Math.round(0.004 * sampleRate), rand), 'bandpass', 1800, 1.5, sampleRate);
+  mixInto(out, back, Math.round(0.09 * sampleRate), 0.6);
+  return normalize(removeDc(out), 0.8);
+}
+
+/** Seconds of the falling-bomb whistle; the burst follows it. */
+export const BOMB_WHISTLE_SECONDS = 2.2;
+
+/** A falling bomb's whistle: an airy tone sliding down as it nears, swelling to the impact. */
+export function bombWhistle(sampleRate: number, seed = 1): Float32Array {
+  const rand = rng(seed * 7717);
+  const n = Math.round(BOMB_WHISTLE_SECONDS * sampleRate);
+  const out = new Float32Array(n);
+  const air = biquad(whiteNoise(n, rand), 'bandpass', 1400, 0.8, sampleRate);
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const u = i / n;
+    const f = 1650 - 900 * u * u + 18 * Math.sin(2 * Math.PI * 5.5 * (i / sampleRate));
+    phase += (2 * Math.PI * f) / sampleRate;
+    const env = Math.min(1, u * 6) * (0.25 + 0.75 * u) * Math.min(1, (1 - u) * 60);
+    out[i] = env * (0.8 * Math.sin(phase) + 0.25 * Math.sin(2 * phase) + 0.35 * air[i]);
+  }
+  return normalize(out, 0.7);
+}
+
+/**
+ * A bomb bursting in the earth: a deep, heavy concussion with a crack on top, then the earth
+ * and stones it threw up pattering back down for a couple of seconds.
+ */
+export function bombBurst(sampleRate: number, seed = 1): Float32Array {
+  const rand = rng(seed * 5153);
+  const seconds = 4;
+  const n = Math.round(seconds * sampleRate);
+  const boom = biquad(brownNoise(n, rand), 'lowpass', 300, 0.9, sampleRate);
+  envelope(boom, sampleRate, 0.004, 0.9);
+  const crack = biquad(whiteNoise(n, rand), 'lowpass', 3200, 0.7, sampleRate);
+  envelope(crack, sampleRate, 0.0008, 0.05);
+  const out = new Float32Array(n);
+  mixInto(out, boom, 0, 4.5);
+  mixInto(out, crack, 0, 1.4);
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / sampleRate;
+    phase += (2 * Math.PI * (24 + 44 * Math.exp(-t / 0.1))) / sampleRate;
+    out[i] += 1.2 * Math.exp(-t / 0.45) * Math.sin(phase);
+  }
+  // Earth patter: soft thuds and a few stone clicks, thickest a second after the burst.
+  const thudLen = Math.round(0.03 * sampleRate);
+  const clickLen = Math.round(0.003 * sampleRate);
+  for (let k = 0; k < 90; k++) {
+    const t = 0.55 + Math.pow(rand(), 1.4) * 2.6;
+    const fall = Math.exp(-Math.abs(t - 1.2) / 0.9);
+    if (rand() < 0.75) {
+      const thud = biquad(whiteNoise(thudLen, rand), 'lowpass', 500 + 700 * rand(), 0.8, sampleRate);
+      envelope(thud, sampleRate, 0.001, 0.01);
+      mixInto(out, thud, Math.round(t * sampleRate), 0.5 * fall * (0.4 + rand()));
+    } else {
+      const click = biquad(whiteNoise(clickLen, rand), 'bandpass', 2000 + 2500 * rand(), 1.4, sampleRate);
+      mixInto(out, click, Math.round(t * sampleRate), 0.35 * fall * rand());
+    }
   }
   return normalize(removeDc(out), 0.95);
 }
