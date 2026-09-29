@@ -878,7 +878,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
   - After the review fixes, pinned on both sides (`--base main --head HEAD`): killed or captured 23.2% (18.2–29.0, n=233) against 22.6% (17.8–28.2, n=248), and collisions 3.4 against 3.6 per 100 missions. Both within noise.
 - Track B draws `combat.bombs` (`BombView`) and aims gun rings from `getStationAim`. Track C calls `loadBombs`, `predictBombImpact` and `getBombStats`. Track D sets targets per station.
 
-## D-XXX — The engine block in path order: measured, not shipped; the default stays off pending the user (sim)
+## D-089 — The engine block in path order: measured, not shipped; the default stays off pending the user (sim)
 **Context.** In `hitAircraft` a round damages every zone box on its path, cut at the engine. Twins cut at the first engine along the path (D-088). Single-engined types cut by zone-list order, and a tractor lists the engine first, so a round that crosses the engine box damages only the engine: a burst from astern through the cockpit into the engine spares the pilot, the fuel tank and the guns. The user's playtest (Bristol against 5 ace D.VIIs) counted 104 hits for one kill.
 **Decision.**
 - `traceRound` (hitboxes.ts) holds the trace and both cuts. `SIM_FLAGS.damagePath` (src/sim/flags.ts; env `SIM_DAMAGE_PATH`, read at load in Node, so `ab.mjs --a/--b` switches it) applies the path-order cut to every type: a round damages the zones it passes through in order along its path, and the engine stops it. Under the flag the `bullet-hit` zone is chosen from the zones damaged, not from every box crossed.

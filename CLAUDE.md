@@ -33,7 +33,8 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   - Lead merge commits keep the `Merge <branch>: <summary>` form. History before wave 9
     predates this rule.
 - Record significant decisions in `DECISIONS.md` (append `D-0NN` entries; take the next free
-  number at merge time — use `D-XXX` placeholders if unsure and the lead will renumber).
+  number at merge time). Agents always write `D-XXX` and never renumber, even after merging
+  main; only the lead numbers entries, when merging to main (FRICTION F-59).
 - End every final report with a **Friction** section: what slowed you down, including
   missing tools, wrong or missing instructions, confusing structure, and flaky commands.
   Give each item a suggested fix. Write "none" if there was none. The lead logs each item

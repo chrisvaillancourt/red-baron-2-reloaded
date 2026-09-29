@@ -136,7 +136,7 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
     pilot before the engine, so a round from astern reaches him *through* the engine.
     `traceRound` (hitboxes.ts) holds both rules. `SIM_FLAGS.damagePath` (src/sim/flags.ts,
     env `SIM_DAMAGE_PATH=1`, off by default) applies the path-order cut to every type. It
-    was measured but not shipped (D-XXX): outcomes didn't move beyond noise, because only
+    was measured but not shipped (D-089): outcomes didn't move beyond noise, because only
     about a fifth of hits arrive from dead astern, and most kills are structural failures.
   * **The `bullet-hit` zone** is the first of `HIT_PRIORITY` among the boxes the round
     crossed, pilot first. It only names the event (sparks, sounds); every zone kept by the
