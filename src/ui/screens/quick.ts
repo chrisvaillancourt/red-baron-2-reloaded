@@ -256,7 +256,8 @@ export const quickScreen: ScreenFactory = (ctx) => {
       onClick: () => {
         try {
           const mission = ctx.services.campaign.buildQuickMission({ ...o });
-          ctx.router.push('briefing', { mission });
+          // The options ride along to the debrief for the flight report.
+          ctx.router.push('briefing', { mission, quickOptions: { ...o } });
         } catch (e) {
           console.error('[ui] buildQuickMission failed', e);
           ctx.toast('Could not build that mission.');

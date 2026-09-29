@@ -5,10 +5,38 @@
  * 600 m of that target (within 12 s of the burst): a diving attack from 400 m above is
  * nearly level by the time an ace opens fire at 150 m. Also time spent in sustained flat turns (bank > 45°, climb
  * angle within ±10°, lasting more than 5 s) with an enemy within 1.5 km.
+ *
+ * Used by the gunnery soak (pooled counts) and by the flight recorder (src/game/flightRecorder.ts),
+ * which keeps each enemy's first pass through `onPass`.
  */
 import { Vector3 } from 'three';
-import type { AircraftEntity } from '../../core/types';
-import { bankAngle } from '../../sim/flightModel';
+import type { AircraftEntity } from '../core/types';
+import { bankAngle } from '../sim/flightModel';
+
+/** One firing pass: the geometry it began from. */
+export interface PassRecord {
+  time: number;
+  shooter: AircraftEntity;
+  target: AircraftEntity;
+  /** Shooter height above the target when he closed inside 600 m, m. */
+  heightAdvM: number;
+  above: boolean;
+  upSun: boolean;
+  /** Did the target know about the shooter when the pass began? null: unknown (no perception to ask). */
+  seen: boolean | null;
+}
+
+export interface EntryTrackerOptions {
+  /** Called for every pass, after the counts are updated. */
+  onPass?(pass: PassRecord): void;
+  /**
+   * Whether `target` knew about `shooter`; undefined falls back to the target's AI perception
+   * contacts. The flight recorder answers for the human player from the HUD's awareness model.
+   */
+  seenBy?(target: AircraftEntity, shooter: AircraftEntity): boolean | undefined;
+  /** Which aircraft accumulate combat and flat-turn time (default: all). The approach geometry is always sampled. */
+  combatOf?(a: AircraftEntity): boolean;
+}
 
 export interface EntryAcc {
   passes: number;
@@ -52,6 +80,7 @@ export class EntryTracker {
     private readonly ctl: (id: number) => unknown,
     private readonly key: (a: AircraftEntity) => string,
     private readonly acc = new Map<string, EntryAcc>(),
+    private readonly opts: EntryTrackerOptions = {},
   ) {}
 
   get(k: string): EntryAcc {
@@ -64,8 +93,12 @@ export class EntryTracker {
     return [...this.acc].sort();
   }
 
-  /** Feed every gun-fired event. */
-  onFired(shooter: AircraftEntity): void {
+  /**
+   * Feed every gun-fired event (with its `mountIndex`). A flexible gun (a two-seater's observer)
+   * is ignored: his defensive bursts are not the aircraft's attack pass.
+   */
+  onFired(shooter: AircraftEntity, mountIndex?: number): void {
+    if (mountIndex !== undefined && shooter.spec.guns[mountIndex]?.mount === 'flexible') return;
     const t = this.world.time;
     const prev = this.lastShot.get(shooter.id) ?? -1e9;
     this.lastShot.set(shooter.id, t);
@@ -83,8 +116,13 @@ export class EntryTracker {
     const upSun = useAp ? ap.upSun : this.upSun(shooter, target);
     if (upSun) g.upSun++;
     if (above || upSun) g.aboveOrSun++;
-    const tc = this.ctl(target.id) as CtlView | undefined;
-    if (tc?.perception?.contacts && !tc.perception.contacts.has(shooter.id)) g.unseen++;
+    let seen = this.opts.seenBy?.(target, shooter);
+    if (seen === undefined) {
+      const tc = this.ctl(target.id) as CtlView | undefined;
+      if (tc?.perception?.contacts) seen = tc.perception.contacts.has(shooter.id);
+    }
+    if (seen === false) g.unseen++;
+    this.opts.onPass?.({ time: t, shooter, target, heightAdvM: dh, above, upSun, seen: seen ?? null });
   }
 
   private upSun(shooter: AircraftEntity, target: AircraftEntity): boolean {
@@ -101,6 +139,7 @@ export class EntryTracker {
       if (tgt && tgt.state.position.distanceTo(a.state.position) > 600) {
         this.approach.set(a.id, { targetId: tgt.id, t: this.world.time, dh: a.state.position.y - tgt.state.position.y, upSun: this.upSun(a, tgt) });
       }
+      if (this.opts.combatOf && !this.opts.combatOf(a)) continue;
       const near = this.world.aircraft.some((e) => e.side !== a.side && !e.outcome && e.state.position.distanceToSquared(a.state.position) < 1500 * 1500);
       const g = this.get(this.key(a));
       if (near) g.combat += dt;

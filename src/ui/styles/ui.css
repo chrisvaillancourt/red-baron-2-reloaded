@@ -1848,8 +1848,43 @@ select.input option {
 .report-foot {
   display: flex;
   justify-content: flex-end;
+  align-items: flex-end;
   gap: 0.8em;
   margin-top: 1em;
+}
+/* Playtest strip: rating, note, "Copy flight report". Small and pencilled in, left of Continue. */
+.playtest {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em 0.7em;
+  margin-right: auto;
+  padding-top: 0.5em;
+  border-top: 1px dashed var(--ink-faint);
+  font-size: 0.78em;
+  opacity: 0.85;
+}
+.playtest:focus-within,
+.playtest:hover {
+  opacity: 1;
+}
+.playtest .field-label {
+  margin: 0;
+}
+.playtest .input {
+  flex: 1 1 12em;
+  width: auto;
+  min-width: 10em;
+  font-size: 1em;
+}
+.flight-report-text {
+  width: min(56em, 80vw);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.75em;
+  background: rgba(255, 250, 235, 0.6);
+  border: 1px solid var(--ink-faint);
+  color: var(--ink);
 }
 
 /* Newspaper */

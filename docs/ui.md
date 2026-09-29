@@ -52,9 +52,35 @@ title ─┬─ roster ─┬─ create-pilot ─→ hq
        └─ credits
 ```
 
-Debrief pages, in order, as the report warrants: telegram (wounded/captured/killed)
-→ combat report (claims stamped CONFIRMED/UNCONFIRMED) → newspaper → promotion →
-one page per medal → memorial / prisoner-of-war record when the career ends.
+### Debrief
+
+Params: `{ mission, result, report?, pilotId?, quick?, quickOptions? }`. The
+briefing passes `quickOptions` through from the Quick Mission screen, for the
+flight report.
+
+Debrief pages, in order, as the report warrants:
+1. telegram (career only: wounded, captured or killed)
+2. combat report: claims stamped CONFIRMED/UNCONFIRMED, and the playtest strip
+3. newspaper
+4. promotion
+5. one page per medal
+6. memorial / prisoner-of-war record when the career ends
+
+A quick mission has only the combat report. Each page has one `data-autofocus`
+button (Continue, or Done / Return to the squadron on the last page), so
+Enter steps through them. Esc skips to the next page, too. A script waiting for
+a later page should press Enter and wait for its selector (`.telegram`,
+`.report`, `.newspaper`, `.ceremony`, `.memorial`), not count pages:
+the set varies with the outcome. `tests/e2e/ui-flow.spec.ts` `leaveDebrief`
+presses Enter until the screen changes.
+
+The playtest strip, under the combat report, has an optional "Too easy / Fair /
+Too hard" rating, a short note, and **Copy flight report**. The button builds
+the versioned JSON report (`src/core/flightReport.ts`; docs/PLAYTEST.md "Human
+playtests") and writes it to the clipboard. If the clipboard refuses (browser
+permissions, or an origin that isn't secure), the report opens in a modal
+textarea, selected for copying by hand. A toast says which happened.
+`tests/e2e/flight-report.spec.ts` covers both paths.
 
 ## Navigation
 

@@ -352,7 +352,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     b.shooterId = ac.id;
     b.gun = m.type;
     bullets.push(b);
-    bus.emit({ type: 'gun-fired', shooterId: ac.id, gun: m.type, position: b.position.clone() });
+    bus.emit({ type: 'gun-fired', shooterId: ac.id, gun: m.type, position: b.position.clone(), mountIndex });
   }
 
   function fixedGunDirection(ac: AircraftEntity, m: GunMount, out: Vector3): Vector3 {

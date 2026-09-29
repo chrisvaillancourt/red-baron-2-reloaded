@@ -1,5 +1,41 @@
 # Playtest reports
 
+## Human playtests
+
+The earlier sessions in this file were scripted or autoplayed. For human sessions, every
+flight can leave a **flight report**, so a fight that felt wrong can be flown again and
+counted. The report is versioned JSON, built on the debrief (DECISIONS "Flight reports").
+
+1. **Play** the live build or `pnpm dev`. After each flight, on the combat report page,
+   optionally rate it (Too easy / Fair / Too hard), add a one-line note, and press
+   **Copy flight report**.
+2. **Save** the report under `playtests/reports/` (naming and commit style are in its
+   README).
+3. **Replay** with `node tools/playtest/replay-report.mjs <report.json>`. The autoplayer
+   flies the same mission 8 times at the report's realism settings. Run 0 uses the game's
+   own seeds, and the other runs reseed chance and AI. It prints the reported outcome, each
+   enemy's first pass, one line per run, and the fairness soak's summary row. Add
+   `--browser --port <dev port>` to fly it in the real app with screenshots at the first
+   merge.
+4. **Act:** a fight that felt wrong becomes a seeded scene
+   (`tools/playtest/ai-depth-shots.mjs` shows the pattern) or a regression test built on
+   `missionFromReport`.
+
+What a report holds:
+- the build's git SHA. Under `pnpm dev` this is the SHA when the server started, and the
+  report says `"dev": true`. Restart the dev server after committing, or play the live
+  build, when the SHA matters.
+- the settings that change a fight: realism, mouse mode, graphics, career difficulty
+- the full mission, plus the quick options when it was a quick mission
+- the outcome: fate, loss cause, objectives, claims, hits given and taken, flight and
+  combat time
+- each enemy's first pass: from above, up-sun, and whether you had seen him (the HUD's
+  awareness model)
+- time compression, and fps p50/p95
+- your rating and note
+
+The only personal field is a career pilot's name.
+
 ## Wave 7 release check
 
 The real app was played in headless Chrome, through the real menus and controls:

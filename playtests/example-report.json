@@ -1,0 +1,265 @@
+{
+  "kind": "rb2r-flight-report",
+  "schema": 1,
+  "createdAt": "2026-09-28T23:46:58.187Z",
+  "build": {
+    "sha": "19ed0da-dirty",
+    "builtAt": "2026-09-28T23:46:01.889Z"
+  },
+  "pilot": null,
+  "rating": "fair",
+  "note": "Example report: nobody at the controls; abandoned after 45 s.",
+  "settings": {
+    "realism": {
+      "flightModel": "standard",
+      "engineTorque": true,
+      "gunJams": true,
+      "limitedAmmo": true,
+      "limitedFuel": false,
+      "midairCollisions": true,
+      "invulnerable": false,
+      "autoRudder": true,
+      "gEffects": true,
+      "targetLabels": true,
+      "enemySkillBias": 0
+    },
+    "mouseMode": "mouse-aim",
+    "graphics": "high",
+    "careerDifficulty": null
+  },
+  "mission": {
+    "id": "q-gn7xi3",
+    "type": "dogfight",
+    "title": "Dogfight: Camel vs 2 D.VII",
+    "briefing": "The enemy is closing head-on.\n\nYou fly the Sopwith F.1 Camel with 1 wingman against 2 Fokker D.VIIs.\n\nWeather: Cloud 4/10 at 6,300 feet; wind from the west, 9 mph. Visibility 19 miles.",
+    "date": "1918-08-06",
+    "timeOfDay": "afternoon",
+    "weather": {
+      "cloudCover": 0.35,
+      "cloudBaseM": 1930,
+      "cloudTopM": 2930,
+      "wind": [
+        4,
+        0,
+        -1
+      ],
+      "visibilityM": 30000,
+      "turbulence": 0.15
+    },
+    "flights": [
+      {
+        "id": "player-1",
+        "role": "player-flight",
+        "side": "allied",
+        "nation": "britain",
+        "aircraftId": "sopwith_camel",
+        "members": [
+          {
+            "isPlayer": true,
+            "pilotName": "You",
+            "skill": "veteran",
+            "livery": {
+              "fuselage": "#5a5436",
+              "wingTop": "#5a5436",
+              "wingBottom": "#d8cdae",
+              "tail": "#5a5436",
+              "cowling": "#a9aba9",
+              "accent": "#a9aba9",
+              "pattern": "pc10",
+              "insignia": "roundel-rfc",
+              "marking": "1"
+            }
+          },
+          {
+            "skill": "regular",
+            "livery": {
+              "fuselage": "#5a5436",
+              "wingTop": "#5a5436",
+              "wingBottom": "#d8cdae",
+              "tail": "#5a5436",
+              "cowling": "#a9aba9",
+              "accent": "#a9aba9",
+              "pattern": "pc10",
+              "insignia": "roundel-rfc",
+              "marking": "2"
+            }
+          }
+        ],
+        "start": {
+          "x": 4876,
+          "z": -170,
+          "altitude": 2500,
+          "heading": 1.1236073116401104,
+          "airspeed": 41
+        },
+        "waypoints": [
+          {
+            "x": 7221,
+            "z": -1294,
+            "altitude": 2500,
+            "action": "patrol",
+            "duration": 900,
+            "label": "Engagement"
+          },
+          {
+            "x": -18132,
+            "z": -1112,
+            "altitude": 423,
+            "action": "land",
+            "label": "Filescamp Farm (Izel-lès-Hameau)"
+          }
+        ],
+        "task": "fighter-sweep"
+      },
+      {
+        "id": "enemy-1",
+        "role": "enemy",
+        "side": "central",
+        "nation": "germany",
+        "aircraftId": "fokker_dvii",
+        "members": [
+          {
+            "skill": "veteran",
+            "livery": {
+              "fuselage": "#55643a",
+              "wingTop": "#6a5a7a",
+              "wingBottom": "#9aa0b8",
+              "tail": "#e8e4d8",
+              "cowling": "#55643a",
+              "accent": "#55643a",
+              "pattern": "lozenge",
+              "insignia": "balkenkreuz",
+              "marking": "1"
+            }
+          },
+          {
+            "skill": "veteran",
+            "livery": {
+              "fuselage": "#55643a",
+              "wingTop": "#6a5a7a",
+              "wingBottom": "#9aa0b8",
+              "tail": "#e8e4d8",
+              "cowling": "#55643a",
+              "accent": "#55643a",
+              "pattern": "lozenge",
+              "insignia": "balkenkreuz",
+              "marking": "2"
+            }
+          }
+        ],
+        "start": {
+          "x": 7221,
+          "z": -1294,
+          "altitude": 2500,
+          "heading": 4.265199965229904,
+          "airspeed": 44
+        },
+        "waypoints": [
+          {
+            "x": 4876,
+            "z": -170,
+            "altitude": 2500,
+            "action": "patrol",
+            "duration": 900
+          }
+        ],
+        "task": "fighter-sweep"
+      }
+    ],
+    "balloons": [],
+    "groundTargets": [],
+    "objectives": [
+      {
+        "id": "obj-1",
+        "kind": "destroy-aircraft",
+        "description": "Destroy all 2 enemy aircraft.",
+        "targetIds": [
+          "enemy-1"
+        ],
+        "count": 2,
+        "primary": true
+      }
+    ],
+    "homeAerodromeId": "filescamp",
+    "isCareer": false
+  },
+  "quickOptions": {
+    "playerAircraft": "sopwith_camel",
+    "enemyAircraft": "fokker_dvii",
+    "enemyCount": 2,
+    "wingmen": 1,
+    "enemySkill": "veteran",
+    "wingmanSkill": "regular",
+    "altitudeM": 2500,
+    "startPosition": "head-on",
+    "timeOfDay": "afternoon",
+    "cloudCover": 0.35,
+    "type": "dogfight"
+  },
+  "outcome": {
+    "fate": "captured",
+    "playerOutcome": "in-flight",
+    "missionSuccess": false,
+    "aborted": true,
+    "endedByPlayer": false,
+    "lossCause": null,
+    "objectives": [
+      {
+        "id": "obj-1",
+        "description": "Destroy all 2 enemy aircraft.",
+        "primary": true,
+        "completed": false
+      }
+    ],
+    "claims": [],
+    "enemyLosses": 0,
+    "friendlyLosses": [],
+    "roundsFired": 0,
+    "hits": 0,
+    "hitsTaken": 2,
+    "flightTimeS": 45,
+    "combatTimeS": 32.5
+  },
+  "enemies": [
+    {
+      "aircraftId": "fokker_dvii",
+      "flightId": "enemy-1",
+      "callsign": "D.VII #1",
+      "skill": "veteran",
+      "outcome": "in-flight",
+      "firstPass": {
+        "t": 24.4,
+        "atPlayer": false,
+        "heightAdvM": -2,
+        "above": false,
+        "upSun": false,
+        "seen": true
+      }
+    },
+    {
+      "aircraftId": "fokker_dvii",
+      "flightId": "enemy-1",
+      "callsign": "D.VII #2",
+      "skill": "veteran",
+      "outcome": "in-flight",
+      "firstPass": {
+        "t": 24.8,
+        "atPlayer": true,
+        "heightAdvM": 7,
+        "above": false,
+        "upSun": false,
+        "seen": true
+      }
+    }
+  ],
+  "timeCompression": {
+    "realS": 0,
+    "simS": 0,
+    "maxScale": 1
+  },
+  "performance": {
+    "p50": 59.7,
+    "p95": 59.7,
+    "frames": 2693
+  }
+}

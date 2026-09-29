@@ -18,6 +18,8 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `simCore.ts` | `SimCore`: the headless flight — world, combat, AI controllers, mission director, the fixed step, landing detection, wingman orders. Shared by `FlightSession` and the autoplayer. |
 | `heightCache.ts` | Tiled bilinear cache (32 m cells, 1 km tiles, LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
 | `autoplay.ts` | Autoplayer: `runAutoplay(mission)` flies a mission headlessly with the player's aircraft on an AI controller; `headlessModules`. |
+| `flightRecorder.ts` | `FlightRecorder`: the flight report's statistics (`MissionResult.telemetry`): hits taken, loss cause, combat time, each enemy's first pass, time compression, fps. See "Flight report". |
+| `lossCause.ts` | `LossCauseTracker`: what took the player out. Shared by the autoplayer and the recorder. |
 | `world.ts` | `buildWorld`: entities from a `MissionDefinition` (formation offsets, ground starts, spawn delays), `WorldQuery`. |
 | `missionDirector.ts` | Objectives, kill credit → `VictoryClaim`, radio chatter, end conditions, `MissionResult`. |
 | `input.ts` | Keyboard (rebindable actions), mouse (direct stick / mouse-aim instructor), gamepad. |
@@ -221,7 +223,7 @@ balloons/targets on the wrong side of the front, aces present/downed, and an
 event histogram. Headless it runs ~200x real time (the height cache is what
 makes that possible: the analytic terrain costs ~20 us a call).
 
-- `playerLossCause` classifies what took the player out:
+- `playerLossCause` (`LossCauseTracker`, `lossCause.ts`) classifies what took the player out:
   - `collision-<wingman|friendly|enemy|balloon>`;
   - `enemy-fire(<outcome>)` for bullets within the last 25 s;
   - `flak/ground(<outcome>)` for damage without a bullet hit (a shot-up airframe
@@ -254,7 +256,7 @@ makes that possible: the analytic terrain costs ~20 us a call).
   quick setup with N fixed seeds, and `AUTOPLAY_DIFFICULTY=recruit|pilot|ace`
   sets the career difficulty. `AUTOPLAY_SEED_BASE=N` offsets the career pilots'
   seeds so parallel runs sample different careers. The quick setups include the
-  Quick Mission screen's default (Camel and wingman v two regular D.Vs);
+  Quick Mission screen's default (`QUICK_DEFAULTS`, src/data/quickDefaults.ts);
   `AUTOPLAY_QUICK_SETUPS=default,camel,dvii` and
   `AUTOPLAY_QUICK_TYPES=dogfight,ground-attack` select setups and types, and
   `AUTOPLAY_QUICK_BY_SETUP=1` summarises per setup as well as per type. The output ends with a per-type
@@ -262,6 +264,42 @@ makes that possible: the analytic terrain costs ~20 us a call).
   returned/killed/captured/wounded %, timeouts. ~110 missions take ~10 min.
   Note the AI player is a `veteran`; its death rate is an upper bound on a
   careful human's, not a target to drive to zero.
+
+## Flight report
+
+`FlightRecorder` (`flightRecorder.ts`) rides along on every flight and fills
+`MissionResult.telemetry` (`FlightTelemetry` in `src/core/types.ts`) when the
+flight ends. The debrief turns it into the flight report (see docs/PLAYTEST.md
+"Human playtests"). It is headless: `FlightSession` feeds it `afterStep()` after
+every sim step and `frame(dtReal, timeScale)` every rendered frame, and a test
+can wrap any `SimCore` (`src/game/testing/recordedFlight.ts`).
+
+- **Hits taken:** `bullet-hit` events on the player.
+- **Loss cause:** the autoplayer's rules (`LossCauseTracker`).
+- **Combat time:** mission seconds with the player alive and an enemy within
+  1.5 km, sampled at 10 Hz.
+- **Each enemy's first pass:** `EntryTracker` (`src/ai/entryStats.ts`, the same
+  geometry as the gunnery soak). Height advantage when he closed inside 600 m,
+  from above (100 m or more), up-sun (within 15° of the sun seen from his
+  target), and whether his target knew about him. For the player that is the
+  HUD's `PlayerAwareness`: the same "could a human know?" model that gates the
+  threat triangles.
+- **Time compression:** real and mission seconds above 1x, and the highest
+  factor.
+- **Frame rate:** a 0.5 ms histogram of unclamped frame times. `p50` is the
+  median, and `p95` is the rate at the 95th-percentile frame time (the slow end).
+
+A recorder failure is logged and the debrief goes on without telemetry.
+
+**Replay.** `src/game/replay.soak.test.ts` (skipped unless `REPLAY=<report.json>`;
+wrapped by `node tools/playtest/replay-report.mjs <report.json>`) flies a report's
+mission with `runAutoplay` at the report's realism, `REPLAY_REPS` times (default
+8). It prints one line per run and a `fairnessLine` row (`autoplaySummary.ts`,
+shared with the fairness soak). Run 0 uses `headlessModules`, the game's own seeds,
+and repeats exactly: a headless flight is deterministic. Runs 1 and up use
+`seededHeadlessModules(n)`, which reseeds combat's chance draws and each AI
+controller. `runAutoplay` takes `modules` for this. `--browser` launches the
+mission in a running dev server through `window.__rb2.services.launcher.fly`.
 
 
 ## Robustness

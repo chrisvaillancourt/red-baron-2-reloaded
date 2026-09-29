@@ -1,4 +1,6 @@
-import type { CareerPilot, DebriefReport, MedalAward } from '../../core/campaignTypes';
+import type { CareerPilot, DebriefReport, MedalAward, QuickMissionOptions } from '../../core/campaignTypes';
+import { buildInfo } from '../../core/build';
+import { buildFlightReport, FLIGHT_NOTE_MAX, serializeFlightReport, type FlightRating } from '../../core/flightReport';
 import type { MissionDefinition, MissionResult, Nation, VictoryClaim } from '../../core/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import type { ScreenFactory } from '../context';
@@ -6,7 +8,7 @@ import { artBackground, h, setChildren, svg } from '../dom';
 import { formatDate, formatDuration, percent, takesDropCap } from '../format';
 import { medalDisplay, rankDisplay, serviceName } from '../catalog';
 import { medalSvg, pilotPortrait } from '../insignia';
-import { screenShell, stamp, statBox, withHints } from '../components';
+import { screenShell, segmented, stamp, statBox, withHints } from '../components';
 import { FATE_LABEL, MISSION_TYPE_LABEL } from '../labels';
 
 type Page = { kind: string; render: () => HTMLElement; music?: 'victory' | 'defeat' | 'medal' | 'briefing' };
@@ -58,11 +60,20 @@ function victimName(c: VictoryClaim): string {
   return c.victimName || ac?.name || String(c.victimAircraftId).replace(/-/g, ' ');
 }
 
+const RATING_LABEL: Record<FlightRating, string> = { 'too-easy': 'Too easy', fair: 'Fair', 'too-hard': 'Too hard' };
+
+/**
+ * Page order (the Enter/Continue sequence; each is optional except the report):
+ * 1. telegram (career: wounded, captured or killed), 2. combat report (with the playtest
+ * strip: rating, note, "Copy flight report"), 3. newspaper, 4. promotion, 5. one page per
+ * medal, 6. memorial (career over). See docs/ui.md "Debrief".
+ */
 export const debriefScreen: ScreenFactory = (ctx, params) => {
   const mission = params.mission as MissionDefinition;
   const result = params.result as MissionResult;
   const report = params.report as DebriefReport | undefined;
   const pilotId = params.pilotId as string | undefined;
+  const quickOptions = (params.quickOptions as QuickMissionOptions | undefined) ?? null;
   const pilot: CareerPilot | null = pilotId ? ctx.services.campaign.loadPilot(pilotId) : null;
   const nation: Nation = pilot?.nation ?? mission.flights.find((f) => f.role === 'player-flight')?.nation ?? 'britain';
   const squadron = pilot ? ctx.services.campaign.getSquadron(pilot.squadronId) : undefined;
@@ -171,10 +182,85 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
             ? h('div', { class: 'report-side' }, h('div', { class: 'field-label' }, 'Remarks of the commanding officer'), h('div', { class: 'narrative' }, ...report.narrative.map((t) => h('p', takesDropCap(t) ? null : { class: 'no-cap' }, t))))
             : null,
         ),
-        h('div', { class: 'report-foot' }, continueBtn()),
+        h('div', { class: 'report-foot' }, playtestStrip(), continueBtn()),
       );
     },
   });
+
+  // Playtest strip (docs/PLAYTEST.md "Human playtests"): an optional rating and note, and the
+  // flight report. State lives here so it survives re-rendering the page.
+  let rating: FlightRating | null = null;
+  let note = '';
+
+  function playtestStrip(): HTMLElement {
+    const input = h('input', {
+      class: 'input',
+      type: 'text',
+      maxlength: String(FLIGHT_NOTE_MAX),
+      placeholder: 'A note for the report (optional)',
+      'aria-label': 'Playtest note',
+      value: note,
+      onInput: (e: Event) => (note = (e.target as HTMLInputElement).value),
+      // Esc in the note only leaves the field. Menu nav (nav.ts) would also go "back", which
+      // on a quick mission's one-page debrief leaves the screen and loses the rating and note;
+      // it skips events already handled (defaultPrevented).
+      onKeydown: (e: KeyboardEvent) => {
+        if (e.key !== 'Escape') return;
+        e.preventDefault();
+        (e.target as HTMLInputElement).blur();
+      },
+    });
+    return h(
+      'div',
+      { class: 'playtest', role: 'group', 'aria-label': 'Playtest' },
+      h('span', { class: 'field-label' }, 'How did it fly?'),
+      segmented(
+        (Object.keys(RATING_LABEL) as FlightRating[]).map((r) => ({ value: r, label: RATING_LABEL[r] })),
+        rating ?? ('' as FlightRating),
+        (v) => (rating = v),
+      ),
+      input,
+      h('button', { class: 'btn small', type: 'button', 'data-testid': 'copy-flight-report', onClick: () => void copyFlightReport() }, 'Copy flight report'),
+    );
+  }
+
+  function flightReportText(): string {
+    return serializeFlightReport(
+      buildFlightReport({
+        mission,
+        result,
+        settings: ctx.settings(),
+        quickOptions,
+        pilot: pilot ? `${pilot.firstName} ${pilot.lastName}` : null,
+        careerDifficulty: pilot?.difficulty ?? null,
+        rating,
+        note,
+        build: buildInfo(),
+      }),
+    );
+  }
+
+  async function copyFlightReport(): Promise<void> {
+    let text: string;
+    try {
+      text = flightReportText();
+    } catch (e) {
+      console.error('[ui] flight report failed', e);
+      ctx.toast('Could not build the flight report.');
+      return;
+    }
+    try {
+      if (!navigator.clipboard) throw new Error('no clipboard');
+      await navigator.clipboard.writeText(text);
+      ctx.toast('Flight report copied. Paste it into playtests/reports/.');
+    } catch {
+      // Refused (permissions, an insecure origin): show it for copying by hand.
+      const box = h('textarea', { class: 'flight-report-text', readonly: '', rows: '14', 'aria-label': 'Flight report', spellcheck: 'false' }, text) as HTMLTextAreaElement;
+      requestAnimationFrame(() => box.select());
+      ctx.toast('The clipboard refused the report: copy it from the box.');
+      await ctx.confirm({ title: 'Flight report', body: box, infoOnly: true, confirmLabel: 'Done', className: 'wide' });
+    }
+  }
 
   // 3. Newspaper.
   if (report?.newspaperHeadline) {
