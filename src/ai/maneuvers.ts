@@ -25,10 +25,10 @@ import { Vector3 } from 'three';
 import type { AircraftEntity } from '../core/types';
 import { dirFromHeading, forwardOf, headingOf } from './math';
 import type { SkillProfile } from './skill';
-import type { AircraftTraits } from './traits';
+import { traitsFor, type AircraftTraits } from './traits';
 import type { SteerCommand } from './autopilot';
 
-export type ManeuverKind = 'break' | 'climbing-turn' | 'split-s' | 'spiral' | 'jink' | 'extend' | 'brake-turn';
+export type ManeuverKind = 'break' | 'climbing-turn' | 'split-s' | 'spiral' | 'jink' | 'extend' | 'brake-turn' | 'scissors' | 'dive-zoom';
 
 /** Height above ground below which defensive manoeuvres stay level. */
 export const LOW_AGL = 350;
@@ -48,7 +48,18 @@ export interface Maneuver {
   homeDir?: Vector3;
   /** Brake turn: target airspeed, m/s (the autopilot's speed floor still applies). */
   brakeSpeed?: number;
+  /** Dive-and-zoom: pull out and zoom once this airspeed (m/s) is reached. */
+  zoomAt?: number;
+  /** Dive-and-zoom: mission time the zoom began. */
+  zoomSince?: number;
 }
+
+/**
+ * Which escalation (TACTICS_FLAGS): `brake` keeps turning (brake turn, spiral, break);
+ * `ladder` changes direction or plane by airframe (scissors, dive and zoom, climbing spiral,
+ * split-S; the wave-9 brief's ladder, kept for A/B runs).
+ */
+export type DefenceMode = 'brake' | 'ladder';
 
 /**
  * Escalating defence is on (TACTICS_FLAGS.escalateDefence). `level` counts manoeuvres flown
@@ -58,6 +69,8 @@ export interface Escalation {
   level: number;
   /** The manoeuvre he just flew, if any. */
   lastKind?: ManeuverKind;
+  /** Default `brake`. */
+  mode?: DefenceMode;
 }
 
 /** Brake turn: skill above this (veterans, aces), attacker inside this range (m), closing faster than this (m/s). */
@@ -74,6 +87,15 @@ const BRAKE_AGL = 500;
 const SPIRAL_AGL = 1500;
 /** With an enemy this close behind (m), pilots above novice don't jink (measured the worst defence). */
 const NO_JINK_RANGE_M = 400;
+/** Ladder: height above ground (m) for a dive and zoom, a split-S; no scissors below SCISSORS_AGL (D-060). */
+const DIVE_AGL = 800;
+const SPLIT_S_AGL = 1000;
+const SCISSORS_AGL = 500;
+/** Ladder: a dive only opens a gap he hasn't closed, from this range (m) out. */
+const DIVE_GAP_M = 300;
+/** Ladder: out-dives him by this much safe dive speed (m/s; the D.V does not, D-075); out-climbs by this many minutes to 3,000 m. */
+const OUT_DIVE_MS = 4;
+const OUT_CLIMB_MIN = 1;
 
 const _f = new Vector3();
 const _r = new Vector3();
@@ -113,7 +135,12 @@ export function chooseDefensive(
   // Closing speed of the attacker (m/s, positive = closing).
   const closing = attacker && range < Infinity ? -_rel.dot(_v.copy(attacker.state.velocity).sub(self.state.velocity)) / Math.max(range, 1) : 0;
   const skilled = !!escalation && t >= 0.25 && !traits.isTwoSeater && !!attacker;
-  if (skilled && escalation!.level >= 1) {
+  const ladder = skilled && escalation!.mode === 'ladder';
+  if (ladder && escalation!.level >= 1) {
+    kind = ladderStep(self, attacker!, traits, profile, agl, range, homeDir);
+    // A reversal is the point of the ladder: turn away from the attacker's side.
+    if (kind === 'scissors') side = side === 1 ? -1 : 1;
+  } else if (skilled && escalation!.level >= 1) {
     kind = escalate(profile, agl, range, closing, escalation!.lastKind);
   } else if (low) {
     // Extending only works with a lead: a pursuer inside ~450 m just follows and shoots.
@@ -136,8 +163,9 @@ export function chooseDefensive(
   else kind = 'jink';
   // A jink with a man close behind keeps the aircraft nearly straight: the worst defence
   // measured. Pilots above novice turn instead when escalation is on.
-  if (skilled && kind === 'jink' && range < NO_JINK_RANGE_M) kind = agl > SPIRAL_AGL ? 'spiral' : 'break';
-  const duration = kind === 'split-s' ? 6 : kind === 'extend' ? 8 : kind === 'jink' ? 5 : kind === 'brake-turn' ? 4 : 3 + 2 * rng();
+  if (skilled && !ladder && kind === 'jink' && range < NO_JINK_RANGE_M) kind = agl > SPIRAL_AGL ? 'spiral' : 'break';
+  const duration =
+    kind === 'split-s' ? 6 : kind === 'extend' ? 8 : kind === 'jink' ? 5 : kind === 'brake-turn' ? 4 : kind === 'scissors' ? 6 : kind === 'dive-zoom' ? 12 : 3 + 2 * rng();
   return {
     kind,
     side,
@@ -148,7 +176,36 @@ export function chooseDefensive(
     low,
     homeDir: homeDir ? homeDir.clone().setY(0).normalize() : undefined,
     ...(kind === 'brake-turn' ? { brakeSpeed: traits.stallSpeed * 1.45 } : {}),
+    ...(kind === 'dive-zoom' ? { zoomAt: Math.min(traits.maxSafeDiveSpeed * 0.95, self.state.airspeed + 25) } : {}),
   };
+}
+
+/**
+ * The ladder (DefenceMode `ladder`): change direction or plane by airframe once a manoeuvre
+ * hasn't shaken him. Scissors when he is close and we roll and turn about as well as he does,
+ * a dive and zoom when we out-dive him and have a gap, a climbing spiral when we out-climb
+ * him, a split-S with height to spare (veterans and aces), else a weave. Below 500 m (D-060:
+ * no scissors low down) climb out, extend along the deck, or weave.
+ */
+function ladderStep(self: AircraftEntity, attacker: AircraftEntity, traits: AircraftTraits, profile: SkillProfile, agl: number, range: number, homeDir?: Vector3): ManeuverKind {
+  const me = self.spec.performance;
+  const him = attacker.spec.performance;
+  const his = traitsFor(attacker.spec);
+  const outClimbs = me.climbTo3000mMin <= him.climbTo3000mMin - OUT_CLIMB_MIN;
+  const outDives = traits.maxSafeDiveSpeed >= his.maxSafeDiveSpeed + OUT_DIVE_MS;
+  const faster = traits.maxSpeed >= his.maxSpeed + 2;
+  if (agl < SCISSORS_AGL) {
+    if (outClimbs && self.state.airspeed > traits.bestClimbSpeed + 6) return 'climbing-turn';
+    if (agl < LOW_AGL && faster && homeDir) return 'extend';
+    return 'jink';
+  }
+  // Scissors favour the pilot who rolls as fast and can fly slower (lighter wing loading).
+  const scissorsOk = me.rollRate >= 0.8 * him.rollRate && me.massLoaded / me.wingArea <= (him.massLoaded / him.wingArea) * 1.1;
+  if (range < DIVE_GAP_M && scissorsOk) return 'scissors';
+  if (outDives && agl > DIVE_AGL && range >= DIVE_GAP_M) return 'dive-zoom';
+  if (outClimbs) return 'climbing-turn';
+  if (profile.t > 0.6 && agl > SPLIT_S_AGL) return 'split-s';
+  return scissorsOk ? 'scissors' : 'jink';
 }
 
 /**
@@ -217,6 +274,30 @@ export function maneuverSteer(m: Maneuver, self: AircraftEntity, attacker: Aircr
       out.speed = m.brakeSpeed ?? Infinity;
       out.maxPerformance = true;
       break;
+    case 'scissors': {
+      // Hard reversals every ~2 s, nose a touch high to bleed speed and make him overshoot.
+      if (now > m.nextReverse) {
+        m.side = m.side === 1 ? -1 : 1;
+        m.nextReverse = now + 1.8 + 0.6 * rng();
+      }
+      out.dir.copy(rh).multiplyScalar(m.side).addScaledVector(fh, 0.2).add(new Vector3(0, 0.08, 0));
+      out.maxPerformance = true;
+      break;
+    }
+    case 'dive-zoom': {
+      // Push over into a steep dive off his line, then zoom once fast: a heavier, cleaner
+      // airframe gains on him going down and keeps it coming up.
+      const away = attacker ? _rel.copy(self.state.position).sub(attacker.state.position).setY(0).normalize() : fh.clone();
+      if (m.zoomSince == null && self.state.airspeed >= (m.zoomAt ?? Infinity)) m.zoomSince = now;
+      if (m.zoomSince == null) {
+        out.dir.copy(fh).multiplyScalar(0.6).addScaledVector(away, 0.4).normalize().add(new Vector3(0, -0.75, 0));
+      } else {
+        out.dir.copy(fh).add(new Vector3(0, 0.8, 0));
+        out.maxG = 4;
+        if (now - m.zoomSince > 4) m.until = Math.min(m.until, now);
+      }
+      break;
+    }
     case 'extend': {
       const away = attacker ? _rel.copy(self.state.position).sub(attacker.state.position).setY(0).normalize() : fh.clone();
       if (m.low && m.homeDir) {

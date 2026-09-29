@@ -32,7 +32,7 @@ import { Autopilot, type SteerCommand } from './autopilot';
 import { angularRadius, leadSolution, type LeadSolution } from './gunnery';
 import { angleBetween, clamp, DEG, forwardOf, headingOf, makeRng, upOf, rightOf, wrapPi } from './math';
 import { HumanAim, type HumanPilotParams } from './humanAim';
-import { chooseDefensive, LOW_AGL, maneuverSteer, type Maneuver } from './maneuvers';
+import { chooseDefensive, LOW_AGL, maneuverSteer, type DefenceMode, type Maneuver } from './maneuvers';
 import {
   formationOffset,
   formationSteer,
@@ -133,6 +133,11 @@ const DEFENCE_STREAK_S = 8;
 const REFUGE_MIN_S = 25;
 /** Largest circle flown round a refuge cloud's core, m (an overcast deck has no edge). */
 const REFUGE_ORBIT_MAX_M = 250;
+
+/** The escalation TACTICS_FLAGS selects (maneuvers.ts). */
+function defenceMode(): DefenceMode {
+  return TACTICS_FLAGS.defenceLadder ? 'ladder' : 'brake';
+}
 
 export function getAIPilot(ac: AircraftEntity): AIPilot | undefined {
   return REGISTRY.get(ac);
@@ -498,7 +503,7 @@ export class AIPilot implements AIController {
           st.at = this.now;
           // Not on the way home: a hurt pilot's job is to get there (or into cloud), and an
           // escalated spiral would drop him out of the bottom of a refuge cloud.
-          const escalation = TACTICS_FLAGS.escalateDefence && this.phase !== 'rtb' ? { level: st.n, lastKind: this.maneuver?.kind } : undefined;
+          const escalation = TACTICS_FLAGS.escalateDefence && this.phase !== 'rtb' ? { level: st.n, lastKind: this.maneuver?.kind, mode: defenceMode() } : undefined;
           this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined, TACTICS_FLAGS.meetBounce, escalation);
           if (this.phase !== 'rtb') this.phase = 'defend';
           this.threatId = attacker?.id ?? null;

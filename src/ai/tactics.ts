@@ -42,6 +42,11 @@ export const TACTICS_FLAGS = {
    * aces brake-turn to force an overshoot, others spiral; no jinks with a man close behind.
    */
   escalateDefence: true,
+  /**
+   * With escalateDefence: escalate by the brief's ladder instead (scissors, dive and zoom,
+   * climbing spiral, split-S by airframe; maneuvers.ts DefenceMode). Off: measured worse.
+   */
+  defenceLadder: false,
 };
 
 export function applyTacticsFlagsFromEnv(env: Record<string, string | undefined>): void {

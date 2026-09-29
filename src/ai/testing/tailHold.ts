@@ -6,6 +6,10 @@
  * spent circling: turning at more than 6 deg/s the same way as 3 s earlier ("circle"),
  * and the part of that with less than 6 m/s of climb or sink ("flat"). Used by the real-sim defence test and the
  * tail-hold soak.
+ *
+ * Visible variety: the share of held time *not* in a constant-direction turn (1 - circle),
+ * and, per tail-hold episode of 3 s or more, the number of distinct AI states flown (phase
+ * and manoeuvre kind: "defend break", "defend scissors", "engage", ...).
  */
 import { Vector3 } from 'three';
 import type { AircraftEntity } from '../../core/types';
@@ -36,9 +40,15 @@ export interface TailHoldAcc {
   stretches: number;
   /** Hits taken while held, per AI state at the time of the hit. */
   hitsByState: Map<string, number>;
+  /** Tail-hold episodes of EPISODE_MIN_S or more, and the distinct AI states flown in them, summed. */
+  episodes: number;
+  kindsSum: number;
 }
 
-export const zeroTailHold = (): TailHoldAcc => ({ held: 0, circle: 0, flat: 0, bankSum: 0, dh: 0, longest: 0, states: new Map(), stretches: 0, hitsByState: new Map() });
+export const zeroTailHold = (): TailHoldAcc => ({ held: 0, circle: 0, flat: 0, bankSum: 0, dh: 0, longest: 0, states: new Map(), stretches: 0, hitsByState: new Map(), episodes: 0, kindsSum: 0 });
+
+/** Shortest tail-hold counted as an episode for the variety count, s. */
+const EPISODE_MIN_S = 3;
 
 interface Track {
   /** Heading-rate samples over the last HISTORY_S seconds: [time, rate]. */
@@ -50,6 +60,8 @@ interface Track {
   /** Bucket key and AI state at the last sample, while held. */
   heldKey: string | null;
   heldState: string;
+  /** Distinct AI states flown in the current episode. */
+  kinds: Set<string>;
 }
 
 const _rel = new Vector3();
@@ -92,6 +104,8 @@ export class TailHoldTracker {
     /** Bucket key for a defender, or null to skip it. */
     private readonly keyOf: (a: AircraftEntity) => string | null,
     readonly acc: Map<string, TailHoldAcc> = new Map(),
+    /** Count only tail-holds by these attackers (default: any enemy). */
+    private readonly holderOk: (holder: AircraftEntity) => boolean = () => true,
   ) {}
 
   /** Call at a steady rate (dt seconds apart). */
@@ -103,7 +117,7 @@ export class TailHoldTracker {
       const key = this.keyOf(a);
       if (key == null) continue;
       let tr = this.tracks.get(a.id);
-      if (!tr) this.tracks.set(a.id, (tr = { rates: [], lastHeading: null, lastY: a.state.position.y, holder: null, since: 0, heldKey: null, heldState: '-' }));
+      if (!tr) this.tracks.set(a.id, (tr = { rates: [], lastHeading: null, lastY: a.state.position.y, holder: null, since: 0, heldKey: null, heldState: '-', kinds: new Set() }));
       const v = a.state.velocity;
       const h = headingOf(v);
       const rate = tr.lastHeading == null ? 0 : wrapPi(h - tr.lastHeading) / dt;
@@ -112,8 +126,10 @@ export class TailHoldTracker {
       while (tr.rates.length && tr.rates[0][0] < this.time - HISTORY_S) tr.rates.shift();
       const dy = a.state.position.y - tr.lastY;
       tr.lastY = a.state.position.y;
-      const holder = tailHolder(a, all);
+      const found = tailHolder(a, all);
+      const holder = found && this.holderOk(found) ? found : null;
       if (!holder) {
+        this.endEpisode(tr);
         tr.holder = null;
         tr.heldKey = null;
         continue;
@@ -121,6 +137,7 @@ export class TailHoldTracker {
       let g = this.acc.get(key);
       if (!g) this.acc.set(key, (g = zeroTailHold()));
       if (tr.holder !== holder.id) {
+        this.endEpisode(tr);
         tr.holder = holder.id;
         tr.since = this.time;
         g.stretches++;
@@ -135,9 +152,27 @@ export class TailHoldTracker {
       if (circling && Math.abs(v.y) < FLAT_VS) g.flat += dt;
       const s = this.stateOf(a).replace(/ #\d+/, '').trim() || '-';
       g.states.set(s, (g.states.get(s) ?? 0) + dt);
+      tr.kinds.add(s.replace(/ (recover|pull-up)/g, ''));
       tr.heldKey = key;
       tr.heldState = s;
     }
+    // Aircraft that went down end their episode too.
+    for (const [id, tr] of this.tracks) if (tr.holder != null && !all.some((a) => a.id === id && !a.outcome)) this.endEpisode(tr);
+  }
+
+  /** Close any open episodes (call once at the end of a run). */
+  finish(): void {
+    for (const tr of this.tracks.values()) this.endEpisode(tr);
+  }
+
+  private endEpisode(tr: Track): void {
+    const g = tr.heldKey != null ? this.acc.get(tr.heldKey) : undefined;
+    if (g && tr.holder != null && this.time - tr.since >= EPISODE_MIN_S) {
+      g.episodes++;
+      g.kindsSum += tr.kinds.size;
+    }
+    tr.kinds.clear();
+    tr.holder = null;
   }
 
   /** A bullet hit `targetId`: counted against its state if an enemy was on its tail. */
@@ -161,6 +196,8 @@ export function tailHoldLine(key: string, g: TailHoldAcc, runs: number): string 
     key.padEnd(24),
     `held ${(g.held / runs).toFixed(0)} s/run`,
     `circle ${Math.round((100 * g.circle) / Math.max(g.held, 1e-9))}%`,
+    `varied ${Math.round(100 - (100 * g.circle) / Math.max(g.held, 1e-9))}%`,
+    `kinds/episode ${(g.kindsSum / Math.max(g.episodes, 1)).toFixed(2)} (${g.episodes})`,
     `flat ${Math.round((100 * g.flat) / Math.max(g.held, 1e-9))}%`,
     `bank ${((g.bankSum / Math.max(g.held, 1e-9)) * 57.3).toFixed(0)} deg`,
     `dh ${(g.dh / runs).toFixed(0)} m/run`,
