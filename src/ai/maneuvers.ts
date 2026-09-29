@@ -65,14 +65,52 @@ export interface Maneuver {
  */
 export type DefenceMode = 'brake' | 'ladder';
 
+/** A new defensive manoeuvre within this many seconds of the end of the last, against the same attacker, escalates. */
+export const DEFENCE_STREAK_S = 8;
+
+/**
+ * Defensive manoeuvres flown in a row against one attacker, for the escalation. A manoeuvre
+ * continues the streak when it starts within DEFENCE_STREAK_S of the end of the last one
+ * (an 8 s extension still counts), and the last manoeuvre's kind and final turn direction
+ * are kept after the controller has let it go.
+ */
+export class DefenceStreak {
+  private attackerId = -1;
+  private n = 0;
+  private last: Maneuver | null = null;
+
+  /** Escalation level of a manoeuvre starting now against `attackerId`: 0 = a fresh threat. */
+  level(attackerId: number | undefined, now: number): number {
+    if (attackerId == null || attackerId !== this.attackerId || !this.last) return 0;
+    return now - this.last.until < DEFENCE_STREAK_S ? this.n + 1 : 0;
+  }
+
+  /** A manoeuvre has started against `attackerId` at `level`. */
+  started(attackerId: number | undefined, m: Maneuver, level: number): void {
+    this.attackerId = attackerId ?? -1;
+    this.n = level;
+    this.last = m;
+  }
+
+  get lastKind(): ManeuverKind | undefined {
+    return this.last?.kind;
+  }
+
+  /** The way the last manoeuvre was turning when it ended (a jink or scissors changes side). */
+  get lastSide(): 1 | -1 | undefined {
+    return this.last?.side;
+  }
+}
+
 /**
  * Escalating defence is on (TACTICS_FLAGS.escalateDefence). `level` counts manoeuvres flown
  * in a row against the same attacker: 0 = a fresh threat, 1 = the last one didn't shake him.
  */
 export interface Escalation {
   level: number;
-  /** The manoeuvre he just flew, if any. */
+  /** The manoeuvre he just flew, if any, and the way it was turning when it ended. */
   lastKind?: ManeuverKind;
+  lastSide?: 1 | -1;
   /** Default `brake`. */
   mode?: DefenceMode;
   /**
@@ -161,8 +199,12 @@ export function chooseDefensive(
     if (kind === 'scissors') side = side === 1 ? -1 : 1;
   } else if (skilled && escalation!.level >= 1) {
     kind = escalate(profile, agl, range, closing, escalation!, lagging(self, attacker!));
-    // Reverse: break away from the side he sits on, so his lead is suddenly wrong.
-    if (kind === 'reversal') side = side === 1 ? -1 : 1;
+    // Reverse the turn he was in, so the attacker's lead is suddenly wrong (after the rotary
+    // torque bias above, which must not turn a reversal back into the same break).
+    if (kind === 'reversal') {
+      const last = escalation!.lastSide ?? side;
+      side = last === 1 ? -1 : 1;
+    }
   } else if (low) {
     // Extending only works with a lead: a pursuer inside ~450 m just follows and shoots.
     const faster = !attacker || self.state.airspeed >= attacker.state.airspeed - 2;

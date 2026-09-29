@@ -32,7 +32,7 @@ import { Autopilot, type SteerCommand } from './autopilot';
 import { angularRadius, leadSolution, type LeadSolution } from './gunnery';
 import { angleBetween, clamp, DEG, forwardOf, headingOf, makeRng, upOf, rightOf, wrapPi } from './math';
 import { HumanAim, type HumanPilotParams } from './humanAim';
-import { chooseDefensive, LOW_AGL, maneuverSteer, type DefenceMode, type Maneuver } from './maneuvers';
+import { chooseDefensive, DefenceStreak, LOW_AGL, maneuverSteer, type DefenceMode, type Maneuver } from './maneuvers';
 import {
   formationOffset,
   formationSteer,
@@ -127,8 +127,6 @@ const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort compl
 const BREAK_LEAD_S = 1.8;
 /** Seconds of full-g break away from the merge before the extension. */
 const BREAK_S = 0.8;
-/** A new defensive manoeuvre within this many seconds of the last, against the same attacker, escalates. */
-const DEFENCE_STREAK_S = 8;
 /** Shortest stay inside a refuge cloud, s (plus up to 15 s). */
 const REFUGE_MIN_S = 25;
 /** Largest circle flown round a refuge cloud's core, m (an overcast deck has no edge). */
@@ -214,7 +212,7 @@ export class AIPilot implements AIController {
   private refuge: { pos: Vector3; radius: number; until: number; turn: number } | null = null;
   private refugeCheck = 0;
   /** Defensive manoeuvres flown in a row against one attacker (escalation). */
-  private readonly defenceStreak = { id: -1, n: 0, at: -100 };
+  private readonly defenceStreak = new DefenceStreak();
   private loiter: Vector3 | null = null;
   private readonly steer: SteerCommand = { dir: new Vector3(0, 0, -1), speed: Infinity };
   private readonly lead: LeadSolution = { dir: new Vector3(), tof: 0, point: new Vector3() };
@@ -485,7 +483,9 @@ export class AIPilot implements AIController {
       if (this.threatSince < 0) this.threatSince = this.now;
       if (this.now - this.threatSince >= p.reactionDelay) {
         const expired = !this.maneuver || this.now >= this.maneuver.until;
-        if (this.phase !== 'defend' || expired) {
+        // A new manoeuvre when the last has run out, or at once on turning to defend. On the
+        // way home the phase stays 'rtb', so there only an expired manoeuvre is replaced.
+        if (expired || (this.phase !== 'defend' && this.phase !== 'rtb')) {
           // Aces reverse onto an attacker that has overshot.
           if (attacker && p.t > 0.6 && this.phase === 'defend' && this.overshot(self, attacker)) {
             this.maneuver = null;
@@ -498,13 +498,15 @@ export class AIPilot implements AIController {
           // Count manoeuvres in a row against the same attacker: one that is still behind us
           // after a break gets something else (TACTICS_FLAGS.escalateDefence).
           const st = this.defenceStreak;
-          st.n = attacker && attacker.id === st.id && this.now - st.at < DEFENCE_STREAK_S ? st.n + 1 : 0;
-          st.id = attacker?.id ?? -1;
-          st.at = this.now;
+          const level = st.level(attacker?.id, this.now);
           // Not on the way home: a hurt pilot's job is to get there (or into cloud), and an
           // escalated spiral would drop him out of the bottom of a refuge cloud.
-          const escalation = TACTICS_FLAGS.escalateDefence && this.phase !== 'rtb' ? { level: st.n, lastKind: this.maneuver?.kind, mode: defenceMode(), reversal: TACTICS_FLAGS.defenceReversal } : undefined;
+          const escalation =
+            TACTICS_FLAGS.escalateDefence && this.phase !== 'rtb'
+              ? { level, lastKind: st.lastKind, lastSide: st.lastSide, mode: defenceMode(), reversal: TACTICS_FLAGS.defenceReversal }
+              : undefined;
           this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined, TACTICS_FLAGS.meetBounce, escalation);
+          st.started(attacker?.id, this.maneuver, level);
           if (this.phase !== 'rtb') this.phase = 'defend';
           this.threatId = attacker?.id ?? null;
         }
