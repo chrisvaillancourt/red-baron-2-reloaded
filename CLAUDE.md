@@ -33,7 +33,8 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   - Lead merge commits keep the `Merge <branch>: <summary>` form. History before wave 9
     predates this rule.
 - Record significant decisions in `DECISIONS.md` (append `D-0NN` entries; take the next free
-  number at merge time — use `D-XXX` placeholders if unsure and the lead will renumber).
+  number at merge time). Agents always write `D-XXX` and never renumber, even after merging
+  main; only the lead numbers entries, when merging to main (FRICTION F-59).
 - End every final report with a **Friction** section: what slowed you down, including
   missing tools, wrong or missing instructions, confusing structure, and flaky commands.
   Give each item a suggested fix. Write "none" if there was none. The lead logs each item
@@ -69,10 +70,22 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
 - **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,
   perception) shifts them. Compare with an independent count, or assert a range, unless the
   test is about determinism.
+- **Scratch scripts that import project packages** (Playwright, three) go in the git-ignored
+  `tools/dev/scratch/`, not the session scratchpad: Node resolves `@playwright/test` only
+  from inside the repo (FRICTION F-48).
+- **Edit source with Write/Edit, never heredocs.** The sandbox refuses heredoc edits
+  inconsistently, so one that worked before can be refused the next time (F-46).
+- **Back up a branch before a rebase with a tag,** not another branch: `rebase.updateRefs`
+  moves branches along with the rewrite (F-50).
 - **Playwright:** the cached Chromium revision doesn't match `@playwright/test`; launch with
   `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`) instead of downloading.
   Modals fade in over about 0.5 s, and Playwright counts a fading modal as visible, so wait
   for the fade to finish before a screenshot.
+  `keyboard.press` goes down and up inside one frame, so for keys the game reads as held use
+  `keyboard.down`, wait a few frames, then `keyboard.up` (F-61). Playwright wipes
+  `test-results/` on every run; copy screenshots you want to keep to `tools/dev/scratch/`
+  (F-62). A gamepad on the machine drives headless Chrome; stub `navigator.getGamepads` in
+  specs that fly (F-60, see `tests/e2e/crew.spec.ts`).
 - **Playtest reports:** the dev server saves every human flight to `playtests/inbox/`, which
   is git-ignored, so worktrees don't have it. Read an inbox report through the main
   checkout's absolute path. Move it to the tracked `playtests/reports/` only when your change

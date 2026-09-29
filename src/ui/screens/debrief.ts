@@ -164,6 +164,9 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
           statBox(result.roundsFired, 'Rounds fired'),
           statBox(result.hits, 'Hits'),
           statBox(percent(acc), 'Accuracy'),
+          // A bombing sortie: what the aircraft dropped, and the bursts that reached a target.
+          result.bombsDropped !== undefined ? statBox(result.bombsDropped, 'Bombs dropped') : null,
+          result.bombsDropped !== undefined ? statBox(result.bombHits ?? 0, 'Bomb hits') : null,
         ),
         mission.objectives.length
           ? h(

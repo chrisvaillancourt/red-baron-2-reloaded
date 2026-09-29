@@ -42,6 +42,12 @@ export const DEFAULT_KEY_BINDINGS: Record<string, string[]> = {
   wingmenCover: ['Digit4'],
   wingmenHome: ['Digit5'],
   toggleHud: ['KeyH'],
+  // Crew stations (docs/bombers.md): the wingman orders own 1-5, so the seats take C/V/F.
+  stationNext: ['KeyC'],
+  stationPrev: ['KeyV'],
+  stationPilot: ['KeyF'],
+  releaseBomb: ['KeyR'],
+  viewBombsight: ['F6'],
 };
 
 export const DEFAULT_SETTINGS: GameSettings = {

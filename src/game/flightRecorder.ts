@@ -2,13 +2,14 @@
  * Flight recorder: the statistics a flight report needs that the MissionResult doesn't carry
  * (docs/game.md "Flight report"). Hits taken, what took the player out, time in combat, each
  * enemy's first firing pass (from above, out of the sun, seen or unseen), the player's gunnery
- * (aimStats.ts), time compression and frame rate. Headless (no DOM), so the autoplayer and tests can record a flight too.
+ * (aimStats.ts), time at each crew station, time compression and frame rate. Headless (no DOM), so the autoplayer and tests can record a flight too.
  *
  * Feed it: `afterStep()` after every SimCore step, `frame()` once per rendered frame (browser
  * only), and `telemetry()` when the flight ends. It subscribes to the core's event bus itself.
  */
 import type { AIController } from '../core/interfaces';
-import type { AircraftEntity, EnemyEntryTelemetry, FlightTelemetry } from '../core/types';
+import type { AircraftEntity, CrewStationId, EnemyEntryTelemetry, FlightTelemetry } from '../core/types';
+import { crewStations } from '../data/crew';
 import { EntryTracker, type PassRecord } from '../ai/entryStats';
 import { AimTracker } from './aimStats';
 import { LossCauseTracker } from './lossCause';
@@ -37,6 +38,9 @@ export class FlightRecorder {
   private maxScale = 1;
   private readonly frameHist = new Uint32Array(BUCKETS + 1);
   private frames = 0;
+  /** Seconds at each crew station; null on a single-seater. */
+  private readonly stationTime: Partial<Record<CrewStationId, number>> | null;
+  private lastStepT: number;
   private readonly unsub: () => void;
 
   constructor(
@@ -56,6 +60,8 @@ export class FlightRecorder {
       },
     });
     this.aim = new AimTracker(world, player);
+    this.stationTime = player && crewStations(player.spec).length > 1 ? {} : null;
+    this.lastStepT = world.time;
     this.unsub = core.bus.onAny((e) => {
       this.loss.onEvent(e);
       this.aim.onEvent(e);
@@ -72,6 +78,12 @@ export class FlightRecorder {
     this.loss.step();
     this.aim.afterStep();
     const world = this.core.world;
+    const h = world.time - this.lastStepT;
+    this.lastStepT = world.time;
+    if (this.stationTime && world.player?.outcome === null) {
+      const st = this.core.playerStation;
+      this.stationTime[st] = (this.stationTime[st] ?? 0) + h;
+    }
     if (world.time < this.nextSample) return;
     const dt = SAMPLE_S + (world.time - this.nextSample);
     this.nextSample = world.time + SAMPLE_S;
@@ -113,6 +125,7 @@ export class FlightRecorder {
       fps: this.frames ? { p50: this.fpsAt(0.5), p95: this.fpsAt(0.95), frames: this.frames } : null,
       enemies,
       aim: this.aim.telemetry(),
+      ...(this.stationTime ? { stationTimeS: Object.fromEntries(Object.entries(this.stationTime).map(([k, v]) => [k, round1(v)])) } : {}),
     };
   }
 

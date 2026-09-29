@@ -895,3 +895,106 @@
 .rb-hud.with-cluster .hud-readout .r:nth-child(4) {
   display: none;
 }
+
+/* ------------------------------------------------ crew stations
+ * The seat plate, the gunner's ring sight and field-of-fire edge, the
+ * bombsight's drift wire and release cue, and the bomb count. */
+/* Bottom centre, above the readout strip (the start hint and padlock sit at the top). */
+.hud-seat {
+  position: absolute;
+  left: 50%;
+  bottom: 5.4em;
+  transform: translateX(-50%);
+  font-size: 0.8em;
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+}
+.hud-seat.ai {
+  color: var(--hud-amber);
+}
+.hud-bombs {
+  position: absolute;
+  right: 1.4em;
+  bottom: 0.15em;
+  font-size: 0.72em;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.hud-crew {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  filter: drop-shadow(0 0 1px #000);
+}
+.hud-crew .arc {
+  fill: none;
+  stroke: rgba(255, 194, 90, 0.7);
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
+}
+.hud-crew .arc.limited {
+  stroke: var(--hud-red);
+  stroke-width: 3;
+}
+.hud-crew .ring circle {
+  fill: none;
+  stroke: rgba(243, 234, 211, 0.85);
+  stroke-width: 1.5;
+}
+.hud-crew .ring .bead {
+  fill: rgba(243, 234, 211, 0.95);
+  stroke: none;
+}
+.hud-crew .ring .spokes {
+  stroke: rgba(243, 234, 211, 0.85);
+  stroke-width: 1.5;
+}
+.hud-crew .ring.limited circle,
+.hud-crew .ring.limited .spokes {
+  stroke: var(--hud-red);
+}
+.hud-crew .wire .line {
+  stroke: rgba(243, 234, 211, 0.75);
+  stroke-width: 1.5;
+}
+.hud-crew .wire .ticks {
+  stroke: rgba(243, 234, 211, 0.55);
+  stroke-width: 1.5;
+}
+.hud-crew .impact circle,
+.hud-crew .impact path {
+  fill: none;
+  stroke: var(--hud-amber);
+  stroke-width: 2;
+}
+.hud-crew .impact.on circle,
+.hud-crew .impact.on path {
+  stroke: var(--hud-green);
+  stroke-width: 3;
+}
+.hud-crew .target {
+  fill: none;
+  stroke: var(--hud-red);
+  stroke-width: 2;
+}
+.hud-cue {
+  position: absolute;
+  left: 50%;
+  top: 64%;
+  transform: translateX(-50%);
+  font-size: 0.9em;
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+  color: var(--hud-dim);
+}
+.hud-cue.cue-run-in {
+  color: var(--hud-amber);
+}
+.hud-cue.cue-release {
+  color: var(--hud-green);
+  font-size: 1.2em;
+  animation: hud-blink 0.5s steps(2) infinite;
+}
+.hud-cue.cue-past {
+  color: var(--hud-red);
+}
