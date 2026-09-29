@@ -575,7 +575,7 @@ has survived a manoeuvre, to pilots above novice:
 - **No jinks** for pilots above novice with an enemy within 400 m.
 - **Not on the way home.** With escalation there, a hurt pilot's spiral dropped him out of
   the bottom of his refuge cloud (D-081's cloud-escape test failed), so RTB keeps the old
-  choices.
+  choices. He flies each one to its end; before round 3 an RTB pilot re-picked every tick.
 
 The low-level rules are unchanged. The first version spiralled from 700 m and chained
 spirals. That took fights down about 2.6 km a run, and quick-survey ground and flak losses
@@ -695,6 +695,69 @@ Other checks of (d), `ab.mjs --flag escalateDefence` (A: off, B: final):
 - career (3 seed sets): killed or captured 21.3 → 25.1%, collisions 4.9 → 5.5 per 100
   missions, both within noise
 
+**Round 3: after the code-review fixes.** Five of the review's fixes change behaviour:
+- RTB re-picked a defensive manoeuvre every tick, in every design including (a). It now
+  flies each one to its end.
+- The streak window is measured from the end of the last manoeuvre, not its start.
+- The streak keeps the last manoeuvre's kind and side itself.
+- The reversal turns against the side the last manoeuvre actually flew.
+- The human-like pursuer no longer starts a burst on a shot the line-of-fire check blocks.
+
+The human-like pursuer also changed in two smaller ways. It takes up a target from the nose,
+not the flight path, and its noise now comes from `src/sim/rng`'s gaussian, which draws a
+different stream.
+
+Only (a) and (d) were re-run. At 24 seeds the real-sim rows swing by a third with the noise
+stream alone: the 2,000 m human-like case went from 124 to 179 hits on the RNG change only.
+So the real sim is now quoted at 96 seeds, before (`100350f`) → after:
+
+| Case, pursuer (96 seeds) | (a) off | (d) final |
+|---|---|---|
+| 2,000 m, human-like: hits / down / varied | 770 / 9 / 37% → 645 / 0 / 41% | 619 / 4 / 51% → 432 / 1 / 53% |
+| 2,000 m, veteran | 1,904 / 37 / 43% → 1,842 / 33 / 43% | 1,070 / 17 / 47% → 995 / 10 / 45% |
+| 300 m, human-like | 628 (204) / 1 / 50% → 662 (211) / 1 / 52% | 716 (272) / 2 / 61% → 709 (275) / 0 / 62% |
+| 300 m, veteran | 640 (151) / 2 / 55% → 632 (152) / 3 / 54% | 674 (211) / 1 / 61% → 641 (190) / 2 / 62% |
+
+Tail-hold soak (`vs player`, 36 runs), hits per run / varied / longest single tail-hold,
+round 2 → round 3:
+
+| Setup, player | (a) off | (d) final |
+|---|---|---|
+| default, human-like | 11.1 / 31% / 289 s → 11.0 / 27% / 340 s | 10.4 / 45% / 476 s → 9.7 / 39% / 345 s |
+| report 300 m, human-like | 12.5 / 51% / 182 s → 8.9 / 50% / 86 s | 11.1 / 56% / 74 s → 8.8 / 58% / 37 s |
+| default, veteran | 31.6 / 42% / 73 s → 31.6 / 40% / 113 s | 29.3 / 35% / 305 s → 27.1 / 40% / 188 s |
+| report 300 m, veteran | 17.4 / 54% / 63 s → 15.9 / 50% / 80 s | 12.5 / 53% / 120 s → 11.7 / 54% / 145 s |
+
+`ab.mjs --flag escalateDefence`, (a) → (d); every row is within noise:
+- **Fairness, default (96 runs):** player down 25.0 → 33.3% (veteran player) and 47.9 →
+  46.9% (human-like player). In round 2 the human-like player's (a) was 64%. The pursuer
+  fixes make the human-like player survive more whatever the defence.
+- **Mirrors (48 each):**
+  - Camel 48 → 46%, D.V 48 → 42%, Dr.I 35 → 33%, D.VII 31 → 25%.
+  - SPAD XIII 33 → 25%, below the 30–70% band again (round 2: 29%).
+- **Energy set:** D.VII against Camels 79 → 83%, S.E.5a against Dr.I 88 → 83%.
+- **Quick survey (360 missions):**
+  - killed or captured 30.8 → 36.4%
+  - collisions 3.6 → 5.3 per 100 missions
+  - player collisions 3 → 8. Four of the eight are one D.VII-v-SPAD dogfight, which
+    repeats identically in reps 3, 4, 16 and 19 (the only mission of 360 that repeats), so 3
+    → 5 distinct.
+  - The Camel-v-Dr.I ones are both aircraft in the attack extension, the pre-existing
+    weakness below. Watch this in the next wave.
+- **Career (3 seed sets):**
+  - killed or captured 22.6 → 20.9%
+  - collisions 5.7 → 7.4 per 100 missions
+  - player collisions 2 → 5
+
+**(d) still wins.**
+- **Real sim:** at 2,000 m it takes a third to a half fewer hits than (a) against both
+  pursuers, and against the veteran 10 of 96 are shot down against 33 (1 against 0 with the
+  human-like pursuer). At 300 m the hits are within 7% of (a) either way, and the tail-hold
+  time out of a constant turn is 8–10 points higher.
+- **Tail-hold soak:** (d) takes fewer hits than (a) in all four setups. It is as varied or
+  more in all four; in the default fight against the human-like player it is 39% against
+  (a)'s 27%.
+
 **In game** (`WHEN=reversal`, seed 1): the veteran D.VII, with the ace Camel wingman 73 m
 behind at 2,000 m, reverses at t = 13.5-15 s and the Camel is left rolling after him
 (`docs/screenshots/ai-defence-reversal.jpg`, two frames side by side). The in-game
@@ -722,10 +785,13 @@ fires like a mouse-aim player. The parameters are `HUMAN_PILOT`:
   10-14% of his own rounds (10-20% if the Lewis did anywhere from 5 to 10%). The inbox
   8-D.VII dogfight (35 hits of 399) is about 9% whatever the split, because the total is
   near the Lewis's own rate.
-- The veteran autoplayer, the same scene (Bristol behind an ace D.VII at 300 m,
-  `defence.realsim`): 12%. The human-like pilot with bias and jitter at 1, 0.6 and 0.35x
-  the shipped values: 6, 8 and 12%. The shipped values fit that scene. At 2,000 m behind a
-  D.VII in a Camel the fit gives 6% against the veteran's 20%.
+- The same scene in `defence.realsim` is a Bristol behind an ace D.VII at 300 m. The fit
+  was made on its first 24 seeds, where the veteran autoplayer and the shipped human-like
+  values both hit 12%; with bias and jitter at 1, 0.6 and 0.35x the shipped values the
+  human-like pilot got 6, 8 and 12%. Over 96 seeds both pursuers get 9% (the human-like 10%
+  before the round-3 fixes), so the shipped values sit at the low edge of the human's
+  10–14%. At 2,000 m behind a D.VII in a Camel the human-like pilot gets 7% against the
+  veteran's 20%.
 - **Replays don't fit.** Replaying the reports (`replay.soak`, 8 runs) the human-like pilot
   hits with 5% (tracked report) and 1% (inbox dogfight) of 38 and 17 fixed rounds a run. The
   human fired 356-500. The autoplayer's tactics never give it the human's firing
@@ -781,7 +847,7 @@ fires like a mouse-aim player. The parameters are `HUMAN_PILOT`:
   lacks is threat from the aces nobody is chasing (mutual support), not evasion.
 - **The human-like pursuer is a stand-in, fitted loosely** (see "Human-like pursuer"): one
   scene, two usable flights, and replays whose firing geometry doesn't match the human's.
-  In the default fight it goes down 48-64% of the time against the veteran's 30%, so
+  In the default fight it goes down about 47% of the time against the veteran's 25-33%, so
   judge fairness targets on the veteran and use the human-like pilot for relative
   comparisons.
   In the wave-9 playtest report (5 ace D.VIIs at 300 m), the aces spend nearly half their

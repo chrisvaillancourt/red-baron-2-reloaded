@@ -56,10 +56,11 @@ export interface HumanPilotParams {
 /**
  * Fitted to the user's mouse-aim flights (docs/ai.md "Human-like pursuer"). The lag, reaction
  * and fire-discipline figures are set from typical mouse-aim play; the bias and jitter
- * amplitudes carry the fit: the report's Bristol against ace D.VIIs at 300 m hit with about
- * 12% of its fixed-gun rounds (10-14% once the observer's rear gun is taken out), which this
- * pilot matches in that scene (defence.realsim.test.ts). Loosely constrained: two usable
- * flights, and bias and jitter three times larger only take it to 6%.
+ * amplitudes carry the fit: the report's Bristol against ace D.VIIs at 300 m hit with 10-14%
+ * of its fixed-gun rounds once the observer's rear gun is taken out. This pilot gets 12% in
+ * that scene on the 24 seeds it was fitted on, and 9% over 96 (defence.realsim.test.ts), the
+ * low edge. Loosely constrained: two usable flights, and bias and jitter three times larger
+ * only take it to 6%.
  */
 export const HUMAN_PILOT: HumanPilotParams = {
   aimLagS: 0.3,

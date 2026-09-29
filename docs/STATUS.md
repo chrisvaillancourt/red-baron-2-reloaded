@@ -97,26 +97,33 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
      turn on you
    - anyone above novice reverses his turn when you fall into lag behind him
    - nobody but novices jinks with you close behind
-   With a human-like pursuer on his tail at 2,000 m a D.VII takes 128 hits instead of 172
-   (24 seeds), and 54% of the tail-hold is out of one constant-direction turn instead of
-   37%; at 300 m 63% against 55%, hits within noise. Fairness, quick and career surveys:
-   all within noise. See docs/ai.md "Wave 9: defence" and "Human-like pursuer".
+   With a human-like pursuer on his tail at 2,000 m a D.VII takes 432 hits instead of 645
+   (96 seeds, after the code-review fixes), and 53% of the tail-hold is out of one
+   constant-direction turn instead of 41%; at 300 m 62% against 52%, hits within 7%.
+   Fairness, quick and career surveys: all within noise. See docs/ai.md "Wave 9: defence"
+   and "Human-like pursuer".
    - **Do next: mutual support.** In the report the player took 3 hits in 6 minutes against
      5 aces. The aces who aren't being chased never come to clear a friend's tail. D-070
      dropped this for the autoplayer's mirror fights; re-measure it with the report scene
      (`playtests/reports/2026-09-28-…-low.json`), `AI_SOAK=tailhold AI_TH_SET=low` and
      both pursuers.
    - **Do: refit the human-like pursuer** from the next few human reports, which now carry
-     `aim` (fixed-gun accuracy apart from the observer's, aim error, firing range, time to
+     `aim` (the player's accuracy apart from the AI crew's, aim error, firing range, time to
      fire). The current fit is one scene and two usable flights; replays and balloon runs
-     don't match it (docs/ai.md "Human-like pursuer").
+     don't match it (docs/ai.md "Human-like pursuer"). Over 96 seeds it hits with 9% of its
+     fixed rounds in the fitted scene, the low edge of the human's 10-14% (the 12% fit was
+     on 24 seeds); fit on 96 seeds next time.
    - **Defer:** low-level defence beyond the reversal. Below 500 m there is no brake turn
      (D-060); revisit if players find low fights too easy after mutual support.
    - **Do: collision care in the attack extension.** AI-against-enemy collisions in the
      quick survey are 7 of 360 missions with or without the escalation, nearly all with both
      aircraft in the *extend* phase after a pass, mostly Camel+2 v 3 Dr.I. The collision
      soak's furballs don't reproduce it (0 in 60), so it needs a scene built from the quick
-     survey's cases first.
+     survey's cases first. After the review fixes the player's own collisions are 3 → 5
+     distinct in the quick survey and 2 → 5 in the career (both within noise), mostly the
+     same extension case with the player's aircraft; include those in the scene.
+   - **Check:** the SPAD XIII mirror is 33 → 25% player down with the escalation (within
+     noise, below the 30-70% band). Re-measure at the next re-baseline.
    - **Check:** self-crashes on the way home 1 → 3 in the quick survey (360 missions). A
      small count; re-measure at the next re-baseline.
    - **Check:** the report's human hit D.VIIs 104 times for one kill (roughly 40-55 of those were
