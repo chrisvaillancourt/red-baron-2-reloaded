@@ -32,11 +32,14 @@ import {
   BALLOON_RADIUS,
   GROUND_TARGET_BOXES,
   getHitModel,
+  priorityZone,
   pointSegmentDistanceSq,
   segmentBox,
+  traceRound,
   type ZoneBox,
 } from './hitboxes';
 import { blastDamage, blastSize, groundCrossing, nextBombStore, recordBomb, stepBomb } from './bombs';
+import { SIM_FLAGS } from './flags';
 import { createRng, gaussian, type Rng } from './rng';
 
 // ---------------------------------------------------------------------------
@@ -245,8 +248,6 @@ const ZONE_DAMAGE: Record<DamageZone, number> = {
   controls: 0.08,
   guns: 0.08,
 };
-
-const HIT_PRIORITY: DamageZone[] = ['pilot', 'engine', 'fuelTank', 'gunner', 'controls', 'guns', 'tail', 'leftWing', 'rightWing', 'fuselage'];
 
 // Flexible guns on a pitching, weaving two-seater: coarser than a pilot's fixed guns
 // (DECISIONS.md "Rear gunners are less accurate").
@@ -831,58 +832,19 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       tmpQ.copy(ac.state.orientation).invert();
       tmpA.set(ax, ay, az).applyQuaternion(tmpQ);
       tmpB.set(bx, by, bz).applyQuaternion(tmpQ);
-      let firstT = 2;
-      for (const zb of hm.zones) {
-        if (zb.station && !atStation(ac, zb)) continue;
-        const t = segmentBox(tmpA.x, tmpA.y, tmpA.z, tmpB.x, tmpB.y, tmpB.z, zb);
-        if (t >= 0 && t < firstT) firstT = t;
-      }
-      if (firstT > 1) continue;
-      // Rounds pass through fabric: trace the full path through the airframe from the entry point.
-      const segLen = tmpB.distanceTo(tmpA);
-      tmpDir.copy(tmpB).sub(tmpA).multiplyScalar(1 / Math.max(segLen, 1e-6));
-      tmpA.addScaledVector(tmpDir, segLen * firstT);
-      tmpB.copy(tmpA).addScaledVector(tmpDir, hm.radius * 2);
-      let best: DamageZone | null = null;
-      let bestPri = 99;
-      const hitZones: DamageZone[] = [];
-      const hitIndex: (number | undefined)[] = [];
-      const hitT: number[] = [];
-      for (const zb of hm.zones) {
-        if (zb.station && !atStation(ac, zb)) continue;
-        const tz = segmentBox(tmpA.x, tmpA.y, tmpA.z, tmpB.x, tmpB.y, tmpB.z, zb);
-        if (tz < 0) continue;
-        hitZones.push(zb.zone);
-        hitIndex.push(zb.crewIndex ?? zb.engineIndex);
-        hitT.push(tz);
-        const pri = HIT_PRIORITY.indexOf(zb.zone);
-        if (pri < bestPri) {
-          bestPri = pri;
-          best = zb.zone;
-        }
-      }
-      if (!best) continue;
-      const hitPos = tmpV.copy(b.prev).lerp(b.position, Math.min(1, firstT)).clone();
+      // The engine block stops a round. Nacelles: the first engine along the path stops it (a
+      // beam shot spares the far one). Single-engined types keep the zone-list cut unless
+      // SIM_FLAGS.damagePath (docs/sim.md "Hit boxes").
+      const pathOrder = !!hm.multiEngine || SIM_FLAGS.damagePath;
+      const tr = traceRound(hm, tmpA, tmpB, (zb) => !zb.station || atStation(ac, zb), pathOrder);
+      if (!tr) continue;
+      const hitPos = tmpV.copy(b.prev).lerp(b.position, Math.min(1, tr.entry)).clone();
       const shooter = b.shooterId;
-      bus.emit({ type: 'bullet-hit', targetId: ac.id, shooterId: shooter, position: hitPos, zone: best, mountIndex: b.mountIndex });
-      // The engine block stops a round; anything behind it along the path is spared.
-      if (hm.multiEngine) {
-        // Nacelles: the first engine along the path stops it (a beam shot spares the far one).
-        let stop = Infinity;
-        for (let k = 0; k < hitZones.length; k++) if (hitZones[k] === 'engine') stop = Math.min(stop, hitT[k]);
-        let n = 0;
-        for (let k = 0; k < hitZones.length; k++) {
-          if (hitT[k] > stop) continue;
-          hitZones[n] = hitZones[k];
-          hitIndex[n++] = hitIndex[k];
-        }
-        hitZones.length = n;
-      } else {
-        // Single-engined types keep the zone-list cut (docs/sim.md "Hit boxes").
-        const engineIdx = hitZones.indexOf('engine');
-        if (engineIdx >= 0) hitZones.length = engineIdx + 1;
-      }
-      for (let k = 0; k < hitZones.length; k++) damageAircraft(ac, hitZones[k], ZONE_DAMAGE[hitZones[k]], shooter, now, hitIndex[k]);
+      // The event names a zone the round crossed; under the flag, one it damaged (not the
+      // cockpit behind the engine that stopped it).
+      const shown = priorityZone(SIM_FLAGS.damagePath ? tr.damaged : tr.crossed);
+      bus.emit({ type: 'bullet-hit', targetId: ac.id, shooterId: shooter, position: hitPos, zone: shown, mountIndex: b.mountIndex });
+      for (const h of tr.damaged) damageAircraft(ac, h.zone, ZONE_DAMAGE[h.zone], shooter, now, h.index);
       return true;
     }
     return false;

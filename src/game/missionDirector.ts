@@ -13,6 +13,7 @@ import type {
   VictoryClaim,
 } from '../core/types';
 import { getAerodrome } from '../data/aerodromes';
+import { getBombStats } from '../sim';
 import type { SessionWorld } from './world';
 
 export const DESTROYED_OUTCOMES: ReadonlySet<AircraftOutcome> = new Set([
@@ -473,6 +474,9 @@ export class MissionDirector {
       hits: this.hits,
       wingmanClaims: [...this.wingmanKills].map(([pilotName, count]) => ({ pilotName, count })),
       aborted: this.aborted || undefined,
+      // Only for a sortie that carried bombs (or dropped one), so every other result is unchanged.
+      // Combat keeps the counts (src/sim/bombs.ts): hits are bursts that damaged an enemy target.
+      ...bombCounts(player),
       acesDown: all
         .filter((a) => a.aceId && a !== player && isLost(a))
         .map((a) => ({ aceId: a.aceId!, side: a.side, fate: lossFate(a, w) })),
@@ -487,6 +491,13 @@ function lossFate(a: AircraftEntity, w: SessionWorld): PilotFate {
 }
 
 /** Objectives only decidable when the mission ends. */
+/** `MissionResult.bombsDropped` / `bombHits` for a player who carried bombs or dropped one; else nothing. */
+function bombCounts(player: AircraftEntity | null | undefined): { bombsDropped?: number; bombHits?: number } {
+  if (!player) return {};
+  const s = getBombStats(player);
+  return player.bombs || s.dropped > 0 ? { bombsDropped: s.dropped, bombHits: s.hits } : {};
+}
+
 export function isDeferredObjective(o: MissionObjective): boolean {
   return o.kind === 'protect-flight' || o.kind === 'protect-balloons' || o.kind === 'survive';
 }

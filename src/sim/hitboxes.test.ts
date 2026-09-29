@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT_LIST } from '../data/aircraft';
+import { AIRCRAFT_LIST, getAircraft } from '../data/aircraft';
 import { crewStations } from '../data/crew';
-import { getHitModel, type ZoneBox } from './hitboxes';
+import { getHitModel, traceRound, type ZoneBox } from './hitboxes';
 import { TEST_TWIN } from './testing/fixtures';
 
 const inside = (b: ZoneBox, p: readonly number[]) => [0, 1, 2].every((i) => p[i] >= b.min[i] && p[i] <= b.max[i]);
@@ -53,5 +53,38 @@ describe('hit boxes', () => {
     expect(inside(left, [-x, 0, (left.min[2] + left.max[2]) / 2])).toBe(true);
     expect(inside(right, [x, 0, (right.min[2] + right.max[2]) / 2])).toBe(true);
     expect(engines.some((e) => inside(e, [0, 0, (e.min[2] + e.max[2]) / 2]))).toBe(false);
+  });
+});
+
+describe('a round through the airframe', () => {
+  const camel = getHitModel(getAircraft('sopwith_camel'));
+  const L = getAircraft('sopwith_camel').geometry.length;
+  const all = () => true;
+  const zonesOf = (hits: { zone: string }[] | undefined) => (hits ?? []).map((h) => h.zone).sort();
+  // Along the fuselage 0.1 m above the CG: through the cockpit, the fuel tank and the engine.
+  const astern = (pathOrder: boolean) => traceRound(camel, { x: 0, y: 0.1, z: L }, { x: 0, y: 0.1, z: 0.5 * L }, all, pathOrder);
+  const headOn = (pathOrder: boolean) => traceRound(camel, { x: 0, y: 0.1, z: -L }, { x: 0, y: 0.1, z: -0.3 * L }, all, pathOrder);
+
+  it('from astern, in path order, damages the tail, fuselage, pilot and fuel tank on its way to the engine', () => {
+    const tr = astern(true)!;
+    expect(zonesOf(tr.crossed)).toEqual(expect.arrayContaining(['engine', 'fuelTank', 'fuselage', 'pilot', 'tail']));
+    expect(zonesOf(tr.damaged)).toEqual(zonesOf(tr.crossed));
+  });
+
+  it('from astern, by the zone-list cut, damages only the engine (the tractor listing puts it first)', () => {
+    expect(zonesOf(astern(false)!.damaged)).toEqual(['engine']);
+  });
+
+  it('head-on, the engine stops it in either rule: the cockpit behind it is spared', () => {
+    for (const rule of [true, false]) {
+      const tr = headOn(rule)!;
+      expect(zonesOf(tr.crossed), String(rule)).toContain('pilot');
+      expect(zonesOf(tr.damaged), String(rule)).not.toContain('pilot');
+      expect(zonesOf(tr.damaged), String(rule)).toContain('engine');
+    }
+  });
+
+  it('misses report null', () => {
+    expect(traceRound(camel, { x: 0, y: 5, z: L }, { x: 0, y: 5, z: -L }, all, true)).toBeNull();
   });
 });

@@ -132,7 +132,21 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
     Single-engined types keep the older cut by zone-list order. In a tractor the engine
     comes first in that list, so any round whose path crosses the engine box damages only
     the engine: a shot from astern that passes through the pilot into the engine spares
-    the pilot. Changing that would change today's balance, so it waits for a lead decision.
+    the pilot, and the fuel tank and guns too. In the D.H.2 pusher the list puts the
+    pilot before the engine, so a round from astern reaches him *through* the engine.
+    `traceRound` (hitboxes.ts) holds both rules. `SIM_FLAGS.damagePath` (src/sim/flags.ts,
+    env `SIM_DAMAGE_PATH=1`, off by default) applies the path-order cut to every type. It
+    was measured but not shipped (D-089): outcomes didn't move beyond noise, because only
+    about a fifth of hits arrive from dead astern, and most kills are structural failures.
+  * **The `bullet-hit` zone** is the first of `HIT_PRIORITY` among the boxes the round
+    crossed, pilot first. It only names the event (sparks, sounds); every zone kept by the
+    cut is damaged. So it never hides the pilot, but with the zone-list cut it names him
+    for rounds the engine stopped. Under `SIM_FLAGS.damagePath` it names a zone the round
+    damaged.
+  * **Measuring it:** `SIM_SOAK=zones` in `damagePath.soak.test.ts` traces rounds from every
+    approach sector through each type's boxes under both rules, and `SIM_SOAK=kills` flies
+    quick dogfights with the flag off and on (hits a victim took before going down, the
+    player's hits per kill, how victories came, where hits came from).
 * **Damage.** Engine (smoke > 0.4, dead at 1, small fire chance; on twins a hit finds one engine, the zone holds the worst), fuel tank (leaks, fire),
   pilot/gunner (not every round in the box finds the man; each pilot hit adds 0.22 wound and
   kills with probability (0.07 + 0.25 × wounds) × severity, the fifth hit certainly), wings/tail/fuselage

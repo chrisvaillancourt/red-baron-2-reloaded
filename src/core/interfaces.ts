@@ -101,12 +101,17 @@ export interface WorldQuery {
 // ---------------------------------------------------------------------------
 
 export interface SimModule {
-  /** Build a fresh entity-ready flight state at the given start. */
+  /**
+   * Build a fresh entity-ready flight state at the given start, trimmed at `massKg` when
+   * airborne (default the spec's `massLoaded`; pass `effectiveMass` for an aircraft carrying
+   * less than its full bomb load).
+   */
   createFlightState(
     spec: AircraftSpec,
     start: { x: number; z: number; altitude: number; heading: number; airspeed: number },
     env: FlightEnvironment,
     onGround: boolean,
+    massKg?: number,
   ): AircraftEntity['state'];
   /** Advance one aircraft's rigid-body flight model by dt (fixed step, <= 1/60 s). */
   stepFlight(ac: AircraftEntity, env: FlightEnvironment, realism: RealismSettings, dt: number): void;

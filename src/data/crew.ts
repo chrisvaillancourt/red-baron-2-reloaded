@@ -80,12 +80,15 @@ export function bodyDirectionAngles(x: number, y: number, z: number): { azimuthD
   return { azimuthDeg: Math.atan2(x, -z) * DEG, elevationDeg: Math.atan2(y, h) * DEG };
 }
 
-/** Is the azimuth inside the clockwise range [from, to], which may wrap through astern? */
-function inAzimuth(az: number, from: number, to: number): boolean {
+/**
+ * Is the azimuth inside the clockwise range [from, to], which may wrap through astern?
+ * `epsDeg` widens the far end, for an azimuth computed onto the edge.
+ */
+export function inAzimuth(az: number, from: number, to: number, epsDeg = 0): boolean {
   if (to - from >= 360 || (from === -180 && to === 180)) return true;
   const span = (((to - from) % 360) + 360) % 360;
   const off = (((az - from) % 360) + 360) % 360;
-  return off <= span;
+  return off <= span + epsDeg;
 }
 
 /** Does a body-frame direction (any length) lie inside any of the arcs? */

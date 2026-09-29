@@ -15,6 +15,7 @@ import { drawMap, type MapView } from '../map/mapRenderer';
 import { compass, dial, type Gauge } from './gauges';
 import { declutter, visibleThreats } from './declutter';
 import { onPadChange } from '../gamepad';
+import { createCrewOverlay } from './crewOverlay';
 import type { EndFlightPromptOptions, Hud, HudDamage, HudGun, HudMessageOptions, HudScreenPoint, HudView, PauseCallbacks } from './types';
 
 const K_TAPE = 0.3; // em per degree on the heading tape
@@ -184,7 +185,10 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   const sunGlare = h('div', { class: 'hud-sunglare hidden' });
   const flash = h('div', { class: 'hud-flash' });
 
-  root.append(sunGlare, gFx, flash, reticle, aimMarker, noseMarker, leadMarker, wpMarker, wpEdge, targetMarker, targetEdge, threats, tape, tapeOverlay, headingBox, padlockEl, alert, messages, status, damageWrap, gunsWrap, cluster, readout, hint);
+  // Crew stations: seat plate, gunner's ring sight, bombsight, bomb count.
+  const crew = createCrewOverlay();
+
+  root.append(sunGlare, gFx, flash, ...crew.elements, reticle, aimMarker, noseMarker, leadMarker, wpMarker, wpEdge, targetMarker, targetEdge, threats, tape, tapeOverlay, headingBox, padlockEl, alert, messages, status, damageWrap, gunsWrap, cluster, readout, hint);
 
   // ------------------------------------------------------ helpers
   function place(marker: HTMLElement, p: HudScreenPoint | null | undefined, edge?: HTMLElement): void {
@@ -321,6 +325,8 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
         sunGlare.style.opacity = (0.92 * sg.strength).toFixed(3);
       }
       toggleClass(root, 'in-cockpit', v.view === 'cockpit' || v.view === 'padlock');
+      toggleClass(root, 'crew-view', v.view === 'gunner' || v.view === 'bombsight');
+      crew.update(v, W, H, units.system);
       const hdg = headingDegrees(v.heading);
       strip.style.transform = `translateX(${(13 - (((hdg % 360) + 360) % 360 + 360) * K_TAPE).toFixed(2)}em)`;
       setText(headingBox, `${hdg.toString().padStart(3, '0')}°`);

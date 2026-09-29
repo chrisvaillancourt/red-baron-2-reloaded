@@ -1,7 +1,7 @@
 /**
  * Flies every aircraft in the 6-DOF model and compares with historical figures:
  * max level speed (+-8%), time to 3000 m (+-25%), service ceiling (rough). Bombers fly with
- * their full bomb load aboard: the historical figures are loaded ones (D-089).
+ * their full bomb load aboard: the historical figures are loaded ones (D-XXX, "Bomber specifications").
  */
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_LIST } from '../data/aircraft';

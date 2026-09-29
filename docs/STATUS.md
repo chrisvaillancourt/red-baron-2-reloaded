@@ -54,6 +54,18 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
     `src/ai` and `src/campaign`.
   - **Lead fixes on main from the track C review:** `splitSide` (an AI flying the player's
     aircraft splits opposite ways from other AIs) and `releaseAIPilot`.
+  - **Track B (data, models and effects): done**, six bombers calibrated to their sources
+    (docs/models.md "Bomber specifications and sources"). It is merging main, switching
+    falling bombs to the sim's `CombatSystem.bombs`, and re-measuring its F.E.2b second Lewis
+    and B.E.2c arcs with the career A/B. Then review and merge.
+  - **Do before the flip: bomber flight-model follow-ups** (`src/sim`, from track B). Give
+    them to a sim agent once the damage-path agent is done with `src/sim`:
+    - the propeller-diameter formula uses total power, so twins get oversized propellers;
+      use power per engine
+    - the 0.7 rad/s roll-rate floor is far too fast for bombers (the Gotha's spec is 0.15)
+    - check the gear's `mainY` (-1.2) against the tall twin undercarriage in the models
+    - the Gotha keeps `pusher: false` although its nacelles push; check what the flag
+      changes (hit boxes, the prop wash) before flipping it
   - **Flip `flyable`** for the bombers and the two-seaters only after A, C and D have
     merged, and after D separates "the player may fly it" from "the AI flies it" in
     `aircraftPool`.

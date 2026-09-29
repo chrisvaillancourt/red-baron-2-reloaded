@@ -6,6 +6,7 @@ import type { MissionDefinition } from '../core/types';
 import { getAerodrome } from '../data/aerodromes';
 import { sideOfFrontAt } from '../world/frontline';
 import { terrainHeightAt } from '../world/terrain';
+import { recordBomb } from '../sim/bombs';
 import { clockPosition, MissionDirector } from './missionDirector';
 import { stubBuildQuickMission } from './stubs/campaign';
 import { stubCreateFlightEnvironment, stubSim } from './stubs/sim';
@@ -294,6 +295,38 @@ describe('MissionDirector', () => {
     t.director.update(0.1);
     expect(t.director.failedObjectives.has('int')).toBe(true);
     expect(t.director.buildResult().objectives[0].completed).toBe(false);
+  });
+
+  it('reports combat\'s bomb counts for the player aircraft only', () => {
+    const t = setup();
+    t.player.bombs = [1];
+    for (let i = 0; i < 3; i++) recordBomb(t.player, 'dropped');
+    recordBomb(t.player, 'hits');
+    recordBomb(t.wingman, 'dropped');
+    recordBomb(t.wingman, 'hits');
+    const r = t.director.buildResult();
+    expect(r.bombsDropped).toBe(3);
+    expect(r.bombHits).toBe(1);
+  });
+
+  it('reports the counts for a bomber that dropped its whole load', () => {
+    const t = setup();
+    recordBomb(t.player, 'dropped');
+    expect(t.director.buildResult().bombsDropped).toBe(1);
+  });
+
+  it('leaves the bomb counts out of a sortie without bombs', () => {
+    const r = setup().director.buildResult();
+    expect('bombsDropped' in r).toBe(false);
+    expect('bombHits' in r).toBe(false);
+  });
+
+  it('reports zero bombs dropped for a bomber that brought its load home', () => {
+    const t = setup();
+    t.player.bombs = [4];
+    const r = t.director.buildResult();
+    expect(r.bombsDropped).toBe(0);
+    expect(r.bombHits).toBe(0);
   });
 
   it('calls out enemies by clock position', () => {
