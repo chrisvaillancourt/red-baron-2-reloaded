@@ -47,6 +47,28 @@ describe('early-war two-seaters', () => {
     }
   });
 
+  it('career bomber flights fly a bomb run over targets behind the enemy lines', () => {
+    const s = createCampaignService(memoryStorage());
+    const p = s.createPilot({ firstName: 'Test', lastName: 'Bomb', nation: 'britain', startDate: '1917-09-15', squadronId: 'rfc56', difficulty: 'pilot' });
+    let runs = 0;
+    for (let i = 0; i < 120 && runs < 3; i++) {
+      p.missionsFlown = i;
+      const m = s.generateMission(p);
+      for (const f of m.flights.filter((x) => x.task === 'bomb' && x.role !== 'player-flight')) {
+        const wp = f.waypoints.find((w) => w.action === 'bomb');
+        expect(wp, `${f.aircraftId} on ${m.date}: a bomb waypoint`).toBeDefined();
+        const targets = m.groundTargets.filter((g) => wp!.targetIds?.includes(g.id));
+        expect(targets.length).toBeGreaterThanOrEqual(3);
+        for (const g of targets) {
+          expect(g.side).not.toBe(f.side);
+          expect(Math.hypot(g.x - wp!.x, g.z - wp!.z)).toBeLessThan(250);
+        }
+        runs++;
+      }
+    }
+    expect(runs, 'bomber flights seen').toBeGreaterThan(0);
+  });
+
   it('names period types in briefings', () => {
     expect(chargeNames('farman_f40', '1916-07-10')).toEqual({ plural: 'F.40s', long: 'Farman F.40 machines', inService: true });
     expect(chargeNames('be2c', '1916-07-10').plural).toBe('B.E.2cs');

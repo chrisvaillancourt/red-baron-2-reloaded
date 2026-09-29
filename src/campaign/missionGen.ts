@@ -336,10 +336,45 @@ export function addGround(ctx: GenCtx, type: GroundTargetType, side: Side, p: XZ
   return g;
 }
 
+/** A set of ground targets for bombers to aim at: [type, metres along the run, metres to its right, lies across the run]. */
+export interface BombTargetSet {
+  name: string;
+  what: string;
+  targets: readonly (readonly [GroundTargetType, number, number, boolean])[];
+}
+
+/**
+ * Target sets for a raid, laid out on the run line. The rows are 45-50 m apart, the
+ * formation's spacing, so each bomber of a vic that releases on its leader passes over a
+ * target (src/ai bomb run, docs/ai.md "Bombers").
+ */
+export const BOMB_TARGET_SETS: readonly BombTargetSet[] = [
+  { name: 'supply depot', what: 'dumps and lorries', targets: [['supply-dump', 0, 0, false], ['supply-dump', 0, 45, false], ['supply-dump', 0, -45, false], ['truck', 45, 20, false], ['truck', 50, -25, false]] },
+  { name: 'hangars', what: 'hangars', targets: [['hangar', 0, 0, false], ['hangar', 0, 50, false], ['hangar', 0, -50, false], ['tent-hangar', -60, 25, false]] },
+  { name: 'railhead', what: 'train and dumps', targets: [['train', 0, 0, true], ['supply-dump', 30, 55, false], ['supply-dump', 30, -55, false]] },
+  { name: 'artillery park', what: 'guns and their dump', targets: [['artillery', 0, -45, false], ['artillery', 0, -15, false], ['artillery', 0, 15, false], ['artillery', 0, 45, false], ['supply-dump', -50, 0, false]] },
+];
+
+/** Lay out `set` round `c` for a run along `dir` (unit), on `side`'s ground; returns the targets' ids. No random draws. */
+export function addBombTargets(ctx: GenCtx, set: BombTargetSet, c: XZ, dir: XZ, side: Side, fp: FrontPoint): string[] {
+  const right = { x: -dir.z, z: dir.x };
+  const runHeading = heading({ x: 0, z: 0 }, dir);
+  return set.targets.map(([type, along, lat, across]) => {
+    const p = { x: c.x + dir.x * along + right.x * lat, z: c.z + dir.z * along + right.z * lat };
+    return addGround(ctx, type, side, ensureSide(ctx, p, side, fp), across ? runHeading + Math.PI / 2 : runHeading).id;
+  });
+}
+
 export function addObjective(ctx: GenCtx, o: Omit<MissionObjective, 'id'>): MissionObjective {
   const obj = { id: nextId(ctx, 'objective', 'obj'), ...o };
   ctx.objectives.push(obj);
   return obj;
+}
+
+/** Unit horizontal vector from a to b (north if they coincide). */
+export function unit(a: XZ, b: XZ): XZ {
+  const d = dist(a, b);
+  return d > 1e-6 ? { x: (b.x - a.x) / d, z: (b.z - a.z) / d } : { x: 0, z: -1 };
 }
 
 /** Nudge p until it lies on `side` (small jitters can cross a bending line). */
@@ -567,9 +602,16 @@ function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPo
       const egress = pointOnSide(fp, side, 2500, date, ingressLat + rng.range(-3000, 3000));
       const bomb = yearOf(date) >= 1917 && rng.chance(0.4);
       const theirBase = nearestAerodrome(ctx, side, rendezvous, s.home.id) ?? s.home;
+      // Bombers get a target to bomb: a set picked from the target's position, so no random
+      // draw shifts the rest of the mission (docs/campaign.md "Bombing raid").
+      const bombIds = bomb ? addBombTargets(ctx, BOMB_TARGET_SETS[Math.abs(Math.round(target.x / 97 + target.z / 89)) % BOMB_TARGET_SETS.length], target, unit(rendezvous, target), enemySide, fp) : [];
       const ts = twoSeaterFlight(ctx, {
         side, role: 'friendly', count: rng.int(2, 4), start: rendezvous, altitude: alt - 300, preferNation: ctx.nation,
-        waypoints: [wp(target, alt - 300, bomb ? 'fly' : 'patrol', { duration: bomb ? undefined : 90, label: bomb ? 'Bomb target' : 'Photograph target' }), wp(egress, alt - 300, 'fly'), wp(theirBase, 400, 'land', { label: theirBase.name })],
+        waypoints: [
+          bomb ? wp(target, alt - 300, 'bomb', { targetIds: bombIds, label: 'Bomb target' }) : wp(target, alt - 300, 'patrol', { duration: 90, label: 'Photograph target' }),
+          wp(egress, alt - 300, 'fly'),
+          wp(theirBase, 400, 'land', { label: theirBase.name }),
+        ],
         task: bomb ? 'bomb' : 'recon',
       });
       const start2 = ensureSide(ctx, add(rendezvous, { x: -(target.x - rendezvous.x) / Math.max(1, dist(target, rendezvous)), z: -(target.z - rendezvous.z) / Math.max(1, dist(target, rendezvous)) }, 1500), side, fp);

@@ -56,6 +56,15 @@ Generic enemy skill is mostly novice/regular on 'pilot'; named aces lead a
 flight with probability ~0.22 × event intensity (×0.5 recruit, ×1.3 ace).
 `startOnGround` parks the flight on the home aerodrome's runway heading.
 
+**Bomber flights.** From 1917, 40% of escort missions escort bombers (task `bomb`). Their
+route has a `'bomb'` waypoint over a set of enemy ground targets (`BOMB_TARGET_SETS`, the
+quick raid's sets: a depot, hangars, a railhead or an artillery park) laid out across their
+run from the rendezvous, so the AI flies a bomb run and drops its bombs (docs/ai.md
+"Bombers"). The set is picked from the target's position rather than by a random draw, so
+the rest of the mission is generated as before. There is no objective on those targets:
+the player's job is to bring the bombers home. Raids flown by the player (bomber squadrons)
+are wave 2.
+
 **AI aircraft pools** (`aircraftPool` in `squadronUtil.ts`). Generic AI flights
 (fighters with no squadron nearby, two-seater recon and bomber flights) draw a type of
 their side and role in service on the date, or the earliest one when none is yet. Recon

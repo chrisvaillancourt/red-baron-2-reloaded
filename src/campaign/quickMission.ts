@@ -1,6 +1,6 @@
 /** Quick / single mission builder (instant action; not recorded in a career). */
 import type { QuickMissionOptions } from '../core/campaignTypes';
-import type { AircraftId, GroundTargetType, MissionDefinition, MissionFlight, MissionFlightMember, MissionType, Nation, Side, Waypoint, Weather } from '../core/types';
+import type { AircraftId, MissionDefinition, MissionFlight, MissionFlightMember, MissionType, Nation, Side, Waypoint, Weather } from '../core/types';
 import { NATION_SIDE } from '../core/types';
 import { AIRCRAFT, servedTogether } from '../data/aircraft';
 import { aceNamesOn, getAce } from '../data/aces';
@@ -11,7 +11,9 @@ import { CloudField, SIGHT_MIN_TRANSMITTANCE } from '../world/clouds';
 import { midDate } from './dates';
 import {
   addBalloon,
+  addBombTargets,
   addFlight,
+  BOMB_TARGET_SETS,
   addGround,
   addObjective,
   centroid,
@@ -54,17 +56,6 @@ const RAID_SECOND_EXTRA_S = 30;
 /** Distances (m) short of the target from which the bomb aimer must see it on the run. */
 const RAID_SIGHT_BACK_M = [1000, 2000, 3000];
 
-/**
- * Target sets for a raid, laid out on the run line: [type, metres along the run, metres to
- * the right, lies across the run]. The rows are 45-50 m apart, the formation's spacing, so
- * each bomber of a vic that releases on its leader passes over a target.
- */
-const RAID_TARGETS: readonly { name: string; what: string; targets: readonly (readonly [GroundTargetType, number, number, boolean])[] }[] = [
-  { name: 'supply depot', what: 'dumps and lorries', targets: [['supply-dump', 0, 0, false], ['supply-dump', 0, 45, false], ['supply-dump', 0, -45, false], ['truck', 45, 20, false], ['truck', 50, -25, false]] },
-  { name: 'hangars', what: 'hangars', targets: [['hangar', 0, 0, false], ['hangar', 0, 50, false], ['hangar', 0, -50, false], ['tent-hangar', -60, 25, false]] },
-  { name: 'railhead', what: 'train and dumps', targets: [['train', 0, 0, true], ['supply-dump', 30, 55, false], ['supply-dump', 30, -55, false]] },
-  { name: 'artillery park', what: 'guns and their dump', targets: [['artillery', 0, -45, false], ['artillery', 0, -15, false], ['artillery', 0, 15, false], ['artillery', 0, 45, false], ['supply-dump', -50, 0, false]] },
-];
 /** Flak round the target: metres along the run and to the right. */
 const RAID_AA: readonly (readonly [number, number])[] = [[-300, 350], [200, -400]];
 const RAID_COUNT_WORDS = ['none', 'one', 'two', 'three', 'four', 'five'];
@@ -240,10 +231,8 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
       const { c, dir, right } = r;
       const at = (along: number, lat: number): XZ => ({ x: c.x + dir.x * along + right.x * lat, z: c.z + dir.z * along + right.z * lat });
       const runHeading = heading(r.start, c);
-      const layout = RAID_TARGETS[rng.int(0, RAID_TARGETS.length - 1)];
-      const ids = layout.targets.map(([type, along, lat, across]) =>
-        addGround(ctx, type, enemySide, ensureSide(ctx, at(along, lat), enemySide, r.fp), across ? runHeading + Math.PI / 2 : runHeading).id,
-      );
+      const layout = BOMB_TARGET_SETS[rng.int(0, BOMB_TARGET_SETS.length - 1)];
+      const ids = addBombTargets(ctx, layout, c, dir, enemySide, r.fp);
       for (const [along, lat] of RAID_AA) addGround(ctx, 'aa-gun', enemySide, ensureSide(ctx, at(along, lat), enemySide, r.fp), runHeading);
       pStart = r.start;
       pAlt = r.altitude;
