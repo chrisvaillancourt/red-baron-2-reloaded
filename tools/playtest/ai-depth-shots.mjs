@@ -4,6 +4,8 @@
 //           and comes down the sun line. Shots look from the victim up the attack line
 //           (HUD on, so the sun glare overlay is drawn) and from the side.
 //   cloud - a wounded D.V near a cumulus runs for the cloud with an ace Camel after him.
+//   defence - a veteran D.VII with an ace Camel (the player's wingman) 200 m behind it at
+//           2,000 m: the brake turn, the overshoot and the reversal (docs/ai.md "Wave 9: defence").
 //
 //   [SEED=n] node tools/playtest/ai-depth-shots.mjs <outDir> [port] [sun|cloud ...]
 // Logs each shot's AI state (debugState), range and the cloud density at the subject.
@@ -44,6 +46,25 @@ const SCENES = {
     shots: [8, 11, 14, 16, 18, 20, 23, 27, 32, 38, 44, 50],
     cams: ['escape-far'],
     noHud: ['escape-far'],
+  },
+  // Escalating defence (docs/ai.md "Wave 9: defence"): a veteran D.VII with the player's ace
+  // wingman (Camel) starting ~200 m behind it at 2,000 m. The player flies straight on and
+  // takes no part. Watch for the brake turn, the Camel sliding past, and the reversal.
+  defence: {
+    opts: { playerAircraft: 'sopwith_camel', enemyAircraft: 'fokker_dvii', enemyCount: 1, wingmen: 1, enemySkill: 'veteran', wingmanSkill: 'ace', altitudeM: 2000, startPosition: 'advantage', timeOfDay: 'afternoon', cloudCover: 0.1, type: 'dogfight', date: '1918-07-15' },
+    patch: `
+      const p = mission.flights.find((f) => f.role === 'player-flight');
+      const e = mission.flights.find((f) => f.role === 'enemy');
+      const h = p.start.heading;
+      e.start.heading = h;
+      e.start.altitude = p.start.altitude;
+      e.start.x = Math.round(p.start.x + Math.sin(h) * 230);
+      e.start.z = Math.round(p.start.z - Math.cos(h) * 230);
+      p.waypoints = [];
+    `,
+    shots: [3, 6, 9, 12, 15, 18, 21, 24, 28, 32, 36, 40],
+    cams: ['chase-defender'],
+    noHud: ['chase-defender'],
   },
 };
 
@@ -131,6 +152,18 @@ for (const [name, sc] of Object.entries(SCENES)) {
           if (cam.fov !== 22) { cam.fov = 22; cam.updateProjectionMatrix(); }
           break;
         }
+        case 'chase-defender': {
+          // Above and behind the Camel wingman (the attacker), looking past it at the D.VII,
+          // wide enough to keep both in frame through a brake turn and an overshoot.
+          const chaser = w.aircraft.find((a) => a.side === player.side && a !== player && !a.outcome) ?? player;
+          const cp = chaser.state.position;
+          const back = cp.clone().sub(ep).setY(0);
+          if (back.lengthSq() < 1) back.set(0, 0, 1);
+          back.normalize();
+          place(cp.clone().addScaledVector(back, 70).add(new P(0, 30, 0)), cp.clone().lerp(ep, 0.5));
+          if (cam.fov !== 60) { cam.fov = 60; cam.updateProjectionMatrix(); }
+          break;
+        }
         case 'escape-wide': {
           const q = enemy.state.orientation;
           const right = new P(1, 0, 0).applyQuaternion(q);
@@ -159,7 +192,9 @@ for (const [name, sc] of Object.entries(SCENES)) {
         const los = e.state.position.clone().sub(p.state.position).normalize();
         const sunDeg = sun ? ((Math.acos(Math.min(1, los.dot(sun))) * 180) / Math.PI).toFixed(0) : '-';
         const cd = (w.cloudDensityAt?.(e.state.position.x, e.state.position.y, e.state.position.z) ?? 0).toFixed(2);
-        return `t=${w.time.toFixed(0)} enemy "${st}" r=${r} dh=${dh} sun=${sunDeg}° cloud=${cd}${e.outcome ? ' ' + e.outcome : ''}`;
+        const wm = w.aircraft.find((a) => a.side === p.side && a !== p && !a.outcome);
+        const wing = wm ? ` wingman "${s.aiState?.(wm.id) ?? ''}" rW=${wm.state.position.distanceTo(e.state.position).toFixed(0)} eSpd=${e.state.airspeed.toFixed(0)} wSpd=${wm.state.airspeed.toFixed(0)}` : '';
+        return `t=${w.time.toFixed(0)} enemy "${st}" r=${r} dh=${dh} sun=${sunDeg}° cloud=${cd}${e.outcome ? ' ' + e.outcome : ''}${wing}`;
       });
       const file = `${out}/${name}-t${String(t).padStart(3, '0')}-${cam}.jpg`;
       await page.screenshot({ path: file, type: 'jpeg', quality: 88 });
