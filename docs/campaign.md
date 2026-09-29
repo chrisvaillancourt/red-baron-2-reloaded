@@ -118,3 +118,37 @@ front in 2 km steps until that line lets through at least half the light (D-082)
 search makes no random draws, so a start that was already clear is built exactly as before.
 Under a solid overcast at the flights' height no line is clear, and the start stays where
 it was.
+
+### Bombing raid (`type: 'bombing'`)
+
+The player's flight (his bomber and `wingmen` more of the same type, task `bomb`) flies
+from 4 km behind our lines to a target 6 km behind the enemy's, at `altitudeM` (at least
+1,000 m and at most 80% of the bomber's ceiling), and home by another way:
+
+- **Route:** a `'bomb'` waypoint over the targets (its `targetIds` are the targets), a
+  rally point 1.5 km behind our lines and 3.5 km along the front, and the nearest
+  aerodrome's `'land'` waypoint.
+- **Targets:** one of four sets, laid out on the run line with rows 45-50 m apart (the
+  formation's spacing, so each bomber of a vic that releases on its leader passes over one):
+  a supply depot (three dumps and two lorries), hangars (three and a tent hangar), a
+  railhead (a train lying across the run and two dumps), or an artillery park (four guns
+  and their dump). Two AA guns stand 400-500 m off.
+- **Objectives:** destroy at least half the flight's size (rounded up, at most every
+  target), and, secondary, all of them.
+- **Interceptors:** `enemyCount` fighters of `enemyAircraft`, task `defend`, in one or two
+  elements that start 7-8.5 km beyond the target. Their spawn delay (from their own cruise
+  speed) brings the first element to a point 2.5 km short of the target as the bombers get
+  there, and the second over the target 30 s after them, each up to 30 s late.
+- **Escort:** `escortCount` fighters (0-4, default none) of `escortAircraft`, or a fighter of
+  the player's side in service on the date (his own nation's if it flies one), task
+  `escort` on `player-1`, starting 450 m behind and 300 m above the bombers.
+- **Station:** the player's member carries `playerStation` as `station` (absent for the
+  pilot's seat).
+- **A clear bomb run:** the builder checks the bomb aimer's view of the target from 1, 2
+  and 3 km short of it, with the clouds drifted to when the formation gets there. If any
+  view lets through less than half the light, the raid slides along the front in 2 km steps
+  (±1 … ±4) as a head-on dogfight's start does (D-082). The search makes no random draws;
+  under a solid overcast the raid stays where it was.
+
+A raid draws its weather before its layout, to run that check; every other type keeps its
+old draw order, so their missions are unchanged for a seed.
