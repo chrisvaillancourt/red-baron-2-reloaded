@@ -255,6 +255,8 @@ const GUNNER_RANGE: Record<SkillLevel, number> = { novice: 275, regular: 325, ve
 const GUNNER_SWITCH_S = 1.0;
 /** The player aims a flexible gun himself: only the gun's own dispersion, as for fixed guns. */
 const PLAYER_FLEX_DISPERSION = 0.0025;
+/** No bomb release below this height above the ground, m (on the ground, or skimming it). */
+const MIN_RELEASE_AGL = 5;
 
 /** One AI gunner per crew member who works flexible guns (not the pilot), from crewStations(). */
 function buildGunners(spec: AircraftSpec): GunnerMem[] {
@@ -990,10 +992,22 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     const si = ac.stationInputs;
     const aimer = !!si && crewStations(ac.spec).some((st) => st.id === si.station && st.bombAimer);
     const stn = aimer && !!si?.releaseBomb;
-    const edge = (ctl && !m.prevReleaseControls) || (stn && !m.prevReleaseStation);
+    const ctlEdge = ctl && !m.prevReleaseControls;
+    const stnEdge = stn && !m.prevReleaseStation;
     m.prevReleaseControls = ctl;
     m.prevReleaseStation = stn;
-    if (!edge || ac.damage.destroyed || ac.outcome !== null || !ac.bombs) return;
+    if (!(ctlEdge || stnEdge) || ac.damage.destroyed || ac.outcome !== null || !ac.bombs) return;
+    // Not on the ground, nor skimming it.
+    if (ac.state.onGround || ac.state.heightAboveGround < MIN_RELEASE_AGL) return;
+    // Who pulls the release: the man at the bombsight must be alive. The player in the
+    // pilot's seat can release himself whatever became of his bomb aimer; an AI release
+    // (an AI crew, or the AI flying while the player works a gun) needs the aimer too.
+    const aimerCrew = crewStations(ac.spec).find((st) => st.bombAimer)?.crewIndex ?? 0;
+    const aimerAlive = crewAlive(ac, m, aimerCrew);
+    const playerPilot = ac.controller === 'player' && (!si || si.station === 'pilot');
+    const byStation = stnEdge && aimerAlive;
+    const byControls = ctlEdge && !ac.damage.pilotKilled && (playerPilot || aimerAlive);
+    if (!byStation && !byControls) return;
     const i = nextBombStore(ac);
     if (i < 0) return;
     const store = ac.spec.bombs![i];
@@ -1015,6 +1029,12 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
   }
 
   const BOMB_LIFE = 120;
+  /** Is crew member `i` alive? The pilot by `pilotKilled`; the others by `crewWounds` or the `gunner` zone. */
+  function crewAlive(ac: AircraftEntity, m: CombatMemory, i: number): boolean {
+    if (i === 0) return !ac.damage.pilotKilled;
+    const g = m.gunners.find((x) => x.crewIndex === i);
+    return g ? gunnerFit(ac, m, g) : (ac.damage.crewWounds?.[i] ?? 0) < 1;
+  }
   function updateBombs(world: WorldQuery, dt: number) {
     const env = world.env;
     for (let i = bombs.length - 1; i >= 0; i--) {
@@ -1024,11 +1044,13 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       b.age += dt;
       const g = env.groundHeightAt(b.position.x, b.position.z);
       if (b.position.y > g && b.age < BOMB_LIFE) continue;
+      bombs[i] = bombs[bombs.length - 1];
+      bombs.pop();
+      // Still falling when its time is up: dropped from the discard, as predictBombImpact's null.
+      if (b.position.y > g) continue;
       const f = groundCrossing(b.prev, b.position, env.groundHeightAt(b.prev.x, b.prev.z), g);
       const at = b.prev.clone().lerp(b.position, f);
       at.y = env.groundHeightAt(at.x, at.z);
-      bombs[i] = bombs[bombs.length - 1];
-      bombs.pop();
       burst(b, at, world);
     }
   }

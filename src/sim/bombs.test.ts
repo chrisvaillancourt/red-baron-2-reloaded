@@ -89,6 +89,44 @@ describe('bomb release', () => {
     expect(released(s)).toHaveLength(1);
   });
 
+  it('a dead bomb aimer releases nothing, and the AI cannot release for him; the player pilot still can', () => {
+    const { s, ac } = bomber();
+    s.step(SIM_DT, undefined, 'kinematic');
+    ac.damage.crewWounds![1] = 1;
+    ac.controller = 'player';
+    ac.stationInputs = { station: 'observer', aim: new Vector3(0, -1, 0), fire: false, releaseBomb: false, clearJam: false };
+    s.step(0.1, undefined, 'kinematic');
+    ac.stationInputs.releaseBomb = true;
+    s.step(0.3, undefined, 'kinematic');
+    expect(released(s)).toHaveLength(0);
+    // The AI flying it (the player at a gun) can't release for the dead aimer either.
+    ac.stationInputs = undefined;
+    ac.controller = 'ai';
+    press(s, ac);
+    expect(released(s)).toHaveLength(0);
+    // The player in the pilot's seat pulls the release himself.
+    ac.controller = 'player';
+    press(s, ac);
+    expect(released(s)).toHaveLength(1);
+  });
+
+  it('a dead pilot releases nothing', () => {
+    const { s, ac } = bomber();
+    ac.damage.pilotKilled = true;
+    press(s, ac);
+    expect(released(s)).toHaveLength(0);
+  });
+
+  it('no release on the ground or just above it', () => {
+    const { s, ac } = bomber();
+    ac.state.onGround = true;
+    press(s, ac);
+    ac.state.onGround = false;
+    ac.state.heightAboveGround = 2;
+    press(s, ac, SIM_DT);
+    expect(released(s)).toHaveLength(0);
+  });
+
   it('nothing to release when the racks are empty or were never loaded', () => {
     const { s, ac } = bomber();
     ac.bombs = undefined;
@@ -158,6 +196,17 @@ describe('bomb ballistics and blast', () => {
     s.step(20, undefined, 'kinematic');
     expect(own.health).toBeLessThan(1);
     expect(getBombStats(ac)).toEqual({ dropped: 1, hits: 0 });
+  });
+
+  it('a bomb still falling when its time runs out is discarded, not burst', () => {
+    const { s, ac } = bomber({ alt: 3050 });
+    press(s, ac, SIM_DT);
+    const b = s.combat.bombs![0] as { age: number };
+    b.age = 119.95;
+    s.step(0.2, undefined, 'kinematic');
+    expect(s.combat.bombs).toHaveLength(0);
+    expect(exploded(s)).toHaveLength(0);
+    expect(count(s.events, 'explosion')).toBe(0);
   });
 
   it('blast damage scales with charge and distance', () => {
