@@ -122,7 +122,7 @@ reasons. In short:
        keeps only non-flyable two-seaters in AI recon and bomber pools (`!a.flyable`).
        Flipping `flyable` on the R.E.8, Rumpler and the rest would empty those pools, so
        separate "the player may fly it" from "the AI flies it" first.
-   - **Lead, at the defence merge:** change the three `crew === 2` checks in `src/ai`
+   - **Lead, at the defence merge (done):** change the three `crew === 2` checks in `src/ai`
      (`traits.ts` `isTwoSeater`, and two in `controller.ts`) to `crew >= 2`, before track B
      merges. Track B's bombers enter the career AI pools for bomb-task flights as soon as they
      exist (historically right: Gotha raids to intercept), and until then the AI would treat

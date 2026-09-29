@@ -55,7 +55,7 @@ export function traitsFor(spec: AircraftSpec): AircraftTraits {
     fixedMuzzleVelocity: fixed.length ? GUNS[fixed[0].type].muzzleVelocity : 0,
     hasFixedGuns: fixed.length > 0,
     hasFlexibleGun: spec.guns.some((g) => g.mount === 'flexible'),
-    isTwoSeater: spec.geometry.crew === 2,
+    isTwoSeater: spec.geometry.crew >= 2,
     vne: co.vne,
     gLimit: co.gLimit,
     maxSafeDiveSpeed: co.vne * (0.86 + 0.02 * p.structuralStrength),

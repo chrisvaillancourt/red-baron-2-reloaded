@@ -643,7 +643,7 @@ export class AIPilot implements AIController {
       if (task === 'defend' && e.spec.role !== 'fighter') s += 0.5;
       if (this.traits.style === 'energy' && e.state.position.y > self.state.position.y + 500) s -= 0.2;
       // Signatures: stragglers (nobody of his own within 800 m) and two-seaters.
-      if (this.tactics.twoSeaterBias && e.spec.geometry.crew === 2) s += this.tactics.twoSeaterBias;
+      if (this.tactics.twoSeaterBias && e.spec.geometry.crew >= 2) s += this.tactics.twoSeaterBias;
       if (this.tactics.stragglerBias && !world.aircraft.some((o) => o !== e && o.side === e.side && isAlive(o) && o.state.position.distanceToSquared(e.state.position) < 800 * 800)) s += this.tactics.stragglerBias;
       // Spread targets across the flight.
       for (const a of world.aircraft) {
@@ -920,7 +920,7 @@ export class AIPilot implements AIController {
       // Range hold on the six: close to ~110 m and stay there rather than overshooting.
       if (r < 450 && angleOff < 70 * DEG) steer.speed = Math.max(tSpeed + clamp((r - 110) * 0.2, -15, 40), this.traits.stallSpeed * 1.45);
       // Rear gunner caution: approach two-seaters from below.
-      if (tgt.spec.geometry.crew === 2 && r > 250 && p.t > 0.5) steer.dir.y -= 0.06;
+      if (tgt.spec.geometry.crew >= 2 && r > 250 && p.t > 0.5) steer.dir.y -= 0.06;
     } else {
       // Intercept: aim at the predicted position.
       const vc = Math.max(20, closure);
