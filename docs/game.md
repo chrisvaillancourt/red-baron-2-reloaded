@@ -18,7 +18,7 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `simCore.ts` | `SimCore`: the headless flight — world, combat, AI controllers, mission director, the fixed step, landing detection, wingman orders. Shared by `FlightSession` and the autoplayer. |
 | `heightCache.ts` | Tiled bilinear cache (32 m cells, 1 km tiles, LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
 | `autoplay.ts` | Autoplayer: `runAutoplay(mission)` flies a mission headlessly with the player's aircraft on an AI controller; `headlessModules`. |
-| `flightRecorder.ts` | `FlightRecorder`: the flight report's statistics (`MissionResult.telemetry`): hits taken, loss cause, combat time, each enemy's first pass, gunnery (`aimStats.ts`), time compression, fps. See "Flight report". |
+| `flightRecorder.ts` | `FlightRecorder`: the flight report's statistics (`MissionResult.telemetry`): hits taken, loss cause, combat time, each enemy's first pass, gunnery (`aimStats.ts`), time at each crew station, time compression, fps. See "Flight report". |
 | `aimStats.ts` | `AimTracker`: the player's gunnery by mount, aim error with the trigger held, firing range and time to the first shot (flight recorder and autoplayer). |
 | `lossCause.ts` | `LossCauseTracker`: what took the player out. Shared by the autoplayer and the recorder. |
 | `world.ts` | `buildWorld`: entities from a `MissionDefinition` (formation offsets, ground starts, spawn delays), `WorldQuery`. |
@@ -26,9 +26,9 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `input.ts` | Keyboard (rebindable actions), mouse (direct stick / mouse-aim instructor), gamepad. |
 | `cameras.ts` | Cockpit (head look, snap views), chase, padlock, fly-by, target, orbit, and the crew views: gunner and bombsight. |
 | `hudView.ts` | `buildHudView` → the UI's `HudView` each frame; `toScreen`, `advanceWaypoint`. |
-| `crewSeat.ts` | Crew-seat logic (pure): seat cycling, the starting seat, a flexible gun's aim clamped to its station's fire arcs, the arcs' outer edge, `StationInputs` from aim and buttons. See "Crew stations". |
+| `crewSeat.ts` | Crew-seat logic (pure): seat cycling, the starting seat, the AI pilot's route pickup, a flexible gun's aim clamped to its station's fire arcs, the arcs' outer edge, `StationInputs` from aim and buttons. See "Crew stations". |
 | `playerCrew.ts` | `PlayerCrew`: the player's seat in flight. Seat keys, gunner aim, bombsight and release, camera and input mode, the HUD's seat, sight and bomb fields. |
-| `bombsight.ts` | Bomb impact prediction (a copy of track A's model until it merges), drift, the release solution. |
+| `bombsight.ts` | The bombsight's drift, each target's release radius (from the sim's blast), the release solution. The impact is the sim's `predictBombImpact`. |
 | `testing/crewMissions.ts` | Fixtures: a Bristol fight at a chosen seat, a D.H.4 bomb run (until track D's raid builder). |
 | `stubs/` | `sim`/`campaign` stand-ins used by unit tests (no stub is bound in the game any more). |
 
@@ -37,7 +37,8 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 ```
 per rAF frame (dt clamped to 0.1 s):
   input.enabled = !hud.menuOpen          (HUD cards own the keyboard)
-  input.update -> player.controls (pilot's seat), edge commands (views, seats, time, wingmen, pause...)
+  input.update -> edge commands (views, seats, time, wingmen, pause...)
+  PlayerCrew.pilotControls -> player.controls (pilot's seat only; not on the hand-back frame)
   at a crew station: the gun's aim and buttons instead (PlayerCrew.applyInput)
   threats.update (hits, silent damage, enemy rounds within 40 m)
   if time compression > 1 and compressionBlock(): drop to x1 (see Time compression)
@@ -49,6 +50,7 @@ per rAF frame (dt clamped to 0.1 s):
       landing detection (was airborne, on ground, < 2 m/s) -> landed-friendly/enemy
       combat.update(world, h)
       director.update(h)
+      player lost or mission over at a station: back to the pilot's seat, AI pilot released
   visuals.update, camera rig, renderer.update/render, audio.updateFlight
   hud.update(buildHudView(...)), hud.setGEffect, map overlay redraw at 5 Hz when open
   director.ended -> build MissionResult, teardown, resolve
@@ -78,13 +80,20 @@ pilot first (`crewStations(spec)` in `src/data/crew.ts`); the player can take an
   player's aircraft an AI controller on the flight's own task, as the autoplayer does. It
   sees the route from the player's next waypoint on (a `WorldQuery` view whose `getFlight`
   returns the trimmed route), so a pilot taking over mid-mission doesn't turn back for
-  waypoints already flown; a recalled flight's new pilot heads home. The aircraft keeps
-  `controller: 'player'`: combat's invulnerability, the AI's collision rules for the human,
-  the HUD and the director still find him. The session stops copying input into
-  `controls`. Back at the pilot's seat the AI is dropped, the gunner's target is reset to
-  automatic, and `InputManager.syncTo` takes the throttle and mouse stick from where the AI
-  left them, re-centres the mouse-aim point on the nose and starts a fresh instructor, so
-  the hand-back has no jolt.
+  waypoints already flown; a recalled flight's new pilot heads home. The HUD's next
+  waypoint moves on within 1.5 km, so on the run-in it can lie past the target: the pilot
+  never skips a bomb or attack waypoint whose work isn't done (targets left, or bombs
+  aboard for a bomb run) and picks up at the first of those (`pilotPickupWaypoint`). The
+  aircraft keeps `controller: 'player'`: combat's invulnerability, the AI's collision rules
+  for the human (the AI flying it splits the other way, `splitSide`), the HUD and the
+  director still find him. The session stops copying input into `controls`. Back at the
+  pilot's seat the AI is dropped and released (`releaseAIPilot`), the gunner's target is
+  reset to automatic, and `InputManager.syncTo` takes the throttle and mouse stick from
+  where the AI left them, re-centres the mouse-aim point on the nose and starts a fresh
+  instructor. That frame's input was built at the gun, so `PlayerCrew.pilotControls` skips
+  it and the controls stay where the AI left them: no jolt. When the aircraft is lost or
+  the mission ends at a station, SimCore does the same hand-back (no station inputs, no AI
+  pilot) and PlayerCrew follows it.
 - **Station inputs.** Before each sim step `PlayerCrew.beforeStep` writes
   `AircraftEntity.stationInputs` in place: `aim` is the gun's body-frame aim turned into a
   world direction by that step's orientation, and `fire` is held. `clearJam` is true for
@@ -92,25 +101,33 @@ pilot first (`crewStations(spec)` in `src/data/crew.ts`); the player can take an
   (lead decision): true while R is down, never pulsed or cleared by the game; the sim drops
   one bomb per false-to-true edge, and refuses on the ground or with the bomb aimer dead. A
   pilot who aims his own bombs releases through `controls.releaseBomb`, held the same way;
-  in any other pilot's seat the game holds it false, and R says who aims.
+  in any other pilot's seat the game holds it false, and R says who aims. A key held
+  across a seat change is ignored until released, so it can't drop a bomb at the new seat.
 - **Aim** (D-090). In `InputManager.stationMode` the mouse (0.0022 rad per pixel, as
   mouse-aim), the flight keys and the left stick (60°/s) swing the gun; left button, the
-  fire key and RT fire; the right button drags the view. The aim is held in the body frame
+  fire key and RT fire; the right button (or the mouse with mouse mode off) drags the view,
+  which stays off the gun until the gun swings or F1 re-centres it. The aim is held in the body frame
   (the gun turns with the airframe) and clamped to the station's arcs: an aim outside is
   pulled to the nearest point of the union of arc boxes, by angle on the sphere, so pushing
   past an edge slides along it. `StationAim.limited` marks the HUD edge red.
 - **Views.** `gunner`: the camera at the station's eye (`AircraftVisual.stationEyes`, else
   `stationEye(spec, station)`), looking along the gun; snap-look keys turn the head away
-  while held; F1 at a gun is this view, and padlock works from the station's eye.
-  `bombsight`: wings-level and heading-up, looking down the sight line to the predicted
-  impact (D-091), with the player's own aircraft hidden. External views are unchanged. The
+  while held; F1 at a gun is this view (again: re-centre the head), and padlock works from
+  the station's eye. `bombsight`: wings-level and heading-up, looking down the sight line
+  to the sim's predicted impact (`predictBombImpact`, D-091), with the player's own
+  aircraft hidden. The release cue shows while the impact lies within the target's release
+  radius: where the sim's `blastDamage` falls to 0.25 for the next store's charge, plus the
+  half-width of the target's narrower side (`releaseRadiusM`; about 19 m for a lorry and
+  12 m for a battery under a 20 kg charge). F6 on a type whose pilot aims goes to the
+  pilot's seat and his sight. External views are unchanged. The
   3D cockpit (pilot hidden) shows only from the pilot's seat.
 - **Bombs.** A flight tasked to bomb, or the player's flight on a bombing raid, starts with
-  its full load (`world.ts` `loadBombs`, to be replaced by track A's). `MissionResult`
-  `bombsDropped` / `bombHits` count the player's aircraft's `bomb-released` events and the
-  `bomb-exploded` bursts that reached an enemy target, only for a sortie that carried bombs.
-- **Until track A merges** a station's guns don't fire and bombs don't fall; everything the
-  game layer writes is in place and tested.
+  its full load (the sim's `loadBombs`). Every aircraft of a type that can carry bombs is
+  trimmed at `effectiveMass`, so a D.H.4 flying without its load starts lighter.
+  `MissionResult` `bombsDropped` / `bombHits` are `getBombStats(player)` (a hit is a
+  bomb that damaged an enemy ground target), only for a sortie that carried bombs.
+- **Flight report.** On a type with more than one station, `FlightTelemetry.stationTimeS`
+  (and the report's `outcome.stationTimeS`) gives the mission seconds spent at each.
 
 ## HUD wiring
 
