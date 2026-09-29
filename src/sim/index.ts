@@ -29,6 +29,7 @@ export {
   aimFlexibleGun,
   createCombatSystem,
   getGunnerTarget,
+  getStationAim,
   setGunnerTarget,
   type CombatOptions,
   type SimCombatSystem,

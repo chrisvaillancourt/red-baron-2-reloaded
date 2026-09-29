@@ -7,7 +7,7 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
 | `atmosphere.ts` | ISA density/temperature; `createFlightEnvironment(groundHeightAt, weather)` (wind scaled with height AGL, reference at 1000 m, plus a smooth gust field; call `env.advance(dt)` every fixed step). |
 | `coefficients.ts` | Per-type aero/engine/handling coefficients derived from `AircraftSpec` and calibrated to its historical figures. Cached by aircraft id. |
 | `flightModel.ts` | `createFlightState`, `stepFlight` (6-DOF), attitude helpers, `getSimInternal`. |
-| `combat.ts` | `createCombatSystem(bus, getRealism, opts?)`, `setGunnerTarget`, `aimFlexibleGun`. |
+| `combat.ts` | `createCombatSystem(bus, getRealism, opts?)`, `setGunnerTarget` / `getGunnerTarget`, `getStationAim`, `aimFlexibleGun`. |
 | `hitboxes.ts` | Body-frame damage-zone boxes, ground-target boxes, balloon radius. |
 | `entity.ts` | `createAircraftEntity(...)` and fresh controls/damage/gun states. |
 | `autopilot.ts` | `Autopilot` — altitude / vertical-speed / airspeed-by-pitch / heading / bank hold. Used by tests; handy for AI and "form up". |
@@ -118,12 +118,42 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   within 30 s — including structural failure and crashes/ditching ("forced down"). Collisions
   and flak credit nobody. Outcomes: `pilot-killed`, `shot-down`, `crashed`, `ditched`, `collided`.
   Combat never reports `landed-*` / `disengaged` outcomes; the flight session sets those.
-* **Rear gunners** fire automatically on two-seaters: they pick the nearest enemy within range
-  (novice 275 m … ace 425 m), lead with relative velocity, respect the field of fire (not forward
-  through the propeller, not down through the fuselage, not through the tail), fire in bursts with
-  skill-scaled aim error (regular 0.03 rad) that grows with their own turn rate and the target's
-  crossing rate. Override with `setGunnerTarget(ac, id)`; `null` restores auto.
-  `aimFlexibleGun(ac, mountIndex, point)` returns the direction and whether it is in arc.
+* **Gunners** work every flexible gun from its crew station (`crewStations(spec)`, src/data/crew.ts;
+  D-086). There is one AI gunner per crew member who isn't the pilot. Stations that share a
+  `crewIndex` are one man: he fires from one of them at a time, staying where he has the
+  shot, and otherwise moving to the station with the most guns that bears (1 s to move,
+  no fire meanwhile). A station's field of fire is its `FireArc` boxes in the body frame
+  (`inFireArcs`), tested on the drop-compensated aim. Gunners pick the nearest enemy within
+  range (novice 275 m … ace 425 m, searching out to 1.3×), lead with relative velocity, fire in
+  bursts (1.5–2.5 s, pauses 0.8–2.2 s), and have skill-scaled aim error (regular 0.03 rad) that
+  grows with their own turn rate, the target's crossing rate, a wounded pilot (+50%) and
+  their own wounds (× 1 + wound).
+  * **One gunner aboard** (every two-seater): the assigned target, else the nearest enemy,
+    and he holds fire while it's out of his arcs. This is the pre-station behaviour, with the
+    station arcs in place of the old hard-coded field of fire (the derived observer arcs
+    match it over 99.9% of the sphere).
+  * **Several gunners:** each watches for the nearest enemy *his* stations bear on. He
+    falls back to that one when the aircraft-wide target is out of his arcs, so the nose
+    gunner doesn't stare at a fighter on the tail.
+  * **Targets:** `setGunnerTarget(ac, id)` assigns every gunner and clears station
+    overrides. `setGunnerTarget(ac, id, station)` assigns the man at that station only, and
+    he holds to it strictly. `null` restores automatic (with a station: clears that
+    override). `getGunnerTarget(ac, station?)` reads it back.
+  * **Wounds:** types with explicit `crewStations` track `damage.crewWounds` per crew
+    member (combat fills it in on first sight; index 0 mirrors the pilot). A gunner hit
+    wounds one man (+0.34, killed at 1 or with 25% chance, the old gunner rule), and the
+    `gunner` zone holds the worst wound. A killed man's stations fall silent. Types
+    without explicit stations keep the single `gunner` zone.
+  * **The player at a station** (`ac.stationInputs`, set by the game layer): his `aim`
+    (world unit vector) and `fire` drive that station's guns continuously. They fire only
+    inside the station's arcs, with the gun's own dispersion (0.0025 rad) and no aim error,
+    subject to heat, jams and drums. `stationInputs.clearJam` hammers that station's guns
+    and is consumed like `controls.clearJam`. His other stations (the same man) are silent,
+    and the other crew stay AI.
+  * `aimFlexibleGun(ac, mountIndex, point)` returns the direction and whether it is in the
+    gun's station arcs. `getStationAim(ac, station)` is where a station's guns are laid this
+    step (the AI solution or the player's aim), null when idle, for the renderer's
+    `setStationAim`. `gun-fired.mountIndex` says which gun fired.
 * **Archie.** Aircraft above 500 m AGL over enemy ground draw bursts: every 4–7 s within ~5 km of
   the front, 10–18 s deeper, 1.5–3 s near an enemy balloon (and more accurate), faster near live
   enemy `aa-gun` ground targets. Shells arrive after 2 s + altitude/700; aim error ~75 m + 2% of

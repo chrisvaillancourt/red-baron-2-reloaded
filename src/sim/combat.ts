@@ -9,23 +9,29 @@ import type { EventBus, CombatSystem, BulletView, WorldQuery } from '../core/int
 import type {
   AircraftEntity,
   AircraftOutcome,
+  AircraftSpec,
+  CrewStation,
+  CrewStationId,
+  FireArc,
   BalloonEntity,
   DamageZone,
   GroundTargetEntity,
   GunMount,
+  GunState,
   GunType,
   RealismSettings,
   Side,
   SkillLevel,
+  StationInputs,
 } from '../core/types';
 import { GUNS } from '../data/aircraft';
+import { crewStations, inFireArcs, stationForGun } from '../data/crew';
 import { G } from './atmosphere';
 import { getSimInternal, type FailedPart } from './flightModel';
 import {
   BALLOON_RADIUS,
   GROUND_TARGET_BOXES,
   getHitModel,
-  gunnerFacesForward,
   pointSegmentDistanceSq,
   segmentBox,
 } from './hitboxes';
@@ -35,27 +41,90 @@ import { createRng, gaussian, type Rng } from './rng';
 // Public helpers
 // ---------------------------------------------------------------------------
 
-const gunnerTargets = new WeakMap<AircraftEntity, number | null>();
-
-/**
- * Assign the rear gunner's target (entity id), or null to let the gunner pick
- * the nearest threat automatically. Gunners always hold fire at friendlies.
- */
-export function setGunnerTarget(ac: AircraftEntity, targetId: number | null): void {
-  gunnerTargets.set(ac, targetId);
+interface GunnerAssignment {
+  /** Every AI gunner's target, or null for each to pick his own. */
+  all: number | null;
+  /** Per-station overrides (setGunnerTarget's third argument). */
+  stations: Map<CrewStationId, number>;
 }
 
-export function getGunnerTarget(ac: AircraftEntity): number | null {
-  return gunnerTargets.get(ac) ?? null;
+const gunnerTargets = new WeakMap<AircraftEntity, GunnerAssignment>();
+
+/**
+ * Assign the AI gunners' target (entity id), or null to let each gunner pick the
+ * nearest threat automatically. Without `station` this assigns every gunner and clears
+ * any per-station assignment; with it, only the gunner at that station (null clears the
+ * override, so he follows the aircraft-wide target again). Gunners always hold fire at
+ * friendlies.
+ */
+export function setGunnerTarget(ac: AircraftEntity, targetId: number | null, station?: CrewStationId): void {
+  let a = gunnerTargets.get(ac);
+  if (!a) gunnerTargets.set(ac, (a = { all: null, stations: new Map() }));
+  if (station === undefined) {
+    a.all = targetId;
+    a.stations.clear();
+  } else if (targetId === null) a.stations.delete(station);
+  else a.stations.set(station, targetId);
+}
+
+/** The assigned target: the station's own when given and set, else the aircraft-wide one. Null means automatic. */
+export function getGunnerTarget(ac: AircraftEntity, station?: CrewStationId): number | null {
+  const a = gunnerTargets.get(ac);
+  if (!a) return null;
+  if (station !== undefined) return a.stations.get(station) ?? a.all;
+  return a.all;
+}
+
+const stationAims = new WeakMap<AircraftEntity, Map<CrewStationId, Vector3>>();
+
+/**
+ * World direction (unit) the guns at `station` are laid on this step: the AI gunner's
+ * firing solution while he has a target in his arcs, or the player's aim at his station.
+ * Null while the station is idle. For the renderer's `setStationAim` and the HUD.
+ */
+export function getStationAim(ac: AircraftEntity, station: CrewStationId): Vector3 | null {
+  return stationAims.get(ac)?.get(station) ?? null;
+}
+
+function setStationAim(ac: AircraftEntity, station: CrewStationId, dir: Vector3 | null) {
+  let m = stationAims.get(ac);
+  if (!dir) {
+    m?.delete(station);
+    return;
+  }
+  if (!m) stationAims.set(ac, (m = new Map()));
+  const v = m.get(station);
+  if (v) v.copy(dir);
+  else m.set(station, dir.clone());
 }
 
 const _aimTmp = new Vector3();
 const _aimQ = new Quaternion();
 
+const mountArcCache = new WeakMap<AircraftSpec, readonly (readonly FireArc[])[]>();
+
+/** The field of fire of a gun: its station's arcs (none for a fixed gun). */
+function mountArcs(spec: AircraftSpec, mountIndex: number): readonly FireArc[] {
+  let c = mountArcCache.get(spec);
+  if (!c) {
+    c = spec.guns.map((_, i) => stationForGun(spec, i)?.arcs ?? []);
+    mountArcCache.set(spec, c);
+  }
+  return c[mountIndex] ?? [];
+}
+
+/** Is a world direction inside the arcs, in the aircraft's body frame? */
+function inArcsWorld(ac: AircraftEntity, arcs: readonly FireArc[], dirWorld: Vector3): boolean {
+  if (arcs.length === 0) return false;
+  _aimQ.copy(ac.state.orientation).invert();
+  const d = _aimTmp.copy(dirWorld).applyQuaternion(_aimQ);
+  return inFireArcs(arcs, d.x, d.y, d.z);
+}
+
 /**
  * Direction (world, unit) a flexible gun must point to hit a stationary point,
- * and whether that direction is inside the gun's field of fire. For moving
- * targets pass the lead-corrected intercept point.
+ * and whether that direction is inside the gun's field of fire (its crew station's
+ * arcs, `crewStations(spec)`). For moving targets pass the lead-corrected intercept point.
  */
 export function aimFlexibleGun(
   ac: AircraftEntity,
@@ -71,23 +140,7 @@ export function aimFlexibleGun(
   const tFlight = dist / GUNS[m.type].muzzleVelocity;
   out.y += 0.5 * G * tFlight * tFlight;
   out.normalize();
-  return { inArc: flexibleArc(ac, out), direction: out };
-}
-
-function flexibleArc(ac: AircraftEntity, dirWorld: Vector3): boolean {
-  _aimQ.copy(ac.state.orientation).invert();
-  const d = _aimTmp.copy(dirWorld).applyQuaternion(_aimQ);
-  if (gunnerFacesForward(ac.spec)) {
-    // Pusher nose gunner: open ahead and below; the pilot, engine and propeller blank the rear
-    // unless he fires back up over the top wing.
-    if (d.y < -0.6) return false;
-    if (d.z > 0.25 && d.y < 0.55) return false;
-    return true;
-  }
-  if (d.y < -0.35) return false; // fuselage/lower wing below
-  if (d.z < -0.55 && d.y < 0.5) return false; // forward: propeller and upper wing
-  if (d.z > 0.8 && d.y < 0.12) return false; // own tail blanks the line of fire
-  return true;
+  return { inArc: inArcsWorld(ac, mountArcs(ac.spec, mountIndex), out), direction: out };
 }
 
 function mountWorldPosition(ac: AircraftEntity, m: GunMount, out: Vector3): Vector3 {
@@ -119,14 +172,28 @@ interface CombatMemory {
   impactReported: boolean;
   fireTime: number;
   burnLimit: number;
+  /** The rear crew of a type without explicit stations is dead (its `gunner` zone). */
   gunnerKilled: boolean;
-  gunnerAutoTarget: number | null;
-  gunnerRetarget: number;
-  gunnerBurst: number;
-  gunnerPause: number;
+  /** One AI gunner per crew member who works a flexible gun. */
+  gunners: GunnerMem[];
   flakTimer: number;
   groundFireTimer: number;
   outOfAmmoReported: boolean[];
+}
+
+/** One crew member at the flexible guns: his stations, target and burst rhythm. */
+interface GunnerMem {
+  crewIndex: number;
+  /** His stations, each with its flexible guns (indices into `spec.guns`). */
+  stations: { station: CrewStation; guns: number[] }[];
+  /** The station he is at now. */
+  active: number;
+  /** Seconds left moving between stations; he can't fire meanwhile. */
+  switching: number;
+  autoTarget: number | null;
+  retarget: number;
+  burst: number;
+  pause: number;
 }
 
 interface PendingBurst {
@@ -162,6 +229,24 @@ const HIT_PRIORITY: DamageZone[] = ['pilot', 'engine', 'fuelTank', 'gunner', 'co
 // (DECISIONS.md "Rear gunners are less accurate").
 const GUNNER_ERROR: Record<SkillLevel, number> = { novice: 0.045, regular: 0.03, veteran: 0.021, ace: 0.015 };
 const GUNNER_RANGE: Record<SkillLevel, number> = { novice: 275, regular: 325, veteran: 375, ace: 425 };
+/** Seconds a gunner takes to move between his stations (the Gotha's dorsal ring and tunnel gun). */
+const GUNNER_SWITCH_S = 1.0;
+/** The player aims a flexible gun himself: only the gun's own dispersion, as for fixed guns. */
+const PLAYER_FLEX_DISPERSION = 0.0025;
+
+/** One AI gunner per crew member who works flexible guns (not the pilot), from crewStations(). */
+function buildGunners(spec: AircraftSpec): GunnerMem[] {
+  const out: GunnerMem[] = [];
+  for (const station of crewStations(spec)) {
+    if (station.crewIndex === 0) continue;
+    const guns = station.guns.filter((i) => spec.guns[i]?.mount === 'flexible');
+    if (guns.length === 0) continue;
+    let g = out.find((x) => x.crewIndex === station.crewIndex);
+    if (!g) out.push((g = { crewIndex: station.crewIndex, stations: [], active: 0, switching: 0, autoTarget: null, retarget: 0, burst: 0, pause: 0 }));
+    g.stations.push({ station, guns });
+  }
+  return out;
+}
 
 export interface CombatOptions {
   rng?: Rng;
@@ -172,8 +257,12 @@ export interface CombatOptions {
 }
 
 export interface SimCombatSystem extends CombatSystem {
-  /** Apply damage directly (tests, scripted events). */
-  damageAircraft(ac: AircraftEntity, zone: DamageZone, amount: number, attackerId: number | null, time: number): void;
+  /**
+   * Apply damage directly (tests, scripted events). `index` picks the crew member for
+   * `'gunner'` on types with explicit stations (`crewWounds`), and the engine for `'engine'` on
+   * multi-engine types (`engines`); absent, the first fit gunner or a random engine.
+   */
+  damageAircraft(ac: AircraftEntity, zone: DamageZone, amount: number, attackerId: number | null, time: number, index?: number): void;
   /** Pending flak bursts (for debugging/overlays). */
   readonly pendingFlak: readonly { time: number; position: Vector3 }[];
 }
@@ -209,15 +298,13 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
         fireTime: 0,
         burnLimit: 8 + rng() * 12,
         gunnerKilled: false,
-        gunnerAutoTarget: null,
-        gunnerRetarget: 0,
-        gunnerBurst: 0,
-        gunnerPause: 0,
+        gunners: buildGunners(ac.spec),
         flakTimer: 2 + rng() * 4,
         groundFireTimer: 1,
         outOfAmmoReported: ac.spec.guns.map(() => false),
       };
       memory.set(ac, m);
+      if (ac.spec.crewStations && !ac.damage.crewWounds) ac.damage.crewWounds = new Array(ac.spec.geometry.crew).fill(0);
     }
     return m;
   }
@@ -248,7 +335,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     it.failedPart = part;
   }
 
-  function damageAircraft(ac: AircraftEntity, zone: DamageZone, amount: number, attackerId: number | null, time: number) {
+  function damageAircraft(ac: AircraftEntity, zone: DamageZone, amount: number, attackerId: number | null, time: number, index?: number) {
     const d = ac.damage;
     if (d.destroyed && ac.outcome !== null) {
       d.zones[zone] = Math.min(1, d.zones[zone] + amount);
@@ -297,6 +384,16 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
           d.pilotWounded = true;
           bus.emit({ type: 'pilot-hit', aircraftId: ac.id, killed });
           if (killed) destroy(ac, 'pilot-killed', attackerId);
+          if (d.crewWounds && ac.spec.crewStations) d.crewWounds[0] = z.pilot;
+        } else if (d.crewWounds && ac.spec.crewStations) {
+          // Explicit stations: the round finds one crew member; the zone holds the worst wound.
+          const cw = d.crewWounds;
+          const c = index ?? firstFitGunner(cw);
+          if (c > 0 && c < cw.length) {
+            cw[c] = Math.min(1, cw[c] + amount);
+            if (cw[c] >= 1 || rng() < 0.25) cw[c] = 1;
+          }
+          z.gunner = Math.max(0, ...cw.slice(1));
         } else if (z.gunner >= 1 || rng() < 0.25) {
           z.gunner = 1;
           m.gunnerKilled = true;
@@ -324,6 +421,12 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       default:
         break;
     }
+  }
+
+  /** The first crew member after the pilot who isn't dead (the one a stray round finds). */
+  function firstFitGunner(cw: number[]): number {
+    for (let i = 1; i < cw.length; i++) if (cw[i] < 1) return i;
+    return cw.length - 1;
   }
 
   function startFire(ac: AircraftEntity) {
@@ -396,6 +499,17 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     return true;
   }
 
+  /** One blow of the hammer at a jammed gun (~5 clear it). */
+  function hammer(ac: AircraftEntity, g: GunState | undefined) {
+    if (!g?.jammed) return;
+    g.jamClearProgress += 0.16 + rng() * 0.12;
+    if (g.jamClearProgress >= 1) {
+      g.jammed = false;
+      g.jamClearProgress = 0;
+      bus.emit({ type: 'gun-cleared', aircraftId: ac.id, mountIndex: g.mountIndex });
+    }
+  }
+
   function updateGuns(ac: AircraftEntity, world: WorldQuery, dt: number) {
     const m = mem(ac);
     const alive = !ac.damage.destroyed && !ac.damage.pilotKilled && ac.outcome === null;
@@ -411,16 +525,15 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       }
     }
     if (ac.controls.clearJam) {
-      for (const g of ac.guns) {
-        if (!g.jammed) continue;
-        g.jamClearProgress += 0.16 + rng() * 0.12;
-        if (g.jamClearProgress >= 1) {
-          g.jammed = false;
-          g.jamClearProgress = 0;
-          bus.emit({ type: 'gun-cleared', aircraftId: ac.id, mountIndex: g.mountIndex });
-        }
-      }
+      for (const g of ac.guns) hammer(ac, g);
       ac.controls.clearJam = false; // edge-triggered: one press per input edge
+    }
+    // The player at a gunner's station hammers his own guns (edge-triggered, consumed like the pilot's).
+    const sIn = ac.stationInputs;
+    if (sIn?.clearJam) {
+      const st = crewStations(ac.spec).find((x) => x.id === sIn.station);
+      for (const gi of st?.guns ?? []) hammer(ac, ac.guns[gi]);
+      sIn.clearJam = false;
     }
     if (!alive) return;
 
@@ -441,64 +554,192 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
       }
     }
 
-    // Rear gunner.
-    if (ac.spec.geometry.crew >= 2 && !m.gunnerKilled && ac.damage.zones.gunner < 1) updateGunner(ac, world, dt, m);
+    // Gunners: the player at his station, the AI at the others.
+    const si = ac.stationInputs;
+    const playerStation = si && si.station !== 'pilot' ? crewStations(ac.spec).find((st) => st.id === si.station) : undefined;
+    const multi = m.gunners.length > 1;
+    for (const g of m.gunners) {
+      if (!gunnerFit(ac, m, g)) {
+        for (const st of g.stations) setStationAim(ac, st.station.id, null);
+        continue;
+      }
+      if (playerStation && playerStation.crewIndex === g.crewIndex) playerGunner(ac, g, playerStation, si!);
+      else updateGunner(ac, world, dt, g, multi);
+    }
   }
 
-  function updateGunner(ac: AircraftEntity, world: WorldQuery, dt: number, m: CombatMemory) {
-    const idx = ac.spec.guns.findIndex((g) => g.mount === 'flexible');
-    if (idx < 0) return;
-    const range = GUNNER_RANGE[ac.skill];
-    let targetId = gunnerTargets.get(ac) ?? null;
-    if (targetId === null) {
-      m.gunnerRetarget -= dt;
-      if (m.gunnerRetarget <= 0) {
-        m.gunnerRetarget = 0.5;
-        let best: AircraftEntity | null = null;
-        let bestD = range * 1.3;
-        for (const o of world.aircraft) {
-          if (o.side === ac.side || o.damage.destroyed || o.outcome !== null) continue;
-          const d = o.state.position.distanceTo(ac.state.position);
-          if (d < bestD) {
-            bestD = d;
-            best = o;
-          }
-        }
-        m.gunnerAutoTarget = best?.id ?? null;
+  /** Can this crew member work his guns? Explicit stations: his `crewWounds`; else the `gunner` zone. */
+  function gunnerFit(ac: AircraftEntity, m: CombatMemory, g: GunnerMem): boolean {
+    const cw = ac.spec.crewStations ? ac.damage.crewWounds : undefined;
+    if (cw) return (cw[g.crewIndex] ?? 0) < 1;
+    return ac.spec.geometry.crew >= 2 && !m.gunnerKilled && ac.damage.zones.gunner < 1;
+  }
+
+  /** The player works the guns at his station: his aim, his trigger, the station's arcs. */
+  function playerGunner(ac: AircraftEntity, g: GunnerMem, station: CrewStation, si: StationInputs) {
+    for (const st of g.stations) if (st.station !== station) setStationAim(ac, st.station.id, null);
+    const k = g.stations.findIndex((st) => st.station === station);
+    if (k < 0) return;
+    g.active = k;
+    g.switching = 0;
+    setStationAim(ac, station.id, si.aim);
+    if (!si.fire || !inArcsWorld(ac, station.arcs, si.aim)) return;
+    for (const gi of g.stations[k].guns) {
+      const rpm = GUNS[ac.spec.guns[gi].type].rpmFree;
+      let guard = 0;
+      while (guard++ < 4 && tryFire(ac, gi, si.aim, PLAYER_FLEX_DISPERSION, rpm)) {
+        if (ac.guns[gi].cooldown > 0) break;
       }
-      targetId = m.gunnerAutoTarget;
     }
-    if (targetId === null) return;
-    const target = world.getEntity(targetId);
-    if (!target || target.kind !== 'aircraft' || target.damage.destroyed || target.side === ac.side) return;
+  }
+
+  /** Does any of the gunner's stations bear on the aircraft (no lead)? */
+  function bearsOn(ac: AircraftEntity, g: GunnerMem, o: AircraftEntity): boolean {
+    for (const st of g.stations) {
+      const muzzle = mountWorldPosition(ac, ac.spec.guns[st.guns[0]], tmpV);
+      tmpDir.copy(o.state.position).sub(muzzle);
+      if (inArcsWorld(ac, st.station.arcs, tmpDir)) return true;
+    }
+    return false;
+  }
+
+  /** Nearest live enemy within 1.3x range; with `bearing`, only those his stations bear on. */
+  function pickTarget(ac: AircraftEntity, world: WorldQuery, range: number, bearing: GunnerMem | null): number | null {
+    let best: AircraftEntity | null = null;
+    let bestD = range * 1.3;
+    for (const o of world.aircraft) {
+      if (o.side === ac.side || o.damage.destroyed || o.outcome !== null) continue;
+      const d = o.state.position.distanceTo(ac.state.position);
+      if (d >= bestD) continue;
+      if (bearing && !bearsOn(ac, bearing, o)) continue;
+      bestD = d;
+      best = o;
+    }
+    return best?.id ?? null;
+  }
+
+  function liveEnemy(ac: AircraftEntity, world: WorldQuery, id: number | null): AircraftEntity | null {
+    if (id === null) return null;
+    const t = world.getEntity(id);
+    if (!t || t.kind !== 'aircraft' || t.damage.destroyed || t.side === ac.side) return null;
+    return t;
+  }
+
+  /**
+   * Firing solution from station `k` of the gunner at `target`: leaves rel (tmpA), relative
+   * velocity (tmpB) and the drop-compensated direction (tmpDir). -1 out of range, 0 out of
+   * arc, 1 in arc.
+   */
+  function solve(ac: AircraftEntity, g: GunnerMem, k: number, target: AircraftEntity, range: number): number {
     const rel = tmpA.copy(target.state.position).sub(ac.state.position);
     const dist = rel.length();
-    if (dist > range) return;
+    if (dist > range) return -1;
+    const gi = g.stations[k].guns[0];
     // Lead: bullets inherit our velocity, so aim with relative velocity.
-    const mv = GUNS[ac.spec.guns[idx].type].muzzleVelocity;
+    const mv = GUNS[ac.spec.guns[gi].type].muzzleVelocity;
     const relVel = tmpB.copy(target.state.velocity).sub(ac.state.velocity);
     let t = dist / mv;
-    for (let k = 0; k < 2; k++) t = tmpV.copy(rel).addScaledVector(relVel, t).length() / mv;
+    for (let i = 0; i < 2; i++) t = tmpV.copy(rel).addScaledVector(relVel, t).length() / mv;
     const aimPoint = tmpV.copy(target.state.position).addScaledVector(relVel, t);
-    const { inArc, direction } = aimFlexibleGun(ac, idx, aimPoint, tmpDir);
-    if (!inArc) return;
-    // Bursts with pauses.
-    if (m.gunnerPause > 0) {
-      m.gunnerPause -= dt;
+    return aimFlexibleGun(ac, gi, aimPoint, tmpDir).inArc ? 1 : 0;
+  }
+
+  /**
+   * Station the gunner can shoot `target` from: his current one if it bears, else the one
+   * with the most guns that does, which he then moves to (GUNNER_SWITCH_S). -1: no shot.
+   * Returns the station index, or -2 when he has just started moving.
+   */
+  function stationFor(ac: AircraftEntity, g: GunnerMem, target: AircraftEntity, range: number): number {
+    const r = solve(ac, g, g.active, target, range);
+    if (r === 1) return g.active;
+    if (r < 0 || g.stations.length === 1) return -1;
+    let best = -1;
+    for (let k = 0; k < g.stations.length; k++) {
+      if (k === g.active || solve(ac, g, k, target, range) !== 1) continue;
+      if (best < 0 || g.stations[k].guns.length > g.stations[best].guns.length) best = k;
+    }
+    if (best < 0) return -1;
+    g.active = best;
+    g.switching = GUNNER_SWITCH_S;
+    return -2;
+  }
+
+  function updateGunner(ac: AircraftEntity, world: WorldQuery, dt: number, g: GunnerMem, multi: boolean) {
+    for (const st of g.stations) setStationAim(ac, st.station.id, null);
+    if (g.switching > 0) {
+      g.switching -= dt;
       return;
     }
-    m.gunnerBurst += dt;
-    if (m.gunnerBurst > 1.5 + rng() * 1.0) {
-      m.gunnerBurst = 0;
-      m.gunnerPause = 0.8 + rng() * 1.4;
+    const range = GUNNER_RANGE[ac.skill];
+    const asg = gunnerTargets.get(ac);
+    let strict = false;
+    let targetId: number | null = null;
+    if (asg) {
+      for (const st of g.stations) {
+        const t = asg.stations.get(st.station.id);
+        if (t !== undefined) {
+          targetId = t;
+          strict = true;
+          break;
+        }
+      }
+      if (!strict) targetId = asg.all;
+    }
+    let target: AircraftEntity | null;
+    let k: number;
+    if (!multi) {
+      // One gunner aboard (every two-seater): the nearest threat, or the assigned one.
+      if (targetId === null) {
+        g.retarget -= dt;
+        if (g.retarget <= 0) {
+          g.retarget = 0.5;
+          g.autoTarget = pickTarget(ac, world, range, null);
+        }
+        targetId = g.autoTarget;
+      }
+      target = liveEnemy(ac, world, targetId);
+      if (!target) return;
+      k = stationFor(ac, g, target, range);
+    } else {
+      // Several gunners: each keeps his own watch, the nearest enemy his guns bear on, and
+      // falls back to it when the aircraft-wide target is out of his arcs.
+      g.retarget -= dt;
+      if (g.retarget <= 0) {
+        g.retarget = 0.5;
+        g.autoTarget = pickTarget(ac, world, range, g);
+      }
+      target = liveEnemy(ac, world, targetId ?? g.autoTarget);
+      k = target ? stationFor(ac, g, target, range) : -1;
+      if (k === -1 && !strict && targetId !== null && g.autoTarget !== targetId) {
+        target = liveEnemy(ac, world, g.autoTarget);
+        k = target ? stationFor(ac, g, target, range) : -1;
+      }
+      if (!target) return;
+    }
+    if (k < 0) return;
+    const station = g.stations[k];
+    setStationAim(ac, station.station.id, tmpDir);
+    // Bursts with pauses.
+    if (g.pause > 0) {
+      g.pause -= dt;
+      return;
+    }
+    g.burst += dt;
+    if (g.burst > 1.5 + rng() * 1.0) {
+      g.burst = 0;
+      g.pause = 0.8 + rng() * 1.4;
       return;
     }
     // Harder to hold on target when our own machine is manoeuvring or the target is crossing fast.
+    const rel = tmpA;
+    const relVel = tmpB;
+    const dist = rel.length();
     const ownRate = ac.state.angularVelocity.length();
-    const crossRate = tmpB.copy(relVel).addScaledVector(rel, -relVel.dot(rel) / Math.max(1, dist * dist)).length() / Math.max(1, dist);
-    const err = GUNNER_ERROR[ac.skill] * (1 + (ac.damage.pilotWounded ? 0.5 : 0)) * (1 + ownRate + 3 * crossRate);
-    const spec = GUNS[ac.spec.guns[idx].type];
-    tryFire(ac, idx, direction, err, spec.rpmFree);
+    const crossRate = tmpV.copy(relVel).addScaledVector(rel, -relVel.dot(rel) / Math.max(1, dist * dist)).length() / Math.max(1, dist);
+    const cw = ac.spec.crewStations ? ac.damage.crewWounds : undefined;
+    const ownWound = cw ? (cw[g.crewIndex] ?? 0) : 0;
+    const err = GUNNER_ERROR[ac.skill] * (1 + (ac.damage.pilotWounded ? 0.5 : 0)) * (1 + ownWound) * (1 + ownRate + 3 * crossRate);
+    for (const gi of station.guns) tryFire(ac, gi, tmpDir, err, GUNS[ac.spec.guns[gi].type].rpmFree);
   }
 
   // ------------------------------------------------------------ bullets
