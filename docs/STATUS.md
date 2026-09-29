@@ -61,7 +61,7 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
   merged. The plan, the file each track owns, and the merge order are in `docs/bombers.md`
   "Waves". **Lead at merge:** A before C (C's gunner seat needs A's `stationInputs`), then B;
   run the fairness and career soaks against `main` for A (today's two-seaters must be within
-  noise); flip `flyable` for the bombers only after A, C and D have merged. At the defence merge, change the three `crew === 2` checks in `src/ai` to `crew >= 2` before merging B (docs/bombers.md).
+  noise); flip `flyable` for the bombers only after A, C and D have merged. The defence track and the `src/ai` `crew >= 2` checks merged on 2026-09-28, so track D can start.
 - **Waiting on the user:** 3–5 flights at the default setup (a Camel against 2 veteran
   D.VIIs at 2,500 m) with ratings, and the LICENSE decision.
 
@@ -88,7 +88,7 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
    target, and a refuge that circles the core for 25–40 s. A wounded pilot takes 28 hits
    with refuge against 195 without (was 196 against 213; `cloudEscape.realsim.test.ts`).
    **Check** in the human playtest that a player who dives into cloud shakes a pursuer.
-4. **Done (wave 9, D-085, D-XXX "Human-like pursuer"): enemies with you on their tail.**
+4. **Done (wave 9, D-085, D-087 "Human-like pursuer"): enemies with you on their tail.**
    This answers the first playtest report ("they just fly in circles"). Every design was
    measured against the veteran autoplayer and a new human-like pursuer (`AUTOPLAY_PILOT=
    human`, fitted to the user's flights). Turning stays their best defence; the scissors,
