@@ -23,6 +23,7 @@ export const headlessModules: SimCoreModules = {
   createCombatSystem: (bus, getRealism) => createCombatSystem(bus, getRealism),
   createAIController: (ac, o) =>
     createAIController(ac, aiControllerOptions(ac, o, setGunnerTarget)),
+  setGunnerTarget,
   terrainHeightAt,
   sideOfFrontAt,
 };

@@ -4,9 +4,11 @@
  * and the Node autoplayer (src/game/autoplay.ts) so both run identical
  * simulation logic. No DOM, no rendering.
  */
+import { Vector3 } from 'three';
 import { createEventBus } from '../core/events';
-import type { AIController, CombatSystem, EventBus, WingmanCommand } from '../core/interfaces';
-import type { AircraftEntity, MissionDefinition, RealismSettings } from '../core/types';
+import type { AIController, CombatSystem, EventBus, WingmanCommand, WorldQuery } from '../core/interfaces';
+import type { AircraftEntity, CrewStationId, MissionDefinition, MissionFlight, RealismSettings } from '../core/types';
+import { aimBodyVector, stationInputsFor, stationOf, startStation, StationAim } from './crewSeat';
 import { createHeightCache } from './heightCache';
 import { MissionDirector } from './missionDirector';
 import type { GameModules } from './moduleTypes';
@@ -18,7 +20,9 @@ export const AI_EVERY_N_STEPS = 4; // 30 Hz
 export type SimCoreModules = Pick<
   GameModules,
   'sim' | 'createFlightEnvironment' | 'createCombatSystem' | 'createAIController' | 'terrainHeightAt' | 'sideOfFrontAt'
->;
+> &
+  /** Resets the player's gunner to his own targeting when the player gives the AI pilot back the aircraft. */
+  Partial<Pick<GameModules, 'setGunnerTarget'>>;
 
 export interface SimCoreOptions {
   bus?: EventBus;
@@ -34,6 +38,10 @@ export class SimCore {
   readonly ai = new Map<number, AIController>();
   private stepCount = 0;
   private wasAirborne = new Set<number>();
+  private readonly aiPlayer: boolean;
+  private station: CrewStationId = 'pilot';
+  /** The director recalled the player's flight: an AI pilot taking over later heads home too. */
+  private recalled = false;
 
   constructor(
     private readonly modules: SimCoreModules,
@@ -42,6 +50,7 @@ export class SimCore {
     opts: SimCoreOptions = {},
   ) {
     this.bus = opts.bus ?? createEventBus();
+    this.aiPlayer = !!opts.aiPlayer;
     const realism = getRealism();
     // Sim, AI, combat and cameras all sample the ground through this cache (heightCache.ts).
     const env = modules.createFlightEnvironment(createHeightCache(modules.terrainHeightAt), mission.weather);
@@ -51,6 +60,7 @@ export class SimCore {
       // Job settled (escort home or lost, intercept done): the flight goes home. An AI-flown
       // player (autoplayer) is ordered home too; a human is told so over the radio.
       onRecall: () => {
+        this.recalled = true;
         this.orderWingmen('return-home');
         const p = this.world.player;
         if (p) this.ai.get(p.id)?.command('return-home');
@@ -67,6 +77,67 @@ export class SimCore {
         this.ai.set(ac.id, modules.createAIController(ac, { skill: ac.skill, flight, slot, leaderId, realism, homeAerodromeId }));
       });
     }
+
+    // A human starting at a gunner's or bomb aimer's station (the autoplayer flies and guns everything).
+    const p = this.world.player;
+    const requested = p ? mission.flights.flatMap((f) => f.members).find((m) => m.isPlayer)?.station : undefined;
+    if (p && !this.aiPlayer && requested) this.setPlayerStation(startStation(p.spec, requested));
+  }
+
+  /** The crew station the player works: 'pilot' unless he has taken another. */
+  get playerStation(): CrewStationId {
+    return this.station;
+  }
+
+  /**
+   * Put the player at a crew station of his aircraft (D-XXX, docs/bombers.md). At any station
+   * but the pilot's an AI pilot flies the aircraft, taking up the route at `fromWaypoint` (the
+   * player's next waypoint), and `stationInputs` carry the player's aim and buttons; the
+   * aircraft keeps `controller: 'player'`. Back at the pilot's seat the AI pilot is dropped and
+   * the controls are the player's again. False when there is no live player or the type has
+   * no such station.
+   */
+  setPlayerStation(station: CrewStationId, opts: { fromWaypoint?: number } = {}): boolean {
+    const p = this.world.player;
+    if (!p || p.outcome !== null) return false;
+    const st = stationOf(p.spec, station);
+    if (!st) return false;
+    this.station = station;
+    if (station === 'pilot') {
+      p.stationInputs = undefined;
+      if (!this.aiPlayer && this.ai.delete(p.id)) this.modules.setGunnerTarget?.(p, null);
+      return true;
+    }
+    if (!this.ai.has(p.id)) this.ai.set(p.id, this.createPlayerPilot(p, opts.fromWaypoint ?? 0));
+    const aim = new StationAim(st.arcs);
+    p.stationInputs = stationInputsFor(st, aimBodyVector(aim.azimuthDeg, aim.elevationDeg, new Vector3()), p.state.orientation, { fire: false, releaseBomb: false, clearJam: false }, p.stationInputs);
+    return true;
+  }
+
+  /**
+   * An AI pilot for the player's aircraft while he works a gun. It flies the flight's own task
+   * (the autoplayer's options), but sees the route from the player's next waypoint on, so a
+   * pilot taking over mid-mission doesn't turn back for waypoints already flown.
+   */
+  private createPlayerPilot(p: AircraftEntity, fromWaypoint: number): AIController {
+    const flight = this.world.getFlight(p.flightId)!;
+    const from = Math.max(0, Math.min(fromWaypoint, flight.waypoints.length - 1));
+    const route: MissionFlight = from > 0 ? { ...flight, waypoints: flight.waypoints.slice(from) } : flight;
+    const members = this.world.flightMembers.get(p.flightId) ?? [p];
+    const homeAerodromeId = flight.role === 'enemy' ? undefined : this.mission.homeAerodromeId;
+    const inner = this.modules.createAIController(p, { skill: p.skill, flight: route, slot: Math.max(0, members.indexOf(p)), leaderId: members[0].id, realism: this.getRealism(), homeAerodromeId });
+    if (this.recalled) inner.command('return-home');
+    if (route === flight) return inner;
+    const world = this.world;
+    const view: WorldQuery = Object.create(world, { getFlight: { value: (id: string) => (id === p.flightId ? route : world.getFlight(id)) } });
+    return {
+      entityId: inner.entityId,
+      update: (self, _w, dt) => inner.update(self, view, dt),
+      command: (cmd, targetId) => inner.command(cmd, targetId),
+      get debugState() {
+        return inner.debugState;
+      },
+    };
   }
 
   /** One fixed simulation step of `h` seconds. Returns aircraft that spawned this step. */
