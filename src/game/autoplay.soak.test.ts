@@ -14,6 +14,7 @@ import type { MissionDefinition, Nation } from '../core/types';
 import { QUICK_DEFAULTS } from '../data/quickDefaults';
 import { applyTacticsFlagsFromEnv } from '../ai/tactics';
 import { runAutoplay, type AutoplayReport } from './autoplay';
+import { ratesLine } from './testing/stats';
 
 applyTacticsFlagsFromEnv(process.env);
 
@@ -32,7 +33,7 @@ const SEED_BASE = Number(process.env.AUTOPLAY_SEED_BASE ?? 0);
 
 function log(line: string) {
   if (OUT) appendFileSync(OUT, line + '\n');
-  else console.log(line);
+  else process.stdout.write(line + '\n');
 }
 
 interface Row {
@@ -105,6 +106,17 @@ function summarise(rows: Row[]): void {
   log(`COLLISIONS (${rows.length} missions): ${[...coll].sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`).join(' | ') || 'none'}`);
   const claims = rows.reduce((s, r) => s + r.rep.result.claims.length, 0);
   log(`CLAIMS per mission ${(claims / Math.max(1, rows.length)).toFixed(2)}`);
+  // 95% intervals, and the line tools/dev/ab.mjs reads (FRICTION F-9).
+  const all = rows.flatMap((r) => r.rep.collisions);
+  log(
+    ratesLine({
+      missions: rows.length,
+      killed: rows.filter((r) => r.rep.result.playerFate === 'killed').length,
+      captured: rows.filter((r) => r.rep.result.playerFate === 'captured').length,
+      collisions: all.length,
+      playerCollisions: all.filter((c) => c.startsWith('player')).length,
+    }),
+  );
 }
 
 const CAREERS: { nation: Nation; dates: string[] }[] = [
