@@ -47,6 +47,11 @@ export const TACTICS_FLAGS = {
    * climbing spiral, split-S by airframe; maneuvers.ts DefenceMode). Off: measured worse.
    */
   defenceLadder: false,
+  /**
+   * With escalateDefence (brake mode): a pilot two manoeuvres into the same attacker reverses
+   * his turn when the attacker lags, so the fight isn't one endless circle (maneuvers.ts).
+   */
+  defenceReversal: true,
 };
 
 export function applyTacticsFlagsFromEnv(env: Record<string, string | undefined>): void {

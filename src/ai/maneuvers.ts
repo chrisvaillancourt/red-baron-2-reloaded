@@ -28,7 +28,7 @@ import type { SkillProfile } from './skill';
 import { traitsFor, type AircraftTraits } from './traits';
 import type { SteerCommand } from './autopilot';
 
-export type ManeuverKind = 'break' | 'climbing-turn' | 'split-s' | 'spiral' | 'jink' | 'extend' | 'brake-turn' | 'scissors' | 'dive-zoom';
+export type ManeuverKind = 'break' | 'climbing-turn' | 'split-s' | 'spiral' | 'jink' | 'extend' | 'brake-turn' | 'scissors' | 'dive-zoom' | 'reversal';
 
 /** Height above ground below which defensive manoeuvres stay level. */
 export const LOW_AGL = 350;
@@ -71,6 +71,11 @@ export interface Escalation {
   lastKind?: ManeuverKind;
   /** Default `brake`. */
   mode?: DefenceMode;
+  /**
+   * Brake mode: a pilot still not free after REVERSAL_LEVEL manoeuvres reverses his turn
+   * when the attacker's nose has dropped behind him.
+   */
+  reversal?: boolean;
 }
 
 /** Brake turn: skill above this (veterans, aces), attacker inside this range (m), closing faster than this (m/s). */
@@ -79,6 +84,16 @@ const BRAKE_RANGE_M = 300;
 const BRAKE_CLOSING_MS = 2;
 /** No brake turn below this height above ground (m): measured worse than the break low down. */
 const BRAKE_AGL = 500;
+/**
+ * Escalation.reversal: after this many manoeuvres in a row that haven't shaken him, and only
+ * while the attacker is lagging (his nose behind us, no shot), break the other way. Reversing
+ * whenever a third manoeuvre came up got a defender hit twice as often per second of
+ * tail-hold against the human-like pursuer; gated on lag it costs nothing measurable and
+ * still breaks up the circle (docs/ai.md "Wave 9: defence").
+ */
+const REVERSAL_LEVEL = 2;
+/** The attacker counts as lagging with his nose this far off us, rad (and behind us). */
+const LAG_RAD = (10 * Math.PI) / 180;
 /**
  * Escalate to a descending spiral only above this height above ground (m), and never twice
  * running: chained spirals took escalated fights down ~2.6 km a run and dragged pursuers
@@ -141,7 +156,9 @@ export function chooseDefensive(
     // A reversal is the point of the ladder: turn away from the attacker's side.
     if (kind === 'scissors') side = side === 1 ? -1 : 1;
   } else if (skilled && escalation!.level >= 1) {
-    kind = escalate(profile, agl, range, closing, escalation!.lastKind);
+    kind = escalate(profile, agl, range, closing, escalation!, lagging(self, attacker!));
+    // Reverse: break away from the side he sits on, so his lead is suddenly wrong.
+    if (kind === 'reversal') side = side === 1 ? -1 : 1;
   } else if (low) {
     // Extending only works with a lead: a pursuer inside ~450 m just follows and shoots.
     const faster = !attacker || self.state.airspeed >= attacker.state.airspeed - 2;
@@ -165,7 +182,7 @@ export function chooseDefensive(
   // measured. Pilots above novice turn instead when escalation is on.
   if (skilled && !ladder && kind === 'jink' && range < NO_JINK_RANGE_M) kind = agl > SPIRAL_AGL ? 'spiral' : 'break';
   const duration =
-    kind === 'split-s' ? 6 : kind === 'extend' ? 8 : kind === 'jink' ? 5 : kind === 'brake-turn' ? 4 : kind === 'scissors' ? 6 : kind === 'dive-zoom' ? 12 : 3 + 2 * rng();
+    kind === 'split-s' ? 6 : kind === 'extend' ? 8 : kind === 'jink' ? 5 : kind === 'brake-turn' ? 4 : kind === 'scissors' ? 6 : kind === 'dive-zoom' ? 12 : kind === 'reversal' ? 2.5 : 3 + 2 * rng();
   return {
     kind,
     side,
@@ -178,6 +195,17 @@ export function chooseDefensive(
     ...(kind === 'brake-turn' ? { brakeSpeed: traits.stallSpeed * 1.45 } : {}),
     ...(kind === 'dive-zoom' ? { zoomAt: Math.min(traits.maxSafeDiveSpeed * 0.95, self.state.airspeed + 25) } : {}),
   };
+}
+
+/** Is `attacker` in lag, his nose pointing more than LAG_RAD behind us (no shot)? */
+function lagging(self: AircraftEntity, attacker: AircraftEntity): boolean {
+  const af = forwardOf(attacker.state.orientation, _v);
+  const toUs = _rel.copy(self.state.position).sub(attacker.state.position).normalize();
+  const off = Math.acos(Math.max(-1, Math.min(1, af.dot(toUs))));
+  if (off < LAG_RAD) return false;
+  // Pointing behind us: his nose's miss lies against our direction of flight.
+  const v = self.state.velocity;
+  return af.dot(v) - toUs.dot(v) * af.dot(toUs) < 0;
 }
 
 /**
@@ -214,9 +242,10 @@ function ladderStep(self: AircraftEntity, attacker: AircraftEntity, traits: Airc
  * that get a defender hit least, so he keeps turning, and a veteran or ace closed on fast
  * from close behind throttles back in the turn to make the attacker overshoot.
  */
-function escalate(profile: SkillProfile, agl: number, range: number, closing: number, lastKind?: ManeuverKind): ManeuverKind {
+function escalate(profile: SkillProfile, agl: number, range: number, closing: number, e: Escalation, lag: boolean): ManeuverKind {
   if (profile.t > BRAKE_T && agl > BRAKE_AGL && range < BRAKE_RANGE_M && closing > BRAKE_CLOSING_MS) return 'brake-turn';
-  return agl > SPIRAL_AGL && lastKind !== 'spiral' ? 'spiral' : 'break';
+  if (e.reversal && e.level >= REVERSAL_LEVEL && lag && e.lastKind !== 'reversal') return 'reversal';
+  return agl > SPIRAL_AGL && e.lastKind !== 'spiral' ? 'spiral' : 'break';
 }
 
 /** Fill `out` with the steering for the manoeuvre at time `now`. */
@@ -233,9 +262,10 @@ export function maneuverSteer(m: Maneuver, self: AircraftEntity, attacker: Aircr
   out.aggression = 1.5;
   out.maxG = undefined;
   // Over-banking is gated by the autopilot on height above ground (sinkOk).
-  out.maxPerformance = m.kind === 'break' || m.kind === 'spiral' || m.kind === 'split-s';
+  out.maxPerformance = m.kind === 'break' || m.kind === 'reversal' || m.kind === 'spiral' || m.kind === 'split-s';
   switch (m.kind) {
     case 'break':
+    case 'reversal':
       // Level (a touch nose-high) near the ground; slightly descending otherwise.
       out.dir.copy(rh).multiplyScalar(m.side).addScaledVector(fh, m.low ? 0.25 : 0.15).add(new Vector3(0, m.low ? 0.03 : -0.08, 0));
       break;

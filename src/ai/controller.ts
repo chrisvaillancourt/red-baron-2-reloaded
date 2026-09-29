@@ -503,7 +503,7 @@ export class AIPilot implements AIController {
           st.at = this.now;
           // Not on the way home: a hurt pilot's job is to get there (or into cloud), and an
           // escalated spiral would drop him out of the bottom of a refuge cloud.
-          const escalation = TACTICS_FLAGS.escalateDefence && this.phase !== 'rtb' ? { level: st.n, lastKind: this.maneuver?.kind, mode: defenceMode() } : undefined;
+          const escalation = TACTICS_FLAGS.escalateDefence && this.phase !== 'rtb' ? { level: st.n, lastKind: this.maneuver?.kind, mode: defenceMode(), reversal: TACTICS_FLAGS.defenceReversal } : undefined;
           this.maneuver = chooseDefensive(self, attacker, this.traits, p, agl, this.now, this.rng, agl < LOW_AGL ? homeDirection(self, world) : undefined, TACTICS_FLAGS.meetBounce, escalation);
           if (this.phase !== 'rtb') this.phase = 'defend';
           this.threatId = attacker?.id ?? null;
