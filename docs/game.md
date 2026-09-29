@@ -18,7 +18,8 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `simCore.ts` | `SimCore`: the headless flight — world, combat, AI controllers, mission director, the fixed step, landing detection, wingman orders. Shared by `FlightSession` and the autoplayer. |
 | `heightCache.ts` | Tiled bilinear cache (32 m cells, 1 km tiles, LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
 | `autoplay.ts` | Autoplayer: `runAutoplay(mission)` flies a mission headlessly with the player's aircraft on an AI controller; `headlessModules`. |
-| `flightRecorder.ts` | `FlightRecorder`: the flight report's statistics (`MissionResult.telemetry`): hits taken, loss cause, combat time, each enemy's first pass, time compression, fps. See "Flight report". |
+| `flightRecorder.ts` | `FlightRecorder`: the flight report's statistics (`MissionResult.telemetry`): hits taken, loss cause, combat time, each enemy's first pass, gunnery (`aimStats.ts`), time compression, fps. See "Flight report". |
+| `aimStats.ts` | `AimTracker`: the player's gunnery by mount, aim error with the trigger held, firing range and time to the first shot (flight recorder and autoplayer). |
 | `lossCause.ts` | `LossCauseTracker`: what took the player out. Shared by the autoplayer and the recorder. |
 | `world.ts` | `buildWorld`: entities from a `MissionDefinition` (formation offsets, ground starts, spawn delays), `WorldQuery`. |
 | `missionDirector.ts` | Objectives, kill credit → `VictoryClaim`, radio chatter, end conditions, `MissionResult`. |
@@ -288,6 +289,14 @@ can wrap any `SimCore` (`src/game/testing/recordedFlight.ts`).
   factor.
 - **Frame rate:** a 0.5 ms histogram of unclamped frame times. `p50` is the
   median, and `p95` is the rate at the 95th-percentile frame time (the slow end).
+- **Gunnery** (`aim`, `aimStats.ts`; the autoplayer records the same): rounds and
+  hits by mount, since `outcome.hits` also counts a two-seater's AI-aimed rear gun
+  (`bullet-hit` carries `mountIndex`). With the trigger held, seconds by angle from
+  the gun line to the true lead of the enemy nearest it inside 400 m (1° buckets to
+  20°), and by range to the target nearest the gun line (50 m buckets to 1 km). Each
+  time an enemy inside 400 m comes within 10° of the gun line's lead, the seconds to
+  the first fixed-gun shot. This is what the autoplayer's human-like pilot is fitted
+  to (docs/ai.md "Human-like pursuer").
 
 A recorder failure is logged and the debrief goes on without telemetry.
 

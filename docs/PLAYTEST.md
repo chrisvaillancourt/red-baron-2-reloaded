@@ -35,6 +35,9 @@ What a report holds:
 - each enemy's first pass: from above, up-sun, and whether you had seen him (the HUD's
   awareness model)
 - time compression, and fps p50/p95
+- your gunnery (`aim`): rounds and hits for your own guns apart from an observer's rear
+  gun, how far off the lead you were while firing, from how far out, and how quickly you
+  fired once a target was in your sights
 - your rating and note
 
 The only personal field is a career pilot's name.
