@@ -54,6 +54,16 @@ describe('flight report', () => {
     expect(r.outcome.hitsTaken).toBeNull();
   });
 
+  it('carries the bomb counts of a bombing sortie, and leaves them out otherwise', () => {
+    const mission = { objectives: [], flights: [], date: '1918-08-06' } as never;
+    const bombed = buildFlightReport({ mission, result: { ...minimalResult(), bombsDropped: 4, bombHits: 1 }, settings: DEFAULT_SETTINGS, build: BUILD });
+    expect(bombed.outcome).toMatchObject({ bombsDropped: 4, bombHits: 1 });
+    expect(parseFlightReport(serializeFlightReport(bombed)).outcome.bombsDropped).toBe(4);
+    const plain = buildFlightReport({ mission, result: minimalResult(), settings: DEFAULT_SETTINGS, build: BUILD });
+    expect('bombsDropped' in plain.outcome).toBe(false);
+    expect('bombHits' in plain.outcome).toBe(false);
+  });
+
   it('refuses things that are not a report, with a reason', () => {
     expect(() => parseFlightReport('nope')).toThrow(/Not JSON/);
     expect(() => parseFlightReport('{"kind":"other"}')).toThrow(/Not a flight report/);
