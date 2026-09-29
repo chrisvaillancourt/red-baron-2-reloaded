@@ -61,7 +61,7 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
   merged. The plan, the file each track owns, and the merge order are in `docs/bombers.md`
   "Waves". **Lead at merge:** A before C (C's gunner seat needs A's `stationInputs`), then B;
   run the fairness and career soaks against `main` for A (today's two-seaters must be within
-  noise); flip `flyable` for the bombers only after A, C and D have merged.
+  noise); flip `flyable` for the bombers only after A, C and D have merged. At the defence merge, change the three `crew === 2` checks in `src/ai` to `crew >= 2` before merging B (docs/bombers.md).
 - **Waiting on the user:** 3–5 flights at the default setup (a Camel against 2 veteran
   D.VIIs at 2,500 m) with ratings, and the LICENSE decision.
 
