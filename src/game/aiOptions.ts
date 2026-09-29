@@ -18,5 +18,6 @@ export function aiControllerOptions(ac: AircraftEntity, o: AIControllerOptions, 
     setGunnerTarget,
     homeAerodromeId: o.homeAerodromeId,
     aceId: ac.aceId,
+    ...(o.human ? { human: o.human } : {}),
   };
 }

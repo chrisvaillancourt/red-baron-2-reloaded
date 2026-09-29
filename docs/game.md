@@ -237,6 +237,13 @@ makes that possible: the analytic terrain costs ~20 us a call).
   `<player|ai>-<enemy|wingman|friendly>[ wreck] <angle between noses>deg
   <stateA>/<stateB> t=<s>`; the soak prints them per mission (`COLL …`) and a
   `COLLISIONS` histogram (head-on = noses 130–180° apart).
+- `pilot: 'human'` (or `AUTOPLAY_PILOT=human` in the environment, which every soak
+  and the replay honour) keeps the AI player's tactics but aims and fires like a
+  mouse-aim human: aim lag, reaction delay, drifting bias and jitter, long bursts
+  (`src/ai/humanAim.ts`; docs/ai.md "Human-like pursuer"). `AUTOPLAY_HUMAN=
+  aimLagS=0.4,biasDeg=1,...` overrides single parameters for calibration sweeps.
+  The report's `aim` holds the player's gunnery (`aimStats.ts`, as in the flight
+  report) and `humanPilot` says which pilot flew.
 - `passivePlayer: true` replaces the AI player with one that holds wings
   level and the nose on the horizon and never fights.
 - `src/game/autoplay.test.ts` (in `pnpm test`):
