@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildQuickMission } from '../campaign/quickMission';
+import { AIRCRAFT } from '../data/aircraft';
 import { QUICK_DEFAULTS } from '../data/quickDefaults';
 import { quickPlayerAircraft, sanitizeQuickOptions } from './quickCrew';
 
@@ -17,6 +18,12 @@ describe('quick mission crew options', () => {
 
   it('switches to a bomber for a raid and back to a fighter after one, and drops a seat the aircraft lacks', () => {
     expect(sanitizeQuickOptions({ ...QUICK_DEFAULTS, type: 'bombing' }).playerAircraft).toBe('dh4');
+    // Of the player's side and nearest his type's service: a Fokker D.VII pilot gets a German bomber of 1917-18.
+    const german = AIRCRAFT[sanitizeQuickOptions({ ...QUICK_DEFAULTS, playerAircraft: 'fokker_dvii', type: 'bombing' }).playerAircraft];
+    expect(german.nation).toBe('germany');
+    expect(german.introduced >= '1917-01-01').toBe(true);
+    // A Nieuport 11 pilot (1916) gets the Voisin of his day, not a 1917 type.
+    expect(AIRCRAFT[sanitizeQuickOptions({ ...QUICK_DEFAULTS, playerAircraft: 'nieuport_11', type: 'bombing' }).playerAircraft].id).toBe('voisin_iii');
     const back = sanitizeQuickOptions({ ...QUICK_DEFAULTS, playerAircraft: 'dh4', playerStation: 'observer', type: 'dogfight' });
     expect(back.playerAircraft).toBe(QUICK_DEFAULTS.playerAircraft);
     expect(back.playerStation).toBeUndefined(); // the default fighter has one seat
