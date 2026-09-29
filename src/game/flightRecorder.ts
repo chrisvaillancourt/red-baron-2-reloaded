@@ -58,7 +58,7 @@ export class FlightRecorder {
       if (e.type === 'bullet-hit' && player && e.targetId === player.id) this.hitsTaken++;
       if (e.type === 'gun-fired') {
         const a = world.getEntity(e.shooterId);
-        if (a?.kind === 'aircraft') this.entries.onFired(a);
+        if (a?.kind === 'aircraft') this.entries.onFired(a, e.mountIndex);
       }
     });
   }

@@ -576,7 +576,8 @@ export interface FlightTelemetry {
 // ---------------------------------------------------------------------------
 
 export type GameEvent =
-  | { type: 'gun-fired'; shooterId: number; gun: GunType; position: Vector3 }
+  /** `mountIndex` (additive) is the index into the shooter's `spec.guns`, e.g. to tell a flexible rear gun from the pilot's. */
+  | { type: 'gun-fired'; shooterId: number; gun: GunType; position: Vector3; mountIndex?: number }
   | { type: 'bullet-hit'; targetId: number; shooterId: number; position: Vector3; zone: DamageZone | 'balloon' | 'ground' }
   | { type: 'bullet-impact-ground'; position: Vector3 }
   | { type: 'gun-jammed'; aircraftId: number; mountIndex: number }

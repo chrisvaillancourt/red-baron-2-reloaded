@@ -91,8 +91,12 @@ export class EntryTracker {
     return [...this.acc].sort();
   }
 
-  /** Feed every gun-fired event. */
-  onFired(shooter: AircraftEntity): void {
+  /**
+   * Feed every gun-fired event (with its `mountIndex`). A flexible gun (a two-seater's observer)
+   * is ignored: his defensive bursts are not the aircraft's attack pass.
+   */
+  onFired(shooter: AircraftEntity, mountIndex?: number): void {
+    if (mountIndex !== undefined && shooter.spec.guns[mountIndex]?.mount === 'flexible') return;
     const t = this.world.time;
     const prev = this.lastShot.get(shooter.id) ?? -1e9;
     this.lastShot.set(shooter.id, t);

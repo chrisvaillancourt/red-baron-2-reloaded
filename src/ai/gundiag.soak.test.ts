@@ -65,7 +65,7 @@ describe.skipIf(!SOAK.includes('gundiag'))('gunnery diag', () => {
         core.bus.onAny((e) => {
           if (e.type === 'structural-failure') { const a = byId.get(e.aircraftId); if (a) { const z = a.damage.zones; process.stdout.write(`STRUCT ${a.spec.shortName} ${e.part} v=${a.state.airspeed.toFixed(0)} g=${a.state.gLoad.toFixed(1)} wingL=${z.leftWing.toFixed(2)} wingR=${z.rightWing.toFixed(2)} tail=${z.tail.toFixed(2)} hitAgo=${(core.world.time - (lastHit.get(a.id) ?? -99)).toFixed(1)}\n`); } }
           if (e.type === 'bullet-hit') lastHit.set(e.targetId, core.world.time);
-          if (e.type === 'gun-fired') { const a = byId.get(e.shooterId); if (a) { get(key(a, pl)).shots++; et.onFired(a); } }
+          if (e.type === 'gun-fired') { const a = byId.get(e.shooterId); if (a) { get(key(a, pl)).shots++; et.onFired(a, e.mountIndex); } }
           if (e.type === 'bullet-hit') { const a = byId.get(e.shooterId); const t = byId.get(e.targetId); if (a && t && t.side !== a.side) { const g = get(key(a, pl)); g.hits++; const ang = a.state.velocity.angleTo(t.state.velocity) * 57.3; if (ang > 120) g.hitsHeadOn++; else if (ang < 45) g.hitsTail++; } }
         });
         function get(k: string): Acc { let v = acc.get(k); if (!v) acc.set(k, (v = zero())); return v; }
