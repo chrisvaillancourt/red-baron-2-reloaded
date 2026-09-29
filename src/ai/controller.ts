@@ -485,14 +485,15 @@ export class AIPilot implements AIController {
   }
 
   /**
-   * Bombers with bombs still aboard don't follow a leader who has turned for home hurt before
-   * bombing: the next man leads them on to the target (a leader going home with the job done
-   * still leads). Everyone else follows as before.
+   * A bomber doesn't follow a leader who has turned for home hurt before bombing (his bombs
+   * still aboard): the next man leads the formation on to the target and home by its route,
+   * and it doesn't take him back once it has bombed. A leader going home with the job done
+   * still leads. Everyone else follows as before.
    */
-  private canLead(self: AircraftEntity, a: AircraftEntity): boolean {
+  private canLead(_self: AircraftEntity, a: AircraftEntity): boolean {
     if (this.opts.task !== 'bomb') return true;
     const c = REGISTRY.get(a);
-    return !(c && c.phase === 'rtb' && !VOLUNTARY_RTB.has(c.rtbReason) && canBomb(self));
+    return !(c && c.phase === 'rtb' && !VOLUNTARY_RTB.has(c.rtbReason) && bombsAboard(a) > 0);
   }
 
   /**

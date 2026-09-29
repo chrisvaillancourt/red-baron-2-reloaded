@@ -147,6 +147,42 @@ describe('AI bombers on the real flight model', { timeout: 60_000 }, () => {
     }
   });
 
+  it('does not take back a leader who turned for home hurt before bombing, once the new leader has bombed', () => {
+    const { world, lead, wings, rally } = raid();
+    let hurtAt = -1;
+    let droppedAt = -1;
+    let onCourse = 0;
+    let steps = 0;
+    runSim(world, 400, {
+      onStep: (t) => {
+        world.events.length = 0;
+        // His engine is hit on the way in, 3 km short of the target: he turns for home.
+        if (hurtAt < 0 && lead.state.position.x > 3000) {
+          lead.damage.zones.engine = 0.6;
+          hurtAt = t;
+        }
+        if (droppedAt < 0 && wings.every((w) => getBombStats(w).dropped === 4)) droppedAt = t;
+        if (droppedAt >= 0 && t > droppedAt + 20) {
+          steps++;
+          // Flying for the rally, not after him: within 25° of the bearing to it.
+          const w = wings[0].state;
+          const toRally = Math.atan2(rally.z - w.position.z, rally.x - w.position.x);
+          const track = Math.atan2(w.velocity.z, w.velocity.x);
+          if (Math.abs(Math.atan2(Math.sin(toRally - track), Math.cos(toRally - track))) < 25 * DEG) onCourse++;
+        }
+        return droppedAt >= 0 && t > droppedAt + 140;
+      },
+    });
+    expect(hurtAt).toBeGreaterThan(0);
+    expect(world.controllers.get(lead.id)!.phase).toBe('rtb');
+    expect(getBombStats(lead).dropped, 'the hurt leader went home with his bombs').toBe(0);
+    expect(droppedAt, 'the formation bombed without him').toBeGreaterThan(0);
+    // After the target they fly on to their rally, together, not back to him.
+    expect(steps).toBeGreaterThan(0);
+    expect(onCourse / steps, 'share of the way home the new leader flew for the rally').toBeGreaterThan(0.7);
+    expect(wings[0].state.position.distanceTo(wings[1].state.position), 'still together').toBeLessThan(300);
+  });
+
   it('holds formation under attack and does not jink on the run', () => {
     let defended = 0;
     let slotErr = 0;

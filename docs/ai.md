@@ -169,9 +169,9 @@ false-to-true change; it sets the flag for one AI tick and clears it the next).
   (`TACTICS_FLAGS.bomberFormation`, on).
 - **Leading.** A formation's leader flies at 0.72 of his top speed (a lone machine cruises at
   0.8), so the formation can keep station, on the run and on the way home. Wingmen keep his
-  place on the route, so if he falls the next man leads on from there. Bombers with bombs
-  still aboard don't follow a leader who turns for home hurt before bombing: the next man
-  takes them on to the target.
+  place on the route, so if he falls the next man leads on from there. Nobody follows a
+  leader who turns for home hurt before bombing (his bombs still aboard): the next man takes
+  them on to the target and home by their route, and they don't take him back after bombing.
 - **The player at the bombsight.** While he works the bomb-aimer station
   (`stationInputs.station`) the AI flying his aircraft flies him the run but releases
   nothing: his `stationInputs.releaseBomb` does, and his wingmen release on his bombs.
@@ -226,7 +226,8 @@ height, and the formation then heads for its rally point together. Under attack 
 veteran D.VIIs (3 seeds), nobody breaks off to defend while a flight-mate flies beside him,
 the wingmen hold their slots within 60 m on average up to the release, and the leader bombs
 every time. A lone bomber started 3 km past the target heading away, or 1 km short and 450 m
-off the line (a certain miss), comes round and bombs the target on a later run.
+off the line (a certain miss), comes round and bombs the target on a later run. When the leader turns for home with an engine
+hit on the way in, the other two bomb and fly on for their rally, not after him.
 
 **Raid survey** (`AI_SOAK=raid AI_RAID_REPS=24`, commit 6216291; the autoplayer leads a
 D.H.4 vic, 24 raids a setup, 3 bombers each; "on target" is a burst that damaged a target):
