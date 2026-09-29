@@ -4,10 +4,8 @@ import { expect, test, type Page } from '@playwright/test';
  * Crew stations in the real browser game (docs/bombers.md): the seat keys, the gunner's view
  * with keyboard aim clamped to the field of fire, the hand-back to the pilot, and the
  * bombsight on a D.H.4 bomb run. Flights are launched through GameServices.launcher, as in
- * missions.spec.ts. Screenshots go to test-results/crew/ for a visual check.
- *
- * Until track A (src/sim) lands, a station's guns don't fire and bombs don't fall; these
- * tests check the seat, the views, the HUD and the station inputs the game layer writes.
+ * missions.spec.ts. Screenshots go to test-results/crew/ for a visual check. The sim (track A)
+ * fires a station's guns from the player's station inputs and drops his bombs.
  */
 
 type Win = Window & { __result?: unknown; __host?: HTMLElement };
@@ -22,6 +20,9 @@ function collectErrors(page: Page): string[] {
 }
 
 async function boot(page: Page): Promise<void> {
+  // A real gamepad on the machine (the user playing meanwhile) reaches this page too, and its
+  // buttons change views, pause and compress time. The tests drive the keyboard only.
+  await page.addInitScript(() => Object.defineProperty(navigator, 'getGamepads', { value: () => [] }));
   await page.goto('/');
   await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30_000 });
 }
@@ -84,6 +85,8 @@ const session = (page: Page) =>
       throttle: p.controls.throttle,
       bombs: p.bombs ?? null,
       alive: p.outcome === null,
+      // Rounds left in the flexible (observer's) guns, drums included.
+      flexRounds: p.guns.filter((g) => p.spec.guns[g.mountIndex].mount === 'flexible').reduce((n, g) => n + g.roundsLeft + g.sparesLeft * 97, 0),
     };
   });
 
@@ -120,6 +123,14 @@ test('Bristol: take the observer seat, aim within the arcs, hand back to the pil
   expect(moved).toBeGreaterThan(0.2);
   await page.waitForTimeout(600); // let the seat message and hint settle
   await page.screenshot({ path: 'test-results/crew/gunner.png' });
+
+  // Space fires the observer's Lewis.
+  const rounds0 = s.flexRounds;
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: 'test-results/crew/gunner-firing.png' });
+  await page.keyboard.up('Space');
+  expect((await session(page)).flexRounds).toBeLessThan(rounds0);
 
   // Hold the gun down past the beam box's floor: it stops at the edge, drawn red.
   await page.keyboard.down('ArrowUp'); // stick forward: gun down
@@ -186,6 +197,17 @@ test('D.H.4 bomb run: F6 takes the observer to the bombsight', async ({ page }) 
   await expect(page.locator('.hud-crew .target')).toBeVisible(); // pinned to the edge while far up the track
   await page.waitForTimeout(800);
   await page.screenshot({ path: 'test-results/crew/bombsight.png' });
+
+  // R releases one bomb per press: holding it drops only the one.
+  await page.keyboard.down('KeyR');
+  await page.waitForFunction(() => window.__rb2!.session!.player!.bombs![0] === 3);
+  await page.waitForTimeout(500);
+  expect((await session(page)).bombs).toEqual([3]);
+  await page.keyboard.up('KeyR');
+  await page.waitForTimeout(300); // a frame sees the key up: the flag goes false
+  await page.keyboard.press('KeyR'); // a tap quicker than a frame still releases
+  await page.waitForFunction(() => window.__rb2!.session!.player!.bombs![0] === 2);
+  await expect(page.locator('.rb-hud')).toContainText('BOMBS 2/4');
 
   // F6 again: back to his gun.
   await page.keyboard.press('F6');
