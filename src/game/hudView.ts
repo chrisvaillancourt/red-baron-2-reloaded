@@ -37,7 +37,7 @@ export function pinToEdge(p: HudScreenPoint): HudScreenPoint {
   return { x: 0.5 + Math.sin(a) * 0.46, y: 0.5 - Math.cos(a) * 0.4, onScreen: true };
 }
 
-const GUN_NAMES: Record<GunType, string> = { spandau: 'Spandau', parabellum: 'Parabellum', vickers: 'Vickers', lewis: 'Lewis' };
+const GUN_NAMES: Record<GunType, string> = { spandau: 'Spandau', parabellum: 'Parabellum', vickers: 'Vickers', lewis: 'Lewis', hotchkiss: 'Hotchkiss' };
 
 const HUD_VIEW: Record<CameraMode, HudCameraView> = {
   cockpit: 'cockpit',

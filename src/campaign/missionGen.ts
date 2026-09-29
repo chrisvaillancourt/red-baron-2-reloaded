@@ -494,6 +494,7 @@ const TITLES: Record<MissionType, Record<Side, string>> = {
   'ground-attack': { allied: 'Ground Strafing', central: 'Infantry Support' },
   'airfield-attack': { allied: 'Aerodrome Raid', central: 'Aerodrome Raid' },
   dogfight: { allied: 'Dogfight', central: 'Dogfight' },
+  bombing: { allied: 'Bombing Raid', central: 'Bombing Raid' },
 };
 
 function planMission(ctx: GenCtx, type: MissionType, s: PlayerSetup, fp: FrontPoint, playerFlightId: string): Plan {

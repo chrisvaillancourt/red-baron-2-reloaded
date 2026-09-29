@@ -13,6 +13,8 @@ export const GUNS: Record<GunType, GunSpec> = {
   spandau: { type: 'spandau', name: 'LMG 08/15 "Spandau"', rpmSynchronized: 450, rpmFree: 550, muzzleVelocity: 870, bulletMass: 0.0128, jamChancePerRound: 0.0006, drumChangeTime: 0 },
   parabellum: { type: 'parabellum', name: 'Parabellum MG 14', rpmSynchronized: 600, rpmFree: 650, muzzleVelocity: 870, bulletMass: 0.0128, jamChancePerRound: 0.0005, drumChangeTime: 4 },
   vickers: { type: 'vickers', name: 'Vickers .303', rpmSynchronized: 450, rpmFree: 500, muzzleVelocity: 745, bulletMass: 0.0113, jamChancePerRound: 0.0007, drumChangeTime: 0 },
+  // Strip-fed (25 rounds); drumChangeTime is the strip change.
+  hotchkiss: { type: 'hotchkiss', name: 'Hotchkiss M1914', rpmSynchronized: 450, rpmFree: 450, muzzleVelocity: 725, bulletMass: 0.0128, jamChancePerRound: 0.0009, drumChangeTime: 3 },
   lewis: { type: 'lewis', name: 'Lewis .303', rpmSynchronized: 550, rpmFree: 550, muzzleVelocity: 745, bulletMass: 0.0113, jamChancePerRound: 0.0004, drumChangeTime: 5 },
 };
 

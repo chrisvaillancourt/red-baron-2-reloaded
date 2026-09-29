@@ -97,7 +97,7 @@ export class SoundBank {
 
   /** Pre-render the sounds needed in flight so the first shot doesn't hitch. */
   warmFlight(): void {
-    for (const g of ['vickers', 'spandau', 'lewis', 'parabellum'] as const) this.get(`gun:${g}`);
+    for (const g of ['vickers', 'spandau', 'lewis', 'parabellum', 'hotchkiss'] as const) this.get(`gun:${g}`);
     for (const m of ['fabric', 'wood', 'metal'] as const) this.get(`hit:${m}`);
     this.get('flak');
     this.get('whizz');

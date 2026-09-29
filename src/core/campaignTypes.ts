@@ -2,7 +2,7 @@
  * Career/campaign contracts shared by src/campaign (implementation) and
  * src/ui (screens). See src/core/interfaces.ts CampaignService.
  */
-import type { AircraftId, Livery, MissionType, Nation, PilotFate, SkillLevel, Side, VictoryClaim } from './types';
+import type { AircraftId, CrewStationId, Livery, MissionType, Nation, PilotFate, SkillLevel, Side, VictoryClaim } from './types';
 
 export type CareerDifficulty = 'recruit' | 'pilot' | 'ace';
 
@@ -174,7 +174,17 @@ export interface QuickMissionOptions {
   startPosition: 'head-on' | 'advantage' | 'disadvantage' | 'random';
   timeOfDay: 'dawn' | 'morning' | 'midday' | 'afternoon' | 'dusk';
   cloudCover: number;
-  type: 'dogfight' | 'balloon-attack' | 'escort' | 'intercept' | 'ground-attack';
+  /**
+   * 'bombing': the player's flight carries bombs to ground targets behind the enemy lines,
+   * against AA and interceptors (`enemyAircraft`), with an optional fighter escort.
+   */
+  type: 'dogfight' | 'balloon-attack' | 'escort' | 'intercept' | 'ground-attack' | 'bombing';
+  /** The player's crew station at the start; absent means the pilot's seat. */
+  playerStation?: CrewStationId;
+  /** Bombing raids: friendly fighters escorting the player's flight (0..4); absent means none. */
+  escortCount?: number;
+  /** Bombing raids: the escort's type; absent picks a fighter of the player's side for the date. */
+  escortAircraft?: AircraftId;
   /** Optional historical ace to face, from src/data/aces.ts. */
   enemyAceId?: string;
   date?: string;
