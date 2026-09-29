@@ -88,6 +88,41 @@ test('quick mission from the Quick Mission screen', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('bombing raid from the Quick Mission screen: a D.H.4, the observer seat, bombs aboard', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.addInitScript(() => Object.defineProperty(navigator, 'getGamepads', { value: () => [] }));
+  await page.goto('/');
+  await expectScreen(page, 'title');
+  await page.click('text=Quick Mission');
+  await expectScreen(page, 'quick');
+  await page.selectOption('select[aria-label="Your aircraft"]', 'sopwith_camel');
+  await page.click('button:has-text("Bombing raid")');
+  // A raid offers the bomb carriers and switches to one.
+  const aircraft = page.locator('select[aria-label="Your aircraft"]');
+  await expect(aircraft).toHaveValue('dh4');
+  await expect(aircraft.locator('option[value="sopwith_camel"]')).toHaveCount(0);
+  await expect(page.locator('text=Escort fighters')).toBeVisible();
+  await page.click('.field:has-text("Your seat") button:has-text("Observer")');
+  await page.click('text=To the briefing');
+  await expectScreen(page, 'briefing');
+  await page.click('button:has-text("Take off")');
+  await passFlyingSchool(page);
+  await waitForFlight(page, 2);
+  const s = await page.evaluate(() => {
+    const ses = window.__rb2!.session!;
+    return { station: ses.station, bombs: ses.player!.bombs ?? null, aircraft: ses.player!.spec.id };
+  });
+  expect(s).toEqual({ station: 'observer', bombs: [4], aircraft: 'dh4' });
+  await page.evaluate(() => window.__rb2!.session!.abandon());
+  await expectScreen(page, 'debrief');
+  await leaveDebrief(page);
+  await expectScreen(page, 'quick');
+  // Back to a dogfight: the AI-only bomber gives way to a flyable fighter.
+  await page.click('button:has-text("Dogfight")');
+  await expect(aircraft).not.toHaveValue('dh4');
+  expect(errors).toEqual([]);
+});
+
 test('career: enlist in Jasta 11, fly, debrief, persist', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/');

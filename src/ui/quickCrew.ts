@@ -1,48 +1,36 @@
 /**
- * Quick Mission crew options (docs/bombers.md): the player's seat, and the "Bombing raid"
- * type, wired but hidden until track D's raid builder exists. Pure; tested in Node.
+ * Quick Mission crew options (docs/bombers.md): the player's seat, and which aircraft each
+ * mission type offers. The builder (`buildQuickMission`) puts the player at `playerStation`
+ * and builds the "Bombing raid" itself. Pure; tested in Node.
  */
 import type { QuickMissionOptions } from '../core/campaignTypes';
-import type { CrewStationId, MissionDefinition } from '../core/types';
-import { AIRCRAFT } from '../data/aircraft';
+import type { AircraftSpec } from '../core/types';
+import { AIRCRAFT, AIRCRAFT_LIST } from '../data/aircraft';
 import { crewStations } from '../data/crew';
+import { QUICK_DEFAULTS } from '../data/quickDefaults';
 
-/** Only a dev server with `?bombing` in the URL offers raids (with the bomb-carrying AI-only types). */
-export function bombingRaidsOffered(dev: boolean, search: string): boolean {
-  return dev && new URLSearchParams(search).has('bombing');
+const sideOf = (s: AircraftSpec) => (s.nation === 'germany' ? 'central' : 'allied');
+
+/** The player's aircraft for a mission type: a raid needs a type that carries bombs, anything else a flyable type. */
+export function quickPlayerAircraft(type: QuickMissionOptions['type']): AircraftSpec[] {
+  return AIRCRAFT_LIST.filter((s) => (type === 'bombing' ? !!s.bombs?.length : s.flyable));
 }
 
-/** Saved options cleaned of a seat the aircraft lacks, and of a raid while raids are hidden. */
-export function sanitizeQuickOptions(o: QuickMissionOptions, bombing: boolean): QuickMissionOptions {
+/**
+ * Options made consistent: an aircraft the mission type offers (a raid switches to a bomber,
+ * of the player's side if there is one; leaving a raid in an AI-only bomber goes back to the
+ * default fighter), and no seat the aircraft lacks.
+ */
+export function sanitizeQuickOptions(o: QuickMissionOptions): QuickMissionOptions {
   const out = { ...o };
-  if (!bombing && out.type === 'bombing') out.type = 'dogfight';
+  const offered = quickPlayerAircraft(out.type);
+  const cur = AIRCRAFT[out.playerAircraft];
+  if (!cur || !offered.some((s) => s.id === cur.id)) {
+    const side = cur ? sideOf(cur) : undefined;
+    const pick = out.type === 'bombing' ? (offered.find((s) => sideOf(s) === side) ?? offered[0]) : AIRCRAFT[QUICK_DEFAULTS.playerAircraft];
+    if (pick) out.playerAircraft = pick.id;
+  }
   const spec = AIRCRAFT[out.playerAircraft];
   if (out.playerStation && (!spec || !crewStations(spec).some((s) => s.id === out.playerStation))) delete out.playerStation;
   return out;
-}
-
-/**
- * Put the player at the chosen station. TODO(bombers track D): the quick builder copies
- * `playerStation` into the player's flight member itself; then drop this.
- */
-export function applyPlayerStation(m: MissionDefinition, station: CrewStationId | undefined): MissionDefinition {
-  if (!station || station === 'pilot') return m;
-  for (const f of m.flights) for (const mem of f.members) if (mem.isPlayer && !mem.station) mem.station = station;
-  return m;
-}
-
-/**
- * Dev stand-in for the "Bombing raid" builder: a quick ground attack turned into a bomb run
- * (the flight's task 'bomb', its attack waypoints 'bomb' waypoints). TODO(bombers track D):
- * `buildQuickMission` handles 'bombing'; then drop this.
- */
-export function devBombingRaid(build: (o: QuickMissionOptions) => MissionDefinition, o: QuickMissionOptions): MissionDefinition {
-  const m = build({ ...o, type: 'ground-attack' });
-  m.type = 'bombing';
-  for (const f of m.flights) {
-    if (!f.members.some((x) => x.isPlayer)) continue;
-    f.task = 'bomb';
-    for (const wp of f.waypoints) if (wp.action === 'attack-ground') wp.action = 'bomb';
-  }
-  return m;
 }
