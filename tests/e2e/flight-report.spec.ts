@@ -18,7 +18,7 @@ async function expectScreen(page: Page, id: string): Promise<void> {
 interface Report {
   kind: string;
   schema: number;
-  build: { sha: string; builtAt: string };
+  build: { sha: string; builtAt: string; dev?: boolean };
   pilot: string | null;
   rating: string | null;
   note: string;
@@ -36,6 +36,8 @@ function checkReport(r: Report): void {
   expect(r.schema).toBe(1);
   expect(r.build.sha).toMatch(/^([0-9a-f]{7,}(-dirty)?|unknown)$/);
   expect(r.build.sha).not.toBe('unknown');
+  // The e2e server is the dev server: its SHA is as of server start, and the report says so.
+  expect(r.build.dev).toBe(true);
   expect(r.pilot).toBeNull();
   expect(r.rating).toBe('fair');
   expect(r.note).toBe('Headed straight for them.');

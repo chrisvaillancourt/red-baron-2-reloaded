@@ -2,7 +2,11 @@
 import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 
-/** Git short SHA of the build, "-dirty" with uncommitted tracked changes (flight reports, src/core/build.ts). */
+/**
+ * Git short SHA of the build, "-dirty" with uncommitted tracked changes (flight reports,
+ * src/core/build.ts). Read once when this config loads: under `pnpm dev` that is server start,
+ * so dev reports carry the start-time SHA and are marked `build.dev`.
+ */
 function buildSha(): string {
   try {
     const sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();

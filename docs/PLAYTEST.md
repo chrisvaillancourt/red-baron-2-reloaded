@@ -22,7 +22,9 @@ counted. The report is versioned JSON, built on the debrief (DECISIONS "Flight r
    `missionFromReport`.
 
 What a report holds:
-- the build's git SHA
+- the build's git SHA. Under `pnpm dev` this is the SHA when the server started, and the
+  report says `"dev": true`. Restart the dev server after committing, or play the live
+  build, when the SHA matters.
 - the settings that change a fight: realism, mouse mode, graphics, career difficulty
 - the full mission, plus the quick options when it was a quick mission
 - the outcome: fate, loss cause, objectives, claims, hits given and taken, flight and

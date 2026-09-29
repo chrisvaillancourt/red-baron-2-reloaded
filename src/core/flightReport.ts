@@ -9,6 +9,7 @@
  * `parseFlightReport` to read the old one.
  */
 import type { CareerDifficulty, QuickMissionOptions } from './campaignTypes';
+import type { BuildInfo } from './build';
 import { DEFAULT_SETTINGS } from './settings';
 import type {
   AircraftOutcome,
@@ -37,8 +38,11 @@ export interface FlightReport {
   schema: typeof FLIGHT_REPORT_SCHEMA;
   /** When the report was made (ISO). */
   createdAt: string;
-  /** The build that flew it: git short SHA ("-dirty" with local changes) and build time. */
-  build: { sha: string; builtAt: string };
+  /**
+   * The build that flew it: git short SHA ("-dirty" with local changes) and build time. `dev`:
+   * from the dev server, so the SHA is as of server start (src/core/build.ts).
+   */
+  build: BuildInfo;
   /** The career pilot's name; null for a quick mission. */
   pilot: string | null;
   rating: FlightRating | null;
@@ -85,7 +89,7 @@ export interface FlightReportInput {
   careerDifficulty?: CareerDifficulty | null;
   rating?: FlightRating | null;
   note?: string;
-  build: { sha: string; builtAt: string };
+  build: BuildInfo;
   now?: Date;
 }
 
