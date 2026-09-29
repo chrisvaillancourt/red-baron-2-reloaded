@@ -7,17 +7,20 @@
  *   node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk
  *   node tools/dev/ab.mjs --soak quick --reps 24 --a AI_TACTICS=stalk=0 --b AI_TACTICS=stalk=1
  *   node tools/dev/ab.mjs --soak career --base HEAD~3                     # that commit v this tree
+ *   node tools/dev/ab.mjs --soak career --base main --head HEAD --out /tmp/ab  # two commits, raw kept
  *   node tools/dev/ab.mjs --soak career --flag x --env AUTOPLAY_PILOT=human
  *
  * Soaks: `career` (AUTOPLAY=career; one run per --seeds entry, AUTOPLAY_SEED_BASE, summed),
  * `quick` (AUTOPLAY=quick, --reps), `fairness` (AI_SOAK=fairness, --set, --reps).
  * Variants: `--flag f` sets AI_TACTICS=f=0 (A) and f=1 (B); `--a` / `--b` take comma-separated
  * KEY=VALUE env; `--base <ref>` runs A in a scratch `git worktree` at that ref (node_modules
- * linked from here) and B in this tree. `--env` adds KEY=VALUE to both. `--jobs` caps parallel
+ * linked from here) and B in this tree; `--head <ref>` runs B in a scratch worktree too, so editing
+ * files during a long soak can't change B (FRICTION F-34). `--out <dir>` keeps each run's raw
+ * output there as `<A|B>-seed<n>.txt` (F-25). `--env` adds KEY=VALUE to both. `--jobs` caps parallel
  * processes (default: half the cores, at most 6). Intervals overlapping means "within noise".
  */
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, symlinkSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, symlinkSync, existsSync, writeFileSync } from 'node:fs';
 import { cpus, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +36,8 @@ const { values: o } = parseArgs({
     a: { type: 'string' },
     b: { type: 'string' },
     base: { type: 'string' },
+    head: { type: 'string' },
+    out: { type: 'string' },
     env: { type: 'string' },
     seeds: { type: 'string', default: '0,1000,2000' },
     missions: { type: 'string', default: '10' },
@@ -74,7 +79,7 @@ if (o.flag) {
   A = { ...A, AI_TACTICS: [A.AI_TACTICS, `${o.flag}=0`].filter(Boolean).join(',') };
   B = { ...B, AI_TACTICS: [B.AI_TACTICS, `${o.flag}=1`].filter(Boolean).join(',') };
 }
-if (!o.flag && !o.a && !o.b && !o.base) die('give --flag, --a/--b, or --base');
+if (!o.flag && !o.a && !o.b && !o.base && !o.head) die('give --flag, --a/--b, --base or --head');
 const common = envList(o.env);
 const jobs = o.jobs ? posInt('jobs', o.jobs) : Math.max(1, Math.min(6, Math.floor(cpus().length / 2)));
 const seeds = o.soak === 'career' ? o.seeds.split(',').map((s) => (/^\d+$/.test(s) ? s : die(`bad seed ${s}`))) : ['-'];
@@ -177,17 +182,24 @@ async function main() {
   const trees = [];
   const aCwd = o.base ? baseTree(o.base) : ROOT;
   if (o.base) trees.push(aCwd);
+  const bCwd = o.head ? baseTree(o.head) : ROOT;
+  if (o.head) trees.push(bCwd);
   const list = [];
   for (const s of seeds) {
     list.push(soakJob(aCwd, A, s, `A-seed${s}`));
-    list.push(soakJob(ROOT, B, s, `B-seed${s}`));
+    list.push(soakJob(bCwd, B, s, `B-seed${s}`));
   }
-  const label = (env, cwd) => [cwd !== ROOT ? `commit ${o.base}` : 'this tree', ...Object.entries(env).map(([k, v]) => `${k}=${v}`)].join(', ');
+  const label = (env, cwd) => [cwd === ROOT ? 'this tree' : `commit ${cwd === aCwd ? o.base : o.head}`, ...Object.entries(env).map(([k, v]) => `${k}=${v}`)].join(', ');
   process.stderr.write(`ab: ${list.length} runs, ${jobs} at a time\n`);
   try {
     const res = await pool(list);
+    if (o.out) {
+      mkdirSync(o.out, { recursive: true });
+      for (const r of res) writeFileSync(join(o.out, `${r.tag}.txt`), r.text);
+      process.stderr.write(`ab: raw outputs in ${o.out}\n`);
+    }
     const byVariant = (v) => res.filter((r) => r.tag.startsWith(v)).map((r) => r.text);
-    const lines = [`A/B ${o.soak}${o.soak === 'career' ? ` (seeds ${seeds.join(' ')}; ${missions} mission${missions > 1 ? 's' : ''} a pilot)` : ` (${reps} reps)`}`, `  A: ${label(A, aCwd)}`, `  B: ${label(B, ROOT)}`];
+    const lines = [`A/B ${o.soak}${o.soak === 'career' ? ` (seeds ${seeds.join(' ')}; ${missions} mission${missions > 1 ? 's' : ''} a pilot)` : ` (${reps} reps)`}`, `  A: ${label(A, aCwd)}`, `  B: ${label(B, bCwd)}`];
     if (Object.keys(common).length) lines.push(`  both: ${Object.entries(common).map(([k, v]) => `${k}=${v}`).join(', ')}`);
     if (o.soak === 'fairness') {
       const ra = fairnessOf(byVariant('A'));
@@ -206,7 +218,7 @@ async function main() {
       const pv = overlap(poissonInterval(a.coll).map((x) => x / a.missions), poissonInterval(b.coll).map((x) => x / b.missions)) ? 'within noise' : 'differs';
       lines.push(`collisions per 100 missions | ${per100(a.coll, a.missions)} | ${per100(b.coll, b.missions)} | ${pv}`);
       lines.push(`player collisions | ${a.playerColl} | ${b.playerColl} |`);
-      if (o.soak === 'career' && o.base) lines.push('note: career seeds draw different squadrons across commits, so --base compares are about the whole career, not mission by mission');
+      if (o.soak === 'career' && (o.base || o.head)) lines.push('note: career seeds draw different squadrons across commits, so --base compares are about the whole career, not mission by mission');
     }
     process.stdout.write(lines.join('\n') + '\n');
     if (res.some((r) => r.code !== 0)) process.exitCode = 1;
