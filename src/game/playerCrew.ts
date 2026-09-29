@@ -48,6 +48,8 @@ export class PlayerCrew {
    * seat would be a rising edge at the new one, so it releases nothing until pressed again.
    */
   private releaseArmed = true;
+  /** R went down and no sim step has seen it yet: counts as held until one has, however quick the tap. */
+  private releaseTapped = false;
   /** The player just took the controls back: this frame's input was built at the gun. */
   private handedBack = false;
   private jamPending = false;
@@ -107,7 +109,10 @@ export class PlayerCrew {
         this.toggleBombsight(waypointIndex);
         return true;
       case 'releaseBomb':
-        // The press only explains a release that can't happen; the held key does the releasing.
+        // The held key does the releasing; the press explains a release that can't happen,
+        // arms the key (it went down fresh) and holds it for this frame (a tap between frames).
+        this.releaseArmed = true;
+        this.releaseTapped = true;
         this.explainRelease();
         return true;
       default:
@@ -203,7 +208,7 @@ export class PlayerCrew {
   /** Per rendered frame: the release key, and at a gun: swing it, read fire and clear-jam, keep the view on the seat. */
   applyInput(inp: InputFrame): void {
     this.followSimSeat();
-    const held = !!inp.controls.releaseBomb;
+    const held = !!inp.controls.releaseBomb || this.releaseTapped;
     if (!held) this.releaseArmed = true;
     this.releaseHeld = held && this.releaseArmed;
     if (!this.aim || !this.atGun) return;
@@ -239,6 +244,7 @@ export class PlayerCrew {
       p.controls.releaseBomb = this.releaseHeld && bombAimerStation(p.spec)?.id === 'pilot';
     }
     if (first) this.jamPending = false;
+    this.releaseTapped = false;
   }
 
   /**

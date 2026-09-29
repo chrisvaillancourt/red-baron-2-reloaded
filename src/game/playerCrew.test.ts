@@ -231,6 +231,22 @@ describe('PlayerCrew bombs', () => {
     expect(t.player.stationInputs!.releaseBomb).toBe(true);
   });
 
+  it('a tap of R quicker than a frame still releases, for that frame', () => {
+    const t = setup(dh4BombRun('observer'));
+    t.crew.start();
+    const c = { pitch: 0, roll: 0, yaw: 0, throttle: 0.8, blip: false, fireGuns: false, clearJam: false, releaseBomb: false };
+    // Down and up between two frames: the press arrives as a command, the key reads up.
+    t.crew.command('releaseBomb', 0);
+    t.crew.applyInput(frame({ controls: c }));
+    t.crew.beforeStep(true);
+    expect(t.player.stationInputs!.releaseBomb).toBe(true);
+    t.crew.beforeStep(false);
+    expect(t.player.stationInputs!.releaseBomb).toBe(true); // the whole frame
+    t.crew.applyInput(frame({ controls: c }));
+    t.crew.beforeStep(true);
+    expect(t.player.stationInputs!.releaseBomb).toBe(false);
+  });
+
   it('says so on a type without bombs, or with none left', () => {
     const t = setup();
     t.crew.command('viewBombsight', 0);

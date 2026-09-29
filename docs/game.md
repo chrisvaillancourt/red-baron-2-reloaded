@@ -103,6 +103,8 @@ pilot first (`crewStations(spec)` in `src/data/crew.ts`); the player can take an
   pilot who aims his own bombs releases through `controls.releaseBomb`, held the same way;
   in any other pilot's seat the game holds it false, and R says who aims. A key held
   across a seat change is ignored until released, so it can't drop a bomb at the new seat.
+  A tap quicker than a frame (the press arrives as a command, the key already reads up)
+  holds the flag until a sim step has seen it.
 - **Aim** (D-090). In `InputManager.stationMode` the mouse (0.0022 rad per pixel, as
   mouse-aim), the flight keys and the left stick (60°/s) swing the gun; left button, the
   fire key and RT fire; the right button (or the mouse with mouse mode off) drags the view,
