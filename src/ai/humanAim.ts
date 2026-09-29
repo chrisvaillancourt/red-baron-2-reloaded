@@ -192,15 +192,22 @@ export class HumanAim {
     return this.tracking(targetId, now) ? angleBetween(f, this.believed) : Infinity;
   }
 
-  /** Should the trigger be down? `size`: the target's angular radius, rad; `r`: range, m. */
+  /**
+   * Would he have the trigger down? `size`: the target's angular radius, rad; `r`: range, m.
+   * A check only: call `pull` when the guns do fire, which starts the burst.
+   */
   wantsFire(err: number, size: number, r: number, now: number, fireRange = this.p.fireRangeM): boolean {
     const p = this.p;
-    const firing = now < this.burstUntil;
-    if (firing) return r < fireRange * 1.2 && err < size + p.holdConeRad;
-    if (now < this.burstNext || r >= fireRange || err >= size + p.fireConeRad) return false;
+    if (now < this.burstUntil) return r < fireRange * 1.2 && err < size + p.holdConeRad;
+    return now >= this.burstNext && r < fireRange && err < size + p.fireConeRad;
+  }
+
+  /** The trigger goes down: starts a burst unless one is already going. */
+  pull(now: number): void {
+    if (now < this.burstUntil) return;
+    const p = this.p;
     this.burstUntil = now + p.burstS * (0.6 + 0.8 * this.rng());
     this.burstNext = this.burstUntil + p.burstPauseS * (0.5 + this.rng());
-    return true;
   }
 
   /** The newest sample at or before `t` (the oldest kept when none is that old). */

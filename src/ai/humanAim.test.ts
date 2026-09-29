@@ -66,6 +66,10 @@ describe('HumanAim', () => {
     expect(h.wantsFire(1 * DEG, size, HUMAN_PILOT.fireRangeM + 10, 0)).toBe(false);
     expect(h.wantsFire(HUMAN_PILOT.fireConeRad + size + DEG, size, 200, 0)).toBe(false);
     expect(h.wantsFire(1 * DEG, size, 200, 0)).toBe(true);
+    // Only a shot taken starts the burst.
+    expect(h.burstUntil).toBe(0);
+    h.pull(0);
+    expect(h.burstUntil).toBeGreaterThan(0);
     // Mid-burst he holds the trigger through a miss inside the hold cone...
     expect(h.wantsFire(HUMAN_PILOT.fireConeRad + size + DEG, size, 200, 0.1)).toBe(true);
     // ...and after it, waits out the pause.

@@ -1629,8 +1629,10 @@ export class AIPilot implements AIController {
     }
     if (want && !this.lineOfFireClear(self, world, f)) want = false;
 
-    if (want && this.human) c.fireGuns = true;
-    else if (want) {
+    if (want && this.human) {
+      this.human.pull(this.now);
+      c.fireGuns = true;
+    } else if (want) {
       if (this.now >= this.burstUntil && this.now >= this.burstNext) {
         this.burstUntil = this.now + p.burstLength * this.tactics.burstScale * (0.7 + 0.6 * this.rng());
         this.burstNext = this.burstUntil + p.burstPause * (0.7 + 0.6 * this.rng());
