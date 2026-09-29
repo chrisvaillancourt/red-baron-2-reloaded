@@ -57,7 +57,36 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
    target, and a refuge that circles the core for 25–40 s. A wounded pilot takes 28 hits
    with refuge against 195 without (was 196 against 213; `cloudEscape.realsim.test.ts`).
    **Check** in the human playtest that a player who dives into cloud shakes a pursuer.
-4. **Housekeeping:**
+4. **Done (wave 9, DECISIONS "Escalating defence"): enemies with you on their tail.** This
+   answers the first playtest report ("they just fly in circles"). Measured, circling (the
+   break or a spiral) is their best defence in this flight model; the proposed scissors, dive
+   and climb ladder got them hit about twice as often. So they keep turning, with changes:
+   - veterans and aces above 500 m throttle back in the turn to make you overshoot, then
+     turn on you
+   - nobody but novices jinks with you close behind
+   With you on his tail at 2,000 m, a D.VII takes 62 hits instead of 151 over 8 seeds, and
+   none is shot down instead of 3. The default fight: 30 → 26% player down (within noise).
+   See docs/ai.md "Wave 9: defence".
+   - **Do next: mutual support.** In the report the player took 3 hits in 6 minutes against
+     5 aces. The aces who aren't being chased never come to clear a friend's tail. D-070
+     dropped this for the autoplayer's mirror fights; re-measure it with the report scene
+     (`playtests/reports/2026-09-28-…-low.json`) and `AI_SOAK=tailhold AI_TH_SET=low`.
+   - **Defer:** low-level defence. Below 500 m the level break is still the best answer
+     measured (D-060); revisit if players find low fights too easy after mutual support.
+   - **Do: collision care in the attack extension.** AI-against-enemy collisions in the
+     quick survey went 7 → 14. Nearly all have both aircraft in the *extend* phase after a
+     pass, in the Camel+2 v 3 Dr.I setup. The same kind existed before (6 with escalation
+     off); more counter-attacks bring it out. The player was involved in 4 → 3 collisions,
+     and career collisions are 5.8 → 6.3 per 100 missions.
+   - **Check:** self-crashes on the way home 1 → 4 in the quick survey. It's a small count;
+     re-measure at the next re-baseline.
+   - **Check:** the SPAD XIII mirror fell to 10% player down (31% before) because only
+     veterans and aces brake-turn, and the mirror soak pits the veteran autoplayer against
+     regulars. It's an autoplayer artefact, but re-check the 30–70% mirror band if regulars
+     ever get the brake turn.
+   - **Check:** the report's human hit D.VIIs 104 times for one kill. That's D.VII damage
+     tolerance, not AI; look at it if players say D.VIIs are bullet sponges.
+5. **Housekeeping:**
    - **Decide: add a LICENSE.** The repo is public but has none, so no reuse is allowed.
      The original game's names and assets are a separate question.
    - **Do: upgrade the CI runner to Ubuntu 26.04, target 2027-01-31.** Deploys are
@@ -68,7 +97,7 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
      Then merge to `main`, run `pnpm prodcheck` against the live URL, and update D-077.
    - **Defer: split `flightModules`** (699 kB, 202 kB gzip). It's prefetched already;
      do it only if the first flight is slow on weak connections.
-5. **Skip:** e2e in CI (it needs a GPU runner; run `pnpm e2e` locally before pushing),
+6. **Skip:** e2e in CI (it needs a GPU runner; run `pnpm e2e` locally before pushing),
    and the untried AI ideas in "AI depth — wave 8" until playtests show fights feel
    shallow.
 

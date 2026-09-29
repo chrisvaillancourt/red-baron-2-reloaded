@@ -261,8 +261,18 @@ every gain with dynamic pressure automatically.
   by skill where stalking can apply (the stalk test's geometry, 7 start bearings), for
   novice, regular, veteran, ace and a stalker-signature ace: first passes from above,
   up-sun and unseen. It takes ~4 min.
-- In-engine proof: `node tools/playtest/ai-depth-shots.mjs <out> <port> sun|cloud` (dev
-  server, seeded with `SEED=n`) logs each shot's AI state, range, sun angle and cloud density.
+- `AI_SOAK=tailhold AI_TH_SET=default,mirror,energy,low AI_TH_REPS=12 pnpm vitest run
+  src/ai/tailhold.soak.test.ts` (~3 min): for each defender type and side, how long an
+  enemy held its tail (inside 400 m, within 60° of astern), and meanwhile its circling
+  share, bank, height change, AI states, and hits taken per state. It also counts crashes.
+  `low` is the wave-9 playtest report's setup.
+- `defence.realsim.test.ts` (CI): an enemy parked 200 m behind a veteran D.VII at
+  2,000 m and an ace D.VII at 300 m, with escalating defence on and off. With it on he
+  takes fewer hits and is shot down no more often, nobody crashes, and at height he
+  spends more of the fight attacking. `DEFENCE_TRACE=1` prints hits per second by state.
+- In-engine proof: `node tools/playtest/ai-depth-shots.mjs <out> <port> sun|cloud|defence`
+  (dev server, seeded with `SEED=n`) logs each shot's AI state, range, sun angle and cloud
+  density, and for the `defence` scene the wingman's state, range and both speeds.
 - `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
   at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
   the flak gun at the waypoint.
@@ -488,6 +498,118 @@ and the default tactics flags. They supersede earlier figures wherever the two d
 line, whichever aircraft were involved. Collisions involving the player are the
 `player-*` entries.
 
+### Wave 9: defence (DECISIONS "Escalating defence")
+
+**The complaint.** The first human playtest report
+(`playtests/reports/2026-09-28-chris-brisfit-v-5-ace-dvii-low.json`) was a Bristol and 3
+novice wingmen against 5 ace D.VIIs, head-on at 300 m. It was rated too easy: "enemy pilots
+just fly in circles when you get into position behind them, there's no evasive maneuvers".
+The player fired 1,035 rounds, hit 104 times and took only 3 hits in 375 s of combat.
+
+**What the defenders did.** `AI_SOAK=tailhold` (`src/ai/testing/tailHold.ts`) records what
+a defender does while an enemy holds his tail (inside 400 m, within 60° of dead astern):
+- how much of that time he spends circling (turning the same way as 3 s earlier)
+- his bank and height change
+- his AI state, and the hits he takes in each state
+
+With 12 runs per setup, defenders circled for 43–61% of their tail-held time. Every
+manoeuvre that turns (break, spiral, climbing turn) turns toward the attacker. The attacker
+sits inside the turn on the same side, so the choices chain into one circle. On the 300 m
+report setup the aces had only the level break (D-060), and one ace had an enemy on his
+tail for 63 s straight.
+
+**The ladder the brief proposed, measured first.** The brief proposed escalating after a
+failed break: scissors, a dive and zoom, a climbing spiral or a split-S, chosen by airframe.
+It was built and tried in the real sim (`src/ai/defence.realsim.test.ts`, 8 seeds, a
+veteran Camel starting 200 m behind). It made the defender worse every time:
+
+| Version (D.VII defender, 8 seeds) | Hits taken, off → on | Shot down, off → on |
+|---|---|---|
+| Scissors, dive-and-zoom and climb ladder, Camel at 2,000 m | 151 → 282 | 3 → 7 |
+| The same ladder, Bristol at 300 m | 53 → 173 | 0 → 3 |
+
+**Why: hits taken per second of each state while the tail is held.** Real sim, D.VII,
+Camel behind, 2,000 m:
+
+| State | Hits/s |
+|---|---|
+| Spiral | 0.07 |
+| Break | 0.16–0.23 |
+| Climbing turn | 0.40–0.81 |
+| Jink | 2.65 |
+
+Across the soak setups the jink was consistently the worst (0.34–1.87 hits/s). Anything
+that stops turning hands the pursuer an easy deflection. The circling is therefore the
+right defence here, and the problem was that it was passive.
+
+**What shipped (`TACTICS_FLAGS.escalateDefence`, on).** It applies once the same attacker
+has survived a manoeuvre, to pilots above novice:
+- **Brake turn** (veterans and aces, above 500 m, attacker inside 300 m and closing): the
+  break with the throttle back and the nose a touch high. He overshoots, and the defender's
+  existing counter-attack turns onto him.
+- **Otherwise:**
+  - a spiral, only above 1,500 m and never two in a row
+  - else the break
+- **No jinks** for pilots above novice with an enemy within 400 m.
+- **Not on the way home.** With escalation there, a hurt pilot's spiral dropped him out of
+  the bottom of his refuge cloud (D-081's cloud-escape test failed), so RTB keeps the old
+  choices.
+
+The low-level rules are unchanged. The first version spiralled from 700 m and chained
+spirals. That took fights down about 2.6 km a run, and quick-survey ground and flak losses
+rose from 29 to 47. The 1,500 m, no-repeat gate brought them back to 31.
+
+**Results, off → on, same seeds, final version (the escalation-off figures are
+`AI_TACTICS=escalateDefence=0` on the same commit):**
+- **Real sim** (8 seeds):
+  - Camel on a veteran D.VII's tail at 2,000 m: hits taken 151 → 62, shot down 3 → 0, time
+    spent attacking 134 → 257 s
+  - Bristol on an ace D.VII's tail at 300 m: 53 → 57 hits, 0 → 0 down (no brake turn this
+    low)
+- **Tail-hold soak** (12 runs), hits the defender takes per run with an enemy on his tail:
+  - the default fight's D.VIIs 58 → 43
+  - D.VII mirror 54 → 29
+  - Camel mirror 41 → 30
+  - D.VIIs against a Camel player 69 → 48
+  - the report's aces 35 → 32; their longest single tail-hold 63 → 33 s
+  - circling share unchanged (31–64%)
+- **Fairness**, player down:
+  - default (96 runs): 30 → 26%, inside the 20–40% target (D-078)
+  - mirrors (48 each): Camel 38 → 38%, D.V 46 → 38%, Dr.I 42 → 27%, SPAD XIII 31 → 10%,
+    D.VII 25 → 25%. The brake turn is for veterans and aces, and in these mirrors the
+    veteran autoplayer flies against regulars, so it helps the player's side. The SPAD
+    mirror falls well below the 30–70% band.
+  - energy set (24 each): the player's D.VII against Camels 96 → 58%, S.E.5a against Dr.I
+    96 → 83%; the other four within one run of off
+- **Quick survey** (360 missions):
+  - enemy-fire losses 93 → 99
+  - flak and ground plus self-crash losses 29 → 32
+  - collisions 15 → 19; the player was involved in 4 → 3
+  - AI-against-enemy collisions 7 → 14
+    - nearly all happen with both aircraft in the attack code's *extend* phase, in the
+      busy Camel+2 v 3 Dr.I setup
+    - the same kind already happened 6 times with escalation off; more counter-attacks
+      mean more mutual passes
+    - (ending the brake turn early once the attacker is ahead was tried; it made no
+      difference: 8 head-on)
+  - self-crashes on the way home 1 → 4
+- **Career survey** (3 seed sets, `AUTOPLAY_SEED_BASE` 0, 1000 and 2000):
+  - killed or captured 21.2% (241 missions) → 20.4% (255)
+  - collisions 5.8 → 6.3 per 100 missions (involving the player: 4 → 2)
+  - self-crash losses 4 → 5
+  - Careers after `f84cb16` draw different squadrons from the same seeds (Jasta 5 against
+    Jasta 10 on the second mission), so career figures are only comparable within one
+    commit.
+
+**In game** (`tools/playtest/ai-depth-shots.mjs … defence`, seed 1): a veteran D.VII has
+the player's ace Camel wingman 230 m behind at 2,000 m.
+- t = 9–24 s: he brake-turns. It slows him at first; as the nose drops it becomes a
+  descending turn, and his speed climbs from 44 to 77 m/s.
+- The Camel closes to 65–100 m but can't hold the turn inside him.
+- t = 28 s: he extends away 350 m clear.
+- The frame at t = 12 s, the D.VII banked hard with the Camel 66 m behind, is
+  `docs/screenshots/ai-defence-brake-turn.jpg`.
+
 ### Known weaknesses
 
 - **The D.V can't threaten a Camel.** This is why the default quick dogfight changed in
@@ -512,9 +634,17 @@ line, whichever aircraft were involved. Collisions involving the player are the
   contact model, but it means sun tactics never help in a turning fight.
 - Quick ground attacks against *veteran* scouts remain very dangerous (63% killed or
   captured, wave 6).
-- Equal turn fights between regulars can still circle for minutes (up to 24% of a
-  Camel-mirror fight in a sustained flat turn, `gundiag`). The high yo-yo was measured with
-  no effect in wave 7 and was not rebuilt.
+- **Defenders still circle, by design.** With an enemy on his tail a pilot spends about half
+  that time in a sustained turn, with escalation on or off. Measured, the hard break and the
+  descending spiral are his best defences in this flight model; everything that stops
+  turning gets him hit more (see "Wave 9: defence"). What changed in wave 9 is what a
+  veteran does inside the circle: he brake-turns to make you overshoot, then turns on you.
+  Equal turn fights between regulars can still go on for minutes. The high yo-yo was
+  measured with no effect in wave 7 and was not rebuilt.
+- **Low down there is no better answer yet.** Below 500 m (D-060) the escalation keeps the
+  level break, because the brake turn, climbing breaks and jinks all measured worse there.
+  In the wave-9 playtest report (5 ace D.VIIs at 300 m), the aces spend nearly half their
+  tail-held time in breaks either way. They take fewer hits with the jinks gone.
 - The old survey setups (Camel+2 v 3 Dr.I at random start, D.VII+1 v 2 veteran SPADs)
   put the player down 83% and 50%. Both are hard by construction.
 - Wingman formation keeping for the slowest types (Dr.I, Nieuport 17) can lag by
