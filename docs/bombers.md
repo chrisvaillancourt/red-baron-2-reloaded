@@ -64,7 +64,8 @@ reasons. In short:
 - `performance.engineCount?`, `geometry.nacelleOffsetX?`, `DamageState.engines?` and
   `crewWounds?`; `geometry.crew` is `1 | 2 | 3 | 4` (check `crew >= 2`, never `=== 2`).
 - `GunType` `'hotchkiss'`; `AircraftVisual.stationEyes?` and `setStationAim?`, and (track B)
-  `setStationView?` to hide the gunner at the camera's station; `Livery.pattern` `'disruptive'`.
+  `setStationView?` to hide the gunner at the camera's station; `Livery.pattern` `'disruptive'`;
+  `WorldRenderer.update(…, bombs?)` takes `combat.bombs` to draw the falling bombs.
 - The D.H.4 carries four 112 lb bombs as the reference load; it stays AI-only for now.
 - **Left to the tracks:** the key bindings (game track: `stationNext` C, `stationPrev` V,
   `stationPilot` F, `releaseBomb` R, `viewBombsight` F6, added with the code that reads them),

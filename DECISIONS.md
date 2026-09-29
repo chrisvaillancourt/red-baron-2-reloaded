@@ -917,15 +917,16 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Triangle budget:** a twin is 10.3–10.8k triangles, about 1.45× a Bristol F.2b (7.3k), for two nacelles and propellers, paired wheels (12-sided), three gun positions and a bomb load. The Breguet is 9.2k, most of it its 32 bombs; the D.H.9 and Voisin are 7.5k and 8.0k. In the hangar with shadows, a Gotha draws 134 calls and 21.6k triangles, against a Bristol's 108 and 14.5k.
 **Consequences.** The GLBs grew from 6.6 MB (27 types) to 9.0 MB (33 types). Track C reads `stationEyes` for the gunner camera and calls `setStationAim` and `setStationView`.
 
-## D-092 — Falling bombs are drawn from the event; bursts sized by the charge (track B, bombers wave 1)
-**Context.** Combat simulates bombs (D-086) but exposes no bomb view to the renderer, only `bomb-released` and `bomb-exploded`.
+## D-092 — Falling bombs drawn from the sim; bursts sized by the charge (track B, bombers wave 1)
+**Context.** Combat simulates bombs (D-086, D-088) and exposes them as `CombatSystem.bombs` (`BombView`), with `predictBombImpact` for where one will land and `getStationAim` for where each station's guns are laid.
 **Decision.**
-- **Falling bombs:** the renderer drops its own bomb on `bomb-released`. It is a visual-only ballistic path from the releasing aircraft's velocity, with gravity and light drag (Cd 0.3), and is removed at the ground or by the matching `bomb-exploded`.
+- **Falling bombs:** the renderer draws the sim's bombs, not a copy of its own, so wind drift and drag match. `WorldRenderer.update` takes them as an optional fifth argument, `bombs?: readonly BombView[]` (additive). Without it none are drawn. The game layer passes `this.combat.bombs`.
+- **Gun rings:** the aircraft visual reads `getStationAim(ac, station)` every update, for AI gunners and the player alike. An idle station returns to its rest pose, and `aimFlexibleGun` / `setStationAim` apply only while the sim has no aim there.
 - **Bursts:** the flash, fireball and earth fountain scale with 1.2 · kg^⅓ of charge.
 - **Craters:** a crater decal is draped over the terrain. All the mission's craters are one merged mesh, reused as a ring of 128.
 - **Audio:**
   - The release clunk.
-  - A whistle heard only within 700 m of the predicted impact, timed to end at it.
+  - A whistle heard only within 700 m of the sim's predicted impact (`predictBombImpact`), timed to end at it.
   - A burst whose loudness, reach and pitch follow the charge.
   - Twin engines: two voices, the second 1.3% fast so the pair beats, each with its own `damage.engines[i]`.
-**Consequences.** No contract change: a bomb view (`CombatQuery.bombs`) would let the renderer follow the sim's own bombs, and is worth adding if the two ever visibly disagree (for example, with wind drift). The crater texture is created with the effects system, so the first burst doesn't recompile a shader (a 150 ms frame before).
+**Consequences.** Until the game layer passes `combat.bombs`, bursts and craters still appear, but no bomb is drawn falling. The crater texture is created with the effects system, so the first burst doesn't recompile a shader (a 150 ms frame before).
