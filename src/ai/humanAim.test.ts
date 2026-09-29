@@ -56,7 +56,8 @@ describe('HumanAim', () => {
     expect(out.angleTo(tp) / DEG).toBeLessThan(2);
   });
 
-  it('keeps leading the old way for the reaction delay after the target reverses', () => {
+  // 240 Hz fills the history ring buffer and overwrites its oldest samples.
+  it.each([DT, 1 / 240])('keeps leading the old way for the reaction delay after the target reverses (tick %f s)', (DT) => {
     const h = new HumanAim({ ...CLEAN, aimLagS: 0.001 }, makeRng(1));
     const s = shooter();
     const tp = new Vector3(0, 0, -300);

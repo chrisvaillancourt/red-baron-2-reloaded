@@ -27,6 +27,7 @@ import { Vector3 } from 'three';
 import { leadSolution, type LeadSolution } from './gunnery';
 import { angleBetween, DEG, forwardOf, rightOf, upOf } from './math';
 import type { AircraftEntity } from '../core/types';
+import { gaussian } from '../sim/rng';
 
 export interface HumanPilotParams {
   /** First-order lag of the aim point behind the believed lead, s (mouse-aim: 0.2-0.4). */
@@ -102,11 +103,11 @@ const HISTORY_S = 1.5;
 const RESET_GAP_S = 0.5;
 /** The target's turn is read over this interval, s. */
 const ACC_WINDOW_S = 0.25;
-
-interface Sample {
-  t: number;
-  vel: Vector3;
-}
+/**
+ * Ring-buffer capacity, samples: HISTORY_S at up to 120 Hz. Faster ticks overwrite the oldest,
+ * which shortens the history but still covers the reaction delay and turn window.
+ */
+const HISTORY_CAP = 180;
 
 const _r = new Vector3();
 const _u = new Vector3();
@@ -114,7 +115,11 @@ const _v = new Vector3();
 const _a = new Vector3();
 
 export class HumanAim {
-  private readonly hist: Sample[] = [];
+  /** Target velocity history, a ring buffer: `histN` samples from index `hist0`, oldest first. */
+  private readonly histT = new Float64Array(HISTORY_CAP);
+  private readonly histV = Array.from({ length: HISTORY_CAP }, () => new Vector3());
+  private hist0 = 0;
+  private histN = 0;
   private targetId: number | null = null;
   private lastT = -100;
   /** World direction of the aim point (unit). */
@@ -134,8 +139,8 @@ export class HumanAim {
     private readonly rng: () => number,
   ) {
     // Start with a bias already drawn, so the first engagement is not error-free.
-    this.bx = gauss(rng) * p.biasRad;
-    this.by = gauss(rng) * p.biasRad;
+    this.bx = gaussian(rng) * p.biasRad;
+    this.by = gaussian(rng) * p.biasRad;
   }
 
   /** Is he tracking `targetId` right now (tracked within the reset gap)? */
@@ -152,28 +157,26 @@ export class HumanAim {
     const p = this.p;
     if (this.targetId !== targetId || now - this.lastT > RESET_GAP_S) {
       this.targetId = targetId;
-      this.hist.length = 0;
+      this.histN = 0;
       // He takes up the target from wherever the nose points now.
       forwardOf(s.orientation, this.aim);
     }
     this.lastT = now;
-    this.hist.push({ t: now, vel: targetVel.clone() });
-    while (this.hist.length > 2 && this.hist[0].t < now - HISTORY_S) this.hist.shift();
+    this.record(now, targetVel);
 
     // 1. Reaction delay: the target's velocity and turn as seen reactionS ago, extrapolated.
     const seen = this.at(now - p.reactionS);
     const before = this.at(now - p.reactionS - ACC_WINDOW_S);
-    const span = seen.t - before.t;
+    const span = this.histT[seen] - this.histT[before];
     _a.set(0, 0, 0);
-    if (span > 0.05) _a.copy(seen.vel).sub(before.vel).divideScalar(span);
-    const age = now - seen.t;
-    _v.copy(seen.vel).addScaledVector(_a, age);
+    if (span > 0.05) _a.copy(this.histV[seen]).sub(this.histV[before]).divideScalar(span);
+    const age = now - this.histT[seen];
+    _v.copy(this.histV[seen]).addScaledVector(_a, age);
     // 2. Lead on that reading, under-led.
     leadSolution(s.position, s.velocity, targetPos, _v, _a, muzzleVelocity, p.leadFraction, this.lead);
     // 3. Bias: the slow misjudgement, in the pilot's own right/up axes.
-    const kb = Math.sqrt((2 * dt) / p.biasTauS) * p.biasRad;
-    this.bx += (-this.bx * dt) / p.biasTauS + kb * gauss(this.rng);
-    this.by += (-this.by * dt) / p.biasTauS + kb * gauss(this.rng);
+    this.bx = ouStep(this.bx, dt, p.biasTauS, p.biasRad, this.rng);
+    this.by = ouStep(this.by, dt, p.biasTauS, p.biasRad, this.rng);
     const r = rightOf(s.orientation, _r);
     const u = upOf(s.orientation, _u);
     this.believed.copy(this.lead.dir).addScaledVector(r, this.bx).addScaledVector(u, this.by).normalize();
@@ -181,9 +184,8 @@ export class HumanAim {
     const k = 1 - Math.exp(-dt / Math.max(p.aimLagS, 1e-3));
     this.aim.lerp(this.believed, k).normalize();
     // 5. Jitter.
-    const kn = Math.sqrt((2 * dt) / p.noiseTauS) * p.noiseRad;
-    this.nx += (-this.nx * dt) / p.noiseTauS + kn * gauss(this.rng);
-    this.ny += (-this.ny * dt) / p.noiseTauS + kn * gauss(this.rng);
+    this.nx = ouStep(this.nx, dt, p.noiseTauS, p.noiseRad, this.rng);
+    this.ny = ouStep(this.ny, dt, p.noiseTauS, p.noiseRad, this.rng);
     return out.copy(this.aim).addScaledVector(r, this.nx).addScaledVector(u, this.ny).normalize();
   }
 
@@ -210,19 +212,35 @@ export class HumanAim {
     this.burstNext = this.burstUntil + p.burstPauseS * (0.5 + this.rng());
   }
 
-  /** The newest sample at or before `t` (the oldest kept when none is that old). */
-  private at(t: number): Sample {
-    let best = this.hist[0];
-    for (const h of this.hist) {
-      if (h.t > t) break;
-      best = h;
+  /** Append a sample, dropping those older than HISTORY_S (keeping at least two). */
+  private record(t: number, vel: Vector3): void {
+    if (this.histN === HISTORY_CAP) {
+      this.hist0 = (this.hist0 + 1) % HISTORY_CAP;
+      this.histN--;
+    }
+    const i = (this.hist0 + this.histN) % HISTORY_CAP;
+    this.histT[i] = t;
+    this.histV[i].copy(vel);
+    this.histN++;
+    while (this.histN > 2 && this.histT[this.hist0] < t - HISTORY_S) {
+      this.hist0 = (this.hist0 + 1) % HISTORY_CAP;
+      this.histN--;
+    }
+  }
+
+  /** Buffer index of the newest sample at or before `t` (the oldest kept when none is that old). */
+  private at(t: number): number {
+    let best = this.hist0;
+    for (let k = 0; k < this.histN; k++) {
+      const i = (this.hist0 + k) % HISTORY_CAP;
+      if (this.histT[i] > t) break;
+      best = i;
     }
     return best;
   }
 }
 
-function gauss(rng: () => number): number {
-  const u = Math.max(rng(), 1e-9);
-  const v = rng();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+/** One step of an Ornstein-Uhlenbeck process: mean zero, 1-sigma `sigma`, correlation time `tau`. */
+function ouStep(x: number, dt: number, tau: number, sigma: number, rng: () => number): number {
+  return x - (x * dt) / tau + Math.sqrt((2 * dt) / tau) * sigma * gaussian(rng);
 }
