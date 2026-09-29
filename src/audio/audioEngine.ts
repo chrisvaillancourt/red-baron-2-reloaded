@@ -14,9 +14,9 @@ import { GUNS } from '../data/aircraft';
 import { SoundBank, type SoundId } from './bank';
 import { MusicPlayer } from './music/player';
 import { airAbsorptionCutoff, dopplerFactor, selectNearest, soundDelay } from './spatial';
-import { engineKindFor, type HitMaterial } from './synthBuffers';
+import { BOMB_WHISTLE_SECONDS, engineKindFor, type HitMaterial } from './synthBuffers';
 import { createLimiter } from './limiter';
-import { EngineVoice, LoopVoice } from './voices';
+import { LoopVoice, MultiEngineVoice } from './voices';
 
 export const MAX_ENGINE_VOICES = 6;
 const ENGINE_HEAR_RANGE = 3500;
@@ -37,6 +37,8 @@ const UI_GAIN: Record<'click' | 'hover' | 'confirm' | 'back' | 'typewriter' | 's
   stamp: 0.9,
 };
 const WHIZZ_RADIUS = 12;
+/** A falling bomb's whistle is heard within this distance of where it lands, m. */
+const BOMB_WHISTLE_RANGE = 700;
 
 /** The concrete engine exposes a few extras beyond the shared contract. */
 export interface ReloadedAudioEngine extends AudioEngine {
@@ -65,7 +67,7 @@ interface OneShotOpts {
 }
 
 interface RemoteEngine {
-  voice: EngineVoice;
+  voice: MultiEngineVoice;
   panner: PannerNode;
 }
 
@@ -84,7 +86,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
 
   // Flight state
   private playerId: number | null = null;
-  private playerVoice: EngineVoice | null = null;
+  private playerVoice: MultiEngineVoice | null = null;
   private playerPanner: PannerNode | null = null;
   private playerLoops: Record<'wind' | 'wire1' | 'wire2' | 'buffet' | 'rumble' | 'fire', LoopVoice> | null = null;
   private readonly remote = new Map<number, RemoteEngine>();
@@ -214,7 +216,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
         doppler,
         cutoff,
         level: cockpitView ? 0.95 : 0.8,
-      });
+      }, player.damage.engines, s.airspeed * 9);
       this.updatePlayerLoops(player, cockpitView);
 
       // Hammering a jammed gun (edge-triggered input).
@@ -250,7 +252,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
         const panner = makePanner(c, 'HRTF', 30);
         panner.connect(this.fxBus);
         const kind = engineKindFor(a.spec.performance.engineType, a.spec.performance.engineName);
-        r = { voice: new EngineVoice(c, this.bank, kind, panner), panner };
+        r = { voice: new MultiEngineVoice(c, this.bank, kind, a.spec.performance.engineCount ?? 1, panner), panner };
         this.remote.set(id, r);
       }
       const s = a.state;
@@ -265,7 +267,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
         doppler: dopplerFactor(s.position, s.velocity, this.listenerPos, this.listenerVel),
         cutoff: airAbsorptionCutoff(d),
         level: a.spec.role === 'fighter' ? 0.8 : 1,
-      });
+      }, a.damage.engines, s.airspeed * 9);
     }
 
     // --- Falling wrecks hitting the ground.
@@ -396,6 +398,35 @@ export class WebAudioEngine implements ReloadedAudioEngine {
           delayBySound: true,
         });
         return;
+      case 'bomb-released': {
+        const a = this.world?.getEntity(e.aircraftId);
+        if (isPlayer(e.aircraftId)) this.oneShot('bomb-release', { gain: 0.75, rate: 0.95 + Math.random() * 0.1 });
+        else if (near(e.position, 250)) this.oneShot('bomb-release', { position: e.position.clone(), ref: 6, gain: 0.7, delayBySound: true });
+        // The whistle, heard near where it will land: predict the impact from the release
+        // (level ballistic fall, no drag) and end the whistle there, just before the burst.
+        if (a && a.kind === 'aircraft' && this.world) {
+          const h = Math.max(0, e.position.y - this.world.groundHeightAt(e.position.x, e.position.z));
+          const t = Math.sqrt((2 * h) / 9.81);
+          const v = a.state.velocity;
+          const hit = new Vector3(e.position.x + v.x * t, e.position.y - h, e.position.z + v.z * t);
+          if (t > BOMB_WHISTLE_SECONDS * 0.6 && near(hit, BOMB_WHISTLE_RANGE)) {
+            this.oneShot('bomb-whistle', { position: hit, ref: 30, gain: 0.55, delay: Math.max(0, t - BOMB_WHISTLE_SECONDS), rate: 0.94 + Math.random() * 0.12 });
+          }
+        }
+        return;
+      }
+      case 'bomb-exploded': {
+        // Bigger charges are louder, carry further and sit lower.
+        const k = Math.cbrt(Math.max(0.2, e.explosiveKg));
+        this.oneShot('bomb-burst', {
+          position: e.position.clone(),
+          ref: 25 * k,
+          gain: Math.min(1, 0.45 + 0.18 * k),
+          rate: Math.max(0.7, Math.min(1.3, 1.25 - 0.12 * k)),
+          delayBySound: true,
+        });
+        return;
+      }
       case 'flak-burst':
         this.oneShot('flak', { position: e.position.clone(), ref: 60, gain: 1, delayBySound: true, rate: 0.9 + Math.random() * 0.2 });
         return;
@@ -444,12 +475,13 @@ export class WebAudioEngine implements ReloadedAudioEngine {
 
   private ensurePlayerVoice(player: AircraftEntity): void {
     const kind = engineKindFor(player.spec.performance.engineType, player.spec.performance.engineName);
-    if (this.playerVoice && this.playerVoice.kind === kind) return;
+    const count = player.spec.performance.engineCount ?? 1;
+    if (this.playerVoice && this.playerVoice.kind === kind && this.playerVoice.count === count) return;
     this.releasePlayer();
     const c = this.context;
     this.playerPanner = makePanner(c, 'equalpower', 15);
     this.playerPanner.connect(this.fxBus);
-    this.playerVoice = new EngineVoice(c, this.bank, kind, this.playerPanner);
+    this.playerVoice = new MultiEngineVoice(c, this.bank, kind, count, this.playerPanner);
     this.playerLoops = {
       wind: new LoopVoice(c, this.bank.noise('pink'), this.fxBus, 'lowpass', 400),
       wire1: new LoopVoice(c, this.bank.noise('white'), this.fxBus, 'bandpass', 1000, 28),

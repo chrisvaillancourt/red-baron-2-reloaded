@@ -129,6 +129,46 @@ export class EngineVoice {
   }
 }
 
+/** Pitch offset of each engine of a multi-engine type: the second runs 1.3% fast, so the pair beats (the desynchronised throb of a Gotha overhead). */
+export const ENGINE_DETUNE = [1, 1.013, 0.992, 1.006];
+
+/**
+ * One engine's voice parameters on a multi-engine type. `engines` is `DamageState.engines`
+ * (absent: every engine shares the aircraft's damage); an engine at 1 is dead and only its
+ * windmilling propeller is heard, as the visual spins it (`windmillRpm`).
+ */
+export function engineParamsFor(p: EngineVoiceParams, index: number, count: number, engines: readonly number[] | undefined, windmillRpm: number): EngineVoiceParams {
+  const dmg = engines?.[index];
+  const dead = p.dead || (dmg ?? 0) >= 1;
+  const rpm = dead ? Math.min(p.rpm, windmillRpm) : p.rpm;
+  return {
+    ...p,
+    rpm: rpm * (ENGINE_DETUNE[index] ?? 1),
+    damage: dmg ?? p.damage,
+    dead,
+    // Two engines at 0.72 each sum (uncorrelated) to about one engine's loudness plus 1.5 dB.
+    level: p.level * (count > 1 ? 0.72 : 1),
+  };
+}
+
+/** The engines of one aircraft: one EngineVoice per engine, through the same output. */
+export class MultiEngineVoice {
+  readonly voices: EngineVoice[];
+
+  constructor(ctx: BaseAudioContext, bank: SoundBank, readonly kind: EngineKind, readonly count: number, dest: AudioNode) {
+    this.voices = Array.from({ length: Math.max(1, count) }, () => new EngineVoice(ctx, bank, kind, dest));
+  }
+
+  update(p: EngineVoiceParams, engines?: readonly number[], windmillRpm = 0): void {
+    const n = this.voices.length;
+    for (let i = 0; i < n; i++) this.voices[i].update(n === 1 ? p : engineParamsFor(p, i, n, engines, windmillRpm));
+  }
+
+  dispose(fade = 0.3): void {
+    for (const v of this.voices) v.dispose(fade);
+  }
+}
+
 function shaperCurve(drive: number): Float32Array<ArrayBuffer> {
   const n = 1024;
   const c = new Float32Array(n);

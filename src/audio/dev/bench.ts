@@ -156,6 +156,11 @@ button('world', 'enemy bursts at 300 m', () => {
   for (let i = 0; i < 20; i++) setTimeout(() => emit({ type: 'gun-fired', shooterId: 2, gun: 'spandau', position: at(200, 50, -200) }), i * 130);
 });
 button('world', 'near misses', () => spawnBullets(8));
+button('world', 'bomb release (own)', () => emit({ type: 'bomb-released', aircraftId: 1, storeIndex: 0, position: P() }));
+button('world', 'bomb burst 300 m (23 kg)', () => emit({ type: 'bomb-exploded', shooterId: 1, position: at(200, -1450, -200), explosiveKg: 23, damagedTargetIds: [] }));
+button('world', 'stick of bombs 1 km', () => {
+  for (let i = 0; i < 6; i++) setTimeout(() => emit({ type: 'bomb-exploded', shooterId: 2, position: at(-700 + i * 40, -1450, -600), explosiveKg: i % 3 === 2 ? 1.5 : 23, damagedTargetIds: [] }), i * 350);
+});
 button('world', 'offline self-test', async () => {
   status.textContent = 'rendering…';
   const r = await runSelfTest();

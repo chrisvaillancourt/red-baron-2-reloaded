@@ -6,7 +6,7 @@ import { SoundBank } from '../bank';
 import { createLimiter } from '../limiter';
 import { compileScore, scheduleWindow } from '../music/player';
 import { SCORES } from '../music/scores';
-import { EngineVoice } from '../voices';
+import { EngineVoice, MultiEngineVoice } from '../voices';
 import type { EngineKind } from '../synthBuffers';
 
 export interface SelfTestResult {
@@ -70,6 +70,23 @@ export async function runSelfTest(): Promise<SelfTestResult[]> {
         s.connect(dest);
         s.start(i * 0.8);
       });
+    }),
+  );
+  out.push(
+    await render('bombs', 7, (ctx, dest) => {
+      const bank = new SoundBank(ctx);
+      (['bomb-release', 'bomb-whistle', 'bomb-burst'] as const).forEach((id, i) => {
+        const s = ctx.createBufferSource();
+        s.buffer = bank.get(id);
+        s.connect(dest);
+        s.start([0, 0.5, 2.7][i]);
+      });
+    }),
+  );
+  out.push(
+    await render('engines:twin', 2, (ctx, dest) => {
+      const v = new MultiEngineVoice(ctx, new SoundBank(ctx), 'inline6', 2, dest);
+      v.update({ rpm: 1300, throttle: 1, blip: false, damage: 0.2, dead: false, doppler: 1, cutoff: 8000, level: 0.9 }, [0.2, 0.6], 400);
     }),
   );
   for (const cue of ['menu', 'briefing', 'defeat', 'victory', 'medal'] as const) {
