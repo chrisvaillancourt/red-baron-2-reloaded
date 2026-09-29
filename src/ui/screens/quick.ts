@@ -2,6 +2,8 @@ import { composeLivery } from '../../data/liveries';
 import type { QuickMissionOptions } from '../../core/campaignTypes';
 import type { AircraftId, AircraftSpec, SkillLevel } from '../../core/types';
 import { AIRCRAFT, AIRCRAFT_LIST, servedTogether } from '../../data/aircraft';
+import { crewStations } from '../../data/crew';
+import { applyPlayerStation, bombingRaidsOffered, devBombingRaid, sanitizeQuickOptions } from '../quickCrew';
 import { QUICK_DEFAULTS } from '../../data/quickDefaults';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
@@ -17,6 +19,12 @@ const SKILLS: SkillLevel[] = ['novice', 'regular', 'veteran', 'ace'];
 
 const sideOf = (s: AircraftSpec) => (s.nation === 'germany' ? 'central' : 'allied');
 
+/**
+ * "Bombing raid" is wired but hidden until track D's raid builder exists (docs/bombers.md):
+ * only a dev server with `?bombing` in the URL offers it, with the bomb-carrying AI-only types.
+ */
+const BOMBING = bombingRaidsOffered(!!import.meta.env?.DEV, typeof location !== 'undefined' ? location.search : '');
+
 // First-visit setup, shared with the soaks (src/data/quickDefaults.ts).
 const defaults = (): QuickMissionOptions => ({ ...QUICK_DEFAULTS });
 
@@ -25,7 +33,7 @@ function load(): QuickMissionOptions {
     const raw = localStorage.getItem(STORE);
     if (raw) {
       const o = { ...defaults(), ...(JSON.parse(raw) as Partial<QuickMissionOptions>) };
-      if (AIRCRAFT[o.playerAircraft] && AIRCRAFT[o.enemyAircraft]) return o;
+      if (AIRCRAFT[o.playerAircraft] && AIRCRAFT[o.enemyAircraft] && (AIRCRAFT[o.playerAircraft].flyable || BOMBING)) return sanitizeQuickOptions(o, BOMBING);
     }
   } catch {
     /* ignore */
@@ -68,7 +76,29 @@ export const quickScreen: ScreenFactory = (ctx) => {
   });
 
   const units = () => resolveUnits(ctx.settings().units, AIRCRAFT[o.playerAircraft].nation);
-  const flyable = AIRCRAFT_LIST.filter((s) => s.flyable);
+  const flyable = AIRCRAFT_LIST.filter((s) => s.flyable || (BOMBING && !!s.bombs?.length));
+
+  // --- Seat picker: the stations of a multi-crew type (hidden for a single-seater).
+  const seatField = h('div', { class: 'field' });
+  const renderSeat = () => {
+    const stations = crewStations(AIRCRAFT[o.playerAircraft]);
+    if (o.playerStation && !stations.some((s) => s.id === o.playerStation)) delete o.playerStation;
+    seatField.hidden = stations.length < 2;
+    if (seatField.hidden) return setChildren(seatField);
+    setChildren(
+      seatField,
+      h('span', { class: 'field-label' }, 'Your seat'),
+      segmented(
+        stations.map((s) => ({ value: s.id, label: s.label })),
+        o.playerStation ?? 'pilot',
+        (v) => {
+          if (v === 'pilot') delete o.playerStation;
+          else o.playerStation = v;
+          save();
+        },
+      ),
+    );
+  };
 
   // --- Player column
   const playerHead = h('h3');
@@ -92,6 +122,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
     }
     renderPlayer();
     renderEnemy();
+    renderSeat();
     save();
   }, 'Your aircraft');
   playerSel.setAttribute('data-autofocus', '');
@@ -114,6 +145,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
     { class: 'paper tilt-l' },
     playerHead,
     h('div', { class: 'field' }, h('label', null, 'Aircraft'), playerSel),
+    seatField,
     h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Wingmen'), countSeg(o.wingmen, 3, 0, (n) => (o.wingmen = n))),
     h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Wingman skill'), skillSeg(o.wingmanSkill, (s) => (o.wingmanSkill = s))),
     playerSpec,
@@ -129,6 +161,14 @@ export const quickScreen: ScreenFactory = (ctx) => {
   const paintCloud = () => (cloudVal.textContent = o.cloudCover < 0.15 ? 'Clear' : o.cloudCover < 0.45 ? 'Scattered' : o.cloudCover < 0.75 ? 'Broken' : 'Overcast');
   paintAlt();
   paintCloud();
+  // Bombing raids only: fighters escorting the player's flight.
+  const escortField = h(
+    'div',
+    { class: 'field' },
+    h('span', { class: 'field-label' }, 'Escort fighters'),
+    countSeg(o.escortCount ?? 0, 4, 0, (n) => (o.escortCount = n)),
+  );
+  escortField.hidden = o.type !== 'bombing';
   const missionCol = h(
     'div',
     { class: 'paper' },
@@ -144,11 +184,17 @@ export const quickScreen: ScreenFactory = (ctx) => {
           { value: 'escort', label: 'Escort' },
           { value: 'balloon-attack', label: 'Balloons' },
           { value: 'ground-attack', label: 'Strafe' },
+          ...(BOMBING ? [{ value: 'bombing' as const, label: 'Bombing raid' }] : []),
         ],
         o.type,
-        (v) => ((o.type = v), save()),
+        (v) => {
+          o.type = v;
+          escortField.hidden = v !== 'bombing';
+          save();
+        },
       ),
     ),
+    escortField,
     h(
       'div',
       { class: 'field' },
@@ -248,6 +294,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
 
   renderPlayer();
   renderEnemy();
+  renderSeat();
 
   const fly = h(
     'button',
@@ -255,7 +302,8 @@ export const quickScreen: ScreenFactory = (ctx) => {
       class: 'btn light primary big',
       onClick: () => {
         try {
-          const mission = ctx.services.campaign.buildQuickMission({ ...o });
+          const build = (opts: QuickMissionOptions) => ctx.services.campaign.buildQuickMission(opts);
+          const mission = applyPlayerStation(o.type === 'bombing' ? devBombingRaid(build, { ...o }) : build({ ...o }), o.playerStation);
           // The options ride along to the debrief for the flight report.
           ctx.router.push('briefing', { mission, quickOptions: { ...o } });
         } catch (e) {
