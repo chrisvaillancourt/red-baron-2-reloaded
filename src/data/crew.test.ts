@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AircraftEntity, AircraftSpec } from '../core/types';
 import { aimFlexibleGun } from '../sim/combat';
 import { AIRCRAFT } from './aircraft';
-import { bodyDirectionAngles, crewStationProblems, crewStations, inFireArcs, stationEye, stationForGun } from './crew';
+import { bodyDirectionAngles, crewStationProblems, crewStations, inAzimuth, inFireArcs, stationEye, stationForGun } from './crew';
 
 describe('crewStations', () => {
   it('gives a single-seater only the pilot, with every gun', () => {
@@ -119,4 +119,15 @@ describe('inFireArcs', () => {
       expect(agree / total).toBeGreaterThan(0.97);
     });
   }
+});
+
+describe('inAzimuth', () => {
+  it('takes a clockwise range through astern, and an epsilon past its far end', () => {
+    expect(inAzimuth(170, 143, -143)).toBe(true);
+    expect(inAzimuth(-150, 143, -143)).toBe(true);
+    expect(inAzimuth(0, 143, -143)).toBe(false);
+    expect(inAzimuth(-143 + 1e-10, 143, -143)).toBe(false);
+    expect(inAzimuth(-143 + 1e-10, 143, -143, 1e-9)).toBe(true);
+    expect(inAzimuth(42, -180, 180)).toBe(true);
+  });
 });

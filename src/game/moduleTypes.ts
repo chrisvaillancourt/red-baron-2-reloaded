@@ -64,6 +64,8 @@ export interface GameModules {
   createAircraftVisual: AircraftVisualFactory;
   preloadAircraftModels(ids: AircraftId[]): Promise<void>;
   createAIController(ac: AircraftEntity, opts: AIControllerOptions): AIController;
+  /** Forget the AI controller that flew `ac` (the player's aircraft, handed back to him). */
+  releaseAIPilot(ac: AircraftEntity): void;
   createAudioEngine(): AudioEngine;
   createCampaignService(): CampaignService;
   createUi(root: HTMLElement, services: GameServices): UiHandle;

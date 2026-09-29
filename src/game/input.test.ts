@@ -9,7 +9,11 @@ import {
   applyDeadzone,
   approach,
   createMouseAimState,
+  EDGE_ACTIONS,
   expo,
+  InputManager,
+  STATION_KEY_AIM_RATE_DEG,
+  stationAimDelta,
   mouseAimControls,
   resolveHeldActions,
   snapLookFrom,
@@ -38,6 +42,43 @@ function aircraft(heading = 0): AircraftEntity {
     outcome: null,
   };
 }
+
+describe('gunner aim input', () => {
+  const cs = DEFAULT_SETTINGS.controls;
+
+  it('swings the gun right and up with the mouse moved right and up', () => {
+    const d = stationAimDelta({ mouseDX: 100, mouseDY: -50, keyAz: 0, keyEl: 0, padAz: 0, padEl: 0 }, cs, 1 / 60);
+    expect(d.azimuth).toBeGreaterThan(0);
+    expect(d.elevation).toBeGreaterThan(0);
+    // The same scale as the mouse-aim instructor: 0.0022 rad per pixel at sensitivity 1.
+    expect(d.azimuth).toBeCloseTo(0.22, 6);
+  });
+
+  it('honours invert pitch and sensitivity', () => {
+    const d = stationAimDelta({ mouseDX: 0, mouseDY: -50, keyAz: 0, keyEl: 0, padAz: 0, padEl: 0 }, { ...cs, invertPitch: true, mouseSensitivity: 2 }, 1 / 60);
+    expect(d.elevation).toBeCloseTo(-0.22, 6);
+  });
+
+  it('swings with the keys and the stick at a steady rate', () => {
+    const d = stationAimDelta({ mouseDX: 0, mouseDY: 0, keyAz: 1, keyEl: 0, padAz: 0, padEl: -1 }, cs, 0.5);
+    expect(d.azimuth).toBeCloseTo((STATION_KEY_AIM_RATE_DEG * 0.5 * Math.PI) / 180, 6);
+    expect(d.elevation).toBeCloseTo((-STATION_KEY_AIM_RATE_DEG * 0.5 * Math.PI) / 180, 6);
+  });
+
+  it('release bomb is held: true while the key is down', () => {
+    const im = new InputManager({} as HTMLElement, () => ({ ...cs, gamepadEnabled: false }));
+    const held = (im as unknown as { held: Set<string> }).held;
+    held.add('KeyR');
+    expect(im.update(1 / 60, null, true).controls.releaseBomb).toBe(true);
+    expect(im.update(1 / 60, null, true).controls.releaseBomb).toBe(true);
+    held.delete('KeyR');
+    expect(im.update(1 / 60, null, true).controls.releaseBomb).toBe(false);
+  });
+
+  it('crew-station keys are edge actions', () => {
+    for (const a of ['stationNext', 'stationPrev', 'stationPilot', 'releaseBomb', 'viewBombsight']) expect(EDGE_ACTIONS as readonly string[]).toContain(a);
+  });
+});
 
 describe('key binding resolution', () => {
   it('maps held codes to actions using default bindings', () => {

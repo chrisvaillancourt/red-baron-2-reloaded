@@ -10,6 +10,13 @@ describe('action metadata', () => {
   it('defaults have no duplicate keys', () => {
     expect([...duplicateBindings(DEFAULT_KEY_BINDINGS).keys()]).toEqual([]);
   });
+  it('binds the crew-station keys (docs/bombers.md) in the Crew group', () => {
+    const want = { stationNext: 'KeyC', stationPrev: 'KeyV', stationPilot: 'KeyF', releaseBomb: 'KeyR', viewBombsight: 'F6' };
+    for (const [action, code] of Object.entries(want)) {
+      expect(DEFAULT_KEY_BINDINGS[action], action).toEqual([code]);
+      expect(ACTIONS.find((a) => a.id === action)?.group, action).toBe('Crew');
+    }
+  });
 });
 
 describe('codeLabel', () => {

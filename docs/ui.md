@@ -66,7 +66,8 @@ Debrief pages, in order, as the report warrants:
 5. one page per medal
 6. memorial / prisoner-of-war record when the career ends
 
-A quick mission has only the combat report. Each page has one `data-autofocus`
+A quick mission has only the combat report. A sortie that carried bombs adds "Bombs dropped"
+and "Bomb hits" to its stats (`MissionResult.bombsDropped` / `bombHits`). Each page has one `data-autofocus`
 button (Continue, or Done / Return to the squadron on the last page), so
 Enter steps through them. Esc skips to the next page, too. A script waiting for
 a later page should press Enter and wait for its selector (`.telegram`,
@@ -100,6 +101,22 @@ and left/right step through a group in order even where it wraps onto two rows.
 Quick Mission takes 12 Tabs from the aircraft list to "To the briefing"
 (`tests/e2e/quick-keyboard.spec.ts`).
 
+### Quick Mission crew options
+
+- **Your seat**: for a multi-crew type (today the Bristol F.2b), a button per crew station
+  (`crewStations(spec)`), saved as `playerStation`; hidden, and no Tab stop, for a
+  single-seater. Until track D's builder copies it, `applyPlayerStation` (`src/ui/quickCrew.ts`)
+  puts it on the player's flight member after `buildQuickMission`.
+- **Bombing raid** is wired but hidden: only a dev server opened with `?bombing` offers it,
+  with an "Escort fighters" count (0–4) and the bomb-carrying AI-only types (the D.H.4) in
+  the aircraft list. It builds through `devBombingRaid`, a quick ground attack turned into a
+  bomb run, until track D's raid builder exists. A saved raid falls back to a dogfight
+  without the flag.
+
+The Options key list and the Flying Manual pick up the Crew key group from
+`src/ui/bindings.ts`; the Manual also has an "At a gun or the bombsight" table (which
+mirrors `InputManager.stationMode`) and gunner and bomb-aimer notes.
+
 ## HudView contract
 
 See `src/ui/hud/types.ts` (fully documented). Units are SI; screen points are
@@ -111,6 +128,17 @@ range, closure, screen point, optional lead point), `padlock`, `threats[]`,
 `wingmen[]`, `waypoint`, `gunReticle`, `timeCompression`, `missionTime`, `hint`,
 `sunGlare` (sun screen point, 15° glare radius in screen heights, strength 0..1).
 `showInstruments` shows the period gauge cluster (for external views).
+
+Crew stations (docs/bombers.md, docs/game.md "Crew stations"): `view` adds `'gunner'` and
+`'bombsight'`. `seat` (label, index/count, `aiFlying`) is the seat plate, bottom centre above
+the readout, amber while the AI pilot flies. At a gunner's station `guns[]` holds only that
+station's guns, undimmed. `gunnerSight` (ring point, `limited`, `arcEdges` screen polylines)
+draws a ring-and-bead sight and the field of fire's edge, dashed amber, red at the limit.
+`bombsight` (impact point, drift, projected `wire`, `cue` run-in/release/past/none,
+`timeToRelease`, `crossM`, target point, release key) draws the drift wire with ticks, the
+impact mark (green on release), the target diamond (pinned to the edge while far up the
+track) and the cue line ("RUN-IN · 12 s · STEER LEFT 60 m", "RELEASE — R"). `bombs`
+(left/total, next store) is the count under the guns. All in `src/ui/hud/crewOverlay.ts`.
 
 HUD methods: `showMessage`, `showWingmanMenu`, `showPauseMenu` /
 `showEndFlightPrompt` (cards capture the keyboard while open), `showMap(MapView|null)`,

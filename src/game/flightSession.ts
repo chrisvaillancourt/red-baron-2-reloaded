@@ -16,7 +16,9 @@ import type {
   WingmanCommand,
   WorldRenderer,
 } from '../core/interfaces';
-import type { AircraftEntity, GameEvent, GameSettings, MissionDefinition, MissionResult } from '../core/types';
+import type { AircraftEntity, CrewStationId, GameEvent, GameSettings, MissionDefinition, MissionResult } from '../core/types';
+import { crewStations } from '../data/crew';
+import { PlayerCrew } from './playerCrew';
 import { getAerodrome } from '../data/aerodromes';
 import { CameraRig, type CameraMode } from './cameras';
 import { RenderInterpolator } from './renderInterp';
@@ -44,6 +46,9 @@ export const TIME_SCALES = [1, 2, 4, 8] as const;
 const MAX_FRAME_DT = 0.1;
 const DEFAULT_EYE = new Vector3(0, 1, 0);
 const START_HINT = 'Mouse to steer · Space fire · +/− throttle · F1–F5 views · P padlock · O orders · M map · Esc menu';
+/** Added to the start hint in an aircraft with more than one crew station. */
+const CREW_HINT = ' · C/V crew seat · F pilot';
+const _eye = new Vector3();
 const ORDER_LABELS: Record<WingmanCommand, string> = {
   'attack-my-target': 'Attack',
   'engage-at-will': 'Engage',
@@ -57,6 +62,8 @@ export interface SessionDebug {
   readonly timeScale: number;
   readonly paused: boolean;
   readonly cameraMode: CameraMode;
+  /** The player's crew station ('pilot' unless he took a gun or the bombsight). */
+  readonly station: CrewStationId;
   readonly player: AircraftEntity | null;
   readonly world: SessionWorld;
   readonly frames: number;
@@ -110,6 +117,7 @@ export class FlightSession {
   private hud!: Hud;
   private input!: InputManager;
   private rig!: CameraRig;
+  private crew!: PlayerCrew;
   private mapOpen = false;
   private mapRedrawAt = 0;
   private ordersOpen = false;
@@ -236,9 +244,18 @@ export class FlightSession {
     this.input = new InputManager(this.canvas, () => this.settings.controls, () => this.world, () => this.settings.realism.flightModel);
     this.input.attach();
     const player = this.world.player;
+    this.crew = new PlayerCrew({
+      core: this.core,
+      rig: this.rig,
+      input: this.input,
+      message: (text) => this.hud.showMessage(text, { duration: 4 }),
+      bindings: () => this.settings.controls.keyBindings,
+      visual: () => (this.world.player ? this.visuals.get(this.world.player.id) : undefined),
+    });
     if (player) {
       this.input.setThrottle(player.controls.throttle);
       this.input.resetAim(player);
+      this.crew.start();
     } else {
       this.rig.setMode('chase');
     }
@@ -274,6 +291,9 @@ export class FlightSession {
       },
       get cameraMode() {
         return self.rig.mode;
+      },
+      get station() {
+        return self.core.playerStation;
       },
       get player() {
         return self.world.player;
@@ -474,6 +494,8 @@ export class FlightSession {
   private handleCommands(cmds: EdgeAction[]): void {
     const player = this.world.player;
     for (const c of cmds) {
+      // Seats, the bombsight, bomb release, and F1 at a gun (the gunner's view).
+      if (this.crew.command(c, this.waypointIndex)) continue;
       switch (c) {
         case 'pause':
           this.setPaused(!this.paused);
@@ -615,7 +637,9 @@ export class FlightSession {
     const inp = this.input.update(dtReal, player && player.outcome === null ? player : null, this.rig.mouseSteers);
     this.handleCommands(inp.commands);
     if (player && player.outcome === null && !this.paused) {
-      Object.assign(player.controls, inp.controls);
+      // At a gun the AI pilot owns the controls; the player's input swings and fires the gun.
+      this.crew.pilotControls(inp, player.controls);
+      this.crew.applyInput(inp);
     }
 
     if (player && player.outcome === null) {
@@ -637,9 +661,10 @@ export class FlightSession {
       while (this.accumulator >= h) {
         this.accumulator -= h;
         this.interp.capture(world.aircraft);
+        this.crew.beforeStep(first);
         this.step(h);
-        if (first && player) {
-          player.controls.clearJam = false; // edge: one step only
+        if (first) {
+          if (player && !this.crew.atGun) player.controls.clearJam = false; // edge: one step only
           first = false;
         }
         if (this.director.ended) break;
@@ -649,20 +674,26 @@ export class FlightSession {
 
     // Visual sync (poses blended between sim steps; see renderInterp.ts).
     this.interp.apply(world.aircraft, this.paused ? 1 : this.accumulator * SIM_HZ);
+    // Through the bombsight the aimer looks past his own airframe: hide it rather than stare at the wing.
+    const hideOwn = this.rig.mode === 'bombsight';
     for (const ac of world.aircraft) {
       const v = this.visuals.get(ac.id);
       if (!v) continue;
-      v.object.visible = true;
+      v.object.visible = !(hideOwn && ac === player);
       v.update(ac, this.paused ? 0 : dtReal);
-      if (ac.spec.guns.some((g) => g.mount === 'flexible')) this.aimGunnerVisual(ac, v);
+      if (ac === player && this.crew.aimsFlexibleGun) this.crew.syncVisual();
+      else if (ac.spec.guns.some((g) => g.mount === 'flexible')) this.aimGunnerVisual(ac, v);
     }
     for (const b of world.balloons) this.entityObjects.get(b.id)?.position.copy(b.position);
 
     if (player) {
       const vis = this.visuals.get(player.id);
-      vis?.setCockpitView(this.rig.inCockpit);
-      this.rig.update(dtReal, player, world, vis?.eyePoint ?? DEFAULT_EYE, inp);
+      // The 3D cockpit (pilot hidden) only from the pilot's seat; a gunner sees the pilot ahead of him.
+      vis?.setCockpitView(this.rig.inPilotCockpit && !this.crew.atGun);
+      this.crew.frame();
+      this.rig.update(dtReal, player, world, vis ? this.crew.eye(_eye) : DEFAULT_EYE, inp);
     }
+    // TODO(track B merge): pass this.combat.bombs as update's fifth argument (falling bombs).
     this.renderer.update(this.paused ? 0 : dtReal, this.rig.camera, world, this.combat.bullets);
     this.renderer.render(this.rig.camera);
     this.interp.restore();
@@ -684,8 +715,9 @@ export class FlightSession {
           aimDirection: inp.aimDirection,
           waypointIndex: this.waypointIndex,
           wingmanOrders: this.wingmanOrders,
-          hint: this.settings.showTutorialHints && world.time < 20 ? START_HINT : null,
+          hint: this.settings.showTutorialHints && world.time < 20 ? START_HINT + (crewStations(player.spec).length > 1 ? CREW_HINT : '') : null,
           knowsEnemy: (id) => this.awareness.knows(id, world.time),
+          crew: this.crew.hud(this.rig.camera),
         }),
       );
       this.hud.setGEffect(this.gEffect);

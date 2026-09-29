@@ -3,7 +3,7 @@
  * Bindings map action -> KeyboardEvent.code[] (see src/core/settings.ts).
  */
 
-export type ActionGroup = 'Flight' | 'Engine' | 'Weapons' | 'Views' | 'Wingmen' | 'Game';
+export type ActionGroup = 'Flight' | 'Engine' | 'Weapons' | 'Views' | 'Crew' | 'Wingmen' | 'Game';
 
 export interface ActionMeta {
   id: string;
@@ -36,6 +36,11 @@ export const ACTIONS: ActionMeta[] = [
   { id: 'lookRight', label: 'Look right', group: 'Views' },
   { id: 'lookBack', label: 'Look behind', group: 'Views' },
   { id: 'lookUp', label: 'Look up', group: 'Views' },
+  { id: 'stationNext', label: 'Next crew station', group: 'Crew' },
+  { id: 'stationPrev', label: 'Previous crew station', group: 'Crew' },
+  { id: 'stationPilot', label: "Back to the pilot's seat", group: 'Crew' },
+  { id: 'viewBombsight', label: 'Bombsight', group: 'Crew' },
+  { id: 'releaseBomb', label: 'Release bomb', group: 'Crew' },
   { id: 'wingmenMenu', label: 'Wingmen: show orders', group: 'Wingmen' },
   { id: 'wingmenAttack', label: 'Wingmen: attack my target', group: 'Wingmen' },
   { id: 'wingmenEngage', label: 'Wingmen: engage at will', group: 'Wingmen' },
@@ -50,7 +55,7 @@ export const ACTIONS: ActionMeta[] = [
   { id: 'pause', label: 'Pause / menu', group: 'Game' },
 ];
 
-export const ACTION_GROUPS: ActionGroup[] = ['Flight', 'Engine', 'Weapons', 'Views', 'Wingmen', 'Game'];
+export const ACTION_GROUPS: ActionGroup[] = ['Flight', 'Engine', 'Weapons', 'Views', 'Crew', 'Wingmen', 'Game'];
 
 /** Keys the browser/OS won't reliably hand to a page. */
 export const RESERVED_CODES = new Set(['F11', 'F12', 'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight', 'ContextMenu']);

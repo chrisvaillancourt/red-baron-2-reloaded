@@ -20,6 +20,7 @@ import type {
 } from '../core/types';
 import { NATION_SIDE } from '../core/types';
 import { getAircraft } from '../data/aircraft';
+import { effectiveMass, loadBombs } from '../sim';
 import { CloudField } from '../world/clouds';
 import { sunDirectionFor } from '../world/sun';
 import type { GameModules } from './moduleTypes';
@@ -88,6 +89,16 @@ export function createGunStates(ac: Pick<AircraftEntity, 'spec'>, realism: Reali
     cooldown: 0,
     reloading: 0,
   }));
+}
+
+/**
+ * Does this flight carry its type's bomb load? Bomber sorties do: a flight tasked to bomb, or
+ * any flight of the player's side on a bombing raid. (Loaded bombs are part of
+ * `massLoaded`, so a bomb flight weighs what it did before bombs existed; D-086.)
+ */
+export function sortieCarriesBombs(mission: MissionDefinition, flight: MissionFlight): boolean {
+  if (flight.task === 'bomb') return true;
+  return mission.type === 'bombing' && flight.role === 'player-flight';
 }
 
 /**
@@ -171,6 +182,9 @@ export function buildWorld(opts: BuildWorldOptions): SessionWorld {
         outcome: null,
       };
       ac.guns = createGunStates(ac, realism);
+      if (sortieCarriesBombs(mission, flight)) loadBombs(ac);
+      // `massLoaded` counts the full bomb load: a bomber flying without it is trimmed lighter.
+      if (spec.bombs?.length) ac.state = modules.sim.createFlightState(spec, start, env, !!flight.startOnGround, effectiveMass(ac));
       if (m.isPlayer) player = ac;
       members.push(ac);
       byId.set(id, ac);

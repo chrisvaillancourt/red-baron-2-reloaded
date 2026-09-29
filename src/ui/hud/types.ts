@@ -9,7 +9,63 @@
 import type { GameSettings, Nation } from '../../core/types';
 import type { MapView } from '../map/mapRenderer';
 
-export type HudCameraView = 'cockpit' | 'chase' | 'padlock' | 'flyby' | 'target';
+export type HudCameraView = 'cockpit' | 'chase' | 'padlock' | 'flyby' | 'target' | 'gunner' | 'bombsight';
+
+/** The player's crew seat (docs/bombers.md), for aircraft with more than one station. */
+export interface HudSeat {
+  /** "Pilot", "Observer", "Nose gunner"… */
+  label: string;
+  /** 1-based position in the aircraft's station list, and the number of stations. */
+  index: number;
+  count: number;
+  /** An AI pilot is flying while the player works this station. */
+  aiFlying: boolean;
+}
+
+/** The gunner's view: the ring sight on the gun's line and the edge of its field of fire. */
+export interface HudGunnerSight {
+  /** Where the gun points (the view looks along it, so usually the screen centre). */
+  ring: HudScreenPoint;
+  /** The aim is held at the edge of the field of fire. */
+  limited: boolean;
+  /** The field of fire's outer edge as screen polylines (x, y fractions; may run off screen). */
+  arcEdges: { x: number; y: number }[][];
+}
+
+export type HudReleaseCue = 'none' | 'run-in' | 'release' | 'past';
+
+/**
+ * The bombsight view: down the sight line to where a bomb would land, the heading at the top
+ * of the screen. The target runs down the drift wire to the impact mark.
+ */
+export interface HudBombsight {
+  /** Where a bomb released now would land (pinned to the edge when off screen), or null. */
+  impact: HudScreenPoint | null;
+  /** Drift, radians, positive when the ground track lies right of the heading. */
+  driftAngle: number;
+  /**
+   * The drift wire: the ground track through the impact point, as screen points (x, y
+   * fractions, may run off screen). Empty: draw it through the centre at `driftAngle`.
+   */
+  wire: { x: number; y: number }[];
+  cue: HudReleaseCue;
+  /** Seconds until the release point, for 'run-in'. */
+  timeToRelease: number | null;
+  /** Metres the target lies right (+) or left (-) of the track: steer toward it. */
+  crossM: number;
+  /** The target of the run, when there is one (pinned to the edge when off screen). */
+  target: HudScreenPoint | null;
+  /** The key that releases a bomb, for the cue ("R"). */
+  releaseKey: string;
+}
+
+export interface HudBombs {
+  /** Bombs aboard, all stores, and the full load. */
+  left: number;
+  total: number;
+  /** The store released next, "112 lb R.L."; null with none left. */
+  next: string | null;
+}
 
 export interface HudGun {
   /** "Vickers L", "Lewis", "Spandau R"… */
@@ -151,6 +207,14 @@ export interface HudView {
   missionTime: number;
   /** Optional tutorial hint line. */
   hint?: string | null;
+  /** The player's crew seat; absent or null for a single-seater. */
+  seat?: HudSeat | null;
+  /** The gunner's view at a flexible gun (view 'gunner'). */
+  gunnerSight?: HudGunnerSight | null;
+  /** The bombsight (view 'bombsight'). */
+  bombsight?: HudBombsight | null;
+  /** Bombs aboard; absent or null when the sortie carries none. */
+  bombs?: HudBombs | null;
 }
 
 export type HudMessageKind = 'radio' | 'info' | 'warning' | 'victory' | 'objective';

@@ -4,7 +4,8 @@ import { DEFAULT_SETTINGS } from '../core/settings';
 import { QUICK_DEFAULTS } from '../data/quickDefaults';
 import { headlessModules } from './autoplay';
 import { FlightRecorder } from './flightRecorder';
-import { SimCore } from './simCore';
+import { SIM_HZ, SimCore } from './simCore';
+import { bristolFight } from './testing/crewMissions';
 import { recordedQuickFlight } from './testing/recordedFlight';
 
 describe('flight recorder', () => {
@@ -33,6 +34,34 @@ describe('flight recorder', () => {
     // The loss cause is set exactly when the player didn't come home intact.
     const lost = result.playerOutcome !== 'in-flight' && result.playerOutcome !== 'landed-friendly' && result.playerOutcome !== 'disengaged';
     expect(t.lossCause !== null).toBe(lost);
+  });
+
+  it('times each crew station the player works on a two-seater, and none on a single-seater', () => {
+    const core = new SimCore(headlessModules, bristolFight('observer'), () => DEFAULT_SETTINGS.realism);
+    const rec = new FlightRecorder(core);
+    const fly = (s: number) => {
+      for (let t = 0; t < s; t += 1 / SIM_HZ) {
+        core.step(1 / SIM_HZ);
+        rec.afterStep();
+      }
+    };
+    fly(4);
+    core.setPlayerStation('pilot');
+    fly(2);
+    const st = rec.telemetry().stationTimeS!;
+    expect(st.observer).toBeGreaterThan(3.8);
+    expect(st.observer).toBeLessThan(4.2);
+    expect(st.pilot).toBeGreaterThan(1.8);
+    expect(st.pilot).toBeLessThan(2.2);
+    rec.dispose();
+    core.dispose();
+    const solo = new SimCore(headlessModules, buildQuickMission({ ...QUICK_DEFAULTS }, 1), () => DEFAULT_SETTINGS.realism);
+    const soloRec = new FlightRecorder(solo);
+    solo.step(1 / SIM_HZ);
+    soloRec.afterStep();
+    expect(soloRec.telemetry().stationTimeS).toBeUndefined();
+    soloRec.dispose();
+    solo.dispose();
   });
 
   it('reports frame rate percentiles and time compression from rendered frames', () => {
