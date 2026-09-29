@@ -48,6 +48,15 @@ const FACTORY: Record<AircraftId, Finish> = {
   be2c: CLEAR_LINEN, // clear-doped in 1915-16; PC10 came later
   fe2b: CLEAR_LINEN,
   farman_f40: { ...CLEAR_LINEN, fuselage: '#b8bbb4' }, // aluminium-doped nacelle
+  // Bombers. Gotha and AEG wings in printed lozenge fabric, the Gotha's plywood fuselage painted
+  // over; British PC10 over clear-doped undersides; the Breguet in the 1918 French disruptive
+  // scheme; the 1915 Voisin clear-doped with its steel nacelle left grey.
+  gotha_gv: { fuselage: '#7d8270', wingTop: '#5b5a78', wingBottom: '#9aa0b8', tail: '#7d8270', cowling: '#8e8f8c', accent: '#8e8f8c', pattern: 'lozenge' },
+  aeg_giv: { fuselage: '#8c8a70', wingTop: '#5b5a78', wingBottom: '#9aa0b8', tail: '#8c8a70', cowling: '#8e8f8c', accent: '#8e8f8c', pattern: 'lozenge' },
+  handley_page_o400: PC10,
+  dh9: PC10,
+  breguet_14b2: { fuselage: '#b3a27c', wingTop: '#66683f', wingBottom: '#d6cbac', tail: '#b3a27c', cowling: '#8f918e', accent: '#8f918e', pattern: 'disruptive' },
+  voisin_iii: { ...CLEAR_LINEN, fuselage: '#9a9c98' },
 };
 
 /** National insignia by nation and date. */

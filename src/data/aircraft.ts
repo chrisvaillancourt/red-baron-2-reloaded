@@ -31,6 +31,35 @@ const overwingLewis = (y = 1.6, z = -0.9): GunMount => ({ type: 'lewis', positio
 const rearGun = (type: 'lewis' | 'parabellum'): GunMount => ({ type, position: [0, 0.9, 0.9], mount: 'flexible', rounds: 97, spareDrums: 6 });
 /** Observer's gun ahead of the pilot (B.E.2c front seat, pusher nose); early 47-round Lewis drums. */
 const frontGun = (position: [number, number, number]): GunMount => ({ type: 'lewis', position, mount: 'flexible', rounds: 47, spareDrums: 8 });
+/** A flexible gun at a given place (bomber rings, pillars, the Gotha tunnel). */
+const flex = (type: 'lewis' | 'parabellum' | 'hotchkiss', position: [number, number, number], spareDrums = 6): GunMount => ({
+  type,
+  position,
+  mount: 'flexible',
+  rounds: type === 'hotchkiss' ? 25 : 97,
+  spareDrums,
+});
+/** Twin Lewis on one Scarff or T.O.3 ring (D.H.9, Breguet 14, the O/400's nose). */
+const twinLewis = (y: number, z: number, spareDrums = 5): GunMount[] => [flex('lewis', [-0.11, y, z], spareDrums), flex('lewis', [0.11, y, z], spareDrums)];
+
+// Fields of fire for the bomber stations (FireArc, body frame; see src/core/types.ts). Read
+// from photographs of the positions: what the wings, propellers and tail leave open.
+/** A nose gunner well ahead of the wings: open ahead, to the sides and below; aft only high. */
+const BOMBER_NOSE_ARCS: FireArc[] = [
+  { azimuthDeg: [-120, 120], elevationDeg: [-60, 90] },
+  { azimuthDeg: [-180, 180], elevationDeg: [35, 90] },
+];
+/** A dorsal gunner behind the wings: everything high, the sides above the wings, astern level. */
+const BOMBER_DORSAL_ARCS: FireArc[] = [
+  { azimuthDeg: [-180, 180], elevationDeg: [40, 90] },
+  { azimuthDeg: [45, -45], elevationDeg: [12, 40] },
+  { azimuthDeg: [100, -100], elevationDeg: [-8, 12] },
+];
+/** Firing down and aft through the floor (the Gotha tunnel, the O/400's ventral hatch). */
+const BOMBER_VENTRAL_ARCS: FireArc[] = [
+  { azimuthDeg: [115, -115], elevationDeg: [-75, -4] },
+  { azimuthDeg: [-180, 180], elevationDeg: [-90, -75] },
+];
 /**
  * The pusher nose gunner's field of fire: a copy of `NOSE_GUNNER_ARCS` in src/data/crew.ts,
  * which this leaf module can't import (aircraft.test.ts checks they agree).
@@ -38,6 +67,13 @@ const frontGun = (position: [number, number, number]): GunMount => ({ type: 'lew
 export const PUSHER_NOSE_ARCS: readonly FireArc[] = [
   { azimuthDeg: [-104, 104], elevationDeg: [-37, 90] },
   { azimuthDeg: [-180, 180], elevationDeg: [33, 90] },
+];
+/** The aft-facing observer's field of fire: a copy of `REAR_OBSERVER_ARCS` in src/data/crew.ts (aircraft.test.ts checks they agree). */
+export const REAR_RING_ARCS: readonly FireArc[] = [
+  { azimuthDeg: [-180, 180], elevationDeg: [30, 90] },
+  { azimuthDeg: [57, 143], elevationDeg: [-20, 30] },
+  { azimuthDeg: [-143, -57], elevationDeg: [-20, 30] },
+  { azimuthDeg: [143, -143], elevationDeg: [7, 30] },
 ];
 const arcs = (a: readonly FireArc[]): FireArc[] => a.map((x) => ({ azimuthDeg: [x.azimuthDeg[0], x.azimuthDeg[1]], elevationDeg: [x.elevationDeg[0], x.elevationDeg[1]] }));
 
@@ -154,6 +190,42 @@ const SPECS: AircraftSpec[] = [
     geometry: geom({ layout: 'biplane', span: 11.69, lowerSpan: 11.0, length: 8.0, chord: 1.75, gap: 1.8, stagger: 0.3, height: 3.07, dihedralDeg: 2, crew: 2, tailShape: 'rounded', fuselageShape: 'round', fuselageWidth: 0.95, wheelTrack: 2.0 }),
     performance: perf({ massLoaded: 1353, massEmpty: 851, wingArea: 36.91, enginePowerHp: 150, engineType: 'inline', engineName: 'Benz Bz.III', maxSpeedKmh: 140, maxSpeedAltM: 0, ceilingM: 3350, climbTo3000mMin: 35, enduranceHours: 4, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.8, fuelCapacityL: 160 }),
     guns: [sync('spandau', 0), rearGun('parabellum')],
+  },
+
+  // Bombers (docs/bombers.md; figures and sources in docs/models.md "Bomber specifications").
+  {
+    id: 'aeg_giv', name: 'AEG G.IV', shortName: 'G.IV', manufacturer: 'Allgemeine Elektricitäts-Gesellschaft', nation: 'germany', alsoUsedBy: [],
+    role: 'bomber', flyable: false, introduced: '1916-12-01', retired: '1918-11-11',
+    description: 'A compact twin-engined Grossflugzeug of welded steel tube, flown by the Bogohls by day and later by night. Two Mercedes tractor engines sit between the wings; the commander aims the bombs from the nose and a gunner guards the tail.',
+    geometry: geom({ layout: 'biplane', span: 18.4, lowerSpan: 17.6, length: 9.7, chord: 1.9, lowerChord: 1.85, gap: 2.1, stagger: 0.15, height: 3.9, dihedralDeg: 2, crew: 3, tailShape: 'squared', fuselageWidth: 1.05, wheelTrack: 4.2, nacelleOffsetX: 2.1 }),
+    performance: perf({ massLoaded: 3630, massEmpty: 2400, wingArea: 67, enginePowerHp: 520, engineCount: 2, engineType: 'inline', engineName: 'Mercedes D.IVa', maxSpeedKmh: 165, maxSpeedAltM: 1000, ceilingM: 4500, climbTo3000mMin: 27, enduranceHours: 4.5, rollRate: 0.22, pitchRate: 0.3, structuralStrength: 0.85, fuelCapacityL: 560 }),
+    guns: [flex('parabellum', [0, 0.9, -2.75]), flex('parabellum', [0, 0.89, 2.0])],
+    crewStations: [
+      { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
+      { id: 'nose', label: 'Nose gunner', crewIndex: 1, guns: [0], arcs: arcs(BOMBER_NOSE_ARCS), bombAimer: true, eye: [0, 1.18, -2.75] },
+      { id: 'dorsal', label: 'Rear gunner', crewIndex: 2, guns: [1], arcs: arcs(BOMBER_DORSAL_ARCS), eye: [0, 1.17, 2.0] },
+    ],
+    bombs: [{ name: 'P.u.W. 50 kg', massKg: 50, explosiveKg: 23, count: 8 }],
+  },
+  {
+    id: 'gotha_gv', name: 'Gotha G.V', shortName: 'G.V', manufacturer: 'Gothaer Waggonfabrik', nation: 'germany', alsoUsedBy: [],
+    role: 'bomber', flyable: false, introduced: '1917-08-01', retired: '1918-11-11',
+    description: 'The bomber that raided London by day and night. Two pusher Mercedes behind the wings leave the nose gunner a clear field ahead; the rear gunner works a dorsal gun and the "Gotha tunnel", a gun firing down and aft through the floor at fighters hiding under the tail.',
+    geometry: geom({ layout: 'biplane', span: 23.7, lowerSpan: 22.9, length: 12.36, chord: 2.0, lowerChord: 1.9, gap: 2.4, stagger: 0, height: 4.3, dihedralDeg: 1.5, crew: 3, tailShape: 'squared', fuselageWidth: 1.1, wheelTrack: 4.8, nacelleOffsetX: 2.4 }),
+    performance: perf({ massLoaded: 3975, massEmpty: 2740, wingArea: 89.5, enginePowerHp: 520, engineCount: 2, engineType: 'inline', engineName: 'Mercedes D.IVa', maxSpeedKmh: 140, maxSpeedAltM: 0, ceilingM: 4650, climbTo3000mMin: 28, enduranceHours: 5, rollRate: 0.15, pitchRate: 0.25, structuralStrength: 0.75, fuelCapacityL: 840 }),
+    guns: [flex('parabellum', [0, 0.84, -3.15]), flex('parabellum', [0, 0.96, 2.3]), flex('parabellum', [0, -0.72, 3.0])],
+    crewStations: [
+      { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
+      { id: 'nose', label: 'Nose gunner', crewIndex: 1, guns: [0], arcs: arcs(BOMBER_NOSE_ARCS), bombAimer: true, eye: [0, 1.12, -3.15] },
+      { id: 'dorsal', label: 'Rear gunner', crewIndex: 2, guns: [1], arcs: arcs(BOMBER_DORSAL_ARCS), eye: [0, 1.24, 2.3] },
+      // The same man, lying at the tunnel: his eye at the opening in the floor, behind the gun.
+      { id: 'ventral', label: 'Tunnel gun', crewIndex: 2, guns: [2], arcs: arcs(BOMBER_VENTRAL_ARCS), eye: [0, -0.62, 3.5] },
+    ],
+    // The England-raid load: 350 kg (the difference between the loaded and equipped weights).
+    bombs: [
+      { name: 'P.u.W. 50 kg', massKg: 50, explosiveKg: 23, count: 6 },
+      { name: 'P.u.W. 12.5 kg', massKg: 12.5, explosiveKg: 1.5, count: 4 },
+    ],
   },
 
   // ============================================================== Allies
@@ -309,6 +381,72 @@ const SPECS: AircraftSpec[] = [
     geometry: geom({ layout: 'biplane', pusher: true, span: 17.6, lowerSpan: 12.5, length: 9.25, chord: 2.0, gap: 2.0, stagger: 0, height: 3.9, dihedralDeg: 1, crew: 2, tailShape: 'squared', fuselageWidth: 0.85, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1120, massEmpty: 750, wingArea: 52, enginePowerHp: 130, engineType: 'inline', engineName: 'Renault 8C', maxSpeedKmh: 135, maxSpeedAltM: 0, ceilingM: 4000, climbTo3000mMin: 42, enduranceHours: 2.3, rollRate: 0.3, pitchRate: 0.4, structuralStrength: 0.7, fuelCapacityL: 140 }),
     guns: [frontGun([0, 0.7, -2.6])],
+  },
+
+  // Bombers (docs/bombers.md; figures and sources in docs/models.md "Bomber specifications").
+  {
+    id: 'voisin_iii', name: 'Voisin III', shortName: 'Voisin', manufacturer: 'Voisin', nation: 'france', alsoUsedBy: ['britain'],
+    role: 'bomber', flyable: false, introduced: '1915-07-01', retired: '1916-09-01',
+    description: 'The steel-framed pusher of the first French bombardment groups, and the first aeroplane to shoot down another. The pilot sits in the nose; the observer stands behind him to fire a Hotchkiss over his head and to drop finned artillery shells by hand.',
+    geometry: geom({ layout: 'biplane', pusher: true, span: 14.74, lowerSpan: 13.8, length: 9.5, chord: 1.8, gap: 1.85, stagger: 0, height: 2.95, dihedralDeg: 0, crew: 2, tailShape: 'squared', fuselageWidth: 0.85, wheelTrack: 1.9 }),
+    performance: perf({ massLoaded: 1350, massEmpty: 950, wingArea: 49.7, enginePowerHp: 130, engineType: 'inline', engineName: 'Salmson M.9', maxSpeedKmh: 105, maxSpeedAltM: 0, ceilingM: 3500, climbTo3000mMin: 45, enduranceHours: 4.5, rollRate: 0.3, pitchRate: 0.4, structuralStrength: 0.85, fuelCapacityL: 170 }),
+    // The Hotchkiss on a tall tripod over the pilot's head, fed by 25-round strips.
+    guns: [flex('hotchkiss', [0, 1.25, -0.75], 14)],
+    crewStations: [
+      { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
+      // Ahead, to the sides and above, over the pilot; the engine and propeller blank the rear.
+      { id: 'observer', label: 'Observer', crewIndex: 1, guns: [0], arcs: [{ azimuthDeg: [-115, 115], elevationDeg: [-25, 70] }], bombAimer: true, eye: [0, 1.35, -0.3] },
+    ],
+    // 1915 bombs were artillery shells with fins: one 155 mm and four 90 mm (84 kg of the
+    // 91 kg the type could lift). Charges are the shells' own (Pages 14-18 forum transcriptions).
+    bombs: [
+      { name: 'Obus de 155', massKg: 40, explosiveKg: 7, count: 1 },
+      { name: 'Obus de 90', massKg: 11, explosiveKg: 1, count: 4 },
+    ],
+  },
+  {
+    id: 'breguet_14b2', name: 'Breguet 14 B2', shortName: 'Br.14', manufacturer: 'Breguet', nation: 'france', alsoUsedBy: ['usa'],
+    role: 'bomber', flyable: false, introduced: '1917-08-01', retired: '1918-11-11',
+    description: 'The duralumin-framed day bomber that equipped the French bombardment groups of 1918. Fast and very strong, with thirty-two small bombs on racks under the lower wings and twin Lewis guns on the observer\'s ring.',
+    geometry: geom({ layout: 'biplane', span: 14.36, lowerSpan: 13.66, length: 8.87, chord: 1.8, lowerChord: 1.75, gap: 1.75, stagger: 0.25, height: 3.33, dihedralDeg: 1.5, crew: 2, tailShape: 'rounded', fuselageWidth: 0.95, wheelTrack: 2.0 }),
+    performance: perf({ massLoaded: 1769, massEmpty: 1017, wingArea: 50.2, enginePowerHp: 300, engineType: 'inline', engineName: 'Renault 12Fcx', maxSpeedKmh: 175, maxSpeedAltM: 2000, ceilingM: 5550, climbTo3000mMin: 18, enduranceHours: 2.75, rollRate: 0.5, pitchRate: 0.55, structuralStrength: 0.95, fuelCapacityL: 260 }),
+    guns: [sync('vickers', -0.15), ...twinLewis(0.85, 2.1, 4)],
+    // The observer works both Lewis guns on one ring; his eye is over the ring, between the guns.
+    crewStations: [
+      { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [0], arcs: [] },
+      { id: 'observer', label: 'Observer', crewIndex: 1, guns: [1, 2], arcs: arcs(REAR_RING_ARCS), bombAimer: true, eye: [0, 1.12, 2.1] },
+    ],
+    // Michelin racks for 32 115 mm bombs. The charge of the 8 kg bomb is an estimate (no source found).
+    bombs: [{ name: 'Michelin 115 mm, 8 kg', massKg: 8, explosiveKg: 2.5, count: 32 }],
+  },
+  {
+    id: 'dh9', name: 'Airco D.H.9', shortName: 'D.H.9', manufacturer: 'Airco', nation: 'britain', alsoUsedBy: ['usa'],
+    role: 'bomber', flyable: false, introduced: '1918-03-01', retired: '1918-11-11',
+    description: 'Meant to replace the D.H.4, and slower than it: the Siddeley Puma never gave its rated power. The pilot and observer sit close together, and the observer has twin Lewis guns. Crews of the Independent Force paid dearly for its lack of speed.',
+    geometry: geom({ layout: 'biplane', span: 12.92, lowerSpan: 12.92, length: 9.27, chord: 1.7, gap: 1.75, stagger: 0.3, height: 3.44, crew: 2, tailShape: 'squared', fuselageWidth: 0.95, wheelTrack: 2.2 }),
+    performance: perf({ massLoaded: 1719, massEmpty: 1070, wingArea: 40.3, enginePowerHp: 230, engineType: 'inline', engineName: 'Siddeley Puma', maxSpeedKmh: 182, maxSpeedAltM: 3000, ceilingM: 4700, climbTo3000mMin: 18.5, enduranceHours: 4.5, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.85, fuelCapacityL: 340 }),
+    guns: [sync('vickers', -0.15), ...twinLewis(0.85, 2.0, 5)],
+    crewStations: [
+      { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [0], arcs: [] },
+      { id: 'observer', label: 'Observer', crewIndex: 1, guns: [1, 2], arcs: arcs(REAR_RING_ARCS), bombAimer: true, eye: [0, 1.12, 2.0] },
+    ],
+    // 460 lb: two 230 lb bombs under the lower wings. Charge: 110 lb of amatol (GWAS table).
+    bombs: [{ name: '230 lb R.A.F. HE', massKg: 104, explosiveKg: 50, count: 2 }],
+  },
+  {
+    id: 'handley_page_o400', name: 'Handley Page O/400', shortName: 'O/400', manufacturer: 'Handley Page', nation: 'britain', alsoUsedBy: ['usa'],
+    role: 'bomber', flyable: false, introduced: '1918-04-01', retired: '1918-11-11',
+    description: 'The great night bomber of the Independent Force, 100 feet across its folding wings. Two Rolls-Royce Eagles in nacelles between the wings; sixteen 112 lb bombs stand in cells inside the fuselage. Gunners in the nose, on the back and at a hatch in the floor.',
+    geometry: geom({ layout: 'biplane', span: 30.48, lowerSpan: 21.3, length: 19.16, chord: 3.05, lowerChord: 3.05, gap: 3.05, stagger: 0, height: 6.7, dihedralDeg: 2.5, crew: 4, tailShape: 'squared', fuselageWidth: 1.3, wheelTrack: 6.6, nacelleOffsetX: 3.3 }),
+    performance: perf({ massLoaded: 6060, massEmpty: 3856, wingArea: 153.1, enginePowerHp: 720, engineCount: 2, engineType: 'inline', engineName: 'Rolls-Royce Eagle VIII', maxSpeedKmh: 157, maxSpeedAltM: 0, ceilingM: 3960, climbTo3000mMin: 40, enduranceHours: 8, rollRate: 0.12, pitchRate: 0.2, structuralStrength: 0.8, fuelCapacityL: 1320 }),
+    guns: [...twinLewis(0.8, -6.1, 6), flex('lewis', [-0.5, 1.3, 3.3], 5), flex('lewis', [0.5, 1.3, 3.3], 5), flex('lewis', [0, -0.8, 4.0], 5)],
+    crewStations: [
+      { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
+      { id: 'nose', label: 'Nose gunner', crewIndex: 1, guns: [0, 1], arcs: arcs(BOMBER_NOSE_ARCS), bombAimer: true, eye: [0, 1.08, -6.1] },
+      { id: 'dorsal', label: 'Rear gunner', crewIndex: 2, guns: [2, 3], arcs: arcs(BOMBER_DORSAL_ARCS), eye: [0, 1.5, 3.6] },
+      { id: 'ventral', label: 'Ventral gunner', crewIndex: 3, guns: [4], arcs: arcs(BOMBER_VENTRAL_ARCS), eye: [0, -0.72, 4.45] },
+    ],
+    bombs: [{ name: '112 lb R.L. HE', massKg: 51, explosiveKg: 16, count: 16 }],
   },
 ];
 
