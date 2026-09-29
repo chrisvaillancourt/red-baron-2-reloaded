@@ -36,10 +36,11 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
 - **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
 
 ## Next up (priority order, 2026-09-28)
-1. **Do: human playtest** on the live URL, 5–10 missions. Every figure so far comes from
-   the autoplayer. After each flight, rate it on the debrief, add a note, press **Copy flight
-   report**, and save the report under `playtests/reports/` (steps in its README, D-083). Look
-   at:
+1. **Do: human playtest** on `pnpm dev`, 5–10 missions (one done, see 3a). Every other
+   figure comes from the autoplayer. Each flight's report saves itself to
+   `playtests/reports/` (D-084); rating it and adding a note on the debrief is optional. On
+   the live URL, press **Copy flight report** and paste it into the chat instead (D-083).
+   Look at:
    - whether the new default fight (2 veteran D.VIIs, D-078) is too hard
    - whether default balloon attacks feel punishing
    - whether sun attacks feel fair
@@ -141,7 +142,7 @@ Details in docs/ai.md ("Wave 8 results", "Known weaknesses") and DECISIONS D-073
 ## How it was built
 Parallel agents in git worktrees, one subsystem each, merged by the lead over
 eight waves. Rationale for every significant choice is in `DECISIONS.md`
-(D-001..D-083); module docs are in `docs/*.md`; playtest findings are in
+(D-001..D-084); module docs are in `docs/*.md`; playtest findings are in
 `docs/PLAYTEST.md`.
 
 ## Wave 7 release-check leftovers (docs/PLAYTEST.md)

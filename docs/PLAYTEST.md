@@ -6,11 +6,13 @@ The earlier sessions in this file were scripted or autoplayed. For human session
 flight can leave a **flight report**, so a fight that felt wrong can be flown again and
 counted. The report is versioned JSON, built on the debrief (DECISIONS "Flight reports").
 
-1. **Play** the live build or `pnpm dev`. After each flight, on the combat report page,
-   optionally rate it (Too easy / Fair / Too hard), add a one-line note, and press
-   **Copy flight report**.
-2. **Save** the report under `playtests/reports/` (naming and commit style are in its
-   README).
+1. **Play**, preferably on `pnpm dev`. After each flight, on the combat report page,
+   optionally rate it (Too easy / Fair / Too hard) and add a one-line note.
+2. **Saving is automatic on `pnpm dev`** (D-084). The report is written to
+   `playtests/reports/` as soon as the combat report opens, and written again when you
+   rate the flight or leave the note field. The strip shows "Saved to …". On the live build,
+   press **Copy flight report** and paste it into the chat, or save it by hand (naming and
+   commit style are in the folder's README).
 3. **Replay** with `node tools/playtest/replay-report.mjs <report.json>`. The autoplayer
    flies the same mission 8 times at the report's realism settings. Run 0 uses the game's
    own seeds, and the other runs reseed chance and AI. It prints the reported outcome, each

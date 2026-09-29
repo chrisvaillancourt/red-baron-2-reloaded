@@ -1,10 +1,12 @@
 # Flight reports from human playtests
 
-Each file here is one flight, copied from the debrief with **Copy flight report**
-(schema: `src/core/flightReport.ts`; background: docs/PLAYTEST.md "Human playtests").
+Each file here is one flight. Under `pnpm dev` the debrief saves them here by itself (D-084):
+on arrival at the combat report, and again after a rating or note. On the live build, use
+**Copy flight report** instead (schema: `src/core/flightReport.ts`; background:
+docs/PLAYTEST.md "Human playtests").
 Only reports from real human flights go here. `../example-report.json` shows the format.
 
-## Adding a report
+## Adding a report by hand (live build)
 
 1. After a flight, on the combat report page, pick **Too easy / Fair / Too hard** if you
    have a view, and type a short note: what happened and what felt wrong.

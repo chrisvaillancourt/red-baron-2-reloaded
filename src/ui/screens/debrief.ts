@@ -1,6 +1,7 @@
 import type { CareerPilot, DebriefReport, MedalAward, QuickMissionOptions } from '../../core/campaignTypes';
 import { buildInfo } from '../../core/build';
 import { buildFlightReport, FLIGHT_NOTE_MAX, serializeFlightReport, type FlightRating } from '../../core/flightReport';
+import { REPORT_SINK_PATH } from '../../core/reportSink';
 import type { MissionDefinition, MissionResult, Nation, VictoryClaim } from '../../core/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import type { ScreenFactory } from '../context';
@@ -191,8 +192,22 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
   // flight report. State lives here so it survives re-rendering the page.
   let rating: FlightRating | null = null;
   let note = '';
+  // One timestamp per flight: every save of this debrief names the same file (D-084).
+  const reportNow = new Date();
+  // Dev server only, and not under browser automation (e2e, replay shots), unless a test asks
+  // for it with ?reportSink=1.
+  const sinkOn = import.meta.env.DEV && (!navigator.webdriver || new URLSearchParams(location.search).has('reportSink'));
+  let savedAs = '';
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  const savedLabel = h('span', { class: 'muted playtest-saved', 'data-testid': 'flight-report-saved', role: 'status' });
 
+  let firstSave = true;
   function playtestStrip(): HTMLElement {
+    // Save as soon as the report page opens: a flight is kept even if nobody rates it.
+    if (firstSave) {
+      firstSave = false;
+      setTimeout(saveNow, 0);
+    }
     const input = h('input', {
       class: 'input',
       type: 'text',
@@ -200,7 +215,11 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
       placeholder: 'A note for the report (optional)',
       'aria-label': 'Playtest note',
       value: note,
-      onInput: (e: Event) => (note = (e.target as HTMLInputElement).value),
+      onInput: (e: Event) => {
+        note = (e.target as HTMLInputElement).value;
+        scheduleSave();
+      },
+      onBlur: () => saveNow(),
       // Esc in the note only leaves the field. Menu nav (nav.ts) would also go "back", which
       // on a quick mission's one-page debrief leaves the screen and loses the rating and note;
       // it skips events already handled (defaultPrevented).
@@ -217,11 +236,45 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
       segmented(
         (Object.keys(RATING_LABEL) as FlightRating[]).map((r) => ({ value: r, label: RATING_LABEL[r] })),
         rating ?? ('' as FlightRating),
-        (v) => (rating = v),
+        (v) => {
+          rating = v;
+          saveNow();
+        },
       ),
       input,
       h('button', { class: 'btn small', type: 'button', 'data-testid': 'copy-flight-report', onClick: () => void copyFlightReport() }, 'Copy flight report'),
+      savedLabel,
     );
+  }
+
+  function scheduleSave(): void {
+    if (!sinkOn) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 700);
+  }
+
+  /** Send the report to the dev server's sink (vite.config.ts), which writes it to playtests/reports/. */
+  function saveNow(): void {
+    if (!sinkOn) return;
+    clearTimeout(saveTimer);
+    let text: string;
+    try {
+      text = flightReportText();
+    } catch (e) {
+      console.error('[ui] flight report failed', e);
+      return;
+    }
+    fetch(REPORT_SINK_PATH, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: text })
+      .then(async (res) => {
+        const body = (await res.json().catch(() => ({}))) as { file?: string; dir?: string; error?: string };
+        if (!res.ok || !body.file) throw new Error(body.error ?? `HTTP ${res.status}`);
+        savedAs = `${body.dir ?? 'playtests/reports'}/${body.file}`;
+        savedLabel.textContent = `Saved to ${savedAs}`;
+      })
+      .catch((e: unknown) => {
+        console.warn('[ui] flight report not saved', e);
+        savedLabel.textContent = 'Not saved: use Copy flight report.';
+      });
   }
 
   function flightReportText(): string {
@@ -236,6 +289,7 @@ export const debriefScreen: ScreenFactory = (ctx, params) => {
         rating,
         note,
         build: buildInfo(),
+        now: reportNow,
       }),
     );
   }
