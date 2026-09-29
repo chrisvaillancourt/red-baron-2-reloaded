@@ -11,8 +11,8 @@ can play for an evening without hitting a blocker. Everything still open below
 is minor or polish, and each item carries a disposition.
 
 Verified on `main` after the wave-9 merges: `npx tsc --noEmit` clean, `pnpm test`
-362 passed (23 env-gated soak tests skipped), `pnpm e2e` 17 passed (1 gated
-soak skipped). The deploy passed on the pinned `ubuntu-24.04` runner, and
+382 passed (24 env-gated soak tests skipped), `pnpm e2e` 18 passed (1 gated
+soak skipped) with no game running on the same GPU (FRICTION F-20). The deploy passed on the pinned `ubuntu-24.04` runner, and
 `pnpm prodcheck` passed on the live URL.
 
 ## Current figures (wave 9 re-baseline, 2026-09-28, commit f84cb16)
@@ -34,6 +34,33 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
 - **Ambush entries** where stalking can apply (14 runs each): veteran 57%, ace 62%,
   stalker ace 100% (all unseen). Unchanged from wave 8.
 - **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
+
+## Resume here (lead handoff, 2026-09-28, end of session 1 of wave 9)
+- **In flight: the defence agent.** Worktree `.claude/worktrees/agent-a62654b98429b6a5d`,
+  branch `worktree-agent-a62654b98429b6a5d`, **not merged**. Its first pass (brake turn and
+  counter-attack; the full escalation ladder measured worse against the veteran
+  autoplayer) was **held**: the circling a human sees stays, and AI-to-AI collisions went
+  from 7 to 14. It was re-briefed (user's choice):
+  1. merge main into its branch
+  2. build a human-like pursuer (`AUTOPLAY_PILOT=human`: aim lag, aim error, reaction
+     delay, human fire discipline), calibrated to the user's reports (fixed-gun
+     accuracy about 8–10%; first check whether `outcome.hits` counts the Bristol
+     observer's gun)
+  3. add aim telemetry to the flight recorder
+  4. re-test defence designs (a) main, (b) brake turn, (c) full ladder, (d) a mix,
+     against both pursuers, with a visible-variety metric
+  5. report a table
+  **Next for the lead:** review it (run `code-review`), merge it, replay the user's reports
+  in `playtests/reports/` and `playtests/inbox/` against it, and re-baseline "Current
+  figures" with `tools/dev/ab.mjs`. The default fight was 26% with the first defence pass,
+  which isn't on main; main is ~30%.
+- **Then: mutual support** (3a below), on the same pursuers.
+- **Then: bombers and gunner seats.** The scope, the survey of today's code and the plan are
+  in `docs/bombers.md`. **Pause and check with the user before starting it** (their
+  standing instruction: save status and pause before any big feature). Its AI track waits
+  for the defence merge.
+- **Waiting on the user:** 3–5 flights at the default setup (a Camel against 2 veteran
+  D.VIIs at 2,500 m) with ratings, and the LICENSE decision.
 
 ## Next up (priority order, 2026-09-28)
 1. **Do: human playtest** on `pnpm dev`, 5–10 missions (one done, see 3a). Every other
