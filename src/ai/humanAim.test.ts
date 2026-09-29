@@ -44,6 +44,18 @@ describe('HumanAim', () => {
     expect(angle()).toBeLessThan(1);
   });
 
+  it('takes up a target from where the nose points, not the flight path', () => {
+    const h = new HumanAim(CLEAN, makeRng(1));
+    const s = shooter();
+    // Sinking at 10 m/s with the nose level (flight path about 11 degrees below the nose), and
+    // a target dead ahead of the nose: he starts on it.
+    s.state.velocity.set(0, -10, -50);
+    const tp = new Vector3(0, 0, -200);
+    const out = new Vector3();
+    h.track(s, 7, tp, new Vector3(0, -10, -50), 800, 0, DT, out);
+    expect(out.angleTo(tp) / DEG).toBeLessThan(2);
+  });
+
   it('keeps leading the old way for the reaction delay after the target reverses', () => {
     const h = new HumanAim({ ...CLEAN, aimLagS: 0.001 }, makeRng(1));
     const s = shooter();

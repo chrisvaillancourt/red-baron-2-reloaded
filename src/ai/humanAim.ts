@@ -25,7 +25,7 @@
  */
 import { Vector3 } from 'three';
 import { leadSolution, type LeadSolution } from './gunnery';
-import { angleBetween, DEG, rightOf, upOf } from './math';
+import { angleBetween, DEG, forwardOf, rightOf, upOf } from './math';
 import type { AircraftEntity } from '../core/types';
 
 export interface HumanPilotParams {
@@ -154,7 +154,7 @@ export class HumanAim {
       this.targetId = targetId;
       this.hist.length = 0;
       // He takes up the target from wherever the nose points now.
-      this.aim.copy(s.velocity.lengthSq() > 1 ? s.velocity : _v.set(0, 0, -1).applyQuaternion(s.orientation)).normalize();
+      forwardOf(s.orientation, this.aim);
     }
     this.lastT = now;
     this.hist.push({ t: now, vel: targetVel.clone() });
