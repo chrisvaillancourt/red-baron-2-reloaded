@@ -113,6 +113,40 @@ describe('AI bombers on the real flight model', { timeout: 60_000 }, () => {
     expect(player.minMiss).toBeLessThan(30);
   });
 
+  it('comes round for a later run when he takes the waypoint facing away, or misses the first', () => {
+    // Heading east, 3 km past the depot; then 1 km short of it and 450 m off to one side, with
+    // the bombs' throw (about 1 km from 2,500 m) already past it: a certain miss on the first run.
+    const cases = [
+      { x: 9000, z: 0 },
+      { x: 5000, z: 450 },
+    ];
+    for (const c of cases) {
+      const { world, lead, wings, dumps } = raid();
+      for (const w of wings) w.outcome = 'disengaged'; // alone
+      lead.state.position.set(c.x, 2500, c.z);
+      const bursts: Vector3[] = [];
+      let firstRelease = Infinity;
+      runSim(world, 900, {
+        onStep: (t) => {
+          for (const e of world.events.splice(0)) {
+            if (e.type === 'bomb-exploded') bursts.push(e.position.clone());
+            if (e.type === 'bomb-released') firstRelease = Math.min(firstRelease, t);
+          }
+          return bursts.length >= 4;
+        },
+      });
+      const ctl = world.controllers.get(lead.id)!;
+      if (process.env.BOMB_DEBUG) process.stdout.write(`case ${c.x},${c.z} t=${world.time.toFixed(0)} release=${firstRelease.toFixed(0)} ${ctl.debugState}\n`);
+      expect(getBombStats(lead).dropped, `from (${c.x}, ${c.z}): bombs dropped (${ctl.debugState})`).toBe(4);
+      // On the target area, not wherever he gave up.
+      const near = bursts.filter((b) => dumps.some((d) => Math.hypot(b.x - d.position.x, b.z - d.position.z) < 300)).length;
+      expect(near, `from (${c.x}, ${c.z}): bursts within 300 m of a dump`).toBeGreaterThanOrEqual(3);
+      // Not on this pass: he went out and came round (a run from 6 km takes over a minute).
+      expect(firstRelease, `from (${c.x}, ${c.z}): first release`).toBeGreaterThan(90);
+      expect(lead.outcome).toBeNull();
+    }
+  });
+
   it('holds formation under attack and does not jink on the run', () => {
     let defended = 0;
     let slotErr = 0;

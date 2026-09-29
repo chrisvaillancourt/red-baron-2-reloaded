@@ -151,8 +151,10 @@ false-to-true change; it sets the flag for one AI tick and clears it the next).
 - **Release.** He starts his stick when the predicted impact is half a stick short of the
   target, so the stick straddles it: all his bombs, 0.25 s apart (rounded up to whole AI
   ticks, about 13 m apart at a D.H.4 formation's speed). More than 35 m off to one side, he
-  goes round (4.5 km back along the run, in banked turns) for another run; on the third he
-  releases anyway.
+  goes round (6 km back along the run, beyond its start, in banked turns) for another run; on
+  the third he releases anyway. The run starts only with the target within 30° of his track:
+  further off he turns in first, and closer than 2.5 km facing away (a wingman who takes over
+  the lead near the target, say) he goes out the way he is heading and comes round.
 - **The formation releases on its leader**, as crews did. A bomber keeping station sees his
   leader's first bomb go (`getBombStats(leader).dropped`, so a human leader works the same
   way), notes where it falls, and starts his own stick when his own predicted impact comes
@@ -223,7 +225,8 @@ wingmen release after the leader, the run's last 20 s are within 12° of bank an
 height, and the formation then heads for its rally point together. Under attack by two
 veteran D.VIIs (3 seeds), nobody breaks off to defend while a flight-mate flies beside him,
 the wingmen hold their slots within 60 m on average up to the release, and the leader bombs
-every time.
+every time. A lone bomber started 3 km past the target heading away, or 1 km short and 450 m
+off the line (a certain miss), comes round and bombs the target on a later run.
 
 **Raid survey** (`AI_SOAK=raid AI_RAID_REPS=24`, commit 6216291; the autoplayer leads a
 D.H.4 vic, 24 raids a setup, 3 bombers each; "on target" is a burst that damaged a target):

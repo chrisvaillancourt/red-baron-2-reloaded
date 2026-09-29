@@ -14,6 +14,12 @@ import { DEG } from './math';
 export const STICK_INTERVAL_S = 0.25;
 /** The run proper starts this far (m, horizontally) from the aim point: straight and level from here. */
 export const RUN_START_M = 5000;
+/** The run starts only with the aim point within this angle of his track (rad); otherwise he turns in first. */
+export const RUN_FACING = (30 * Math.PI) / 180;
+/** Closer than this (m) and facing away, he goes out and comes round rather than turning in. */
+export const RUN_MIN_TURN_IN_M = 2500;
+/** Going round: out to this far (m) from the aim point, beyond the run's start, then back in. */
+export const REVERSE_OUT_M = RUN_START_M + 1000;
 /** Largest cross-track miss (m) at which the leader still releases, on his first two runs. */
 export const RELEASE_CROSS_M = 35;
 /** Runs over the target before the leader releases whatever the cross-track miss. */

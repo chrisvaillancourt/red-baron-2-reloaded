@@ -56,7 +56,7 @@ import { getSimInternal } from '../sim/flightModel';
 import { gunnerFacesForward } from '../sim/hitboxes';
 import { getBombStats, predictBombImpact } from '../sim/bombs';
 import { crewStations } from '../data/crew';
-import { blindSpot, bodyDirection, bombsAboard, canBomb, isBomber, chooseAimTarget, crewAlive, gunnersOf, MAX_RUNS, RELEASE_CROSS_M, RUN_START_M, stationBearing, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
+import { blindSpot, bodyDirection, bombsAboard, canBomb, isBomber, chooseAimTarget, crewAlive, gunnersOf, MAX_RUNS, RELEASE_CROSS_M, REVERSE_OUT_M, RUN_FACING, RUN_MIN_TURN_IN_M, RUN_START_M, stationBearing, STICK_INTERVAL_S, TARGET_AREA_M } from './bombing';
 
 export interface AIControllerOptions {
   role: FlightRole;
@@ -1471,9 +1471,10 @@ export class AIPilot implements AIController {
     steer.speed = this.traits.cruiseSpeed;
     steer.maxG = 2;
     if (br.stage === 'reverse') {
-      // Round for another run: out to 4.5 km back along the last run, in banked turns.
-      const px = wp.x - br.dir.x * 4500;
-      const pz = wp.z - br.dir.z * 4500;
+      // Round for another run: out beyond the run's start, back along the last run (or the
+      // way he came, if he never had one), in banked turns. The approach then turns him in.
+      const px = wp.x - br.dir.x * REVERSE_OUT_M;
+      const pz = wp.z - br.dir.z * REVERSE_OUT_M;
       steer.dir.copy(toPointSteer(self, px, alt, pz));
       limitTurnDemand(self, steer.dir, 40 * DEG);
       if (Math.hypot(px - s.position.x, pz - s.position.z) < 1200) br.stage = 'approach';
@@ -1486,7 +1487,14 @@ export class AIPilot implements AIController {
       aim = chooseAimTarget(targets, this.formationLateral(self, world, to), s.position, to, this.bombCharge(self)) ?? targets[0];
       br.targetId = aim.id;
       const d = Math.hypot(aim.position.x - s.position.x, aim.position.z - s.position.z);
-      if (d > RUN_START_M) {
+      const facing = Math.acos(clamp(hv.dot(to), -1, 1));
+      if (d > RUN_START_M || facing > RUN_FACING) {
+        // Too close to turn in and still settle on the run: go out and come round.
+        if (d < RUN_MIN_TURN_IN_M && facing > RUN_FACING) {
+          br.stage = 'reverse';
+          br.dir.copy(to);
+          return true;
+        }
         steer.dir.copy(toPointSteer(self, aim.position.x, alt, aim.position.z));
         return true;
       }
