@@ -36,32 +36,37 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
 - **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
 
 ## Resume here (lead handoff, 2026-09-28, session 2 of wave 9)
-- **In flight: the defence agent.** Worktree `.claude/worktrees/agent-a62654b98429b6a5d`,
-  branch `worktree-agent-a62654b98429b6a5d`, **not merged**. Its first pass (brake turn and
-  counter-attack; the full escalation ladder measured worse against the veteran
-  autoplayer) was **held**: the circling a human sees stays, and AI-to-AI collisions went
-  from 7 to 14. It was re-briefed (user's choice):
-  1. merge main into its branch
-  2. build a human-like pursuer (`AUTOPLAY_PILOT=human`: aim lag, aim error, reaction
-     delay, human fire discipline), calibrated to the user's reports (fixed-gun
-     accuracy about 8–10%; first check whether `outcome.hits` counts the Bristol
-     observer's gun)
-  3. add aim telemetry to the flight recorder
-  4. re-test defence designs (a) main, (b) brake turn, (c) full ladder, (d) a mix,
-     against both pursuers, with a visible-variety metric
-  5. report a table
-  **Next for the lead:** review it (run `code-review`), merge it, replay the user's reports
-  in `playtests/reports/` and `playtests/inbox/` against it, and re-baseline "Current
-  figures" with `tools/dev/ab.mjs`. The default fight was 26% with the first defence pass,
-  which isn't on main; main is ~30%.
-- **Then: mutual support** (3a below), on the same pursuers.
-- **In progress: bombers and gunner seats** (user said go, 2026-09-28). The lead's contracts
-  landed (D-086, `src/data/crew.ts`). Tracks A (sim), B (data, models and effects) and C (game
-  and UI) run in worktrees; track D (campaign and AI) starts once the defence track has
-  merged. The plan, the file each track owns, and the merge order are in `docs/bombers.md`
-  "Waves". **Lead at merge:** A before C (C's gunner seat needs A's `stationInputs`), then B;
-  run the fairness and career soaks against `main` for A (today's two-seaters must be within
-  noise); flip `flyable` for the bombers only after A, C and D have merged. The defence track and the `src/ai` `crew >= 2` checks merged on 2026-09-28, so track D can start.
+- **Merged: the defence track** (D-085, D-087; item 4 below). **Lead still owes:** replay
+  the user's reports (`playtests/reports/` and the main checkout's `playtests/inbox/`)
+  against it with `node tools/playtest/replay-report.mjs`, and re-baseline "Current figures"
+  with `tools/dev/ab.mjs` once the bomber tracks have merged (they move the same figures).
+- **In progress: bombers and gunner seats** (user said go, 2026-09-28; plan, file
+  ownership and merge order in `docs/bombers.md` "Waves"):
+  - **Contracts:** landed (D-086, `src/data/crew.ts`).
+  - **Track A (sim): merged** (D-088), after a code review and ten fixes. The career A/B
+    against main is within noise. Its `src/ai/autopilot.ts` effective-weight change is on
+    main too.
+  - **Track C (game and UI):** reviewed; it is merging main, swapping its stand-ins for
+    track A's exports, and fixing eight review items. Merge it next, then fly the two hand
+    checks in its report (the Bristol observer firing; the D.H.4 raid via `/?bombing`).
+  - **Track B (data, models and effects):** running.
+  - **Track D (campaign and AI):** starts now that the defence track has merged. It owns
+    `src/ai` and `src/campaign`.
+  - **Lead fixes on main from the track C review:** `splitSide` (an AI flying the player's
+    aircraft splits opposite ways from other AIs) and `releaseAIPilot`.
+  - **Flip `flyable`** for the bombers and the two-seaters only after A, C and D have
+    merged, and after D separates "the player may fly it" from "the AI flies it" in
+    `aircraftPool`.
+- **Then: mutual support** (item 4 below). It edits `src/ai/controller.ts`, so it waits for
+  track D.
+- **New, needs a user decision: the engine soaks up rounds meant for the pilot.** Track A
+  found that the "engine block stops a round" rule in `src/sim/combat.ts` takes the first
+  engine in the zone list, not the first along the round's path. In a single-engined tractor
+  the engine box is listed first, so a burst from astern through the cockpit into the engine
+  damages only the engine and spares the pilot. That may be part of the user's "104 hits
+  for 1 kill". Track A fixed the path order for twins only, because fixing it for everyone
+  changes the balance. **Do:** a sim agent measures the path-order fix (fairness, quick,
+  career via `ab.mjs`, plus hits-to-kill), then the lead brings the numbers to the user.
 - **Waiting on the user:** 3–5 flights at the default setup (a Camel against 2 veteran
   D.VIIs at 2,500 m) with ratings, and the LICENSE decision.
 
