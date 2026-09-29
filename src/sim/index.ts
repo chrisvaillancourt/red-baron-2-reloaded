@@ -12,6 +12,9 @@ export {
   SIM_DT,
   bankAngle,
   createFlightState,
+  effectiveMass,
+  effectiveWeight,
+  engineOffsetX,
   getSimInternal,
   headingOf,
   isStoppedOnGround,
@@ -29,6 +32,7 @@ export {
   aimFlexibleGun,
   createCombatSystem,
   getGunnerTarget,
+  getStationAim,
   setGunnerTarget,
   type CombatOptions,
   type SimCombatSystem,
@@ -36,4 +40,13 @@ export {
 export { getHitModel, gunnerFacesForward, observerForward, BALLOON_RADIUS, GROUND_TARGET_BOXES } from './hitboxes';
 export { createAircraftEntity, createControls, createDamageState, createGunStates, type NewAircraftOptions } from './entity';
 export { Autopilot, type AutopilotTarget } from './autopilot';
+export {
+  blastDamage,
+  bombMassNotAboard,
+  getBombStats,
+  loadBombs,
+  nextBombStore,
+  predictBombImpact,
+  type BombStats,
+} from './bombs';
 export { createRng, type Rng } from './rng';

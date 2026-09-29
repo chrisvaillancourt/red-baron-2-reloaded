@@ -4,7 +4,9 @@
  * flightModel.ts: nose at z = -0.36 L, tail end at z = +0.62 L, lower wing
  * root just under the CG.
  */
-import type { AircraftSpec, DamageZone, GroundTargetType } from '../core/types';
+import type { AircraftSpec, CrewStationId, DamageZone, GroundTargetType } from '../core/types';
+import { crewStations, stationEye } from '../data/crew';
+import { engineOffsetX } from './flightModel';
 
 export interface Box {
   min: [number, number, number];
@@ -13,6 +15,12 @@ export interface Box {
 
 export interface ZoneBox extends Box {
   zone: DamageZone;
+  /** Gunner boxes of types with explicit stations: the crew member (`crewWounds` index). */
+  crewIndex?: number;
+  /** ...and the station the box stands at; the man is only in it while he works that station. */
+  station?: CrewStationId;
+  /** Engine boxes of multi-engine types: the engine (`DamageState.engines` index, left first). */
+  engineIndex?: number;
 }
 
 export interface AircraftHitModel {
@@ -21,6 +29,8 @@ export interface AircraftHitModel {
   radius: number;
   /** Collision radius for mid-air collisions. */
   collisionRadius: number;
+  /** An engine box per nacelle (`engineIndex` set): a round stops at the first engine along its path. */
+  multiEngine?: boolean;
 }
 
 const cache = new Map<string, AircraftHitModel>();
@@ -45,6 +55,12 @@ export function gunnerFacesForward(spec: AircraftSpec): boolean {
 export function getHitModel(spec: AircraftSpec): AircraftHitModel {
   const hit = cache.get(spec.id);
   if (hit) return hit;
+  const model = deriveHitModel(spec);
+  cache.set(spec.id, model);
+  return model;
+}
+
+function deriveHitModel(spec: AircraftSpec): AircraftHitModel {
   const g = spec.geometry;
   const L = g.length;
   const nose = -0.36 * L;
@@ -106,10 +122,47 @@ export function getHitModel(spec: AircraftSpec): AircraftHitModel {
   zones.push(box('leftWing', -semi, -w, wy0, wy1, zFront, zBack));
   zones.push(box('rightWing', w, semi, wy0, wy1, zFront, zBack));
 
+  if (spec.crewStations) stationBoxes(spec, zones);
+  const engines = spec.performance.engineCount ?? 1;
+  const multiEngine = engines > 1 && (g.nacelleOffsetX ?? 0) > 0;
+  if (multiEngine) nacelleBoxes(spec, zones, zFront, zBack);
+
   const radius = Math.hypot(semi, Math.max(L * 0.62, 1), 2) + 0.5;
-  const model = { zones, radius, collisionRadius: Math.max(2.2, 0.38 * g.span) };
-  cache.set(spec.id, model);
-  return model;
+  return { zones, radius, collisionRadius: Math.max(2.2, 0.38 * g.span), ...(multiEngine ? { multiEngine } : {}) };
+}
+
+/**
+ * Types with explicit crew stations: a box for each gunner's station, around his eye point
+ * (0.45 m above and 0.35 m behind his gun unless the station says otherwise), replacing the
+ * single rear-gunner box; and the pilot's box at the pilot's eye when the station gives one.
+ */
+function stationBoxes(spec: AircraftSpec, zones: ZoneBox[]) {
+  for (let i = zones.length - 1; i >= 0; i--) if (zones[i].zone === 'gunner') zones.splice(i, 1);
+  for (const st of crewStations(spec)) {
+    const eye = stationEye(spec, st);
+    if (!eye) continue;
+    const [x, y, z] = eye;
+    if (st.crewIndex === 0) {
+      const k = zones.findIndex((b) => b.zone === 'pilot');
+      if (k >= 0) zones[k] = box('pilot', x - 0.32, x + 0.32, y - 1.1, y + 0.1, z - 0.4, z + 0.45);
+      continue;
+    }
+    zones.push({ ...box('gunner', x - 0.35, x + 0.35, y - 1.2, y + 0.15, z - 0.45, z + 0.45), crewIndex: st.crewIndex, station: st.id });
+  }
+}
+
+/** Twins: an engine box on each nacelle (left engine 0), in place of the one in the nose. */
+function nacelleBoxes(spec: AircraftSpec, zones: ZoneBox[], zFront: number, zBack: number) {
+  const g = spec.geometry;
+  const n = spec.performance.engineCount ?? 1;
+  const k = zones.findIndex((b) => b.zone === 'engine');
+  if (k >= 0) zones.splice(k, 1);
+  // Tractor engines sit ahead of the wing's leading edge, pushers behind its trailing edge.
+  const [z0, z1] = g.pusher ? [zBack - 0.6, zBack + 1.4] : [zFront - 1.4, zFront + 0.6];
+  for (let i = 0; i < n; i++) {
+    const x = engineOffsetX(spec, i);
+    zones.push({ ...box('engine', x - 0.5, x + 0.5, -0.65, 0.45, z0, z1), engineIndex: i });
+  }
 }
 
 /** Ground target box half-extents (x, y height full, z) and damage per round. */

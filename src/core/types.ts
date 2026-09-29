@@ -276,8 +276,10 @@ export interface ControlInputs {
   /** Pressed to hammer at a jammed gun. Edge-triggered by the input layer. */
   clearJam: boolean;
   /**
-   * Release the next bomb (edge-triggered): the pilot's release, or an AI bomb aimer's.
-   * The player working the bombsight uses `StationInputs.releaseBomb` instead.
+   * Bomb release, held: true while the release is pulled. The sim releases one bomb on
+   * each false-to-true change and never resets it, so hold it for as many steps as you
+   * like (one bomb), and let go before the next. The pilot's release, or an AI bomb
+   * aimer's; the player working the bombsight uses `StationInputs.releaseBomb` instead.
    */
   releaseBomb?: boolean;
 }
@@ -292,7 +294,10 @@ export interface StationInputs {
   /** World-frame unit vector the player aims the station's guns along. */
   aim: Vector3;
   fire: boolean;
-  /** Edge-triggered, for a bomb-aimer station. */
+  /**
+   * Bomb release at a bomb-aimer station, held like `ControlInputs.releaseBomb`: one bomb
+   * per false-to-true change, never reset by the sim.
+   */
   releaseBomb: boolean;
   /** Edge-triggered, like `ControlInputs.clearJam`. */
   clearJam: boolean;

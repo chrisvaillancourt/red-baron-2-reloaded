@@ -121,8 +121,24 @@ export interface BulletView {
   readonly age: number;
 }
 
+/** A falling bomb, exposed read-only for rendering (bombers wave; see docs/sim.md "Bombs"). */
+export interface BombView {
+  readonly position: Vector3;
+  readonly velocity: Vector3;
+  /** Index into the releasing aircraft's `spec.bombs`. */
+  readonly storeIndex: number;
+  readonly massKg: number;
+  /** The aircraft that released it. */
+  readonly shooterId: number;
+  readonly side: Side;
+  /** Seconds since release. */
+  readonly age: number;
+}
+
 export interface CombatSystem {
   readonly bullets: readonly BulletView[];
+  /** Bombs in flight (optional: absent means the system carries none). */
+  readonly bombs?: readonly BombView[];
   /** Fire guns per controls, move bullets, resolve hits/damage/jams/collisions, emit events. */
   update(world: WorldQuery, dt: number): void;
   /** Flak/AA bursts owned by combat too (ground AA guns fire at enemies in range). */

@@ -9,7 +9,7 @@
 import type { AircraftEntity, ControlInputs } from '../core/types';
 import { airDensityAt } from './atmosphere';
 import { getCoefficients } from './coefficients';
-import { bankAngle, headingOf, stickForAlpha } from './flightModel';
+import { bankAngle, effectiveWeight, headingOf, stickForAlpha } from './flightModel';
 
 export interface AutopilotTarget {
   /** Hold this altitude (m ASL). */
@@ -61,7 +61,7 @@ export class Autopilot {
     // --- inner loop: gamma via stick (alpha feed-forward for the lift needed)
     const bank = bankAngle(s.orientation);
     const rho = airDensityAt(s.position.y);
-    const clNeed = (co.weight * Math.cos(gammaT)) / Math.max(0.3, Math.cos(bank)) / (0.5 * rho * V * V * co.wingArea);
+    const clNeed = (effectiveWeight(ac) * Math.cos(gammaT)) / Math.max(0.3, Math.cos(bank)) / (0.5 * rho * V * V * co.wingArea);
     const alphaFF = Math.min(co.alphaStall - 0.02, clNeed / co.clAlpha + co.alpha0);
     const gErr = gammaT - gamma;
     this.gammaInt = clamp(this.gammaInt + gErr * dt * 0.5, -0.25, 0.25);
