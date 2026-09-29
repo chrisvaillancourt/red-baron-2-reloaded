@@ -15,7 +15,6 @@ import type { SimCore } from './simCore';
 
 /** Seconds between geometry and combat samples (mission time). */
 const SAMPLE_S = 0.1;
-const COMBAT_RANGE_M = 1500;
 /** Frame-time histogram: 0.5 ms buckets up to 250 ms (4 fps). */
 const BUCKET_MS = 0.5;
 const BUCKETS = 500;
@@ -30,7 +29,6 @@ export class FlightRecorder {
   private readonly entries: EntryTracker;
   private readonly firstPass = new Map<number, PassRecord>();
   private hitsTaken = 0;
-  private combatS = 0;
   private nextSample = 0;
   private compressedRealS = 0;
   private compressedSimS = 0;
@@ -47,6 +45,8 @@ export class FlightRecorder {
     const player = world.player;
     this.loss = new LossCauseTracker(world, player, () => (player ? phaseOf(core.ai.get(player.id)) : '?'));
     this.entries = new EntryTracker(world, (id) => core.ai.get(id), (a) => String(a.id), undefined, {
+      // Combat time is reported for the player only; skip the per-aircraft turn bookkeeping.
+      combatOf: (a) => a === player,
       seenBy: (target, shooter) => (player && target.id === player.id && opts.playerKnows ? opts.playerKnows(shooter.id) : undefined),
       onPass: (p) => {
         if (!player || p.shooter.side === player.side || this.firstPass.has(p.shooter.id)) return;
@@ -70,11 +70,8 @@ export class FlightRecorder {
     if (world.time < this.nextSample) return;
     const dt = SAMPLE_S + (world.time - this.nextSample);
     this.nextSample = world.time + SAMPLE_S;
+    // Also accumulates the player's combat time: alive, with an enemy within 1.5 km.
     this.entries.sample(dt);
-    const p = world.player;
-    if (p && p.outcome === null && world.aircraft.some((a) => a.side !== p.side && a.outcome === null && a.state.position.distanceToSquared(p.state.position) < COMBAT_RANGE_M ** 2)) {
-      this.combatS += dt;
-    }
   }
 
   /**
@@ -106,7 +103,7 @@ export class FlightRecorder {
     return {
       hitsTaken: this.hitsTaken,
       lossCause: this.loss.cause,
-      combatTimeS: round1(this.combatS),
+      combatTimeS: round1(player ? this.entries.get(String(player.id)).combat : 0),
       timeCompression: { realS: round1(this.compressedRealS), simS: round1(this.compressedSimS), maxScale: this.maxScale },
       fps: this.frames ? { p50: this.fpsAt(0.5), p95: this.fpsAt(0.95), frames: this.frames } : null,
       enemies,

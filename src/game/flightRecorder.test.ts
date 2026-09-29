@@ -9,7 +9,7 @@ import { recordedQuickFlight } from './testing/recordedFlight';
 
 describe('flight recorder', () => {
   it('records hits taken, combat time and every enemy with its first pass', { timeout: 60_000 }, () => {
-    const { mission, result, hitsOnPlayer } = recordedQuickFlight();
+    const { mission, result, hitsOnPlayer, combatOnPlayerS } = recordedQuickFlight();
     const t = result.telemetry!;
     const enemyCount = mission.flights.filter((f) => f.role === 'enemy').reduce((n, f) => n + f.members.length, 0);
     expect(t.enemies).toHaveLength(enemyCount);
@@ -17,6 +17,8 @@ describe('flight recorder', () => {
     // A head-on start 2.6 km apart: combat inside 1.5 km begins within the first minute.
     expect(t.combatTimeS).toBeGreaterThan(10);
     expect(t.combatTimeS).toBeLessThanOrEqual(result.flightTimeS + 0.1);
+    // Matches an independent 10 Hz count of "alive, enemy within 1.5 km" to within a few samples.
+    expect(Math.abs(t.combatTimeS - combatOnPlayerS)).toBeLessThan(0.5);
     const passes = t.enemies.flatMap((e) => (e.firstPass ? [e.firstPass] : []));
     expect(passes.length).toBeGreaterThan(0);
     for (const p of passes) {

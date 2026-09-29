@@ -34,6 +34,8 @@ export interface EntryTrackerOptions {
    * contacts. The flight recorder answers for the human player from the HUD's awareness model.
    */
   seenBy?(target: AircraftEntity, shooter: AircraftEntity): boolean | undefined;
+  /** Which aircraft accumulate combat and flat-turn time (default: all). The approach geometry is always sampled. */
+  combatOf?(a: AircraftEntity): boolean;
 }
 
 export interface EntryAcc {
@@ -137,6 +139,7 @@ export class EntryTracker {
       if (tgt && tgt.state.position.distanceTo(a.state.position) > 600) {
         this.approach.set(a.id, { targetId: tgt.id, t: this.world.time, dh: a.state.position.y - tgt.state.position.y, upSun: this.upSun(a, tgt) });
       }
+      if (this.opts.combatOf && !this.opts.combatOf(a)) continue;
       const near = this.world.aircraft.some((e) => e.side !== a.side && !e.outcome && e.state.position.distanceToSquared(a.state.position) < 1500 * 1500);
       const g = this.get(this.key(a));
       if (near) g.combat += dt;
