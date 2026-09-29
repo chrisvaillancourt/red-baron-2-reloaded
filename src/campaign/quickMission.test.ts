@@ -120,6 +120,27 @@ describe('quick missions', () => {
       }
     });
 
+    it('builds a raid for every bomb-carrying type, below its ceiling, against the other side', () => {
+      const carriers = Object.values(AIRCRAFT).filter((s) => !!s.bombs?.length);
+      expect(carriers.length).toBeGreaterThan(1);
+      for (const spec of carriers) {
+        const central = spec.nation === 'germany';
+        for (let seed = 1; seed <= 3; seed++) {
+          const m = buildQuickMission(raid({ playerAircraft: spec.id, enemyAircraft: central ? 'sopwith_camel' : 'albatros_dv', escortCount: 2 }), seed);
+          const pf = m.flights.find((f) => f.role === 'player-flight')!;
+          expect(pf.aircraftId, spec.id).toBe(spec.id);
+          expect(pf.side).toBe(central ? 'central' : 'allied');
+          expect(pf.task).toBe('bomb');
+          const wp = bombWp(m);
+          expect(wp.targetIds!.length, spec.id).toBeGreaterThanOrEqual(2);
+          expect(wp.altitude, spec.id).toBeLessThanOrEqual(spec.performance.ceilingM);
+          for (const f of m.flights.filter((x) => x.side !== pf.side)) expect(AIRCRAFT[f.aircraftId].role, spec.id).toBe('fighter');
+          const esc = m.flights.find((f) => f.task === 'escort');
+          expect(esc && AIRCRAFT[esc.aircraftId].role, spec.id).toBe('fighter');
+        }
+      }
+    });
+
     it('wingmen fly the player\'s bomber, and the player starts at his chosen station', () => {
       const m = buildQuickMission(raid({ playerStation: 'observer' }), 3);
       const pf = m.flights.find((f) => f.role === 'player-flight')!;

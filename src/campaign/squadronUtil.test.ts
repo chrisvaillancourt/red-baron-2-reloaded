@@ -35,4 +35,15 @@ describe('AI aircraft pools', () => {
     }
     expect(aircraftPool('allied', 'bomber', '1917-10-01')).toContain('dh4');
   });
+
+  it('never put a bomber or a bomb carrier in a fighter pool, and no bomber is flyable', () => {
+    for (const side of ['allied', 'central'] as const)
+      for (const date of DATES)
+        for (const id of aircraftPool(side, 'fighter', date)) {
+          const spec = AIRCRAFT_LIST.find((a) => a.id === id)!;
+          expect(spec.role, `${side} ${date} ${id}`).toBe('fighter');
+          expect(spec.bombs?.length ?? 0, `${side} ${date} ${id}`).toBe(0);
+        }
+    for (const a of AIRCRAFT_LIST.filter((s) => s.role === 'bomber')) expect(a.flyable, a.id).toBe(false);
+  });
 });
