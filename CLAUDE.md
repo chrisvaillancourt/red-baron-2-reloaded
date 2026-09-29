@@ -61,6 +61,10 @@ Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
   `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`) instead of downloading.
   Modals fade in over about 0.5 s, and Playwright counts a fading modal as visible, so wait
   for the fade to finish before a screenshot.
+- **A red full e2e run under load isn't proof of a bug.** Spec files run in parallel on one
+  GPU, and the user may be playing on `pnpm dev`. Re-run the failing specs alone, then
+  compare with a baseline `git worktree` at the previous commit before blaming your change
+  (FRICTION F-20).
 - **Test helpers:** never import from a `*.test.ts` file, because Vitest registers its tests
   again in the importing file. Shared fixtures go in a `testing/` module, like
   `src/game/testing/`. Vitest can swallow `console.log` in tests, so print soak output
