@@ -253,8 +253,11 @@ export interface Livery {
   insignia: 'iron-cross-patee' | 'balkenkreuz' | 'roundel-rfc' | 'roundel-france' | 'roundel-usa';
   /** Optional identifying marking: letter/number painted on fuselage. */
   marking?: string;
-  /** Optional pattern key (e.g. 'lozenge', 'streaked', 'stripes'); renderer may ignore. */
-  pattern?: 'plain' | 'lozenge' | 'streaked' | 'clear-doped' | 'pc10' | 'stripes';
+  /**
+   * Optional pattern key (e.g. 'lozenge', 'streaked', 'stripes'); renderer may ignore.
+   * 'disruptive': the 1918 French multi-colour camouflage (Breguet 14).
+   */
+  pattern?: 'plain' | 'lozenge' | 'streaked' | 'clear-doped' | 'pc10' | 'stripes' | 'disruptive';
 }
 
 // ---------------------------------------------------------------------------

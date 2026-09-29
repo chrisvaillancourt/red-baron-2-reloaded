@@ -183,6 +183,11 @@ export interface AircraftVisual {
   readonly stationEyes?: ReadonlyMap<CrewStationId, Vector3>;
   /** Swing a station's gun ring and barrels to point along `aimBody` (body-frame unit vector). */
   setStationAim?(station: CrewStationId, aimBody: Vector3): void;
+  /**
+   * The camera is at this crew station's eye (null: at none): hide the figure of the crew
+   * member who works it, as `setCockpitView` hides the pilot. Other figures stay visible.
+   */
+  setStationView?(station: CrewStationId | null): void;
   /** Sync transform, propeller spin, control surfaces, damage decals, smoke emitters. */
   update(ac: AircraftEntity, dt: number): void;
   /** When true: show the 3D cockpit + instruments, hide the pilot head/parts that clip the camera. */
