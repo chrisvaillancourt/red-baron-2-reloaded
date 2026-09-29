@@ -127,6 +127,12 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   (`engineCount` > 1 with `nacelleOffsetX`) have an engine box per nacelle (left engine 0),
   ahead of the wing for tractors and behind it for pushers, and none in the nose. Every
   other type's boxes are unchanged.
+  * **The engine stops a round.** On multi-engine types the first engine box along the
+    path stops it, so a beam shot spares the far engine and everything behind the near one.
+    Single-engined types keep the older cut by zone-list order. In a tractor the engine
+    comes first in that list, so any round whose path crosses the engine box damages only
+    the engine: a shot from astern that passes through the pilot into the engine spares
+    the pilot. Changing that would change today's balance, so it waits for a lead decision.
 * **Damage.** Engine (smoke > 0.4, dead at 1, small fire chance; on twins a hit finds one engine, the zone holds the worst), fuel tank (leaks, fire),
   pilot/gunner (not every round in the box finds the man; each pilot hit adds 0.22 wound and
   kills with probability (0.07 + 0.25 × wounds) × severity, the fifth hit certainly), wings/tail/fuselage
@@ -160,9 +166,15 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
     override). `getGunnerTarget(ac, station?)` reads it back.
   * **Wounds:** types with explicit `crewStations` track `damage.crewWounds` per crew
     member (combat fills it in on first sight; index 0 mirrors the pilot). A gunner hit
-    wounds one man (+0.34, killed at 1 or with 25% chance, the old gunner rule), and the
-    `gunner` zone holds the worst wound. A killed man's stations fall silent. Types
-    without explicit stations keep the single `gunner` zone.
+    wounds one man (+0.34, killed at 1 or with 25% chance, the old gunner rule). A killed
+    man's stations fall silent. The `gunner` zone is the *least*-wounded gunner's wound,
+    so `zones.gunner >= 1` still means "no gunner left", as for a two-seater. For
+    per-man logic read `crewWounds`. Types without explicit stations keep the single
+    `gunner` zone.
+  * **Gunless stations** (a bombsight that shares the nose gunner's `crewIndex`) belong to
+    that man too. The player puts him there, and his hit box is live there while he is.
+    The AI moves him only between armed stations, and back to a gun when the player
+    leaves.
   * **The player at a station** (`ac.stationInputs`, set by the game layer): his `aim`
     (world unit vector) and `fire` drive that station's guns continuously. They fire only
     inside the station's arcs, with the gun's own dispersion (0.0025 rad) and no aim error,
@@ -171,23 +183,35 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
     and the other crew stay AI.
   * `aimFlexibleGun(ac, mountIndex, point)` returns the direction and whether it is in the
     gun's station arcs. `getStationAim(ac, station)` is where a station's guns are laid this
-    step (the AI solution or the player's aim), null when idle, for the renderer's
+    step (the AI solution or the player's aim), null when idle or out of the fight, for the renderer's
     `setStationAim`. `gun-fired.mountIndex` says which gun fired.
 * **Bombs** (`bombs.ts`, combat). `spec.bombs` is the load, and `ac.bombs` the count left per store.
   * **Loading:** the game layer calls `loadBombs(ac)` for a sortie that carries bombs. An
     aircraft whose `bombs` stays unset carries none. `massLoaded` includes the full load,
-    so the flight model subtracts every bomb not aboard (`bombMassNotAboard`). A D.H.4
-    without a bomb load is 204 kg lighter than its loaded weight.
-  * **Release:** one bomb per rising edge of `controls.releaseBomb` (the pilot or an AI
-    bomb aimer) or of `stationInputs.releaseBomb` at a `bombAimer` station. Holding either
-    releases one; neither is consumed. The heaviest store with bombs left goes first (ties
+    so the flight model subtracts every bomb not aboard. `effectiveMass(ac)` /
+    `effectiveWeight(ac)` give it: use them, not `FlightCoefficients.mass` / `weight` (the
+    full loaded figures, used only for calibration), wherever the aircraft's weight
+    matters. The flight model, the ground contact and the sim autopilot's lift
+    feed-forward do. `createFlightState(…, massKg?)` trims for `massKg` (default the full
+    load), and `createAircraftEntity({ …, bombs })` sets the load and trims for it. A
+    D.H.4 without a bomb load is 204 kg lighter than its loaded weight.
+  * **Release:** both `controls.releaseBomb` (the pilot or an AI bomb aimer) and
+    `stationInputs.releaseBomb` (at the `bombAimer` station) are *held* inputs. The sim
+    releases one bomb per false-to-true change and never resets them, unlike `clearJam`.
+    Holding either releases one bomb.
+  * **Who can release:** the station release needs the bomb aimer alive. The controls
+    release needs the pilot alive. Unless the player himself is in the pilot's seat, it
+    also needs the aimer alive: an AI crew, or the AI flying while the player works a
+    gun, can't release for a dead aimer. There is no release on the ground or below 5 m
+    above it. The heaviest store with bombs left goes first (ties
     to the lower index). The bomb leaves from the CG with the aircraft's world velocity,
     and emits `bomb-released`.
   * **Ballistics:** gravity plus quadratic drag relative to the air, so the wind drifts it.
     k = ½ ρ C_d A / m with C_d 0.25 and a 0.2 m body for 50 kg (diameter ∝ mass^⅓), about
     1·10⁻⁴ /m for a 50 kg bomb at sea level (terminal speed about 320 m/s). The ground is `env.groundHeightAt`.
     `predictBombImpact(ac, env, store?)` runs the same integrator and returns the burst
-    point and fall time, within about a metre of the real fall. `combat.bombs`
+    point and fall time, within about a metre of the real fall. A bomb still falling after
+    120 s is discarded without a burst, where the prediction returns null. `combat.bombs`
     (`BombView[]`) lists the bombs in flight for the renderer.
   * **Blast:** Hopkinson-Cranz scaling on Z = r / W^⅓ (r to the target box's nearest face,
     W the charge). A target is destroyed inside Z_kill, and damage falls as the square of
