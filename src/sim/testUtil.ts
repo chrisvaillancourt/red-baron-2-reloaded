@@ -13,7 +13,8 @@ export function realism(over: Partial<RealismSettings> = {}): RealismSettings {
 
 export function makeAircraft(
   id: AircraftId,
-  opts: { entityId?: number; x?: number; z?: number; altitude?: number; heading?: number; airspeed?: number; onGround?: boolean; groundH?: number } = {},
+  /** `loaded`: carry the spec's full bomb load (without it a bomber flies empty, D-088). */
+  opts: { entityId?: number; x?: number; z?: number; altitude?: number; heading?: number; airspeed?: number; onGround?: boolean; groundH?: number; loaded?: boolean } = {},
 ) {
   const env = flatEnv(opts.groundH ?? 50);
   const spec = getAircraft(id);
@@ -22,6 +23,7 @@ export function makeAircraft(
     spec,
     env,
     onGround: opts.onGround,
+    bombs: opts.loaded ? spec.bombs?.map((b) => b.count) : undefined,
     start: { x: opts.x ?? 0, z: opts.z ?? 0, altitude: opts.altitude ?? 1000, heading: opts.heading ?? 0, airspeed: opts.airspeed ?? 45 },
   });
   return { ac, env, spec };

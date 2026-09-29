@@ -25,8 +25,9 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import type { AircraftEntity, AircraftId, DamageZone, Livery } from '../../../core/types';
+import type { AircraftEntity, AircraftId, CrewStationId, DamageZone, Livery } from '../../../core/types';
 import { AIRCRAFT_LIST, getAircraft } from '../../../data/aircraft';
+import { composeLivery } from '../../../data/liveries';
 import { createAircraftVisual, type AircraftVisualExt } from '../aircraftVisual';
 import { defaultLivery } from '../livery';
 import { SAMPLE_LIVERIES } from './liveries';
@@ -52,7 +53,7 @@ const sun = new DirectionalLight(0xfff1dc, 2.6);
 sun.position.set(12, 18, 8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 60 });
+Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, near: 1, far: 80 }); // the O/400 spans 30 m
 scene.add(sun);
 
 function grassTexture() {
@@ -97,6 +98,7 @@ function makeEntity(id: AircraftId, livery: Livery): AircraftEntity {
     guns: spec.guns.map((g, i) => ({ mountIndex: i, roundsLeft: g.rounds, sparesLeft: g.spareDrums, jammed: false, jamClearProgress: 0, heat: 0, cooldown: 0, reloading: 0 })),
     damage: { zones, onFire: false, smoking: false, fuelLeak: false, engineDead: false, pilotWounded: false, pilotKilled: false, structuralFailure: false, destroyed: false, lastAttackerId: null },
     outcome: null,
+    bombs: spec.bombs?.map((b) => b.count),
   };
 }
 
@@ -109,6 +111,12 @@ const DEFAULTS = {
   damage: 0,
   flying: false,
   lookDown: 0.12,
+  /** Look from a crew station's eye point (stationEyes) instead of orbiting. */
+  station: '' as CrewStationId | '',
+  /** Aim every station's guns at this azimuth/elevation (deg, FireArc convention); null = stowed. */
+  aim: null as [number, number] | null,
+  /** Fraction of each bomb store still aboard (1 = full load). */
+  bombs: 1,
 };
 const state = {
   id: 'fokker_dri' as AircraftId,
@@ -121,6 +129,9 @@ const state = {
   damage: 0,
   flying: false,
   lookDown: 0.12,
+  station: '' as CrewStationId | '',
+  aim: null as [number, number] | null,
+  bombs: 1,
 };
 let visual: AircraftVisualExt | null = null;
 let entity: AircraftEntity | null = null;
@@ -129,7 +140,12 @@ let loadToken = 0;
 async function load() {
   const token = ++loadToken;
   const spec = getAircraft(state.id);
-  const liv = state.livery === 'Default' ? defaultLivery(spec) : SAMPLE_LIVERIES[state.livery];
+  const liv =
+    state.livery === 'Default'
+      ? defaultLivery(spec)
+      : state.livery === 'Factory'
+        ? composeLivery({ aircraftId: spec.id, nation: spec.nation, date: spec.retired < '1918-04-15' ? spec.introduced : '1918-06-01' })
+        : SAMPLE_LIVERIES[state.livery];
   const v = await createAircraftVisual(spec, liv);
   if (token !== loadToken) return v.dispose();
   visual?.dispose();
@@ -168,7 +184,7 @@ function applyDamage() {
 const ui = document.getElementById('ui')!;
 ui.innerHTML = `
   <label>Aircraft <select id="ac">${AIRCRAFT_LIST.map((s) => `<option value="${s.id}">${s.name}</option>`).join('')}</select></label>
-  <label>Livery <select id="liv"><option>Default</option>${Object.keys(SAMPLE_LIVERIES).map((k) => `<option>${k}</option>`).join('')}</select></label>
+  <label>Livery <select id="liv"><option>Default</option><option>Factory</option>${Object.keys(SAMPLE_LIVERIES).map((k) => `<option>${k}</option>`).join('')}</select></label>
   <label>RPM <input id="rpm" type="range" min="0" max="1600" value="0"></label>
   <label><input id="wig" type="checkbox"> controls</label>
   <label><input id="fire" type="checkbox"> fire</label>
@@ -211,8 +227,21 @@ function frame(now: number) {
       entity.controls.yaw = Math.sin(t * 0.9);
     } else entity.controls.pitch = entity.controls.roll = entity.controls.yaw = 0;
     if (state.firing) for (const g of entity.guns) g.roundsLeft = g.roundsLeft > 1 ? g.roundsLeft - 1 : 400;
+    entity.bombs = entity.spec.bombs?.map((b) => Math.round(b.count * state.bombs));
+    const aim = state.aim ? dirFromAngles(state.aim[0], state.aim[1]) : null;
+    if (aim) for (const st of ['nose', 'observer', 'dorsal', 'ventral', 'rear'] as CrewStationId[]) visual.setStationAim(st, aim);
     visual.update(entity, dt);
-    if (state.cockpit) {
+    const stationEye = state.station ? visual.stationEyes.get(state.station) : undefined;
+    visual.setStationView(stationEye ? (state.station as CrewStationId) : null);
+    if (stationEye) {
+      visual.object.updateMatrixWorld(true);
+      const worldEye = visual.object.localToWorld(stationEye.clone());
+      camera.position.copy(worldEye);
+      const look = (aim ?? new Vector3(0, -0.1, -1)).clone().applyQuaternion(visual.object.quaternion);
+      camera.lookAt(worldEye.clone().add(look));
+      camera.near = 0.02;
+      camera.updateProjectionMatrix();
+    } else if (state.cockpit) {
       const eye = visual.eyePoint.clone();
       visual.object.updateMatrixWorld(true);
       const worldEye = visual.object.localToWorld(eye);
@@ -242,6 +271,13 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 renderer.domElement.addEventListener('pointerdown', () => { state.turntable = false; });
+
+/** Body-frame unit vector for a FireArc azimuth/elevation (degrees). */
+function dirFromAngles(azDeg: number, elDeg: number): Vector3 {
+  const a = (azDeg * Math.PI) / 180;
+  const e = (elDeg * Math.PI) / 180;
+  return new Vector3(Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e));
+}
 
 declare global {
   interface Window { __hangar: unknown }
@@ -275,5 +311,12 @@ window.__hangar = {
     if (entity) { entity.damage.zones.leftWing = 1; entity.damage.structuralFailure = true; }
   },
   ready: () => !!visual,
+  /** Diagnostics for screenshots: draw calls and triangles of the last frame. */
+  stats: () => ({
+    calls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+    eyes: visual ? Object.fromEntries([...visual.stationEyes].map(([k, v]) => [k, v.toArray().map((x) => +x.toFixed(2))])) : {},
+    camera: camera.position.toArray().map((x) => +x.toFixed(2)),
+  }),
 };
 load();

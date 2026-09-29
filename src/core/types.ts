@@ -217,6 +217,8 @@ export type AircraftId =
   | 'halberstadt_clii'
   | 'rumpler_civ'
   | 'albatros_ciii'
+  | 'aeg_giv'
+  | 'gotha_gv'
   // Allies
   | 'airco_dh2'
   | 'nieuport_11'
@@ -233,7 +235,11 @@ export type AircraftId =
   | 'dh4'
   | 'be2c'
   | 'fe2b'
-  | 'farman_f40';
+  | 'farman_f40'
+  | 'voisin_iii'
+  | 'breguet_14b2'
+  | 'dh9'
+  | 'handley_page_o400';
 
 // ---------------------------------------------------------------------------
 // Liveries
@@ -253,8 +259,11 @@ export interface Livery {
   insignia: 'iron-cross-patee' | 'balkenkreuz' | 'roundel-rfc' | 'roundel-france' | 'roundel-usa';
   /** Optional identifying marking: letter/number painted on fuselage. */
   marking?: string;
-  /** Optional pattern key (e.g. 'lozenge', 'streaked', 'stripes'); renderer may ignore. */
-  pattern?: 'plain' | 'lozenge' | 'streaked' | 'clear-doped' | 'pc10' | 'stripes';
+  /**
+   * Optional pattern key (e.g. 'lozenge', 'streaked', 'stripes'); renderer may ignore.
+   * 'disruptive': the 1918 French multi-colour camouflage (Breguet 14).
+   */
+  pattern?: 'plain' | 'lozenge' | 'streaked' | 'clear-doped' | 'pc10' | 'stripes' | 'disruptive';
 }
 
 // ---------------------------------------------------------------------------

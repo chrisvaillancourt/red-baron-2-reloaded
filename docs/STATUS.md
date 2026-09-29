@@ -55,10 +55,14 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
     `src/ai` and `src/campaign`.
   - **Lead fixes on main from the track C review:** `splitSide` (an AI flying the player's
     aircraft splits opposite ways from other AIs) and `releaseAIPilot`.
-  - **Track B (data, models and effects): done**, six bombers calibrated to their sources
-    (docs/models.md "Bomber specifications and sources"). It is merging main, switching
-    falling bombs to the sim's `CombatSystem.bombs`, and re-measuring its F.E.2b second Lewis
-    and B.E.2c arcs with the career A/B. Then review and merge.
+  - **Track B (data, models and effects): merged** (D-093 to D-096), after nine review
+    fixes. Six bombers calibrated to their sources (docs/models.md "Bomber specifications
+    and sources"); falling bombs are drawn from the sim's `CombatSystem.bombs`. A models test
+    now keeps every gunner's arcs off the propeller discs. **Do (next sim task):** the
+    Gotha and O/400 ventral gunners' hit boxes hang below the fuselage (`stationBoxes` in
+    `src/sim/hitboxes.ts` puts a standing man 1.2 m below every eye); centre a ventral
+    gunner's box on his eye and empty the pinned exception list in
+    `src/sim/hitboxes.test.ts` (FRICTION F-71).
   - **Do before the flip: bomber flight-model follow-ups** (`src/sim`, from track B). Give
     them to a sim agent once the damage-path agent is done with `src/sim`:
     - the propeller-diameter formula uses total power, so twins get oversized propellers;

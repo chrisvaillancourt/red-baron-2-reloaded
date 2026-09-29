@@ -1,6 +1,7 @@
 /**
  * Flies every aircraft in the 6-DOF model and compares with historical figures:
- * max level speed (+-8%), time to 3000 m (+-25%), service ceiling (rough).
+ * max level speed (+-8%), time to 3000 m (+-25%), service ceiling (rough). Bombers fly with
+ * their full bomb load aboard: the historical figures are loaded ones (D-093, "Bomber specifications").
  */
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_LIST } from '../data/aircraft';
@@ -14,7 +15,7 @@ const R = realism({ engineTorque: false, autoRudder: true, flightModel: 'standar
 function measureMaxSpeed(id: (typeof AIRCRAFT_LIST)[number]['id']): number {
   const spec = AIRCRAFT_LIST.find((s) => s.id === id)!;
   const alt = Math.max(spec.performance.maxSpeedAltM, 300);
-  const { ac, env } = makeAircraft(id, { altitude: alt, airspeed: (spec.performance.maxSpeedKmh / 3.6) * 0.95 });
+  const { ac, env } = makeAircraft(id, { altitude: alt, airspeed: (spec.performance.maxSpeedKmh / 3.6) * 0.95, loaded: true });
   const ap = new Autopilot();
   let sum = 0;
   let n = 0;
@@ -35,7 +36,7 @@ function measureClimb(id: (typeof AIRCRAFT_LIST)[number]['id']): number {
   const spec = AIRCRAFT_LIST.find((s) => s.id === id)!;
   const co = getCoefficients(spec);
   // Ground far below sea level so the climb can start at 0 m without ground contact.
-  const { ac, env } = makeAircraft(id, { altitude: 0, airspeed: co.vBestClimbSL, groundH: -500 });
+  const { ac, env } = makeAircraft(id, { altitude: 0, airspeed: co.vBestClimbSL, groundH: -500, loaded: true });
   const ap = new Autopilot();
   let t = 0;
   while (ac.state.position.y < 3000 && t < 3600) {
@@ -53,7 +54,7 @@ function rocAt(id: (typeof AIRCRAFT_LIST)[number]['id'], alt: number): number {
   const spec = AIRCRAFT_LIST.find((s) => s.id === id)!;
   const co = getCoefficients(spec);
   const vy = bestClimb(co, alt).v;
-  const { ac, env } = makeAircraft(id, { altitude: alt, airspeed: vy });
+  const { ac, env } = makeAircraft(id, { altitude: alt, airspeed: vy, loaded: true });
   const ap = new Autopilot();
   let y0 = 0;
   for (let t = 0; t < 60; t += SIM_DT) {

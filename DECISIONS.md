@@ -813,7 +813,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 **Consequences.** On `pnpm dev` every flight leaves a report with no clicks. Unrated flights are saved too, since outcome data is useful without a rating. "Copy flight report" stays as the live-build path.
 
 ## D-085 — Escalating defence: keep turning, brake-turn, reverse on a lagging pursuer (defence, wave 9)
-**Context.** The first human playtest report (5 ace D.VIIs at 300 m, rated too easy) said enemies "just fly in circles when you get into position behind them". `AI_SOAK=tailhold` confirmed it: with an enemy on his tail a defender spends 43–61% of that time circling. Every turning manoeuvre turns toward the attacker, and a pursuer inside the turn stays on that side, so re-picking a manoeuvre every 3–5 s chains into one circle. The brief proposed changing plane after a failed break: scissors, a dive and zoom, a climbing spiral or a split-S, chosen by airframe. The first round was measured against the veteran autoplayer only, whose computed lead punishes any change of direction (FRICTION F-23), so the second round measured every design against the human-like pursuer too (D-XXX "Human-like pursuer").
+**Context.** The first human playtest report (5 ace D.VIIs at 300 m, rated too easy) said enemies "just fly in circles when you get into position behind them". `AI_SOAK=tailhold` confirmed it: with an enemy on his tail a defender spends 43–61% of that time circling. Every turning manoeuvre turns toward the attacker, and a pursuer inside the turn stays on that side, so re-picking a manoeuvre every 3–5 s chains into one circle. The brief proposed changing plane after a failed break: scissors, a dive and zoom, a climbing spiral or a split-S, chosen by airframe. The first round was measured against the veteran autoplayer only, whose computed lead punishes any change of direction (FRICTION F-23), so the second round measured every design against the human-like pursuer too (D-087 "Human-like pursuer").
 **Decision.**
 - **The ladder was built, measured and rejected, against both pursuers.** Real sim, 24 seeds, D.VII with a Camel 200 m behind at 2,000 m: 441 → 647 hits and 7 → 14 of 24 shot down against the veteran; 172 → 399 hits and 0 → 6 down against the human-like pursuer. At 300 m against a Bristol: 0 → 8 and 1 → 5 down. The climbing turn never shakes him and the jink is the worst state (0.34–2.65 hits/s); anything that stops turning hands the pursuer the shot. It stays behind `TACTICS_FLAGS.defenceLadder` (off) for A/B runs.
 - **What shipped, behind `TACTICS_FLAGS.escalateDefence` (on):**
@@ -911,6 +911,59 @@ when its text has changed, so repeated `get()` calls stay cheap.
 **Decision.** Straight down from the D.H.4 observer's eye showed the fuselage and lower wing, and from typical heights the impact point was near the top edge or off the view. The sight view is wings-level and heading-up, looks down the sight line to the predicted impact (as a course-setting sight was set for height and speed), and hides the player's own aircraft. The impact is the sim's own prediction (src/sim `predictBombImpact`: quadratic drag relative to the air, wind, the aircraft's velocity at release). The drift wire is the ground track projected into the view, and the cue picks the enemy target nearest the track ahead: run-in with seconds and a steer call, release when the impact lies within the target's release radius, overshot once it is past. The radius is where the sim's `blastDamage` for that target type falls to 0.25 under the next store's charge, plus the half-width of the target's narrower side (about 19 m for a lorry, 12 m for a battery, with 20 kg). A release key held across a seat change is ignored until released. Pilot-aimed types release through `controls.releaseBomb`, others through `stationInputs.releaseBomb` at the aimer's station, both held while R is down (the lead's call: the sim drops one bomb per rising edge, and the game never pulses or clears the flag); F6 takes that station. The Quick Mission "Bombing raid" is wired but offered only on a dev server with `?bombing` (with a stand-in builder, a ground attack turned into a bomb run) until track D's builder lands.
 **Consequences.** The target runs down the wire to the mark, which is easy to read. The cue follows any change to the sim's blast table without an edit here.
 
+## D-093 — Bomber specifications: loaded figures, and which source wins (track B, bombers wave 1)
+**Context.** The six new types (AEG G.IV, Gotha G.V, Handley Page O/400, Voisin III, Breguet 14 B2, D.H.9) need specs the flight model can be calibrated to. Published figures mix loaded and empty performance, and several disagree by thousands of metres of ceiling.
+**Decision.**
+- **Loaded figures.** Every bomber's speed, climb and ceiling are with its historical bomb load, and `massLoaded` includes it (D-086), so a bomber that drops its load outperforms its card, as the real ones did. Where a loaded figure exists it wins over a higher empty one: the Gotha's 4650 m ceiling and 3000 m in 28 min with bombs (Grosz), not 6500 m; the Breguet's 5550 m with 256 kg of bombs; the AEG from an Allied test of a captured aircraft.
+- **O/400:** ceiling 3960 m (13,000 ft, Barnes), climb to 3000 m in 40 min (aeropedia).
+- **Estimates, marked in the data:** the Breguet's loaded climb (18 min) and the Michelin bomb's 2.5 kg charge; the Voisin's climb, 45 min. The first guess of 52 min fails calibration because it needs a power lapse beyond the 0.55 bound.
+- **Twins:** `enginePowerHp` is the total (2 × 260 hp Mercedes D.IVa, 2 × 360 hp Eagle VIII), and `nacelleOffsetX` puts each propeller clear of the fuselage (`aircraft.test.ts` and `models.test.ts` check it).
+- **The Gotha keeps `pusher: false`.** Its nacelles push, but the fuselage is an ordinary tractor-style one with the tail on it, and `pusher` means the boom layout to the generator and the sim.
+- **D.H.4 charge:** 16 kg, not 20: the 112 lb R.L. bomb carried 35 lb of amatol (GWAS table, "Details of Aerial Bombs").
+- Sources and the full table are in docs/models.md, "Bomber specifications and sources".
+**Consequences.** Every new type passes `coefficients.test.ts` and the 6-DOF `performance.test.ts` inside the existing tolerances, with no change to `src/sim`. The O/400's rate of climb at 1.12 × its ceiling is 0.69 m/s against the test's 1.0 limit, the closest of the roster.
+
+## D-094 — Crew stations for the bombers, and three two-seaters corrected (track B, bombers wave 1)
+**Context.** D-086 derives a pilot and one observer for any type without its own stations. That is wrong for the multi-gun bombers, and thin for three existing types.
+**Decision.**
+- **Gotha G.V:** nose (bomb aimer), dorsal and ventral ("Tunnel gun"). The dorsal and ventral share crew member 2: one gunner worked both, firing down through the tunnel. **O/400:** nose (twin Lewis, bomb aimer), dorsal (two pillar Lewis), ventral (a fourth crew member at the floor hatch). **AEG G.IV:** nose (bomb aimer) and dorsal.
+- **Arcs** for the bomber positions are read from photographs of what wings, propellers and tail leave open. The nose is open ahead, to the sides and below. The dorsal is open high and to the sides, and level astern. The ventral fires down and aft. No arc passes through a propeller disc, measured from each gun mount on the models (`models.test.ts` "fields of fire"). So the AEG's nose, just ahead of its tractor propellers (discs about 104–140° either side), stops at 100° below 35°. The Gotha's dorsal, between its pushers (discs 64–83°, up to 27° high), keeps the sides forward of the beam above 32°. The Gotha and O/400 noses are far enough forward that their discs lie beyond 120°.
+- **D.H.9 and Breguet 14 B2** list their stations so the observer's eye sits over the ring between his twin Lewis guns, not beside the first one. Their arcs copy `REAR_OBSERVER_ARCS` (`REAR_RING_ARCS`, tested equal).
+- **Voisin III:** the observer stands behind the pilot, fires a strip-fed Hotchkiss over the pilot's head from a tripod, and drops the shells.
+- **F.E.2b** gains its second Lewis, on the telescopic pillar between the cockpits, fired back over the top wing (arc 80° to −80° through astern, 8° to 80° up). The observer works both guns; D-066 left this gun out.
+- **B.E.2c:** the observer sits in the front seat under the centre section. His arcs are now the sides (from 35° off the nose, clear of the propeller disc) and back over the pilot's head, not ahead or straight up. The derived arcs had treated him as an aft-facing observer.
+- Every bomber marks exactly one bomb aimer (`aircraft.test.ts`), and `crewStationProblems` stays empty.
+**Consequences.** Fights involving the F.E.2b (a second gun) and the B.E.2c (a different field of fire) change once track A's combat reads stations. The D.H.4 and Bristol keep one Lewis each, although some carried twin Lewis; adding a second gun there is a balance change and was not done.
+
+## D-095 — Models for stations, twins and bombs; the triangle budget (track B, bombers wave 1)
+**Context.** The station views, twin engines and visible bomb loads all need things the one-observer GLB contract didn't have.
+**Decision.**
+- **Node contract** (docs/models.md):
+  - `Gun_<station>` pivots, with `_2` and up for separate mounts, and `EyePoint_<station>` empties.
+  - `Propeller_L/_R` and `Engine_L/_R` for twins, with engine 0 on the left.
+  - `Bombs` > `Bomb_<store>_<k>`.
+  - `Gunner_2` and `Gunner_3` for crew members 2 and 3.
+  - The older `Gun_Flexible` is still read.
+- **Runtime:** each bomb store merges into one mesh, and `setDrawRange` shows the bombs left (`AircraftEntity.bombs`). A store costs one draw call, and without `bombs` nothing is drawn.
+- **Additive contract:** `AircraftVisual.setStationView?(station | null)` hides the figure of the crew member at the camera's station, as `setCockpitView` hides the pilot. From the dorsal eye the camera would otherwise sit inside the gunner's head.
+- **`Livery.pattern` gains `'disruptive'`:** the French five-colour camouflage of 1917–18, used by the Breguet.
+- **Triangle budget:** a twin is 10.3–10.8k triangles, about 1.45× a Bristol F.2b (7.3k), for two nacelles and propellers, paired wheels (12-sided), three gun positions and a bomb load. The Breguet is 9.2k, most of it its 32 bombs; the D.H.9 and Voisin are 7.5k and 8.0k. In the hangar with shadows, a Gotha draws 134 calls and 21.6k triangles, against a Bristol's 108 and 14.5k.
+**Consequences.** The GLBs grew from 6.6 MB (27 types) to 9.0 MB (33 types). Track C reads `stationEyes` for the gunner camera and calls `setStationAim` and `setStationView`.
+
+## D-096 — Falling bombs drawn from the sim; bursts sized by the charge (track B, bombers wave 1)
+**Context.** Combat simulates bombs (D-086, D-088) and exposes them as `CombatSystem.bombs` (`BombView`), with `predictBombImpact` for where one will land and `getStationAim` for where each station's guns are laid.
+**Decision.**
+- **Falling bombs:** the renderer draws the sim's bombs, not a copy of its own, so wind drift and drag match. `WorldRenderer.update` takes them as an optional fifth argument, `bombs?: readonly BombView[]` (additive). Without it none are drawn. The game layer passes `this.combat.bombs`. A falling bomb is drawn at the size of its store on the rack: one table, `bombDimensions()` in `src/data/aircraft.ts`, which the aircraft JSON export hands to the Blender generator.
+- **Gun rings:** the aircraft visual reads `getStationAim(ac, station)` every update, for AI gunners and the player alike. An idle station returns to its rest pose, and `aimFlexibleGun` / `setStationAim` apply only while the sim has no aim there.
+- **Bursts:** the flash, fireball and earth fountain scale with 1.2 · kg^⅓ of charge.
+- **Craters:** a crater decal is draped over the terrain. All the mission's craters are one merged mesh, reused as a ring of 128.
+- **Audio:**
+  - The release clunk.
+  - A whistle heard only within 700 m of the sim's predicted impact (`predictBombImpact`), timed to end at it.
+  - A burst whose loudness, reach and pitch follow the charge.
+  - Twin engines: two voices, the second 1.3% fast so the pair beats, each with its own `damage.engines[i]`.
+**Consequences.** Until the game layer passes `combat.bombs`, bursts and craters still appear, but no bomb is drawn falling. The crater texture is created with the effects system, so the first burst doesn't recompile a shader (a 150 ms frame before).
+
 ## D-XXX — AI pools apart from flyable (campaign and AI track, bombers wave 1)
 **Context.** `aircraftPool` (`src/campaign/squadronUtil.ts`) kept only non-flyable two-seaters in AI recon and bomber flights (`!a.flyable`), which in practice left out the one flyable two-seater, the Bristol F.2b. The bombers wave makes the R.E.8, D.H.4, Rumpler and the other two-seaters flyable, and that rule would have emptied the pools.
 **Decision.** "The player may fly it" (`flyable`) and "the AI flies it in recon and bomber flights" are separate. The pools no longer read `flyable`; recon and bomber pools leave out only `AI_FIGHTER_TWO_SEATERS` (the Bristol F.2b), which the AI flies as a fighter. A test flips every two-seater and bomber to flyable and checks every pool (both sides, four roles, eight dates) is unchanged. Bombers stay in the bomber pool, so track B's new types join career bomb-task flights as soon as they are in service.
@@ -931,4 +984,3 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Interceptor approach.** Above novice, against a bomber from 250 m to 1.8 km, a fighter first flies to the direction (from the bomber) covered by the fewest of its live gunners' arcs, among below-and-behind, below-the-beam and ahead-and-below candidates, nearest his bearing with ahead of the beam penalised 150°. That puts him below and behind every type whose tail is open; a Gotha's tunnel gun would move him to below the beam. Inside a 25° cone of it, or 250 m, the ordinary pursuit takes over. `TACTICS_FLAGS.blindSpot` (on). The D-085 defence and fighter-on-fighter pursuit are untouched: the approach applies only to bomber targets.
 - **Escorts.** A bombers' escort engages only scouts coming at a bomber (within 1.5 km) or at itself (700 m), and drops a target that goes more than 1.2 km from the bombers. Recon escorts keep the old rule.
 **Consequences.** Against a pair of D.H.4s (8 seeds) a veteran D.VII spends 87% of its time within 700 m out of the gunners' arcs, against 57%, and takes 5 hits instead of 33, for the same hits on the bombers. Career escort missions of bomb-task flights change for the autoplayer and its enemies alike (career A/B in docs/ai.md "Bombers").
-||||||| 1612485

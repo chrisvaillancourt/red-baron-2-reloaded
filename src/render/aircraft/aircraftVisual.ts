@@ -16,6 +16,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  Quaternion,
   SRGBColorSpace,
   Sprite,
   SpriteMaterial,
@@ -24,7 +25,12 @@ import {
   type Texture,
 } from 'three';
 import type { AircraftVisual, AircraftVisualFactory } from '../../core/interfaces';
-import type { AircraftEntity, AircraftSpec, DamageZone, Livery } from '../../core/types';
+import type { AircraftEntity, AircraftSpec, CrewStationId, DamageZone, FireArc, Livery } from '../../core/types';
+import { crewStations } from '../../data/crew';
+import { getStationAim } from '../../sim/combat';
+import { gunPitchLimits } from './gunAim';
+import { mergeBombStores, showBombs, type BombStoreView } from './bombRacks';
+import { propSpinSign, type PropNode } from './propSpin';
 import { createGaugeSet, GAUGE_KINDS, type GaugeKind, type GaugeSet } from './gauges';
 import { getLiveryTextures, type LiveryTextures } from './livery';
 import { controlSurfaceAngles, metaFromUserData, type AircraftMeta } from './meta';
@@ -96,6 +102,7 @@ function sharedMaterials(): Record<string, Material> {
     Leather: new MeshStandardMaterial({ color: 0x3a2416, roughness: 0.6, side: DoubleSide, name: 'Leather' }),
     Glass: new MeshStandardMaterial({ color: 0x9fc7d8, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.55, name: 'Glass' }),
     Cloth: new MeshStandardMaterial({ color: 0xe9e4d6, roughness: 0.9, name: 'Cloth' }),
+    Bomb: new MeshStandardMaterial({ color: 0x55583f, metalness: 0.35, roughness: 0.55, name: 'Bomb' }),
     Gauge: new MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.4, name: 'Gauge' }),
   };
   for (const m of Object.values(shared)) patchGroundBounce(m as MeshStandardMaterial);
@@ -213,23 +220,53 @@ interface Debris {
 const MAX_HOLES = 160;
 const HOLES_PER_PART = 40;
 const UP = new Vector3(0, 1, 0);
+const _aim = new Vector3();
+const _invQ = new Quaternion();
+const RAD_TO_DEG = 180 / Math.PI;
 const RIGHT = new Vector3(1, 0, 0);
+
+/** One propeller: pivot, blades and its blur disc. Twins have two (`Propeller_L`, `Propeller_R`). */
+interface PropView {
+  pivot: Object3D;
+  blades: Object3D | null;
+  disc: Mesh;
+  /** Index into `DamageState.engines`. */
+  engine: number;
+  /** Spin sign: handed twins turn opposite ways, pushers backwards. */
+  sign: number;
+  angle: number;
+}
+
+/** A station's gun mounts (`Gun_<station>`, `Gun_<station>_2`...) and where they rest. */
+interface StationGuns {
+  pivots: Object3D[];
+  /** The station's fields of fire, which bound how far the guns pitch (gunPitchLimits). */
+  arcs: readonly FireArc[];
+  /** Rest pose: yaw and pitch (rad) the guns are stowed at until aimed. */
+  stowYaw: number;
+  stowPitch: number;
+  /** Laid by the sim's gunner last frame (getStationAim), so stow when he goes idle. */
+  simAimed: boolean;
+}
 
 class AircraftVisualImpl implements AircraftVisual {
   readonly object: Object3D;
   readonly eyePoint = new Vector3();
+  readonly stationEyes: ReadonlyMap<CrewStationId, Vector3>;
   /** Body-frame ground contact points (wheel bottoms, tail-skid tip). */
   readonly contactPoints: { wheelL: Vector3; wheelR: Vector3; skid: Vector3 };
   readonly meta: AircraftMeta;
 
   private readonly spec: AircraftSpec;
-  private readonly prop: Object3D | null;
-  private readonly blades: Object3D | null;
-  private readonly disc: Mesh;
+  private readonly props: PropView[] = [];
   private readonly dotGeometry: BufferGeometry;
   private readonly surfaces: Partial<Record<'aileronL' | 'aileronR' | 'elevator' | 'rudder', Object3D>> = {};
   private readonly pilot: Object3D | null;
-  private readonly flexGun: Object3D | null;
+  private readonly stationGuns = new Map<CrewStationId, StationGuns>();
+  private readonly crewFigures = new Map<number, Object3D>();
+  /** The first flexible station, for the older single-gunner `aimFlexibleGun`. */
+  private readonly firstFlexStation: CrewStationId | null;
+  private bombStores: ReadonlyMap<number, BombStoreView> = new Map();
   private readonly muzzles: { node: Object3D; sprite: Sprite; lastRounds: number; flash: number }[] = [];
   private readonly zoneMats = new Map<ZoneGroup, MeshStandardMaterial[]>();
   private readonly zoneMeshes = new Map<ZoneGroup, Mesh[]>();
@@ -242,8 +279,9 @@ class AircraftVisualImpl implements AircraftVisual {
   private gauges: GaugeSet | null = null;
   private gaugeTimer = 0;
   private cockpit = false;
-  private propAngle = 0;
   private readonly ownedMaterials: Material[] = [];
+  private readonly ownedGeometries: BufferGeometry[] = [];
+  private readonly discGeometry: BufferGeometry;
   private flexAim: Vector3 | null = null;
 
   constructor(template: Object3D, spec: AircraftSpec, livery: Livery) {
@@ -255,6 +293,12 @@ class AircraftVisualImpl implements AircraftVisual {
     root.userData = { ...template.userData };
     const tex = getLiveryTextures(spec, livery, this.meta);
     const sm = sharedMaterials();
+    const bombHolder = root.getObjectByName('Bombs');
+    if (bombHolder) {
+      const racks = mergeBombStores(bombHolder);
+      this.bombStores = racks.stores;
+      this.ownedGeometries.push(...racks.geometries);
+    }
 
     // Per-instance livery materials, split by damage zone so each zone can char independently.
     const cache = new Map<string, MeshStandardMaterial>();
@@ -297,18 +341,49 @@ class AircraftVisualImpl implements AircraftVisual {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       const zm = this.zoneMeshes.get(zone) ?? [];
-      if (!/^(Aileron|Elevator|Rudder|Propeller|PropBlades|RotaryEngine)/.test(mesh.name) && !/Gauge|Pilot|Gunner|Cockpit/.test(mesh.name)) zm.push(mesh);
+      if (!/^(Aileron|Elevator|Rudder|Propeller|PropBlades|RotaryEngine|Bombs_|Gun_)/.test(mesh.name) && !/Gauge|Pilot|Gunner|Cockpit/.test(mesh.name)) zm.push(mesh);
       this.zoneMeshes.set(zone, zm);
     });
 
-    this.prop = root.getObjectByName('Propeller') ?? null;
-    this.blades = root.getObjectByName('PropBlades') ?? null;
     this.surfaces.aileronL = root.getObjectByName('Aileron_L');
     this.surfaces.aileronR = root.getObjectByName('Aileron_R');
     this.surfaces.elevator = root.getObjectByName('Elevator');
     this.surfaces.rudder = root.getObjectByName('Rudder');
     this.pilot = root.getObjectByName('Pilot') ?? null;
-    this.flexGun = root.getObjectByName('Gun_Flexible') ?? null;
+    // Gunner figures by crew member: Gunner (1), Gunner_2, Gunner_3.
+    for (let c = 1; c < 4; c++) {
+      const fig = root.getObjectByName(c === 1 ? 'Gunner' : `Gunner_${c}`);
+      if (fig) this.crewFigures.set(c, fig);
+    }
+
+    // Crew stations: gun mounts and eye points (EyePoint_<station>).
+    const eyes = new Map<CrewStationId, Vector3>();
+    let firstFlex: CrewStationId | null = null;
+    for (const st of crewStations(spec)) {
+      const e = root.getObjectByName(`EyePoint_${st.id}`);
+      if (e) eyes.set(st.id, e.position.clone());
+      if (st.id === 'pilot') continue;
+      const pivots: Object3D[] = [];
+      for (let k = 1; ; k++) {
+        const p = root.getObjectByName(k === 1 ? `Gun_${st.id}` : `Gun_${st.id}_${k}`);
+        if (!p) break;
+        pivots.push(p);
+      }
+      // Models built before stations named the observer's mount Gun_Flexible.
+      if (pivots.length === 0 && firstFlex === null) {
+        const legacy = root.getObjectByName('Gun_Flexible');
+        if (legacy) pivots.push(legacy);
+      }
+      if (pivots.length === 0) continue;
+      firstFlex ??= st.id;
+      const firstGun = spec.guns[st.guns[0]];
+      const aft = st.id === 'dorsal' || st.id === 'ventral' || st.id === 'rear' || (st.id === 'observer' && !!firstGun && firstGun.position[2] > 0);
+      const g: StationGuns = { pivots, arcs: st.arcs, stowYaw: aft ? Math.PI : 0, stowPitch: st.id === 'ventral' ? -0.6 : aft ? 0.12 : 0, simAimed: false };
+      this.stationGuns.set(st.id, g);
+      this.stow(g);
+    }
+    this.stationEyes = eyes;
+    this.firstFlexStation = firstFlex;
 
     const eye = root.getObjectByName('EyePoint');
     if (eye) this.eyePoint.copy(eye.position);
@@ -320,13 +395,30 @@ class AircraftVisualImpl implements AircraftVisual {
       skid: cp('Contact_Skid', new Vector3(0, -0.3, 4)),
     };
 
-    // Propeller disc (blurred arc at speed).
-    const discMat = new MeshBasicMaterial({ map: propDiscTexture(), transparent: true, depthWrite: false, side: DoubleSide, opacity: 0 });
-    this.ownedMaterials.push(discMat);
-    this.disc = new Mesh(new CircleGeometry(this.meta.prop_radius, 40), discMat);
-    this.disc.name = 'PropDisc';
-    this.disc.renderOrder = 2;
-    (this.prop ?? root).add(this.disc);
+    // Propellers, each with a blur disc (blurred arc at speed).
+    const discGeo = new CircleGeometry(this.meta.prop_radius, 40);
+    this.discGeometry = discGeo;
+    // Twins have handed propellers turning opposite ways; pushers turn the other way from
+    // tractors, judged from where the hub sits (propSpinSign).
+    const pivots: [PropNode, string, number][] = [
+      ['Propeller', 'PropBlades', 0],
+      ['Propeller_L', 'PropBlades_L', 0],
+      ['Propeller_R', 'PropBlades_R', 1],
+    ];
+    root.updateMatrixWorld(true);
+    for (const [node, bladesName, engine] of pivots) {
+      const pivot = root.getObjectByName(node);
+      if (!pivot) continue;
+      const blades = root.getObjectByName(bladesName);
+      const sign = propSpinSign(node, root.worldToLocal(pivot.getWorldPosition(new Vector3())).z);
+      const discMat = new MeshBasicMaterial({ map: propDiscTexture(), transparent: true, depthWrite: false, side: DoubleSide, opacity: 0 });
+      this.ownedMaterials.push(discMat);
+      const disc = new Mesh(discGeo, discMat);
+      disc.name = 'PropDisc';
+      disc.renderOrder = 2;
+      pivot.add(disc);
+      this.props.push({ pivot, blades: blades ?? null, disc, engine, sign, angle: engine * 1.3 });
+    }
 
     // Muzzle flashes
     spec.guns.forEach((_g, i) => {
@@ -358,15 +450,22 @@ class AircraftVisualImpl implements AircraftVisual {
     o.quaternion.copy(ac.state.orientation);
     updateGroundBounce(o.parent);
 
-    // Propeller: rotary engines spin the whole cylinder block with it.
-    const rpm = ac.damage.engineDead ? Math.max(0, ac.state.engineRpm) : ac.state.engineRpm;
-    this.propAngle = (this.propAngle + (rpm / 60) * Math.PI * 2 * dt) % (Math.PI * 2);
-    if (this.prop) this.prop.rotation.z = this.pusherSign() * this.propAngle;
-    const blur = smooth(250, 800, rpm);
-    const discMat = this.disc.material as MeshBasicMaterial;
-    discMat.opacity = blur * (this.cockpit ? 0.1 : 0.75); // from the seat the blur is a faint shimmer
-    this.disc.visible = blur > 0.01;
-    if (this.blades) this.blades.visible = rpm < 700 || this.detached.has('prop');
+    // Propellers: rotary engines spin the whole cylinder block with them. A twin's dead engine
+    // windmills its propeller with the airflow.
+    const engines = ac.damage.engines;
+    for (const p of this.props) {
+      const dead = engines ? (engines[p.engine] ?? 0) >= 1 : false;
+      const rpm = Math.max(0, dead ? Math.min(ac.state.engineRpm, ac.state.airspeed * 9) : ac.state.engineRpm);
+      p.angle = (p.angle + (rpm / 60) * Math.PI * 2 * dt) % (Math.PI * 2);
+      p.pivot.rotation.z = p.sign * p.angle;
+      const blur = smooth(250, 800, rpm);
+      (p.disc.material as MeshBasicMaterial).opacity = blur * (this.cockpit ? 0.1 : 0.75); // from the seat the blur is a faint shimmer
+      p.disc.visible = blur > 0.01;
+      if (p.blades) p.blades.visible = rpm < 700 || this.detached.has('prop');
+    }
+
+    // Bombs on the racks: draw as many as are left in each store (none when the sortie carries none).
+    showBombs(this.bombStores, ac.bombs);
 
     // Control surfaces
     const a = controlSurfaceAngles(ac.controls);
@@ -375,14 +474,23 @@ class AircraftVisualImpl implements AircraftVisual {
     if (this.surfaces.elevator) this.surfaces.elevator.rotation.x = a.elevator;
     if (this.surfaces.rudder) this.surfaces.rudder.rotation.y = a.rudder;
 
-    // Flexible gun aim (optional, set by the integrator)
-    if (this.flexGun && this.flexAim) {
-      const local = this.object.worldToLocal(this.flexAim.clone()).sub(this.flexGun.position);
-      const yaw = Math.atan2(-local.x, -local.z);
-      const pitch = Math.atan2(local.y, Math.hypot(local.x, local.z));
-      this.flexGun.rotation.set(0, 0, 0);
-      this.flexGun.rotateY(yaw);
-      this.flexGun.rotateX(Math.max(-0.3, Math.min(1.2, pitch)));
+    // Gun rings follow the sim's gunners (getStationAim: the AI's firing solution, or the
+    // player's aim at his station); an idle station goes back to its rest pose. Without a sim
+    // aim, an integrator's aimFlexibleGun / setStationAim still holds.
+    _invQ.copy(ac.state.orientation).invert();
+    for (const [station, g] of this.stationGuns) {
+      const w = getStationAim(ac, station);
+      if (w) {
+        this.aimGuns(g, _aim.copy(w).applyQuaternion(_invQ));
+        g.simAimed = true;
+      } else if (station === this.firstFlexStation && this.flexAim) {
+        const local = this.object.worldToLocal(_aim.copy(this.flexAim)).sub(g.pivots[0].position);
+        this.aimGuns(g, local);
+        g.simAimed = false;
+      } else if (g.simAimed) {
+        this.stow(g);
+        g.simAimed = false;
+      }
     }
 
     // Muzzle flashes: detect rounds consumed since the last frame.
@@ -411,8 +519,34 @@ class AircraftVisualImpl implements AircraftVisual {
     }
   }
 
-  private pusherSign(): number {
-    return this.spec.geometry.pusher ? -1 : 1;
+  /** Swing a station's gun mounts to point along `aimBody` (body frame, any length). */
+  setStationAim(station: CrewStationId, aimBody: Vector3): void {
+    const g = this.stationGuns.get(station);
+    if (!g) return;
+    if (station === this.firstFlexStation) this.flexAim = null;
+    this.aimGuns(g, aimBody);
+  }
+
+  private aimGuns(g: StationGuns, dir: Vector3): void {
+    if (dir.lengthSq() < 1e-9) return;
+    const yaw = Math.atan2(-dir.x, -dir.z);
+    const pitch = Math.atan2(dir.y, Math.hypot(dir.x, dir.z));
+    // The station's own fields of fire bound the pitch (a bomber's nose gun reaches 60° down,
+    // a ventral gun can't point up), so the barrel stays on the sim's tracers.
+    const [lo, hi] = gunPitchLimits(g.arcs, Math.atan2(dir.x, -dir.z) * RAD_TO_DEG);
+    for (const p of g.pivots) {
+      p.rotation.set(0, 0, 0);
+      p.rotateY(yaw);
+      p.rotateX(Math.max(lo, Math.min(hi, pitch)));
+    }
+  }
+
+  private stow(g: StationGuns): void {
+    for (const p of g.pivots) {
+      p.rotation.set(0, 0, 0);
+      p.rotateY(g.stowYaw);
+      p.rotateX(g.stowPitch);
+    }
   }
 
   private updateDamage(ac: AircraftEntity, dt: number): void {
@@ -537,10 +671,18 @@ class AircraftVisualImpl implements AircraftVisual {
     }
   }
 
-  /** Point the rear gunner's weapon at a world position (null = stow). */
+  /** Point the first gunner's weapon at a world position (null = stow). Two-seaters' older API. */
   aimFlexibleGun(worldTarget: Vector3 | null): void {
-    this.flexAim = worldTarget ? worldTarget.clone() : null;
-    if (!worldTarget && this.flexGun) this.flexGun.rotation.set(0, 0, 0);
+    this.flexAim = worldTarget ? (this.flexAim ?? new Vector3()).copy(worldTarget) : null;
+    const g = this.firstFlexStation ? this.stationGuns.get(this.firstFlexStation) : undefined;
+    // A station the sim's gunner is laying keeps his aim (the next update applies it).
+    if (!worldTarget && g && !g.simAimed) this.stow(g);
+  }
+
+  setStationView(station: CrewStationId | null): void {
+    const st = station ? crewStations(this.spec).find((s) => s.id === station) : undefined;
+    for (const [crew, fig] of this.crewFigures) fig.visible = !st || st.crewIndex !== crew;
+    if (this.pilot) this.pilot.visible = !this.cockpit && st?.crewIndex !== 0;
   }
 
   setCockpitView(enabled: boolean): void {
@@ -563,7 +705,8 @@ class AircraftVisualImpl implements AircraftVisual {
     this.debris.length = 0;
     this.gauges?.dispose();
     for (const m of this.ownedMaterials) m.dispose();
-    this.disc.geometry.dispose();
+    for (const g of this.ownedGeometries) g.dispose();
+    this.discGeometry.dispose();
     this.dotGeometry.dispose();
     for (const d of this.holeMeshes.values()) d.geometry.dispose();
   }
@@ -583,6 +726,9 @@ export type { AircraftVisualImpl };
 export type AircraftVisualExt = AircraftVisual & {
   readonly contactPoints: { wheelL: Vector3; wheelR: Vector3; skid: Vector3 };
   readonly meta: AircraftMeta;
+  readonly stationEyes: ReadonlyMap<CrewStationId, Vector3>;
+  setStationAim(station: CrewStationId, aimBody: Vector3): void;
+  setStationView(station: CrewStationId | null): void;
   aimFlexibleGun(worldTarget: Vector3 | null): void;
 };
 

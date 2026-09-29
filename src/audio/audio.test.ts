@@ -7,6 +7,10 @@ import { SCORES } from './music/scores';
 import { airAbsorptionCutoff, dopplerFactor, selectNearest, soundDelay } from './spatial';
 import {
   balloonWhoomph,
+  bombBurst,
+  bombRelease,
+  bombWhistle,
+  BOMB_WHISTLE_SECONDS,
   crashCrunch,
   engineKindFor,
   engineLoop,
@@ -24,6 +28,7 @@ import {
   type EngineKind,
 } from './synthBuffers';
 import { AIRCRAFT_LIST } from '../data/aircraft';
+import { ENGINE_DETUNE, engineParamsFor, type EngineVoiceParams } from './voices';
 
 const SR = 22050;
 
@@ -98,6 +103,69 @@ describe('synthesised buffers', () => {
     expect(engineKindFor('inline', 'Hispano-Suiza 8Be')).toBe('v8');
     expect(engineKindFor('inline', 'Rolls-Royce Falcon III')).toBe('v12');
     expect(engineKindFor('inline', 'Mercedes D.IIIa')).toBe('inline6');
+    expect(engineKindFor('inline', 'Renault 12Fcx')).toBe('v12');
+  });
+});
+
+/** Zero crossings per second over a window, a stand-in for pitch. */
+function crossingRate(buf: Float32Array, from: number, to: number): number {
+  let n = 0;
+  for (let i = from + 1; i < to; i++) if (buf[i - 1] < 0 !== buf[i] < 0) n++;
+  return (n * SR) / (to - from);
+}
+
+function rms(buf: Float32Array, from: number, to: number): number {
+  let e = 0;
+  for (let i = from; i < to; i++) e += buf[i] * buf[i];
+  return Math.sqrt(e / (to - from));
+}
+
+describe('bomb sounds', () => {
+  it('are finite, non-silent and unclipped', () => {
+    expectHealthy(bombRelease(SR));
+    expectHealthy(bombWhistle(SR));
+    expectHealthy(bombBurst(SR));
+    expect(bombWhistle(SR).length).toBe(Math.round(BOMB_WHISTLE_SECONDS * SR));
+  });
+
+  it('whistles down in pitch and swells towards the impact', () => {
+    const w = bombWhistle(SR);
+    const q = Math.floor(w.length / 5);
+    expect(crossingRate(w, 4 * q - q, 4 * q)).toBeLessThan(crossingRate(w, q, 2 * q) * 0.85);
+    expect(rms(w, 4 * q - q, 4 * q)).toBeGreaterThan(rms(w, q, 2 * q));
+  });
+
+  it('bursts with a concussion, then earth pattering back after it', () => {
+    const b = bombBurst(SR, 1);
+    const head = rms(b, 0, Math.round(0.3 * SR));
+    // By 1-2 s the boom has decayed; the patter keeps the tail audible.
+    const tail = rms(b, Math.round(1 * SR), Math.round(2 * SR));
+    expect(head).toBeGreaterThan(tail * 3);
+    expect(tail).toBeGreaterThan(0.004);
+  });
+});
+
+describe('twin engines', () => {
+  const base: EngineVoiceParams = { rpm: 1400, throttle: 1, blip: false, damage: 0.1, dead: false, doppler: 1, cutoff: 7500, level: 1 };
+
+  it('detunes the second engine slightly and shares the loudness', () => {
+    const a = engineParamsFor(base, 0, 2, undefined, 300);
+    const b = engineParamsFor(base, 1, 2, undefined, 300);
+    expect(b.rpm / a.rpm).toBeCloseTo(ENGINE_DETUNE[1], 6);
+    expect(b.rpm / a.rpm - 1).toBeGreaterThan(0.005);
+    expect(b.rpm / a.rpm - 1).toBeLessThan(0.03);
+    expect(a.level).toBeLessThan(1);
+    expect(a.level * Math.SQRT2).toBeGreaterThan(0.95);
+    expect(a.damage).toBe(0.1);
+  });
+
+  it('kills one engine from its own damage and windmills its propeller', () => {
+    const live = engineParamsFor(base, 0, 2, [0.4, 1], 300);
+    const dead = engineParamsFor(base, 1, 2, [0.4, 1], 300);
+    expect(live.dead).toBe(false);
+    expect(live.damage).toBe(0.4);
+    expect(dead.dead).toBe(true);
+    expect(dead.rpm).toBeLessThanOrEqual(300 * ENGINE_DETUNE[1]);
   });
 });
 

@@ -5,6 +5,9 @@
 import type { GunType } from '../core/types';
 import {
   balloonWhoomph,
+  bombBurst,
+  bombRelease,
+  bombWhistle,
   crashCrunch,
   drumScrape,
   engineLoop,
@@ -39,6 +42,9 @@ export type SoundId =
   | 'latch'
   | 'dryclick'
   | 'scrape'
+  | 'bomb-release'
+  | 'bomb-whistle'
+  | 'bomb-burst'
   | `ui:${UiSound}`;
 
 const VARIANTS: Partial<Record<string, number>> = {
@@ -47,6 +53,7 @@ const VARIANTS: Partial<Record<string, number>> = {
   whizz: 3,
   flak: 3,
   hammer: 2,
+  'bomb-burst': 2,
   'ui:typewriter': 4,
 };
 
@@ -79,6 +86,9 @@ export class SoundBank {
       case 'latch': return latchClick(sr, seed, 1);
       case 'dryclick': return latchClick(sr, seed + 7, 1.8);
       case 'scrape': return drumScrape(sr, seed);
+      case 'bomb-release': return bombRelease(sr, seed);
+      case 'bomb-whistle': return bombWhistle(sr, seed);
+      case 'bomb-burst': return bombBurst(sr, seed);
       case 'ui': return uiSound(arg as UiSound, sr, seed);
     }
     throw new Error(`Unknown sound ${id}`);
@@ -101,6 +111,7 @@ export class SoundBank {
     for (const m of ['fabric', 'wood', 'metal'] as const) this.get(`hit:${m}`);
     this.get('flak');
     this.get('whizz');
+    for (const b of ['bomb-release', 'bomb-whistle', 'bomb-burst'] as const) this.get(b);
     this.engine('rotary9');
     this.engine('inline6');
   }

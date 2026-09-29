@@ -50,8 +50,45 @@ SHARED_COCKPIT = {'halberstadt_clii'}
 # Tall exhaust stacks rising over the upper wing (RAF 1a / RAF 4a air-cooled V-8s).
 EXHAUST_STACKS = {'re8', 'be2c'}
 # Pusher tail booms: half-width where they meet the tail (F.E.2b converges, the Farman stays wide).
-BOOM_TAIL_X = {'farman_f40': 0.9}
+BOOM_TAIL_X = {'farman_f40': 0.9, 'voisin_iii': 0.6}
 NOSE_WHEEL = {'fe2b'}
+
+# --- Bombers (docs/models.md "Bombers") ---
+TIP.update({'gotha_gv': 'square', 'aeg_giv': 'raked', 'handley_page_o400': 'square', 'breguet_14b2': 'square', 'dh9': 'square', 'voisin_iii': 'square'})
+TWO_BAY |= {'breguet_14b2', 'dh9'}
+RADIATOR_FRONT.update({'breguet_14b2': 'box', 'dh9': 'none'})
+EXPOSED_HEADS |= {'dh9'}
+# Interplane strut stations, metres from the centre line along the lower wing (overrides the bay tables).
+BAYS_M = {'gotha_gv': [1.85, 2.95, 6.4, 10.5], 'aeg_giv': [1.6, 2.6, 5.5, 8.1], 'handley_page_o400': [2.7, 3.9, 7.0, 10.1], 'voisin_iii': [4.3, 6.5]}
+# Upper-wing overhang braced by raked struts from the lower wing tip (O/400).
+OVERHANG_STRUTS = {'handley_page_o400'}
+# Twin-engine types whose propellers are pushers behind the wings (the fuselage stays a
+# normal tractor-style fuselage; geometry.pusher means the nacelle-and-booms layout).
+PUSHER_NACELLES = {'gotha_gv'}
+# Engine nacelle height as a fraction of the gap above the lower wing, length, radius.
+NACELLE = {'gotha_gv': (0.3, 3.0, 0.46), 'aeg_giv': (0.3, 2.6, 0.42), 'handley_page_o400': (0.38, 3.6, 0.52)}
+FOUR_BLADES = {'handley_page_o400'}
+PROP_RADIUS = {'gotha_gv': 1.5, 'aeg_giv': 1.35, 'handley_page_o400': 1.65, 'voisin_iii': 1.35}
+# Cockpit centre (Blender y) for the twins: the pilot sits between the nose gunner and the wings.
+PILOT_Y = {'gotha_gv': 1.75, 'aeg_giv': 1.5, 'handley_page_o400': 4.3, 'voisin_iii': 1.35}
+# Pusher two-seater with the pilot in front and the observer behind him (Voisin).
+REAR_SEAT_OBSERVER = {'voisin_iii'}
+# Quadricycle undercarriage: a second pair of wheels under the nose.
+FOUR_WHEEL = {'voisin_iii'}
+# Bomb loads carried inside the fuselage (not modelled): the O/400's vertical cells.
+INTERNAL_BOMBS = {'handley_page_o400'}
+# Where each store hangs: ('fuselage', across, along_spacing, y_centre) under the fuselage, or
+# ('wing', x_first, x_spacing, rows) under the lower wings, in symmetric pairs.
+BOMB_RACKS = {
+    'dh4': [('wing', 0.95, 0.45, 1)],
+    'dh9': [('wing', 1.05, 0.0, 1)],
+    'breguet_14b2': [('wing', 1.0, 0.2, 2)],
+    'gotha_gv': [('fuselage', 3, 1.85, -0.9), ('wing', 0.95, 0.3, 1)],
+    'aeg_giv': [('wing', 0.3, 0.42, 1)],
+    'voisin_iii': [('fuselage', 1, 0.0, -0.1), ('wing', 0.62, 0.25, 1)],
+}
+# Bomb sizes (IWM and period tables) come with each store in aircraft.json (lengthM, diameterM): the table is
+# bombDimensions() in src/data/aircraft.ts, shared with the falling bombs the renderer draws.
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +130,7 @@ MAT_DEFAULTS = {
     'Glass': ('#9fc7d8', 0.05, 0.3, False),
     'Gauge': ('#e8e0c8', 0.4, 0.0, False),
     'Cloth': ('#e9e4d6', 0.9, 0.0, False),
+    'Bomb': ('#50533f', 0.55, 0.25, False),
 }
 
 
@@ -349,9 +387,17 @@ class Aircraft:
         self.g = g
         self.rotary = spec['engineType'] == 'rotary'
         self.pusher = bool(g['pusher'])
-        self.two = g['crew'] == 2
+        self.two = g['crew'] >= 2
+        self.twin = spec.get('engineCount', 1) >= 2
+        self.nac_x = g.get('nacelleOffsetX') or 0.0
+        self.stations = spec.get('stations') or []
+        self.bomb_stores = spec.get('bombs') or []
+        flex_idx = [i for i, m in enumerate(spec['guns']) if m['mount'] == 'flexible']
+        # Guns placed where GunMount.position says (the bombers and the guns stations added);
+        # the first flexible gun of the older two-seaters keeps its cockpit-relative ring.
+        self.data_guns = set(flex_idx if (self.twin or self.id in REAR_SEAT_OBSERVER) else flex_idx[1:])
         # Observer ahead of the pilot (B.E.2c front seat, F.E.2b/Farman nose) when his gun sits forward.
-        self.front_obs = self.two and any(m['mount'] == 'flexible' and m['position'][2] < 0 for m in spec['guns'])
+        self.front_obs = g['crew'] == 2 and self.id not in REAR_SEAT_OBSERVER and any(m['mount'] == 'flexible' and m['position'][2] < 0 for m in spec['guns'])
         self.layout = g['layout']
         L = g['length']
         W = g['fuselageWidth']
@@ -385,6 +431,9 @@ class Aircraft:
         else:
             k = 0.16 if self.rotary else 0.2
             self.noseY = self.upperLE + k * L + (0.1 if self.two else 0.0)
+            if self.twin:
+                # No engine in the nose: it ends just ahead of the nose gunner's ring.
+                self.noseY = max(-spec['guns'][i]['position'][2] for i in flex_idx) + 0.45
         self.tailEndY = self.noseY - L
         self.rudderChord = 0.62 if self.two else 0.55
         self.postY = self.tailEndY + self.rudderChord * 0.85
@@ -402,6 +451,7 @@ class Aircraft:
             self.cpY = upperTE + 0.05
         if self.pusher:
             self.cpY = self.upperLE - (0.1 if self.two else 0.2)
+        self.cpY = PILOT_Y.get(self.id, self.cpY)
         self.gunY = self.cpY + 1.1 if self.front_obs else self.cpY - 1.05
         self.span = g['span']
         self.thick = THICK.get(self.id, 0.075)
@@ -410,6 +460,9 @@ class Aircraft:
         self.tailSpan = max(2.2, min(4.8, 0.32 * self.span))
         self.stabChord = 0.55 if not self.two else 0.7
         self.elevChord = 0.45 if not self.two else 0.5
+        if self.twin:
+            big = min(1.6, self.span / 20)
+            self.stabChord, self.elevChord = 0.95 * big, 0.6 * big
         self.meta = {}
         self.muzzles = []
 
@@ -446,6 +499,12 @@ class Aircraft:
             nt, nb = 2.0, 3.2
         else:
             nt, nb = 4.5, 4.5
+        if self.twin:
+            # Blunt, open nose for the gunner instead of an engine.
+            nose = smoothstep(0.0, 0.07, t)
+            w *= 0.62 + 0.38 * nose
+            top = lerp(H * 0.22, top, nose)
+            bot = lerp(-H * 0.3, bot, nose)
         if self.id in HUMP:
             top += 0.1 * smoothstep(0.05, 0.14, t) * (1 - smoothstep(0.26, 0.36, t))
         if self.id == 'fokker_dvii':
@@ -498,8 +557,8 @@ class Aircraft:
         holes = []
         pil = (self.t_of(self.cpY + 0.38), self.t_of(self.cpY - 0.42))
         holes.append(pil)
-        if self.two:
-            gh = (self.t_of(self.gunY + 0.4), self.t_of(self.gunY - 0.45))
+        for gy in self.ring_holes:
+            gh = (self.t_of(gy + 0.4), self.t_of(gy - 0.45))
             if self.id in SHARED_COCKPIT:
                 holes = [(pil[0], gh[1])]
             else:
@@ -541,7 +600,7 @@ class Aircraft:
         # left-half faces use left-half v for the shared vertices at j=half and j=N(=0)
         n = N
         idx = [[mb.vert(p) for p in ring] for ring in rings]
-        cowl_t = 0.16 if (not self.rotary and not self.pusher) else -1
+        cowl_t = 0.16 if (not self.rotary and not self.pusher and not self.twin) else -1
 
         def in_hole(t0, t1, j):
             for a, b in holes:
@@ -570,7 +629,7 @@ class Aircraft:
         if not self.rotary or self.pusher:
             c0 = mb.vert((0, self.noseY, (rings[0][0][2] + rings[0][N // 2][2]) / 2))
             for j in range(n):
-                mb.face([c0, idx[0][(j + 1) % n], idx[0][j]], None, 1 if not self.pusher else 0)
+                mb.face([c0, idx[0][(j + 1) % n], idx[0][j]], None, 1 if not (self.pusher or self.twin) else 0)
         cE = mb.vert((0, rings[-1][0][1], (rings[-1][0][2] + rings[-1][N // 2][2]) / 2))
         for j in range(n):
             mb.face([cE, idx[-1][j], idx[-1][(j + 1) % n]], None, 0)
@@ -847,6 +906,17 @@ class Aircraft:
                 stations = [0.45, 0.85]
             if lay == 'triplane':
                 stations = [0.84 if self.id == 'fokker_dri' else 0.8]
+            if self.id in BAYS_M:
+                stations = [m / lsp for m in BAYS_M[self.id]]
+            if self.id in OVERHANG_STRUTS:
+                # Raked struts from the last lower-wing strut out to the upper wing's overhang.
+                x0 = lsp * stations[-1]
+                x1 = x0 + 0.55 * (self.span / 2 - x0)
+                for s in (-1, 1):
+                    for f in (fs, rs):
+                        yl = spar_y(lower, f)
+                        yu = spar_y(upper, f)
+                        strut(mb, (s * x0, yl, self.wing_surface_z(lower, x0, yl)[1]), (s * x1, yu, self.wing_surface_z(upper, x1, yu)[1]), chord=0.075, thick=0.026, mat=0)
             for s in (-1, 1):
                 for st in stations:
                     x = lsp * st
@@ -1043,7 +1113,77 @@ class Aircraft:
         return objs
 
     # ------------------------------------------------------------ engine / prop
+    def nacelle(self):
+        """Engine nacelle placement for a twin: centre height, front/rear y, radius."""
+        frac, length, R = NACELLE[self.id]
+        z0l = self.wings['Lower'][0]
+        zl = z0l + self.nac_x * math.tan(math.radians(self.g['dihedralDeg']))
+        pusher = self.id in PUSHER_NACELLES
+        y0 = self.upperLE + (0.7 if pusher else length * 0.42)
+        return {'z': zl + R + self.g['gap'] * frac * 0.5, 'zl': zl, 'y0': y0, 'y1': y0 - length, 'R': R, 'pusher': pusher, 'len': length}
+
+    def build_nacelles(self, parent):
+        n = self.nacelle()
+        R, zc, y0, y1 = n['R'], n['z'], n['y0'], n['y1']
+        if n['pusher']:
+            prof = [(0.0, 0.3), (0.06, 0.72), (0.18, 0.95), (0.35, 1.0), (0.7, 0.95), (0.9, 0.78), (1.0, 0.5)]
+        else:
+            prof = [(0.0, 0.9), (0.04, 0.97), (0.15, 1.0), (0.55, 0.96), (0.8, 0.72), (0.93, 0.45), (1.0, 0.22)]
+        N = 12
+        mercedes = self.spec['nation'] == 'germany'  # exposed Mercedes D.IVa heads
+        objs = []
+        for side, s in (('L', -1), ('R', 1)):
+            cx = s * self.nac_x
+            mb = MB(['Livery_Cowling', 'Metal'])
+            rings, uvs = [], []
+            for t, f in prof:
+                y = y0 - t * (y0 - y1)
+                rings.append([(cx + R * f * math.sin(TAU * j / N), y, zc + R * 1.12 * f * math.cos(TAU * j / N)) for j in range(N)])
+                uvs.append([(j / N, t) for j in range(N + 1)])
+            idx = loft(mb, rings, closed=True, uvs=uvs)
+            for k, ring_i in ((0, idx[0]), (len(idx) - 1, idx[-1])):
+                y = rings[k][0][1]
+                c = mb.vert((cx, y + (0.08 if k == 0 and n['pusher'] else 0.0), zc))
+                for j in range(N):
+                    a, b = ring_i[j], ring_i[(j + 1) % N]
+                    mb.face([c, b, a] if k == 0 else [c, a, b], None, 0)
+            top = zc + R * 1.12
+            if not n['pusher']:
+                # Radiator block across the nacelle front, ahead of the propeller shaft.
+                box(mb, (cx, y0 + 0.03, zc + R * 0.15), (R * 1.5, 0.08, R * 1.6), mat=1)
+            else:
+                # Gotha: radiator standing on the nacelle's front, exhaust stubs.
+                box(mb, (cx, y0 - 0.45, top + 0.22), (R * 1.2, 0.12, 0.42), mat=1)
+            if mercedes:
+                for k in range(6):
+                    y = y0 - (0.35 if n['pusher'] else 0.5) - k * 0.2
+                    box(mb, (cx, y, top - 0.02), (0.13, 0.12, 0.14), mat=1)
+                pts = [(cx + s * (R * 0.62), y0 - 0.45 - k * 0.2, top - 0.1) for k in range(6)]
+                tube(mb, pts + [(pts[-1][0] + s * 0.1, pts[-1][1] - 0.3, pts[-1][2] + 0.25)], radius=0.035, sides=6, mat=1)
+            else:
+                # Rolls-Royce Eagle: cowled, with short exhaust stacks each side.
+                for sx in (-1, 1):
+                    for k in range(3):
+                        cylinder(mb, (cx + sx * R * 0.92, y0 - 0.9 - k * 0.35, zc + R * 0.5), (sx * 0.3, -0.4, 1), 0.035, 0.35, sides=6, mat=1)
+            # Bearers down to the lower wing and up to the upper wing, at the spars.
+            for f in (0.18, 0.68):
+                for name, zz in (('Lower', zc - R * 1.05), ('Upper', top)):
+                    wz, wle, wch, _ = self.wings[name]
+                    yy = wle - f * wch
+                    if not (y1 - 0.05 <= yy <= y0 + 0.05):
+                        continue
+                    zu, zlw = self.wing_surface_z(name, cx, yy)
+                    end = zu if name == 'Lower' else zlw
+                    for dx in (-0.22, 0.22):
+                        strut(mb, (cx + dx, yy, zz), (cx + dx * 1.3, yy, end), chord=0.05, thick=0.022, mat=1)
+            objs.append(mb.build(f'Engine_{side}', parent, smooth=True, sharp_angle=40))
+        self.meta['nacelle_offset_x'] = self.nac_x
+        return objs
+
     def build_engine(self, parent, prop):
+        if self.twin:
+            return self.build_nacelles(parent)
+        prop = prop[0]
         objs = []
         if self.pusher and not self.rotary:
             # inline engine at the back of the nacelle (Beardmore, Renault)
@@ -1140,17 +1280,38 @@ class Aircraft:
         R = 1.3 if not self.two else 1.45
         if self.id in ('fokker_eiii', 'nieuport_11', 'sopwith_pup'):
             R = 1.25
-        return R
+        return PROP_RADIUS.get(self.id, R)
 
     def build_propeller(self, parent):
-        R = self.prop_R()
+        """Returns the propeller pivots: ['Propeller'], or ['Propeller_L', 'Propeller_R'] on a twin."""
+        if self.twin:
+            n = self.nacelle()
+            props = []
+            for side, s in (('L', -1), ('R', 1)):
+                if n['pusher']:
+                    hub = (s * self.nac_x, n['y1'] - 0.14, n['z'])
+                else:
+                    hub = (s * self.nac_x, n['y0'] + 0.14, n['z'])
+                # Handed propellers: the engines turn opposite ways, so neither swings the aircraft.
+                props.append(self._propeller(parent, f'_{side}', hub, (-1 if n['pusher'] else 1) * s))
+            self.meta['prop_hubs'] = [[p['hub'][0], p['hub'][2], -p['hub'][1]] for p in props]
+            self.meta['prop_radius'] = self.prop_R()
+            self.meta['prop_hub'] = self.meta['prop_hubs'][1]
+            return [p['obj'] for p in props]
         if self.pusher:
             hub = (0, self.nacelleEnd - 0.25, 0.05)
             direction = -1
         else:
             hub = (0, self.noseY + 0.12, 0.0)
             direction = 1
-        prop = empty('Propeller', hub, parent)
+        p = self._propeller(parent, '', hub, direction)
+        self.meta['prop_radius'] = self.prop_R()
+        self.meta['prop_hub'] = [hub[0], hub[2], -hub[1]]
+        return [p['obj']]
+
+    def _propeller(self, parent, suffix, hub, direction):
+        R = self.prop_R()
+        prop = empty('Propeller' + suffix, hub, parent)
         mb = MB(['Wood', 'Metal', 'Livery_Accent'])
         for blade in (1, -1):
             rings = []
@@ -1172,6 +1333,12 @@ class Aircraft:
                     ring.append((x * blade, y, blade * r))
                 rings.append(ring)
             loft(mb, rings, closed=True, mats=lambda i, j: 0, cap_end=True)
+        if self.id in FOUR_BLADES:
+            # Second pair of blades, a quarter turn round the shaft (+Y).
+            nv, nf = len(mb.v), len(mb.f)
+            base = [mb.vert((z, y, -x)) for x, y, z in mb.v[:nv]]
+            for k in range(nf):
+                mb.face([base[i] for i in mb.f[k]], mb.fuv[k], mb.fm[k])
         cylinder(mb, (0, 0, 0), (0, 1, 0), 0.08, 0.18, sides=10, mat=1)
         if self.id in SPINNER:
             rings = []
@@ -1182,13 +1349,59 @@ class Aircraft:
             loft(mb, rings, closed=True, mats=lambda i, j: 2, cap_start=True)
         verts = [(x + hub[0], y + hub[1], z + hub[2]) for x, y, z in mb.v]
         mb.v = verts
-        mb.build('PropBlades', prop, smooth=True, sharp_angle=50)
-        self.meta['prop_radius'] = R
-        self.meta['prop_hub'] = [hub[0], hub[2], -hub[1]]
-        return prop
+        mb.build('PropBlades' + suffix, prop, smooth=True, sharp_angle=50)
+        return {'obj': prop, 'hub': hub}
 
     # ------------------------------------------------------------ gear
+    def wheel(self, wh, cx, axleY, axleZ, r, width=0.13, N=16):
+        hw = width / 2
+        rings = []
+        for dx, rr in ((-hw, r * 0.55), (-hw, r * 0.88), (-hw * 0.77, r), (hw * 0.77, r), (hw, r * 0.88), (hw, r * 0.55)):
+            rings.append([(cx + dx, axleY + rr * math.sin(TAU * j / N), axleZ + rr * math.cos(TAU * j / N)) for j in range(N)])
+        loft(wh, rings, closed=True, mats=lambda i, j: 0)
+        for dx in (-hw - 0.001, hw + 0.001):
+            c = wh.vert((cx + dx * 1.08, axleY, axleZ))
+            ring = [wh.vert((cx + dx, axleY + r * 0.56 * math.sin(TAU * j / N), axleZ + r * 0.56 * math.cos(TAU * j / N))) for j in range(N)]
+            for j in range(N):
+                wh.face([c, ring[j], ring[(j + 1) % N]], None, 1)
+
+    def build_twin_gear(self, parent):
+        """Pairs of wheels under each engine nacelle, on V struts from the lower wing."""
+        mb = MB(['Metal', 'Wood'])
+        wh = MB(['Rubber', 'Livery_Accent'])
+        n = self.nacelle()
+        r = {'handley_page_o400': 0.55, 'gotha_gv': 0.5}.get(self.id, 0.45)
+        gearH = {'handley_page_o400': 1.0, 'gotha_gv': 0.85}.get(self.id, 0.75)
+        axleY = self.lowerLE + 0.25
+        axleZ = n['zl'] - gearH
+        ax = self.g['wheelTrack'] / 2
+        for s in (-1, 1):
+            for dx in (-0.32, 0.32):
+                self.wheel(wh, s * ax + dx, axleY, axleZ, r, 0.15, N=12)
+            cylinder(mb, (s * ax, axleY, axleZ), (1, 0, 0), 0.03, 0.8, sides=6)
+            for sx in (-0.3, 0.3):
+                x = s * ax + sx
+                zw = self.wing_surface_z('Lower', x, axleY + 0.5)[1]
+                strut(mb, (x, axleY + 0.55, zw), (s * ax + sx * 0.2, axleY, axleZ + 0.03), chord=0.06, thick=0.035, mat=0)
+                zw = self.wing_surface_z('Lower', x, axleY - 0.6)[1]
+                strut(mb, (x, axleY - 0.6, zw), (s * ax + sx * 0.2, axleY, axleZ + 0.03), chord=0.06, thick=0.035, mat=0)
+        wheel_bottom = axleZ - r
+        skidY = self.skid_y
+        skid_bottom = wheel_bottom + (axleY - skidY) * math.tan(math.radians(11))
+        top = self.skid_ztop
+        if skid_bottom > top - 0.08:
+            skid_bottom = top - 0.08
+        strut(mb, (0, skidY + 0.35, top + 0.02), (0, skidY - 0.1, skid_bottom), chord=0.07, thick=0.04, mat=1)
+        self.contacts = {
+            'Contact_WheelL': (-ax, axleY, wheel_bottom),
+            'Contact_WheelR': (ax, axleY, wheel_bottom),
+            'Contact_Skid': (0, skidY - 0.1, skid_bottom),
+        }
+        return [mb.build('Undercarriage', parent, smooth=False), wh.build('Wheels', parent, smooth=True, sharp_angle=50)]
+
     def build_gear(self, parent):
+        if self.twin:
+            return self.build_twin_gear(parent)
         mb = MB(['Metal', 'Wood'])
         wh = MB(['Rubber', 'Livery_Accent'])
         r = 0.33 if not self.two else 0.38
@@ -1232,6 +1445,15 @@ class Aircraft:
             for dx, rr in ((-0.04, nr * 0.6), (-0.035, nr), (0.035, nr), (0.04, nr * 0.6)):
                 rings.append([(dx, ny + 0.45 + rr * math.sin(TAU * j / N), nz + rr * math.cos(TAU * j / N)) for j in range(N)])
             loft(wh, rings, closed=True, mats=lambda i, j: 0, cap_start=True, cap_end=True)
+        if self.id in FOUR_WHEEL:
+            # Voisin quadricycle: a second pair of wheels under the nacelle nose.
+            fy = self.noseY - 0.7
+            fb = self.fuselage_bot(fy)
+            for s in (-1, 1):
+                self.wheel(wh, s * ax * 0.85, fy, axleZ + 0.04, r * 0.92)
+                strut(mb, (s * 0.2, fy + 0.25, fb + 0.02), (s * ax * 0.55, fy, axleZ + 0.06), chord=0.05, thick=0.03, mat=0)
+                strut(mb, (s * 0.2, fy - 0.35, fb + 0.02), (s * ax * 0.55, fy, axleZ + 0.06), chord=0.05, thick=0.03, mat=0)
+            cylinder(mb, (0, fy, axleZ + 0.04), (1, 0, 0), 0.025, track * 0.85, sides=6)
         # tail skid
         skidY = self.skid_y
         ground_angle = math.radians(11)
@@ -1261,6 +1483,13 @@ class Aircraft:
             cylinder(mb, (mx, my - length * 0.35, mz), (0, 1, 0), 0.045, length * 0.7, sides=8, mat=mat)
             box(mb, (mx, my - length * 0.83, mz - 0.01), (0.075, length * 0.3, 0.095), mat=mat)
             cylinder(mb, (mx, my + 0.02, mz), (0, 1, 0), 0.02, 0.06, sides=6, mat=mat)
+        elif gtype == 'hotchkiss':
+            # Finned barrel, receiver, and a 25-round strip sticking out of the left side.
+            cylinder(mb, (mx, my - length * 0.28, mz), (0, 1, 0), 0.022, length * 0.56, sides=6, mat=mat)
+            cylinder(mb, (mx, my - length * 0.42, mz), (0, 1, 0), 0.04, length * 0.2, sides=8, mat=mat)
+            box(mb, (mx, my - length * 0.72, mz), (0.07, length * 0.34, 0.09), mat=mat)
+            box(mb, (mx - 0.12, my - length * 0.66, mz + 0.01), (0.2, 0.05, 0.01), mat=mat)
+            box(mb, (mx, my - length * 1.0, mz - 0.04), (0.04, 0.22, 0.1), mat=mat)
         else:  # lewis / parabellum
             cylinder(mb, (mx, my - length * 0.3, mz), (0, 1, 0), 0.05 if gtype == 'lewis' else 0.035, length * 0.55, sides=8, mat=mat)
             cylinder(mb, (mx, my - length * 0.05, mz), (0, 1, 0), 0.015, length * 0.12, sides=6, mat=mat)
@@ -1309,24 +1538,214 @@ class Aircraft:
                 y = self.noseY - 0.05
                 muzzle = (0.0, y + 0.4, self.fuselage_top(y + 0.2) - 0.05 if False else self.profile(0.1)[1] - 0.05)
                 self.gun_mesh(mb, 'lewis', muzzle, 1.2, drum=True)
-            else:  # flexible
-                ring_z = self.fuselage_top(self.gunY) + 0.04
-                fm = MB(['Metal'])
-                gy = self.gunY
-                muzzle = (0.0, gy + 0.9, ring_z + 0.32)
-                self.gun_mesh(fm, gt, muzzle, 1.1, drum=True)
-                tube(fm, [(0, gy - 0.1, ring_z), (0, gy + 0.05, ring_z + 0.3)], radius=0.02, sides=4)
-                # Scarff ring
-                pts = [(0.43 * math.sin(TAU * k / 20), gy + 0.43 * math.cos(TAU * k / 20), ring_z) for k in range(20)]
-                tube(mb, pts, radius=0.025, sides=5, closed_path=True)
-                flex = fm.build('Gun_Flexible', parent, origin=(0, gy, ring_z), smooth=False)
-                self.muzzles.append((i, muzzle, 'Gun_Flexible'))
+            else:  # flexible: built per station below
                 continue
             self.muzzles.append((i, muzzle, None))
+        flex = self.build_flexible(parent, mb)
         objs = [mb.build('Guns', parent, smooth=True, sharp_angle=35)] if mb.f else []
-        if flex:
-            objs.append(flex)
+        return objs + flex
+
+    def plan_stations(self):
+        """Lay out every station's flexible guns: pivots, mount kind, fuselage openings, eyes.
+
+        A station's guns sit on pivots named Gun_<station> (Gun_<station>_2... when guns are on
+        separate mounts, like the O/400's dorsal pillars). At rest every gun points forward
+        (+Y); the runtime swings them (setStationAim) and stows the aft-facing ones.
+        """
+        guns = self.spec['guns']
+        st_of = {}
+        for st in self.stations:
+            for gi in st['guns']:
+                st_of[gi] = st
+        groups, order = {}, []
+        for i, m in enumerate(guns):
+            if m['mount'] != 'flexible':
+                continue
+            st = st_of.get(i) or {'id': 'observer', 'eye': None, 'crewIndex': 1}
+            if st['id'] not in groups:
+                groups[st['id']] = {'id': st['id'], 'guns': [], 'eye': st.get('eye'), 'crew': st.get('crewIndex', 1)}
+                order.append(st['id'])
+            groups[st['id']]['guns'].append(i)
+        self.flex = []
+        self.ring_holes = []
+        for sid in order:
+            grp = groups[sid]
+            data = any(i in self.data_guns for i in grp['guns'])
+            if not data:
+                # Older two-seaters: the ring at the observer's cockpit, whatever the data says.
+                y = self.gunY
+                ring_z = self.fuselage_top(y) + 0.04
+                pivots = [{'pos': (0.0, y, ring_z), 'gun_z': ring_z + 0.32, 'guns': [(i, guns[i]['position'][0]) for i in grp['guns']]}]
+                kind = 'ring'
+            else:
+                y = -guns[grp['guns'][0]]['position'][2]
+                gz = guns[grp['guns'][0]]['position'][1]
+                top = self.fuselage_top(y)
+                if sid == 'ventral':
+                    kind = 'ventral'
+                elif self.pusher or gz - top > 0.5:
+                    kind = 'pillar'
+                else:
+                    kind = 'ring'
+                # Guns closer than 0.3 m share a mount (twin Lewis); others get their own.
+                clusters = []
+                for i in grp['guns']:
+                    x = guns[i]['position'][0]
+                    for c in clusters:
+                        if abs(c[0][1] - x) < 0.3:
+                            c.append((i, x))
+                            break
+                    else:
+                        clusters.append([(i, x)])
+                pivots = []
+                for c in clusters:
+                    cx = sum(x for _, x in c) / len(c)
+                    if kind == 'ring':
+                        ring_z = self.fuselage_top(y) + 0.04
+                        pivots.append({'pos': (cx, y, ring_z), 'gun_z': gz, 'guns': [(i, x - cx) for i, x in c]})
+                    else:
+                        pivots.append({'pos': (cx, y, gz), 'gun_z': gz, 'guns': [(i, x - cx) for i, x in c]})
+            if kind == 'ring' or (kind == 'pillar' and not self.pusher):
+                if not any(abs(h - y) < 0.5 for h in self.ring_holes):
+                    self.ring_holes.append(y)
+            px, py, pz = pivots[0]['pos']
+            if data and grp['eye'] is not None:
+                ex, ey, ez = grp['eye']
+                eye = (ex, -ez, ey)
+            elif kind == 'ring':
+                # Standing in the ring, at its centre: head 0.6 m over the coaming, sighting
+                # along the barrel whichever way the ring is turned.
+                eye = (px, py, pz + 0.58)
+            else:
+                eye = (px, py - 0.35, pivots[0]['gun_z'] + 0.45)
+            self.flex.append({'id': sid, 'kind': kind, 'pivots': pivots, 'eye': eye, 'crew': grp['crew'], 'y': y})
+            if data:
+                # For tuning GunMount.position against the modelled fuselage (build log).
+                print(f"  station {self.id}.{sid}: {kind} at body z {-y:.2f}, gun y {pivots[0]['gun_z']:.2f}, "
+                      f"fuselage top {self.fuselage_top(y):.2f} bottom {self.fuselage_bot(y):.2f}")
+        if self.id in REAR_SEAT_OBSERVER:
+            self.ring_holes.append(self.gunY)  # the observer's cockpit behind the pilot
+
+    def build_flexible(self, parent, mb):
+        guns = self.spec['guns']
+        objs = []
+        for st in self.flex:
+            for k, pv in enumerate(st['pivots']):
+                name = f"Gun_{st['id']}" + (f'_{k + 1}' if k else '')
+                px, py, pz = pv['pos']
+                fm = MB(['Metal'])
+                gz = pv['gun_z']
+                length = 1.1 if st['kind'] == 'ring' else 1.0
+                reach = 0.9 if st['kind'] == 'ring' else 0.7
+                for i, dx in pv['guns']:
+                    muzzle = (px + dx, py + reach, gz)
+                    self.gun_mesh(fm, guns[i]['type'], muzzle, length, drum=True)
+                    self.muzzles.append((i, muzzle, name))
+                if st['kind'] == 'ring':
+                    # Post from the ring to the gun cradle, and the Scarff ring itself.
+                    tube(fm, [(px, py - 0.1, pz), (px, py + 0.05, gz - 0.02)], radius=0.02, sides=4)
+                    if len(pv['guns']) > 1:
+                        xs = [px + dx for _, dx in pv['guns']]
+                        tube(fm, [(min(xs), py + 0.05, gz - 0.03), (max(xs), py + 0.05, gz - 0.03)], radius=0.015, sides=4)
+                    pts = [(px + 0.43 * math.sin(TAU * j / 20), py + 0.43 * math.cos(TAU * j / 20), pz) for j in range(20)]
+                    tube(mb, pts, radius=0.025, sides=5, closed_path=True)
+                elif st['kind'] == 'pillar':
+                    base = (self.fuselage_top(py) - 0.05) if not self.pusher else self.fuselage_top(py) - 0.25
+                    if self.id in REAR_SEAT_OBSERVER:
+                        # Voisin tripod straddling the pilot's cockpit.
+                        for fx, fy in ((-0.3, 0.25), (0.3, 0.25), (0.0, -0.3)):
+                            tube(mb, [(px + fx, py + fy, base), (px, py, pz - 0.1)], radius=0.018, sides=4)
+                    else:
+                        tube(mb, [(px, py, base), (px, py, pz - 0.1)], radius=0.03, sides=5)
+                    cylinder(fm, (px, py, pz - 0.06), (0, 0, 1), 0.04, 0.1, sides=6)
+                else:  # ventral: a hatch frame in the floor, the gun hung below it
+                    bz = self.fuselage_bot(py)
+                    for sx in (-1, 1):
+                        box(mb, (px + sx * 0.28, py + 0.1, bz - 0.02), (0.04, 0.9, 0.05))
+                    for sy in (-1, 1):
+                        box(mb, (px, py + 0.1 + sy * 0.45, bz - 0.02), (0.6, 0.04, 0.05))
+                    tube(fm, [(px, py - 0.05, pz + 0.05), (px, py - 0.05, bz)], radius=0.02, sides=4)
+                objs.append(fm.build(name, parent, origin=(px, py, pz), smooth=False))
         return objs
+
+    # ------------------------------------------------------------ bombs
+    def bomb_mesh(self, mb, c, L, D):
+        """A finned bomb along +Y centred on c: ogive nose, body, tapered tail, cruciform fins."""
+        cx, cy, cz = c
+        sides = 8 if D >= 0.15 else 6 if D >= 0.12 else 5
+        prof = [(0.5, 0.05), (0.44, 0.62), (0.34, 1.0), (-0.12, 1.0), (-0.34, 0.45), (-0.5, 0.2)]
+        if D < 0.12:
+            prof = [(0.5, 0.1), (0.36, 1.0), (-0.16, 1.0), (-0.5, 0.3)]  # small bombs: fewer rings
+        rings = [[(cx + D / 2 * f * math.sin(TAU * j / sides), cy + L * q, cz + D / 2 * f * math.cos(TAU * j / sides)) for j in range(sides)] for q, f in prof]
+        loft(mb, rings, closed=True, mats=lambda i, j: 0, cap_start=True, cap_end=True)
+        fin = D * 0.62
+        box(mb, (cx, cy - L * 0.42, cz), (fin * 2, L * 0.16, 0.012))
+        box(mb, (cx, cy - L * 0.42, cz), (0.012, L * 0.16, fin * 2))
+
+    def bomb_dims(self, store):
+        """Length and diameter, m, from the export (bombDimensions() in src/data/aircraft.ts)."""
+        return store['lengthM'], store['diameterM']
+
+    def build_bombs(self, parent):
+        """Bomb_<store>_<k> meshes on racks; the runtime merges each store and hides bombs as they go.
+
+        Bombs are listed in release order reversed (the last one listed goes first) and in
+        left/right pairs, so a part-dropped load stays nearly balanced.
+        """
+        if not self.bomb_stores or self.id in INTERNAL_BOMBS:
+            return []
+        racks = BOMB_RACKS.get(self.id, [('wing', 0.9, 0.4, 1)] * len(self.bomb_stores))
+        holder = empty('Bombs', (0, 0, 0), parent)
+        rm = MB(['Metal'])
+        z0l, lel, chl, _ = self.wings['Lower'] if 'Lower' in self.wings else self.wings['Main']
+        wing = 'Lower' if 'Lower' in self.wings else 'Main'
+        for si, store in enumerate(self.bomb_stores):
+            L, D = self.bomb_dims(store)
+            rule = racks[min(si, len(racks) - 1)]
+            spots = []
+            n = store['count']
+            if rule[0] == 'fuselage':
+                across, spacing, yc = rule[1], rule[2], rule[3]
+                along = max(1, math.ceil(n / across))
+                for a in range(along):
+                    y = yc + (a - (along - 1) / 2) * spacing
+                    for b in range(across):
+                        if len(spots) >= n:
+                            break
+                        x = (b - (across - 1) / 2) * (D + 0.12)
+                        spots.append((x, y, self.fuselage_bot(y) - D / 2 - 0.08))
+            else:
+                x0, dx, rows = rule[1], rule[2], rule[3]
+                per_side = max(1, math.ceil(n / 2 / rows))
+                for k in range(per_side):
+                    for r in range(rows):
+                        y = lel - chl * 0.45 if rows == 1 else lel - chl * (0.25 + r * 0.45)
+                        for s in (-1, 1):
+                            if len(spots) >= n:
+                                break
+                            x = s * (x0 + k * dx)
+                            zu, zlw = self.wing_surface_z(wing, x, y)
+                            zb = zlw
+                            if abs(x) < self.fuselage_halfw(y) + D / 2:
+                                zb = min(zb, self.fuselage_bot(y))
+                            spots.append((x, y, zb - D / 2 - 0.07))
+            for k, (x, y, z) in enumerate(spots):
+                bm = MB(['Bomb'])
+                self.bomb_mesh(bm, (0, 0, 0), L, D)
+                bm.v = [(vx + x, vy + y, vz + z) for vx, vy, vz in bm.v]
+                bm.build(f'Bomb_{si}_{k}', holder, origin=(x, y, z), smooth=False, recalc=True)
+            # Racks: one beam over each row of bombs (a side's row under a wing, a row under the fuselage).
+            rows = {}
+            for x, y, z in spots:
+                rows.setdefault((round(y, 2), x > 0.05, x < -0.05), []).append((x, z))
+            for (y, _, _), pts in rows.items():
+                xs = [p[0] for p in pts]
+                zt = max(p[1] for p in pts) + D / 2 + 0.035
+                box(rm, ((min(xs) + max(xs)) / 2, y, zt), (max(xs) - min(xs) + 0.08, L * 0.5, 0.05))
+        if rm.f:
+            rm.build('BombRacks', parent, smooth=False)
+        self.meta['bomb_stores'] = len(self.bomb_stores)
+        return [holder]
 
     # ------------------------------------------------------------ pilot & cockpit
     def build_crew(self, root):
@@ -1344,21 +1763,36 @@ class Aircraft:
         ez = max(ez, top + 0.12)
         self.eye = (0.0, ey, ez)
         self._figure(pilot, 'Pilot', (0, ey - 0.08, ez - 0.03), facing=1)
-        if self.two:
-            gtop = self.fuselage_top(self.gunY)
-            g = empty('Gunner', (0, 0, 0), root)
-            self._figure(g, 'Gunner', (0, self.gunY - 0.05, gtop + 0.27), facing=1)
+        # One figure per crew member at his first station: Gunner (crew 1), Gunner_2, Gunner_3.
+        placed = set()
+        for st in self.flex:
+            c = st['crew']
+            if c in placed or c < 1:
+                continue
+            placed.add(c)
+            name = 'Gunner' if c == 1 else f'Gunner_{c}'
+            g = empty(name, (0, 0, 0), root)
+            data = any(i in self.data_guns for pv in st['pivots'] for i, _ in pv['guns'])
+            if not data:
+                gtop = self.fuselage_top(self.gunY)
+                self._figure(g, name, (0, self.gunY - 0.05, gtop + 0.27), facing=1)
+            else:
+                ex, ey2, ez2 = st['eye']
+                aft = st['id'] in ('dorsal', 'ventral', 'rear') or (st['id'] == 'observer' and not self.front_obs and not self.pusher)
+                self._figure(g, name, (ex, ey2 + (0.06 if aft else -0.06), ez2 - 0.02), facing=-1 if aft else 1, lod=0 if self.twin else 1)
         return pilot
 
-    def _figure(self, parent, name, head, facing=1):
+    def _figure(self, parent, name, head, facing=1, lod=1):
+        """A crew figure; lod 0 (the bombers' extra gunners) uses coarser ellipsoids."""
         mb = MB(['Pilot', 'Skin', 'Glass', 'Cloth'])
         hx, hy, hz = head
-        ellipsoid(mb, (hx, hy, hz), (0.1, 0.115, 0.12), mat=0)
-        ellipsoid(mb, (hx, hy + 0.075 * facing, hz - 0.03), (0.075, 0.05, 0.07), mat=1)
+        segs, rings = (10, 7) if lod else (8, 5)
+        ellipsoid(mb, (hx, hy, hz), (0.1, 0.115, 0.12), segs=segs, rings=rings, mat=0)
+        ellipsoid(mb, (hx, hy + 0.075 * facing, hz - 0.03), (0.075, 0.05, 0.07), segs=segs, rings=rings, mat=1)
         for s in (-1, 1):
             cylinder(mb, (hx + s * 0.042, hy + 0.115 * facing, hz + 0.01), (0, 1, 0), 0.028, 0.03, sides=8, mat=2)
         tube(mb, [(hx + 0.1 * math.sin(a), hy + 0.1 * math.cos(a), hz + 0.02) for a in [k * TAU / 12 for k in range(12)]], radius=0.008, sides=3, closed_path=True, mat=0)
-        ellipsoid(mb, (hx, hy - 0.02, hz - 0.3), (0.21, 0.14, 0.17), mat=0)
+        ellipsoid(mb, (hx, hy - 0.02, hz - 0.3), (0.21, 0.14, 0.17), segs=segs, rings=rings, mat=0)
         tube(mb, [(hx + 0.075 * math.sin(a), hy + 0.075 * math.cos(a), hz - 0.15) for a in [k * TAU / 10 for k in range(10)]], radius=0.03, sides=5, closed_path=True, mat=3)
         mb.build(name + '_Figure', parent, smooth=True)
 
@@ -1407,6 +1841,7 @@ class Aircraft:
     def build(self):
         root = empty(f'Aircraft_{self.id}', (0, 0, 0))
         ext = empty('Exterior', (0, 0, 0), root)
+        self.plan_stations()
         self.build_fuselage(ext)
         self.build_coaming(ext)
         self.build_wings(ext)
@@ -1416,9 +1851,13 @@ class Aircraft:
         self.build_engine(ext, prop)
         self.build_gear(ext)
         self.build_guns(ext, None)
+        self.build_bombs(ext)
         self.build_crew(root)
         self.build_cockpit(root)
         empty('EyePoint', self.eye, root)
+        # Eye points of the other crew stations (AircraftVisual.stationEyes).
+        for st in self.flex:
+            empty(f"EyePoint_{st['id']}", st['eye'], root)
         for name, p in self.contacts.items():
             empty(name, p, root)
         for i, m, holder in self.muzzles:

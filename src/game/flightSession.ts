@@ -693,8 +693,7 @@ export class FlightSession {
       this.crew.frame();
       this.rig.update(dtReal, player, world, vis ? this.crew.eye(_eye) : DEFAULT_EYE, inp);
     }
-    // TODO(track B merge): pass this.combat.bombs as update's fifth argument (falling bombs).
-    this.renderer.update(this.paused ? 0 : dtReal, this.rig.camera, world, this.combat.bullets);
+    this.renderer.update(this.paused ? 0 : dtReal, this.rig.camera, world, this.combat.bullets, this.combat.bombs);
     this.renderer.render(this.rig.camera);
     this.interp.restore();
     if (this.pixelRequests.length) this.samplePixels();

@@ -24,7 +24,7 @@ import {
   type Texture,
   type WebGLRenderTarget,
 } from 'three';
-import type { WorldQuery, WorldRenderer, BulletView } from '../core/interfaces';
+import type { BombView, BulletView, WorldQuery, WorldRenderer } from '../core/interfaces';
 import type { BalloonEntity, GameEvent, GraphicsQuality, GroundTargetType, Side, TimeOfDay, Weather } from '../core/types';
 import { AerodromeLayer } from './aerodromes';
 import { CloudLayer } from './clouds';
@@ -279,7 +279,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.scene.add(this.sky);
   }
 
-  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[]): void {
+  update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[], bombs?: readonly BombView[]): void {
     this.debugCameraHook?.(camera);
     camera.updateMatrixWorld();
     this.time += dt;
@@ -322,7 +322,7 @@ export class WorldRendererImpl implements WorldRenderer {
     T("roads", () => this.roads.update(cam));
     this.aerodromes.update(dt, this.weather);
     T("clouds", () => this.clouds.update(dt, camera, world.time));
-    T("effects", () => this.effects.update(dt, camera, world, bullets));
+    T("effects", () => this.effects.update(dt, camera, world, bullets, bombs));
     this.syncBalloons(world, dt);
     // In-cloud whiteout: thicken fog when the camera is inside a cloud.
     const inside = this.clouds.densityAt(cam);

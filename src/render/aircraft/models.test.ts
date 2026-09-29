@@ -4,12 +4,17 @@ import { Box3, Mesh, Object3D, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_LIST } from '../../data/aircraft';
+import { crewStations, inFireArcs } from '../../data/crew';
 import { controlSurfaceAngles, insigniaSlots, metaFromUserData, roundelRings, rudderStripes } from './meta';
 import { headingDeg } from './gauges';
 import { buildFallbackModel } from './fallbackModel';
+import { propSpinSign } from './propSpin';
 import { Quaternion } from 'three';
 
 const MODELS = fileURLToPath(new URL('../../../public/models/', import.meta.url));
+/** Mirrors of the generator's tables (tools/blender/aircraft_gen.py). */
+const INTERNAL_BOMBS = new Set<string>(['handley_page_o400']); // bombs inside: no rack nodes
+const PUSHER_NACELLES = new Set<string>(['gotha_gv']); // propellers behind the wings, not ahead of the CG
 
 function parse(file: string): Promise<Object3D> {
   const buf = readFileSync(file);
@@ -25,8 +30,24 @@ describe('aircraft GLB models', () => {
       const scene = await parse(file);
       const root = scene.getObjectByName(`Aircraft_${spec.id}`)!;
       expect(root).toBeTruthy();
-      for (const n of ['Exterior', 'Propeller', 'Elevator', 'Rudder', 'Pilot', 'Cockpit', 'EyePoint', 'Contact_WheelL', 'Contact_WheelR', 'Contact_Skid', 'Fuselage'])
+      const twin = (spec.performance.engineCount ?? 1) >= 2;
+      const props = twin ? ['Propeller_L', 'Propeller_R', 'PropBlades_L', 'PropBlades_R', 'Engine_L', 'Engine_R'] : ['Propeller', 'PropBlades'];
+      for (const n of ['Exterior', ...props, 'Elevator', 'Rudder', 'Pilot', 'Cockpit', 'EyePoint', 'Contact_WheelL', 'Contact_WheelR', 'Contact_Skid', 'Fuselage'])
         expect(root.getObjectByName(n), n).toBeTruthy();
+      // Every gunner's station: its gun mount and its eye point (AircraftVisual.stationEyes).
+      for (const st of crewStations(spec)) {
+        if (st.id === 'pilot') continue;
+        expect(root.getObjectByName(`Gun_${st.id}`), `Gun_${st.id}`).toBeTruthy();
+        expect(root.getObjectByName(`EyePoint_${st.id}`), `EyePoint_${st.id}`).toBeTruthy();
+        for (const g of st.guns) expect(root.getObjectByName(`Muzzle_${g}`)!.parent!.name, `Muzzle_${g}`).toMatch(new RegExp(`^Gun_${st.id}`));
+      }
+      // Bombs on racks, one mesh per bomb (the runtime merges each store); the O/400 carries its inside.
+      if (spec.bombs && !INTERNAL_BOMBS.has(spec.id)) {
+        spec.bombs.forEach((b, s) => {
+          for (let k = 0; k < b.count; k++) expect(root.getObjectByName(`Bomb_${s}_${k}`), `Bomb_${s}_${k}`).toBeTruthy();
+          expect(root.getObjectByName(`Bomb_${s}_${b.count}`)).toBeFalsy();
+        });
+      }
       if (spec.id !== 'fokker_eiii') {
         expect(root.getObjectByName('Aileron_L')).toBeTruthy();
         expect(root.getObjectByName('Aileron_R')).toBeTruthy();
@@ -49,11 +70,16 @@ describe('aircraft GLB models', () => {
 
       // Body frame: nose toward -Z, tail toward +Z, up +Y, span along X.
       root.updateMatrixWorld(true);
-      const prop = root.getObjectByName('Propeller')!.getWorldPosition(new Vector3());
+      const prop = root.getObjectByName(twin ? 'Propeller_R' : 'Propeller')!.getWorldPosition(new Vector3());
+      if (twin) {
+        // Nacelles where the spec puts them, their propellers clear of the fuselage.
+        expect(prop.x).toBeCloseTo(spec.geometry.nacelleOffsetX!, 1);
+        expect(prop.x - root.userData.prop_radius).toBeGreaterThan(spec.geometry.fuselageWidth / 2);
+      }
       const skid = root.getObjectByName('Contact_Skid')!.getWorldPosition(new Vector3());
       const wheel = root.getObjectByName('Contact_WheelR')!.getWorldPosition(new Vector3());
       const eye = root.getObjectByName('EyePoint')!.getWorldPosition(new Vector3());
-      if (!spec.geometry.pusher) expect(prop.z).toBeLessThan(-0.5);
+      if (!spec.geometry.pusher && !PUSHER_NACELLES.has(spec.id)) expect(prop.z).toBeLessThan(-0.5);
       expect(skid.z).toBeGreaterThan(2);
       expect(wheel.x).toBeGreaterThan(0.4);
       expect(wheel.y).toBeLessThan(-0.6);
@@ -70,6 +96,87 @@ describe('aircraft GLB models', () => {
       expect(meta.uv_fuselage_perim).toBeGreaterThan(1);
     });
   }
+});
+
+/**
+ * Pitch handedness of a propeller's blades, from the geometry: the blades lie in the pivot's
+ * XY plane and turn about Z; a blade's chord is offset along Z as it twists. Summing
+ * (tangential offset × axial offset) over the outer blade vertices gives a sign that flips
+ * with the blades' handedness (invariant under the 90° and 180° copies of the blades).
+ */
+function bladeHandedness(pivot: Object3D, blades: Object3D): number {
+  const pts: Vector3[] = [];
+  pivot.updateMatrixWorld(true);
+  const toPivot = pivot.matrixWorld.clone().invert();
+  blades.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh) return;
+    const pos = m.geometry.getAttribute('position');
+    const toLocal = toPivot.clone().multiply(m.matrixWorld);
+    for (let i = 0; i < pos.count; i++) pts.push(new Vector3().fromBufferAttribute(pos, i).applyMatrix4(toLocal));
+  });
+  const rMax = Math.max(...pts.map((p) => Math.hypot(p.x, p.y)));
+  let h = 0;
+  for (const p of pts) {
+    if (Math.hypot(p.x, p.y) < rMax * 0.4) continue;
+    h += Math.abs(p.y) > Math.abs(p.x) ? p.x * p.z * Math.sign(p.y) : -p.y * p.z * Math.sign(p.x);
+  }
+  return Math.sign(h);
+}
+
+describe('propeller spin', () => {
+  it('turns every propeller the way its blades are pitched', async () => {
+    const products = new Map<string, number>();
+    for (const spec of AIRCRAFT_LIST) {
+      const scene = await parse(`${MODELS}${spec.id}.glb`);
+      const root = scene.getObjectByName(`Aircraft_${spec.id}`)!;
+      root.updateMatrixWorld(true);
+      for (const node of ['Propeller', 'Propeller_L', 'Propeller_R'] as const) {
+        const pivot = root.getObjectByName(node);
+        if (!pivot) continue;
+        const blades = root.getObjectByName(node.replace('Propeller', 'PropBlades'))!;
+        const hubZ = root.worldToLocal(pivot.getWorldPosition(new Vector3())).z;
+        const h = bladeHandedness(pivot, blades);
+        expect(h, `${spec.id} ${node} handedness`).not.toBe(0);
+        products.set(`${spec.id} ${node}`, h * propSpinSign(node, hubZ));
+      }
+    }
+    // Spin sign × handedness is the same for every propeller: none turns against its pitch.
+    const ref = products.get('sopwith_camel Propeller')!;
+    const wrong = [...products].filter(([, v]) => v !== ref).map(([k]) => k);
+    expect(wrong).toEqual([]);
+  });
+});
+
+describe('fields of fire', () => {
+  it("keeps every gunner's arcs clear of the propeller discs", async () => {
+    const hits: string[] = [];
+    for (const spec of AIRCRAFT_LIST) {
+      const scene = await parse(`${MODELS}${spec.id}.glb`);
+      const root = scene.getObjectByName(`Aircraft_${spec.id}`)!;
+      root.updateMatrixWorld(true);
+      const R = root.userData.prop_radius as number;
+      for (const st of crewStations(spec)) {
+        if (st.id === 'pilot') continue;
+        const gun = root.worldToLocal(root.getObjectByName(`Gun_${st.id}`)!.getWorldPosition(new Vector3()));
+        for (const node of ['Propeller', 'Propeller_L', 'Propeller_R']) {
+          const pivot = root.getObjectByName(node);
+          if (!pivot) continue;
+          // Points over the disc (the pivot's XY plane), in the body frame, seen from the gun.
+          let blocked = 0;
+          for (const r of [0.35, 0.7, 1]) {
+            for (let k = 0; k < 48; k++) {
+              const a = (k / 48) * Math.PI * 2;
+              const p = root.worldToLocal(pivot.localToWorld(new Vector3(Math.cos(a) * r * R, Math.sin(a) * r * R, 0))).sub(gun);
+              if (inFireArcs(st.arcs, p.x, p.y, p.z)) blocked++;
+            }
+          }
+          if (blocked) hits.push(`${spec.id} ${st.id} through ${node} (${blocked} of 144 points)`);
+        }
+      }
+    }
+    expect(hits).toEqual([]);
+  });
 });
 
 describe('livery & animation helpers', () => {

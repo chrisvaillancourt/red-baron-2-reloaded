@@ -3,7 +3,9 @@ Build every aircraft GLB (and optional EEVEE previews).
 
   node --experimental-strip-types tools/export-aircraft-json.ts
   blender --background --factory-startup --python-exit-code 1 \
-      --python tools/blender/build_models.py -- [--only id1,id2] [--preview] [--no-export]
+      --python tools/blender/build_models.py -- [--only id1,id2] [--preview] [--no-export] [--stats]
+
+--stats prints the triangles of each type's largest parts (the poly budget, docs/models.md).
 
 Outputs public/models/<id>.glb and tools/blender/out/previews/<id>_{a,b}.png.
 """
@@ -29,7 +31,7 @@ def args():
     only = None
     if '--only' in a:
         only = set(a[a.index('--only') + 1].split(','))
-    return only, '--preview' in a, '--no-export' not in a
+    return only, '--preview' in a, '--no-export' not in a, '--stats' in a
 
 
 def export_glb(root, path):
@@ -80,7 +82,7 @@ def look_at(cam, target, pos):
 
 
 def main():
-    only, preview, do_export = args()
+    only, preview, do_export, stats = args()
     with open(DATA) as f:
         specs = json.load(f)
     os.makedirs(MODELS, exist_ok=True)
@@ -98,7 +100,11 @@ def main():
         if do_export:
             export_glb(root, path)
         size = os.path.getsize(path) // 1024 if os.path.exists(path) else 0
-        print(f"MODEL {spec['id']}: {tris} tris, {size} KB")
+        meshes = sum(1 for o in bpy.data.objects if o.type == 'MESH')
+        print(f"MODEL {spec['id']}: {tris} tris, {meshes} meshes, {size} KB")
+        if stats:
+            per = sorted(((sum(len(p.vertices) - 2 for p in o.data.polygons), o.name) for o in bpy.data.objects if o.type == 'MESH'), reverse=True)
+            print('  ' + ', '.join(f'{n} {t}' for t, n in per[:14]))
         if preview:
             cam = setup_preview_scene()
             L = spec['geometry']['length']
