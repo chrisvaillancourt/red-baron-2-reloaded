@@ -1,7 +1,7 @@
 /**
  * A small combat world for sim tests (not used at runtime): real combat, a flat 50 m
  * ground, optional autopilot flight, and an event log. Tests import it rather than
- * copying the setup; never import helpers from a `*.test.ts` file (CLAUDE.md).
+ * copying the setup; never import helpers from a `*.test.ts` file (AGENTS.md).
  */
 import { Vector3 } from 'three';
 import type { WorldQuery } from '../../core/interfaces';

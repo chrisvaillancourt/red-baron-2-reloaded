@@ -984,3 +984,43 @@ when its text has changed, so repeated `get()` calls stay cheap.
 - **Interceptor approach.** Above novice, against a bomber from 250 m to 1.8 km, a fighter first flies to the direction (from the bomber) covered by the fewest of its live gunners' arcs, among below-and-behind, below-the-beam and ahead-and-below candidates, nearest his bearing with ahead of the beam penalised 150°. That puts him below and behind every type whose tail is open; a Gotha's tunnel gun would move him to below the beam. Inside a 25° cone of it, or 250 m, the ordinary pursuit takes over. `TACTICS_FLAGS.blindSpot` (on). The D-085 defence and fighter-on-fighter pursuit are untouched: the approach applies only to bomber targets.
 - **Escorts.** A bombers' escort engages only scouts coming at a bomber (within 1.5 km) or at itself (700 m), and drops a target that goes more than 1.2 km from the bombers. Recon escorts keep the old rule.
 **Consequences.** Against a pair of D.H.4s (8 seeds) a veteran D.VII spends 87% of its time within 700 m out of the gunners' arcs, against 57%, and takes 5 hits instead of 33, for the same hits on the bombers. Career escort missions of bomb-task flights change for the autoplayer and its enemies alike (career A/B in docs/ai.md "Bombers").
+
+## D-XXX — Shared instructions and ownership across agent harnesses
+**Context.** D-007 isolates parallel module work, but the project instructions mixed shared
+rules with Claude Code tool parameters and sandbox observations. omp already discovers
+`CLAUDE.md`; a second independent rulebook would drift, and a native `.omp/AGENTS.md` could
+shadow the shared instructions. Concurrent top-level sessions also compete for Git state,
+dev-server ports, flight-report output and the machine's GPU.
+**Decision.** Root `AGENTS.md` is the single authoritative rulebook, including labelled
+harness-specific execution notes. `CLAUDE.md` contains only `@AGENTS.md`, so either root
+entry point yields the shared rules. Changes to discovery/imports require fresh-session
+verification in both harnesses and their isolated workspaces. Future friction lessons are
+classified as shared outcomes or harness-specific observations before promotion.
+
+Extend D-007's ownership model to top-level sessions from every harness: each concurrent
+editing session owns a branch/workspace and names an integration owner in its brief.
+The main checkout remains for human play and the designated integrator. Without that
+designation, an agent hands off a committed task branch; it does not merge or push `main`
+(which triggers deployment). Parents integrate retained child patches and verify the
+integrated behaviour. Temporary scaffolding is not completed user-visible behaviour.
+
+`AGENTS.md` defines the operating contract for explicit strict ports, separate automated
+flight-report output, task-local scratch artifacts, coordinated GPU verification, managed
+jobs and browser evidence. Harness mechanics stay labelled and defer to the active tool
+schema; no cross-harness messaging or common isolation layout is assumed.
+**Consequences.** No new runtime dependencies, harness settings, port registry or GPU lock
+service. Existing Claude worktrees and historical friction records are preserved. Manually
+managed worktrees preferably live outside the checkout; nested workspaces need a context
+check rather than an assumption about ancestor discovery. The integration owner separately
+checks and obtains approval for removal of existing worktrees. Browser QA can respect each
+harness's policy while retaining the existing Playwright regression suite.
+
+**Verification (2026-09-29).** Fresh no-tools omp 18.4.4 and Claude Code 2.1.285 sessions
+quoted the migrated rules from the task worktree and a disposable nested worktree; both
+nested probes reported the workspace marker and no conflicting rulebook version. Claude's
+probe required project settings-source discovery; the consultation bridge's empty source
+selection did not load project instructions. A real Vite server served the game and saved
+a report POST under task scratch while both inbox snapshots stayed unchanged. A second
+server on the same strict port failed with "Port 5267 is already in use". Typecheck passed;
+Vitest passed 623 tests (30 skipped) in 86 passing files (15 skipped). No game behaviour,
+runtime configuration or persistent harness settings changed.

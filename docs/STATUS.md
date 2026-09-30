@@ -432,7 +432,13 @@ Remaining:
 - Remotion or any video pipeline. Not needed for the game.
 
 ## Housekeeping
-- All agent worktrees and their branches have been merged and removed. Future
-  agent worktrees go under `.claude/worktrees/` (gitignored).
-- E2E needs a free port: `E2E_PORT=5241 pnpm e2e` if 5199 is taken by a dev
-  server.
+- The 2026-09-29 inventory found six registered Claude agent worktrees under
+  `.claude/worktrees/`; the earlier claim that all worktrees were removed was stale.
+  They are preserved pending ownership, dirty-state, merge and unpushed-commit checks
+  and explicit approval for removal. Use `git worktree list` for the current inventory.
+- Shared instructions now live in root `AGENTS.md`; `CLAUDE.md` is only its import.
+  Follow its session-ownership rules for Claude Code and omp. No integration owner
+  means a committed task-branch handoff, not permission to merge or push `main`.
+- Human play keeps port 5173. Agent servers use explicit strict ports and isolated
+  flight-report output; e2e uses a free `E2E_PORT` (for example, `E2E_PORT=5241 pnpm e2e`).
+  Ports do not isolate GPU load: coordinate heavy runs rather than launching them together.
