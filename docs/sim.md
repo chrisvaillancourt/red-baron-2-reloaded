@@ -5,13 +5,17 @@ Pure TypeScript (only `three` math classes). Import everything from `src/sim/ind
 | File | Purpose |
 |---|---|
 | `atmosphere.ts` | ISA density/temperature; `createFlightEnvironment(groundHeightAt, weather)` (wind scaled with height AGL, reference at 1000 m, plus a smooth gust field; call `env.advance(dt)` every fixed step). |
-| `coefficients.ts` | Per-type aero/engine/handling coefficients derived from `AircraftSpec` and calibrated to its historical figures. Cached by aircraft id. |
+| `coefficients.ts` | Per-type aero/engine/handling coefficients derived from `AircraftSpec` and calibrated to its historical figures. Cached by spec object identity. |
 | `flightModel.ts` | `createFlightState`, `stepFlight` (6-DOF), attitude helpers, `getSimInternal`. |
 | `combat.ts` | `createCombatSystem(bus, getRealism, opts?)`, `setGunnerTarget` / `getGunnerTarget`, `getStationAim`, `aimFlexibleGun`. |
 | `bombs.ts` | `loadBombs`, `nextBombStore`, `predictBombImpact` (the bombsight's prediction), bomb ballistics, `blastDamage`, `getBombStats`. Combat releases and bursts the bombs. |
-| `hitboxes.ts` | Body-frame damage-zone boxes, ground-target boxes, balloon radius. |
+| `hitboxes.ts` | Body-frame damage-zone boxes cached by spec object identity, ground-target boxes, balloon radius. |
 | `entity.ts` | `createAircraftEntity(...)` and fresh controls/damage/gun states. |
 | `autopilot.ts` | `Autopilot` — altitude / vertical-speed / airspeed-by-pitch / heading / bank hold. Used by tests; handy for AI and "form up". |
+
+Coefficient and hit-model caches use `WeakMap<AircraftSpec, …>`, as crew stations do.
+Distinct specs may share an aircraft id without sharing derived data. Treat specs and
+cached results as immutable: create a new spec object when changing geometry or performance.
 
 ## Flight model
 

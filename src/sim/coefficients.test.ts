@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT_LIST } from '../data/aircraft';
+import { AIRCRAFT_LIST, getAircraft } from '../data/aircraft';
 import { getCoefficients, maxLevelSpeed } from './coefficients';
 
 describe('coefficient calibration (point mass)', () => {
+  it.each([false, true])('keeps same-id specs independent (variant first: %s)', (variantFirst) => {
+    const original = { ...getAircraft('sopwith_camel') };
+    const variant = { ...original, performance: { ...original.performance, massLoaded: original.performance.massLoaded * 1.1 } };
+    const specs = variantFirst ? [variant, original] : [original, variant];
+    for (const spec of specs) expect(getCoefficients(spec).mass).toBe(spec.performance.massLoaded);
+    for (const spec of specs) {
+      const co = getCoefficients(spec);
+      expect(co.mass).toBe(spec.performance.massLoaded);
+      expect(getCoefficients(spec)).toBe(co);
+    }
+  });
+
   it('matches historical figures for every aircraft', () => {
     const rows: string[] = [];
     const errs: string[] = [];
