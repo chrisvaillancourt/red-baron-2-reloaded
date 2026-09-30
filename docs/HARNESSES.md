@@ -9,6 +9,13 @@ The active harness's instructions and current tool schema govern invocation synt
 permissions. Historical workarounds are observations, not permission to bypass a safety denial.
 
 ## Claude Code
+- **Editing subagents:** explicitly request worktree isolation, or set `isolation: worktree`
+  in a reusable implementation-agent definition. A separate agent conversation alone does
+  not isolate files. Follow Base commit verification below before the child edits.
+- Claude's default worktree base is the remote default branch, not necessarily the parent's
+  feature-branch HEAD. For a dependent track, use `worktree.baseRef: "head"` where appropriate
+  or create a worktree at the named base explicitly. Do not change the project-wide default
+  merely for one task, and do not assume uncommitted parent edits reach a worktree.
 - Finite long jobs use Bash's `run_in_background` when supported; consume the completion
   result using the current wait/output mechanism. Do not end a task with unobserved owned jobs.
 - Interactive browser QA may use installed Playwright with
@@ -31,9 +38,30 @@ permissions. Historical workarounds are observations, not permission to bypass a
 - Use the browser tool for interactive web QA. It supports explicit browser launch/attachment;
   verify the chosen Chrome/GPU setup rather than assuming it matches Playwright. Preserve the
   existing Playwright test runner; a browser-tool smoke run does not replace required tests.
-- Request isolation explicitly for editing subagents when supported. Inspect the actual
-  returned workspace/patch/branch and integration state; paths, lifecycle and whether changes
-  are auto-applied vary by harness configuration. Follow `AGENTS.md`'s parent integration rule.
+- **Editing subagents:** set `isolated: true` on each parallel editing task. If unavailable,
+  assign an explicitly created worktree; do not silently run concurrent writers in the
+  parent's checkout. Read-only agents ordinarily need no separate workspace. Follow Base
+  commit verification below before the child edits.
+- Inspect the actual returned workspace/patch/branch and integration state; paths, lifecycle
+  and whether changes are auto-applied vary by harness configuration. Follow `AGENTS.md`'s
+  parent integration rule.
+- Before delegating from omp through `claude_task`, read [omp integrations](OMP.md).
+
+## Base commit verification
+Before spawning an isolated implementation agent in either harness:
+1. Commit shared prerequisites, especially `src/core/` contracts, before launching dependent
+   tracks. Name the intended full base SHA in each brief; uncommitted parent changes are not
+   a dependable handoff.
+2. Create or select the child's workspace from that base. Confirm the child runs in its
+   assigned workspace with `git rev-parse --show-toplevel` and record `git rev-parse HEAD`.
+3. In the child's workspace, run `git merge-base --is-ancestor <base-sha> HEAD`. A zero exit
+   status proves the required base is present. For a fresh track, also require HEAD to equal
+   the named base; an existing track may include its own commits above it.
+4. If the check fails, stop before editing and have the parent correct the workspace/base.
+   Do not improvise against stale contracts or merge an unspecified moving `main`.
+
+These checks complement the ownership and integration rules in `AGENTS.md`; they do not
+authorize a child to edit another workspace or publish changes.
 
 ## Context discovery
 - `CLAUDE.md` contains only `@AGENTS.md`. omp may select either root file, so both entry
@@ -49,4 +77,4 @@ permissions. Historical workarounds are observations, not permission to bypass a
   stops at the workspace boundary.
 - Claude context-loading probes must enable the project source (for example,
   `--setting-sources project`). Safe mode and an empty settings-source selection suppress
-  project instructions, so the restricted consultation bridge is not a discovery check.
+  project instructions; use a project-enabled session for discovery checks.
