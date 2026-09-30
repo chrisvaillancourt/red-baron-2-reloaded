@@ -432,10 +432,12 @@ Remaining:
 - Remotion or any video pipeline. Not needed for the game.
 
 ## Housekeeping
-- The 2026-09-29 inventory found six registered Claude agent worktrees under
-  `.claude/worktrees/`; the earlier claim that all worktrees were removed was stale.
-  They are preserved pending ownership, dirty-state, merge and unpushed-commit checks
-  and explicit approval for removal. Use `git worktree list` for the current inventory.
+- The six historical Claude worktrees were audited and unregistered on 2026-09-29 after
+  cleanup authorization. All six had clean tracked/untracked status, no commits outside
+  main or the remote refs, and no observed process using them as its working directory.
+  Their directories were moved intact to Trash to preserve ignored scratch scripts,
+  screenshots and reports; their branches remain available. Use `git worktree list` for
+  the live inventory. The integration owner audits cleanup at each handoff (AGENTS.md).
 - Shared instructions now live in root `AGENTS.md`; `CLAUDE.md` is only its import.
   Follow its session-ownership rules for Claude Code and omp. No integration owner
   means a committed task-branch handoff, not permission to merge or push `main`.
