@@ -3,11 +3,13 @@
 Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
 `docs/ARCHITECTURE.md` before working.
 
-This is the authoritative project rulebook for every harness. `CLAUDE.md` contains only
-an import of this file. Keep all project policy here, including labelled harness notes:
-omp may select either root file, while `.omp/AGENTS.md` would shadow them. Do not create
-another project rulebook. After changing instruction discovery or imports, verify the
-loaded context in fresh sessions of both harnesses, including their isolated workspaces.
+Shared project policy lives here. `CLAUDE.md` contains only an import of this file.
+
+## Harness reference (read on demand)
+- Before background jobs/services, browser QA or isolated-agent work, read only the active
+  harness's section in `docs/HARNESSES.md`.
+- When changing or diagnosing instruction discovery/imports, read Context discovery in
+  `docs/HARNESSES.md` and verify fresh-session loading as described there.
 
 ## Shared rules
 - TypeScript strict. Three.js r186. No new runtime dependencies without a DECISIONS.md entry.
@@ -90,7 +92,7 @@ loaded context in fresh sessions of both harnesses, including their isolated wor
   integration owner; run them one at a time on the machine. Without an owner, arrange an
   exclusive slot before starting. Different ports do not isolate the GPU or a real gamepad.
 - **Browser evidence:** exercise the actual game from the owning server and inspect screenshots,
-  not just DOM assertions. Respect the active harness's browser policy (see notes below).
+  not just DOM assertions. Respect the active harness's browser policy and linked reference.
   Check the actual browser/GPU configuration before interpreting visual or performance results;
   the existing Playwright configuration records the Chrome/Metal setup and software fallback.
   Existing Playwright suites remain the reproducible regression checks.
@@ -105,42 +107,6 @@ loaded context in fresh sessions of both harnesses, including their isolated wor
 - **A red full e2e run under load isn't proof of a bug.** Stop competing GPU work, run the
   failing specs alone, then compare with a baseline worktree at the previous commit before
   blaming your change (F-20). Do not run paired GPU-heavy baselines concurrently.
-
-## Harness-specific execution notes
-
-These notes describe observed tool behaviour, not additional project policy. The active
-harness's instructions and current tool schema govern invocation syntax and permissions.
-A historical workaround is not permission to bypass a safety denial.
-
-### Claude Code
-- Context-loading probes must enable the project source (for example,
-  `--setting-sources project`). Safe mode and an empty settings-source selection suppress
-  project instructions, so the restricted consultation bridge is not a discovery check.
-- Finite long jobs use Bash's `run_in_background` when supported; consume the completion
-  result using the current wait/output mechanism. Do not end a task with unobserved owned jobs.
-- Interactive browser QA may use installed Playwright with
-  `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`). The cached Chromium
-  revision does not match the installed Playwright; use installed Chrome rather than downloading.
-- **Worktree-isolated subagents:** historical sandbox refusals include `cd` (even subshells),
-  compound commands, loops, `$VAR` paths and process substitution (F-3, F-11, F-18, F-21).
-  Use simple worktree-relative/absolute paths. If an allowed operation needs a workaround,
-  put it in a small Node script using `spawnSync`'s `cwd`, written through file-editing tools.
-  F-24 suspected a Git guard matching "github" in paths; treat that as an observation, not a
-  universal shell restriction. Cross-worktree `git -C` was refused (F-39); request committed
-  interface details from the owner rather than reaching into a sibling's working files.
-- The session scratchpad may be shared across tracks (F-68); use a per-track subdirectory.
-  Scripts importing project packages still belong in the repo's scratch directory below.
-
-### omp
-- Finite background commands use `async: true`; their timeout still applies. Long-lived
-  services use a unique `name` plus `ready`, without `async` or `timeout`. Use native `cwd`
-  instead of a Node wrapper merely to change directory; use `wait` only when blocked.
-- Use the browser tool for interactive web QA. It supports explicit browser launch/attachment;
-  verify the chosen Chrome/GPU setup rather than assuming it matches Playwright. Preserve the
-  existing Playwright test runner; a browser-tool smoke run does not replace required tests.
-- Request isolation explicitly for editing subagents when supported. Inspect the actual
-  returned workspace/patch/branch and integration state; paths, lifecycle and whether changes
-  are auto-applied vary by harness configuration. Follow the parent integration rule above.
 
 ## Shared workflow lessons
 - **New worktrees have no `node_modules`.** Run `sfw pnpm install` before tests, the

@@ -11,10 +11,12 @@ The rules:
   - **Done:** fixed, with the commit or file.
   - **Defer:** worth doing, with the condition that triggers it.
   - **Skip:** not worth fixing, with the reason.
-- **Promote lessons.** Classify each new lesson as **shared** or **harness-specific** before
-  adding it to `AGENTS.md`. Shared rules state required outcomes; harness notes name the tool
+- **Promote lessons.** Classify each new lesson as **shared** or **harness-specific**.
+  Shared outcomes belong in `AGENTS.md`; harness mechanics belong in `docs/HARNESSES.md`,
+  reached through task-triggered pointers rather than imports. Harness notes name the tool
   and execution mode and defer invocation syntax to the current tool schema. This log keeps
-  a pointer to the rule. Historical `CLAUDE.md` references below now resolve through its import.
+  a pointer to the rule. Historical `CLAUDE.md` references now resolve through the shared entry
+  point and its on-demand reference.
 - **Remove finished items.** Delete Done and Skip entries once they are more than two
   waves old. Git history keeps them.
 
@@ -88,7 +90,7 @@ The rules:
 | F-65 | 2026-09-28 | bombers track D | `ab.mjs` has no raid soak, so the raid survey ran by hand, one flag at a time. | **Do:** `ab.mjs --soak raid` (`AI_SOAK=raid`, with `--set` and `--reps`). |
 | F-66 | 2026-09-28 | bombers track D | The raid soak loads bombs itself, because the game layer's `loadBombs` for bomb flights wasn't on its branch. | **Skip:** loading twice is harmless, and the game layer owns it after the merge. |
 | F-67 | 2026-09-28 | bombers track D | A career A/B with a `--base` older than the F-33 fix draws different squadrons on each side, so a cherry-picked scratch base was needed. | **Do:** `ab.mjs --patch <commit>` (cherry-pick onto the base worktree), and a docs/ai.md "Tests" note that career bases before the F-33 fix are not comparable. |
-| F-68 | 2026-09-28 | bombers track D | The session scratchpad is shared by all tracks, so other tracks' files (ab-fair.txt) were easy to mistake for its own. | **Done:** `AGENTS.md` requires task-specific scratch/output locations and labels the shared session scratchpad as a Claude Code concern; `ab.mjs --out` already takes a directory. |
+| F-68 | 2026-09-28 | bombers track D | The session scratchpad is shared by all tracks, so other tracks' files (ab-fair.txt) were easy to mistake for its own. | **Done:** `AGENTS.md` requires task-specific scratch/output locations; `docs/HARNESSES.md` scopes the shared session scratchpad observation to Claude Code. `ab.mjs --out` already takes a directory. |
 | F-69 | 2026-09-28 | bombers track B | Vitest only finds `src/**/*.test.ts`, so a throwaway measurement test in `tools/dev/scratch/` reported "No test files found" and had to be moved into `src/` and deleted afterwards. | **Do:** a `vitest.scratch.config.ts` that includes `tools/dev/scratch/**/*.test.ts`, mentioned beside the scratch-scripts rule in AGENTS.md. |
 | F-70 | 2026-09-28 | bombers track B | A review finding guessed the propeller-disc angles (35–80°) instead of measuring them; the models put the AEG's at 104–140°, so checking it cost a measurement script. | **Done:** the "fields of fire" test in `src/render/aircraft/models.test.ts` measures every disc from every mount. Review requests on arcs point at it. |
 | F-71 | 2026-09-28 | bombers track B | A review item (every hit box inside its airframe) needed track A's code (`stationBoxes` in `src/sim/hitboxes.ts` hangs the ventral gunners' boxes below the fuselage), so it was pinned as a known exception. | **Do:** review items that need another track's code name that owner. Fix `stationBoxes` for ventral gunners (centre on the eye) and empty the pinned list; deferred to the next sim task. |
@@ -99,4 +101,4 @@ The rules:
 | F-76 | 2026-09-28 | bombers track D | The main checkout's diff3 conflict style (`|||||||` base sections) broke a two-way DECISIONS conflict resolver on the second merge. | **Done:** `tools/dev/fixdecisions.sh` already strips base sections; agents merging main keep their D-XXX entries after main's, and the lead runs it at merge. |
 | F-77 | 2026-09-28 | bombers track D | Track B's bomb-charge change (20 to 16 kg) left a hard-coded 20 kg in a track D test, which still passed. | **Done:** the test reads the charge from the spec. CLAUDE.md's "Don't pin exact sim figures" lesson now says to read aircraft and bomb figures from the spec. |
 | F-2 | 2026-09-28 | lead, wave 9 | Measuring a new candidate setup in the fairness soak means editing the test file to add a `SETS` entry. Nothing can be passed in from the command line. | **Defer:** add an `AI_FAIR_SETUP` JSON override if candidate sweeps come up again. |
-| F-78 | 2026-09-29 | cross-harness guidance | Shared instructions mixed Claude tool parameters with project policy, and a context smoke using the consultation bridge's empty settings sources loaded no project rules. | **Done:** root `AGENTS.md` separates shared rules from labelled harness notes; `CLAUDE.md` is its import. Fresh omp/Claude root and nested-worktree probes passed. Claude discovery checks enable the project settings source; consultation safe mode is not a discovery check. |
+| F-78 | 2026-09-29 | cross-harness guidance | Shared instructions mixed Claude tool parameters with project policy, and a context smoke using the consultation bridge's empty settings sources loaded no project rules. | **Done:** `AGENTS.md` keeps shared policy and task-triggered pointers to `docs/HARNESSES.md`; `CLAUDE.md` imports only AGENTS.md. Fresh omp/Claude root and nested-worktree probes passed for the shared entry point. Claude discovery checks enable the project settings source; consultation safe mode is not a discovery check. |

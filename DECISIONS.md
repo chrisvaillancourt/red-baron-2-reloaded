@@ -991,11 +991,13 @@ rules with Claude Code tool parameters and sandbox observations. omp already dis
 `CLAUDE.md`; a second independent rulebook would drift, and a native `.omp/AGENTS.md` could
 shadow the shared instructions. Concurrent top-level sessions also compete for Git state,
 dev-server ports, flight-report output and the machine's GPU.
-**Decision.** Root `AGENTS.md` is the single authoritative rulebook, including labelled
-harness-specific execution notes. `CLAUDE.md` contains only `@AGENTS.md`, so either root
-entry point yields the shared rules. Changes to discovery/imports require fresh-session
-verification in both harnesses and their isolated workspaces. Future friction lessons are
-classified as shared outcomes or harness-specific observations before promotion.
+**Decision.** Root `AGENTS.md` holds shared project policy and task-triggered pointers to
+`docs/HARNESSES.md` for harness mechanics and context-discovery details. A single source of
+truth does not require a single always-loaded file: the reference is read on demand, not
+imported. `CLAUDE.md` contains only `@AGENTS.md`, so either root entry point yields the same
+shared rules and pointers. Changes to discovery/imports require fresh-session verification
+in both harnesses and their isolated workspaces. Future friction lessons are classified as
+shared outcomes or harness-specific observations before promotion to the appropriate file.
 
 Extend D-007's ownership model to top-level sessions from every harness: each concurrent
 editing session owns a branch/workspace and names an integration owner in its brief.
@@ -1024,3 +1026,11 @@ a report POST under task scratch while both inbox snapshots stayed unchanged. A 
 server on the same strict port failed with "Port 5267 is already in use". Typecheck passed;
 Vitest passed 623 tests (30 skipped) in 86 passing files (15 skipped). No game behaviour,
 runtime configuration or persistent harness settings changed.
+
+**Progressive-disclosure verification.** After extracting the harness reference, fresh
+Claude (low effort) and omp sessions reported shared policy and pointers in their initial
+project context, then fetched the applicable reference section for a background-job task.
+Claude read only its section. omp requested its exact section range, but the read/search
+tools included adjacent previews; section-only exposure is therefore a tool limitation,
+not guaranteed by the pointer. The harness reference is not eagerly imported. Typecheck and the
+623-test passing unit suite remained green after the extraction.
