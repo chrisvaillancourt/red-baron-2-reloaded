@@ -249,13 +249,14 @@ function solveCd0(co: FlightCoefficients, spec: AircraftSpec): number {
   return Math.max(0.018, t / qS - co.kInduced * cl * cl);
 }
 
-const cache = new Map<AircraftId, FlightCoefficients>();
+const cache = new WeakMap<AircraftSpec, FlightCoefficients>();
 
+/** Cached by spec identity; treat the spec and returned coefficients as immutable. */
 export function getCoefficients(spec: AircraftSpec): FlightCoefficients {
-  const hit = cache.get(spec.id);
+  const hit = cache.get(spec);
   if (hit) return hit;
   const co = deriveCoefficients(spec);
-  cache.set(spec.id, co);
+  cache.set(spec, co);
   return co;
 }
 

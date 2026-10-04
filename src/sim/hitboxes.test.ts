@@ -7,6 +7,19 @@ import { TEST_TWIN } from './testing/fixtures';
 const inside = (b: ZoneBox, p: readonly number[]) => [0, 1, 2].every((i) => p[i] >= b.min[i] && p[i] <= b.max[i]);
 
 describe('hit boxes', () => {
+  it.each([false, true])('traces each same-id spec against its own wings (variant first: %s)', (variantFirst) => {
+    const original = { ...getAircraft('sopwith_camel') };
+    const variant = { ...original, geometry: { ...original.geometry, span: original.geometry.span * 2 } };
+    const specs = variantFirst ? [variant, original] : [original, variant];
+    for (const spec of specs) getHitModel(spec);
+    const x = original.geometry.span * 0.75;
+    const from = { x, y: -5, z: 0 };
+    const to = { x, y: 5, z: 0 };
+    expect(traceRound(getHitModel(original), from, to, () => true, true)).toBeNull();
+    const hit = traceRound(getHitModel(variant), from, to, () => true, true);
+    expect(hit?.crossed.map((zone) => zone.zone)).toContain('rightWing');
+  });
+
   it('existing types keep one gunner box and one engine box, with no per-station or per-engine tags', () => {
     for (const spec of AIRCRAFT_LIST) {
       // Types with their own stations or two engines get tagged boxes (the next tests).

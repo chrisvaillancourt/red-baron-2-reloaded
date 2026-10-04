@@ -33,7 +33,7 @@ export interface AircraftHitModel {
   multiEngine?: boolean;
 }
 
-const cache = new Map<string, AircraftHitModel>();
+const cache = new WeakMap<AircraftSpec, AircraftHitModel>();
 
 const box = (zone: DamageZone, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number): ZoneBox => ({
   zone,
@@ -52,11 +52,12 @@ export function gunnerFacesForward(spec: AircraftSpec): boolean {
   return spec.geometry.pusher && observerForward(spec);
 }
 
+/** Cached by spec identity; treat the spec and returned hit model as immutable. */
 export function getHitModel(spec: AircraftSpec): AircraftHitModel {
-  const hit = cache.get(spec.id);
+  const hit = cache.get(spec);
   if (hit) return hit;
   const model = deriveHitModel(spec);
-  cache.set(spec.id, model);
+  cache.set(spec, model);
   return model;
 }
 
