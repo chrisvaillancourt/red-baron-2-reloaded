@@ -1106,7 +1106,7 @@ regression tests pass, covering isolation, error exits/timeouts and numeric iden
 `pnpm test` includes `pnpm test:tools`, so the existing CI gate runs them too. No runtime
 dependency or game configuration changed.
 
-## D-XXX — Expose the verified bomber and two-seater roster to players
+## D-103 — Expose the verified bomber and two-seater roster to players
 **Context.** D-101 resolves the simulation-readiness blockers and D-097 already separates
 AI role pools from player availability. The original bomber scope calls for all shipped
 multi-crew aircraft to be player-accessible; keeping them gated now only hides working
@@ -1126,3 +1126,4 @@ raid/debrief/mission-transition browser regression passes. Fresh-process baselin
 comparison shows equal AI pools and career equipment selections at five service dates.
 Availability regression fixtures invert and restore original flags rather than pinning
 the old release gate. Commands and evidence are recorded in `docs/bombers.md`.
+Number assigned during the authorized PR #5 integration into main.

@@ -41,9 +41,9 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
 GitHub Pages build/deploy run `37174451413` succeeded. This includes the bomber
 simulation/model-alignment fixes and exact differential tooling.
 
-**Player access is implemented and verified on `feat/player-aircraft-access`, not yet
-merged or deployed.** All 33 aircraft are available in ordinary Quick Missions, seven
-in bombing raids. Aircraft and valid crew seats survive mission changes and reloads.
+**Player-access cutover: PR #5, decision D-103.** All 33 aircraft are available in ordinary
+Quick Missions, seven in bombing raids. Aircraft and valid crew seats survive mission
+changes and reloads. The user authorized integration into main after independent review.
 
 - Typecheck/build passed; 662 Vitest and 8 Node tool tests passed, 30 gated tests skipped.
 - The updated D.H.4 raid/observer/debrief/mission-transition Playwright test passed.
@@ -54,7 +54,7 @@ in bombing raids. Aircraft and valid crew seats survive mission changes and relo
   shared contract or dependency changes in this cutover.
 - Decisions and measured implementation notes are in `DECISIONS.md` and `docs/bombers.md`.
 - Independent Standards and Spec reviews of `a0bbd77` found no violations or missing
-  requirements. The player-access branch is a reviewed handoff, not an automatic deployment.
+  requirements. The associated GitHub Actions run records deployment status.
 
 - **Merged: bombers and gunner seats, wave 1** (plan and file ownership in
   `docs/bombers.md` "Waves"). All four tracks are on main:
@@ -75,8 +75,8 @@ in bombing raids. Aircraft and valid crew seats survive mission changes and relo
   1. **Done: readiness integration.** PR #4 resolved the low roll-rate floor, twin support
      and engine-hit geometry, and prone ventral crew. F-71 is resolved. Per-engine propeller
      sizing was already correct. Rough/sloped-field and crosswind limits remain unmeasured.
-  2. **Integrate the reviewed player-access branch** `feat/player-aircraft-access`. Its
-     selection, persistence and live crew flows are verified; AI pools remain independent.
+  2. **Done: player-access cutover (PR #5, D-103).** Selection, persistence and live crew
+     flows are verified; AI pools remain independent.
   3. **Lead:** replay the user's reports (`playtests/reports/` and the main checkout's
      `playtests/inbox/`) against the defence changes (D-085) with
      `node tools/playtest/replay-report.mjs`, and re-baseline "Current figures" with
@@ -463,9 +463,9 @@ before any future removal.
 
 | Workspace | Branch / owner | Preservation reason |
 |---|---|---|
-| `red-baron-2-reloaded` | `main` at `f814e2a`; human/integration owner | Authorized PR #4 merge synchronized; deployed successfully. |
+| `red-baron-2-reloaded` | `main`; human/integration owner | Authorized PR #5 integration checkout; previous deployed base `f814e2a`. |
 | `rb2r-bomber-readiness` | `fix/bomber-sim-readiness` at `8aac951`; prior parent omp session | PR #4 squash-merged; preserve original branch and ignored QA evidence pending authorized cleanup. Services stopped. |
-| `rb2r-player-aircraft-access` | `feat/player-aircraft-access`; parent omp session | Unmerged player-access cutover and ignored screenshots/JSON in `tools/dev/scratch/player-access/`. Browser and port 5271 service stopped; Playwright's isolated 5272 server exited. |
+| `rb2r-player-aircraft-access` | `feat/player-aircraft-access`; parent omp session | Preserve the PR #5 branch and ignored screenshots/JSON in `tools/dev/scratch/player-access/` pending authorized cleanup. Browser and port 5271 service stopped; Playwright's isolated 5272 server exited. |
 | `rb2r-debt-spec` | `fix/spec-cache-identity` at `791da38`; prior spec-cache task | PR #1 squash-merged; retain original branch and workspace pending authorized cleanup. |
 | `rb2r-debt-spatial` | `perf/world-spatial-queries` at `aed20d9`; prior spatial task | PR #2 squash-merged; same retention rule. |
 | `rb2r-debt-height` | `perf/height-cache-locality` at `4057201`; prior height-cache task | PR #3 squash-merged; same retention rule. |

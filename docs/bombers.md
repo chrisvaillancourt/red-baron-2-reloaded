@@ -1,7 +1,7 @@
 # Bombers and gunner seats
 
 The wave-1 implementation (D-086–D-099) and simulation-readiness pass (D-101–D-102)
-are merged. Player access is implemented on `feat/player-aircraft-access`, not yet merged.
+are merged. PR #5 delivers player access (D-103), with integration authorized after review.
 The original scope and wave plan below remain historical context.
 
 ## Player-access cutover (2026-10-04 UTC)
@@ -34,8 +34,8 @@ in run `37174451413`. Integration owner: parent omp session; isolated workspace
   and `pnpm build` passed. Screenshots and JSON remain in ignored
   `tools/dev/scratch/player-access/`; temporary probe removed and QA services stopped.
 - Independent read-only Standards and Spec reviews of `a0bbd77` both returned no
-  findings. The implementation commit is verified; integration of this branch remains
-  separate from the already-deployed PR #4.
+  findings. The user subsequently authorized PR #5 integration into main; D-103 records
+  the cutover decision. The associated GitHub Actions run records deployment status.
 
 ## Simulation-readiness pass (2026-10-04 UTC)
 
