@@ -5,6 +5,7 @@
 //   node tools/playtest/sun-shots.mjs <outDir> [port] [timeOfDay]
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const out = process.argv[2] ?? 'test-results/sun';
 const port = Number(process.argv[3] ?? 5342);
@@ -13,6 +14,7 @@ mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await disableGamepads(page.context());
 const errors = [];
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(e.message));
@@ -28,7 +30,7 @@ await page.evaluate((tod) => {
   document.body.appendChild(host);
   s.launcher.fly(mission, settings, host);
 }, tod);
-await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 60_000 });
+await waitForFlightReady(page);
 await page.waitForTimeout(2000);
 for (const mode of ['in-sun', 'side-sun']) {
   await page.evaluate((mode) => {

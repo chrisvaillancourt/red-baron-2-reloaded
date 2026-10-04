@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, passFlyingSchool, test, waitForFlightReady, type Page } from './fixtures';
 
 /**
  * End-to-end flows through the real UI, campaign and flight session:
@@ -30,16 +30,9 @@ async function currentScreen(page: Page): Promise<string | null | undefined> {
   return page.evaluate(() => document.querySelector('.rb-screen:not(.leaving)')?.getAttribute('data-screen'));
 }
 
-/** First take-off on a fresh profile shows the Flying School primer; acknowledge it. */
-async function passFlyingSchool(page: Page): Promise<void> {
-  const ok = page.locator('.rb-modal:has-text("Flying School") button:has-text("Understood")');
-  await expect(ok).toBeVisible({ timeout: 5_000 });
-  await ok.click();
-}
-
 async function waitForFlight(page: Page, seconds: number): Promise<void> {
+  await waitForFlightReady(page);
   await page.waitForSelector('.rb-hud', { timeout: 30_000 });
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 30_000 });
   await page.waitForFunction((s) => (window.__rb2?.session?.time ?? 0) >= s, seconds, { timeout: 90_000 });
 }
 
@@ -90,7 +83,6 @@ test('quick mission from the Quick Mission screen', async ({ page }) => {
 
 test('bombing raid from the Quick Mission screen: a D.H.4, the observer seat, bombs aboard', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.addInitScript(() => Object.defineProperty(navigator, 'getGamepads', { value: () => [] }));
   await page.goto('/');
   await expectScreen(page, 'title');
   await page.click('text=Quick Mission');

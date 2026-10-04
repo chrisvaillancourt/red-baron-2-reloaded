@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { bootApp, expect, test, waitForFlightReady, type Page } from './fixtures';
 
 /**
  * In-flight mission rules in the real browser game (real sim, AI, renderer, HUD):
@@ -22,11 +22,6 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
-async function boot(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30_000 });
-}
-
 /** Start a quick mission from options; resolves once the flight is running. */
 async function flyQuick(page: Page, opts: Record<string, unknown>): Promise<void> {
   await page.evaluate((o) => {
@@ -39,7 +34,7 @@ async function flyQuick(page: Page, opts: Record<string, unknown>): Promise<void
     (window as Win).__result = undefined;
     void s.launcher.fly(m, s.getSettings(), host).then((r) => ((window as Win).__result = r));
   }, opts);
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 60_000 });
+  await waitForFlightReady(page);
 }
 
 async function hudText(page: Page): Promise<string> {
@@ -63,7 +58,7 @@ const BASE = { enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2000, 
 
 test('wingman orders, time compression and landing at home', async ({ page }) => {
   const errors = collectErrors(page);
-  await boot(page);
+  await bootApp(page);
   // Escort: the enemy flight spawns later, so the sky is clear at the start.
   await flyQuick(page, { ...BASE, type: 'escort', playerAircraft: 'sopwith_camel', enemyAircraft: 'albatros_dv', enemyCount: 2, wingmen: 2, startPosition: 'random' });
   await page.waitForFunction(() => window.__rb2!.session!.time > 3, undefined, { timeout: 30_000 });
@@ -97,7 +92,7 @@ test('wingman orders, time compression and landing at home', async ({ page }) =>
 
 test('enemies near: no compression, no end flight; abandoning fails the mission', async ({ page }) => {
   const errors = collectErrors(page);
-  await boot(page);
+  await bootApp(page);
   await flyQuick(page, { ...BASE, type: 'dogfight', playerAircraft: 'se5a', enemyAircraft: 'albatros_dv', enemyCount: 2, wingmen: 1, startPosition: 'head-on' });
   // The wingman calls the bounce as soon as the enemy is within 5 km (messages fade after a while).
   await expect.poll(() => hudText(page), { timeout: 30_000 }).toMatch(/Enemy aircraft!/);
@@ -127,7 +122,7 @@ test('enemies near: no compression, no end flight; abandoning fails the mission'
 
 test('career balloon attack: balloons on the enemy side, flies at x8 without errors', async ({ page }) => {
   const errors = collectErrors(page);
-  await boot(page);
+  await bootApp(page);
   const info = await page.evaluate(() => {
     const s = window.__rb2!.services!;
     // A scout squadron and a fixed seed: a random two-seater squadron rarely flies balloon attacks.
@@ -148,7 +143,7 @@ test('career balloon attack: balloons on the enemy side, flies at x8 without err
   expect(info.type).toBe('balloon-attack');
   expect(info.balloons.length).toBeGreaterThan(0);
   expect(info.balloons.every((s) => s === 'central')).toBe(true);
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 60_000 });
+  await waitForFlightReady(page);
   expect(await page.evaluate(() => window.__rb2!.session!.world.balloons.length)).toBe(info.balloons.length);
   // The HUD shows the first waypoint of the route.
   await expect.poll(() => hudText(page), { timeout: 5000 }).toContain(info.wp[0]);

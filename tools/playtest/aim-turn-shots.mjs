@@ -7,6 +7,7 @@
 // Extra: --aircraft sopwith_camel --rate 70 (deg/s the aim sweeps) --seconds 2.5
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, arr) => (a.startsWith('--') ? [...acc, [a.slice(2), arr[i + 1]]] : acc), []),
@@ -21,6 +22,7 @@ mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await disableGamepads(page.context());
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`http://localhost:${port}/`);
@@ -45,7 +47,7 @@ await page.evaluate((aircraft) => {
   document.body.appendChild(host);
   s.launcher.fly(mission, s.getSettings(), host);
 }, aircraft);
-await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 60_000 });
+await waitForFlightReady(page);
 await page.waitForTimeout(2000);
 
 const sens = await page.evaluate(() => window.__rb2.services.getSettings().controls.mouseSensitivity);

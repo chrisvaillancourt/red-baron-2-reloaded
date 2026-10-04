@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, passFlyingSchool, test, waitForFlightReady, type Page } from './fixtures';
 
 /**
  * The debrief's flight report (docs/PLAYTEST.md "Human playtests"): fly the default quick
@@ -69,10 +69,8 @@ test('debrief: rate the flight and copy the flight report', async ({ page, conte
   await page.click('text=To the briefing');
   await expectScreen(page, 'briefing');
   await page.click('button:has-text("Take off")');
-  const ok = page.locator('.rb-modal:has-text("Flying School") button:has-text("Understood")');
-  await expect(ok).toBeVisible({ timeout: 5_000 });
-  await ok.click();
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 30_000 });
+  await passFlyingSchool(page);
+  await waitForFlightReady(page);
   await page.waitForFunction(() => (window.__rb2?.session?.time ?? 0) >= 8, undefined, { timeout: 60_000 });
   await page.evaluate(() => window.__rb2!.session!.abandon());
   await expectScreen(page, 'debrief');

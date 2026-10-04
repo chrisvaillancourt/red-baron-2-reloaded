@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { bootApp, expect, test, waitForFlightReady, type Page } from './fixtures';
 
 /**
  * Failure handling in the real browser game (docs/game.md "Robustness"):
@@ -24,11 +24,6 @@ function collectErrors(page: Page, allow: RegExp[] = []): string[] {
     if (!ok(e.message)) errors.push(e.message);
   });
   return errors;
-}
-
-async function boot(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30_000 });
 }
 
 async function fly(page: Page, aircraft = 'sopwith_camel'): Promise<void> {
@@ -58,7 +53,7 @@ async function fly(page: Page, aircraft = 'sopwith_camel'): Promise<void> {
       (e) => ((w.__error = String(e)), host.remove()),
     );
   }, aircraft);
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 40_000 });
+  await waitForFlightReady(page);
 }
 
 async function settled(page: Page): Promise<{ result?: unknown; error?: string }> {
@@ -68,7 +63,7 @@ async function settled(page: Page): Promise<{ result?: unknown; error?: string }
 
 test('an error inside a frame interrupts the flight cleanly and the app stays usable', async ({ page }) => {
   const errors = collectErrors(page, [/Flight session failed/, /injected frame fault/]);
-  await boot(page);
+  await bootApp(page);
   await fly(page);
   await page.evaluate(() => window.__rb2!.session!.throwNextFrame('injected frame fault'));
   const r = await settled(page);
@@ -94,7 +89,7 @@ test('a mid-flight error launched from the menus shows only the interrupted card
   await page.click('text=To the briefing');
   await page.click('button:has-text("Take off")');
   await page.locator('.rb-modal:has-text("Flying School") button:has-text("Understood")').click();
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 40_000 });
+  await waitForFlightReady(page);
   await page.evaluate(() => window.__rb2!.session!.throwNextFrame('injected frame fault'));
   const card = page.locator('#rb-flight-error');
   await expect(card).toContainText('Flight interrupted');
@@ -106,7 +101,7 @@ test('a mid-flight error launched from the menus shows only the interrupted card
 
 test('survives a WebGL context loss that the browser restores', async ({ page }) => {
   const errors = collectErrors(page, [/CONTEXT_LOST_WEBGL/i, /context lost/i]);
-  await boot(page);
+  await bootApp(page);
   await fly(page);
   await page.evaluate(() => window.__rb2!.session!.simulateContextLoss(600));
   await page.waitForTimeout(300);
@@ -123,7 +118,7 @@ test('survives a WebGL context loss that the browser restores', async ({ page })
 
 test('ends the flight cleanly when the WebGL context never comes back', async ({ page }) => {
   collectErrors(page);
-  await boot(page);
+  await bootApp(page);
   await fly(page);
   await page.evaluate(() => window.__rb2!.session!.simulateContextLoss(null));
   const r = await settled(page);
@@ -135,7 +130,7 @@ test('ends the flight cleanly when the WebGL context never comes back', async ({
 test('a missing aircraft model falls back to the procedural mesh', async ({ page }) => {
   const errors = collectErrors(page);
   await page.route('**/models/sopwith_camel.glb', (route) => route.fulfill({ status: 404, body: 'gone' }));
-  await boot(page);
+  await bootApp(page);
   await fly(page, 'sopwith_camel');
   const vis = await page.evaluate(() => {
     const s = window.__rb2!.session!;
@@ -158,7 +153,7 @@ test('boots and flies with no WebAudio (silent engine)', async ({ page }) => {
     delete (window as unknown as Record<string, unknown>).AudioContext;
     delete (window as unknown as Record<string, unknown>).webkitAudioContext;
   });
-  await boot(page);
+  await bootApp(page);
   await page.mouse.click(10, 10); // first gesture: the UI tries to resume audio
   await fly(page);
   await page.keyboard.down('Space');
@@ -171,7 +166,7 @@ test('boots and flies with no WebAudio (silent engine)', async ({ page }) => {
 
 test('closing the tab mid-flight neither loses nor advances the career', async ({ page }) => {
   const errors = collectErrors(page);
-  await boot(page);
+  await bootApp(page);
   const before = await page.evaluate(() => {
     const s = window.__rb2!.services!;
     const p = s.campaign.createPilot({ firstName: 'Interrupted', lastName: 'Flight', nation: 'germany', startDate: '1917-04-10', difficulty: 'pilot' });
@@ -182,7 +177,7 @@ test('closing the tab mid-flight neither loses nor advances the career', async (
     void s.launcher.fly(m, s.getSettings(), host);
     return { id: p.id, date: p.date, missions: p.missionsFlown, missionId: m.id };
   });
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 40_000 });
+  await waitForFlightReady(page);
   await page.reload(); // the tab goes away mid-flight
   await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30_000 });
   const after = await page.evaluate((id) => {
@@ -200,7 +195,7 @@ test('closing the tab mid-flight neither loses nor advances the career', async (
 
 test('an uncaught error outside a flight offers a working "Return to menu"', async ({ page }) => {
   collectErrors(page, [/injected menu fault/]);
-  await boot(page);
+  await bootApp(page);
   await page.evaluate(() => {
     setTimeout(() => {
       throw new Error('injected menu fault');

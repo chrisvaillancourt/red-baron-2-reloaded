@@ -17,6 +17,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const USAGE = 'usage: node tools/playtest/replay-report.mjs <report.json> [--reps N] [--maxtime S] | <report.json> --browser [--port P] [--out dir] [--timeout S] [--vulnerable]';
 /** Repo root, whatever the cwd (this file is tools/playtest/replay-report.mjs). */
@@ -38,6 +39,7 @@ try {
   parsed = parseArgs({
     allowPositionals: true,
     options: {
+      help: { type: 'boolean', short: 'h' },
       reps: { type: 'string', default: '8' },
       maxtime: { type: 'string', default: '2400' },
       browser: { type: 'boolean', default: false },
@@ -51,6 +53,10 @@ try {
   fail(`${e.message}\n${USAGE}`);
 }
 const { values: o, positionals } = parsed;
+if (o.help) {
+  console.log(USAGE);
+  process.exit(0);
+}
 if (positionals.length !== 1) fail(positionals.length ? `expected one report file, got: ${positionals.join(' ')}\n${USAGE}` : USAGE);
 const file = positionals[0];
 const path = resolve(file);
@@ -88,6 +94,7 @@ try {
 
 const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await disableGamepads(page.context());
 const errors = [];
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(e.message));
@@ -113,7 +120,7 @@ await page.evaluate(
   },
   [report, flag('vulnerable')],
 );
-await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 60_000 });
+await waitForFlightReady(page);
 
 /** Nearest live enemy to the player: range, height difference, angle off the sun, AI state. */
 const probe = () =>

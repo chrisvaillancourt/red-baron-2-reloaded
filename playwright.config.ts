@@ -4,8 +4,11 @@ const PORT = Number(process.env.E2E_PORT ?? 5199);
 
 export default defineConfig({
   testDir: 'tests/e2e',
-  timeout: 90_000,
+  // Cold flight readiness can use 90 s; leave time for setup and the actual assertions.
+  timeout: 180_000,
   fullyParallel: false,
+  // Spec files share one GPU. fullyParallel:false alone still runs files concurrently (F-20).
+  workers: 1,
   retries: 0,
   reporter: [['list']],
   outputDir: 'test-results',
