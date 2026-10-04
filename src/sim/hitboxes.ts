@@ -133,9 +133,9 @@ function deriveHitModel(spec: AircraftSpec): AircraftHitModel {
 }
 
 /**
- * Types with explicit crew stations: a box for each gunner's station, around his eye point
- * (0.45 m above and 0.35 m behind his gun unless the station says otherwise), replacing the
- * single rear-gunner box; and the pilot's box at the pilot's eye when the station gives one.
+ * Explicit stations replace the single rear-gunner box. Standing gunners keep the usual
+ * torso below their eye; prone gunners lie forward from a floor hatch, with their head at
+ * the opening. The pilot retains his seated box regardless of gunner posture.
  */
 function stationBoxes(spec: AircraftSpec, zones: ZoneBox[]) {
   for (let i = zones.length - 1; i >= 0; i--) if (zones[i].zone === 'gunner') zones.splice(i, 1);
@@ -148,7 +148,10 @@ function stationBoxes(spec: AircraftSpec, zones: ZoneBox[]) {
       if (k >= 0) zones[k] = box('pilot', x - 0.32, x + 0.32, y - 1.1, y + 0.1, z - 0.4, z + 0.45);
       continue;
     }
-    zones.push({ ...box('gunner', x - 0.35, x + 0.35, y - 1.2, y + 0.15, z - 0.45, z + 0.45), crewIndex: st.crewIndex, station: st.id });
+    const body = st.posture === 'prone'
+      ? box('gunner', x - 0.35, x + 0.35, y - 0.05, y + 0.45, z - 1.2, z + 0.15)
+      : box('gunner', x - 0.35, x + 0.35, y - 1.2, y + 0.15, z - 0.45, z + 0.45);
+    zones.push({ ...body, crewIndex: st.crewIndex, station: st.id });
   }
 }
 
@@ -158,11 +161,18 @@ function nacelleBoxes(spec: AircraftSpec, zones: ZoneBox[], zFront: number, zBac
   const n = spec.performance.engineCount ?? 1;
   const k = zones.findIndex((b) => b.zone === 'engine');
   if (k >= 0) zones.splice(k, 1);
-  // Tractor engines sit ahead of the wing's leading edge, pushers behind its trailing edge.
-  const [z0, z1] = g.pusher ? [zBack - 0.6, zBack + 1.4] : [zFront - 1.4, zFront + 0.6];
+  // Shipped twins share cowling geometry with the model generator. Fuselage `pusher`
+  // describes tail booms, not nacelle propulsion (the Gotha has an ordinary fuselage).
+  const nacelle = g.nacelle;
+  const [z0, z1] = nacelle
+    ? [nacelle.centerZ - nacelle.length / 2, nacelle.centerZ + nacelle.length / 2]
+    : g.pusher ? [zBack - 0.6, zBack + 1.4] : [zFront - 1.4, zFront + 0.6];
+  const halfWidth = nacelle?.radius ?? 0.5;
+  const y0 = nacelle ? nacelle.centerY - 1.12 * nacelle.radius : -0.65;
+  const y1 = nacelle ? nacelle.centerY + 1.12 * nacelle.radius : 0.45;
   for (let i = 0; i < n; i++) {
     const x = engineOffsetX(spec, i);
-    zones.push({ ...box('engine', x - 0.5, x + 0.5, -0.65, 0.45, z0, z1), engineIndex: i });
+    zones.push({ ...box('engine', x - halfWidth, x + halfWidth, y0, y1, z0, z1), engineIndex: i });
   }
 }
 

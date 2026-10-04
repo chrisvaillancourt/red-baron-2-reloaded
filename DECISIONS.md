@@ -1034,3 +1034,74 @@ Claude read only its section. omp requested its exact section range, but the rea
 tools included adjacent previews; section-only exposure is therefore a tool limitation,
 not guaranteed by the pointer. The harness reference is not eagerly imported. Typecheck and the
 623-test passing unit suite remained green after the extraction.
+
+## D-101 — Share bomber support geometry, nacelle placement and crew posture
+**Context.** The shipped Gotha, AEG and O/400 models have wheel contacts 0.52–0.96 m
+below the simulation's generic −1.2 m datum. Their nacelles are positioned by private
+Blender tables, while damage uses wing-edge heuristics. Floor gunners receive the same
+standing body offset as ring gunners. Flipping the Gotha's `geometry.pusher` would corrupt
+its fuselage layout rather than describe its nacelles.
+
+**Decision.** Add optional `AircraftGeometry.gearContacts` (right main support and central
+skid, body-frame metres), `AircraftGeometry.nacelle` (body Y/Z centre, length, radius and
+independent pusher orientation), and `CrewStation.posture` (standing by default, prone for
+the two floor stations). The three twin specs own values recovered from the shipped
+generator and checked against GLB geometry. These are model-alignment data, not a claim
+of measured historical airframe dimensions. The existing JSON exporter carries geometry
+into Blender; the generator and simulation consume the same data rather than duplicate
+aircraft-ID tables. Single-engine types keep their existing derivation.
+
+**Consequences.** Contracts are additive; no public signature or aircraft availability
+changes. Specs remain immutable after caching. Ground attitude must follow the support
+points, and engine damage must follow cowling volume, not its decorative bearers.
+Independent shipped-model measurements, ground/roll simulation, and hit rays are the
+verification seams. Numbered during the authorized PR #4 integration into main.
+
+**Implementation and verification (2026-10-04 UTC).** The simulator and Blender now
+consume this metadata; baseline/candidate Blender meshes are identical for all three
+twins. Ground support pitch follows the actual support line. Remove the 0.7 rad/s roll
+floor, retaining the fighter calibration and relative `rollRate` semantics. Propeller
+discs already use per-engine power; protect that invariant instead of changing it.
+Prone boxes extend forward of the eye, retain floor-hatch exposure and fit the full
+fuselage envelope, not every tapered skin section. Engine boxes cover cowling bodies,
+not decorative bearers or the Gotha's 8 cm front cap. Shared scene-free GLB measurements,
+loaded ground/takeoff regressions and round traces cover the consumers; real Chrome/Metal
+ground/takeoff and overlay evidence is recorded in `docs/bombers.md`. Independent review
+found no defects in this slice. Aircraft availability and AI balance remain unchanged.
+
+## D-102 — Compare exact observations in isolated Vite SSR processes
+**Context.** Ad-hoc review probes attempted to call TypeScript compiler APIs that TS7
+does not expose. A second probe differed only because one side had initialized lazy
+crater grids and the other had not. Repeated bespoke loaders and asymmetric setup
+make equivalence evidence unreliable.
+
+**Decision.** `tools/dev/differential-probe.mjs` accepts explicit existing baseline and
+candidate roots, one native `.mjs` scenario, and one input. It runs that scenario in
+sequential fresh processes with configless Vite SSR for root-relative TypeScript imports.
+There are no side-specific setup hooks, project config/plugins/environment files,
+browser launches, installs or automatic worktree management. The loader uses the tool
+checkout's existing Vite dependency, not TypeScript runtime compiler APIs.
+
+**Evidence contract.** Return plain data; compare numbers with `Object.is`, including
+nonfinite values and signed zero. IPC preserves them and CLI JSON uses reserved
+`$number` tags. Reject unsupported observations instead of erasing them. Exit codes are
+0 equal, 1 different, 2 failed; late nonzero exits, missing results, exceptions and
+timeouts cannot pass. Reports carry complete observations, scenario/input identity,
+canonical roots, revision/dirty-tree fingerprints, runtime versions and diagnostics.
+The parent cleans temporary loader caches even after timeout termination.
+
+**Limits.** Equality is evidence for the selected inputs, not universal equivalence.
+Roots are live and must stay fixed; detected Git-visible changes fail. Ignored files,
+dependency contents and native scenario helper imports are not fingerprinted. Keep those
+fixed, seed scenarios, avoid external clocks/I/O, and snapshot reusable scratch values
+before another call. Statistical AI outcomes still belong to `ab.mjs`, not this tool.
+
+**Implementation and verification (2026-10-04 UTC).** Real geo/world graphs and lazy
+initialization histories run through the public API and CLI. Baseline `66518dd` and the
+integrated tree have exactly equal world observations and three representative fighter
+flight/damage snapshots; the intended bomber changes report different. Independent
+review identified Array subclasses losing inherited information across IPC: the CLI
+reproduced false acceptance before the fix and now rejects them with exit 2. Eight Node
+regression tests pass, covering isolation, error exits/timeouts and numeric identity.
+`pnpm test` includes `pnpm test:tools`, so the existing CI gate runs them too. No runtime
+dependency or game configuration changed.

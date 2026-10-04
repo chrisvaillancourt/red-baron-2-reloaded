@@ -20,6 +20,28 @@ function unwrap(d: number) {
   return d;
 }
 
+describe('roll response', () => {
+  it.each(['gotha_gv', 'handley_page_o400', 'sopwith_camel', 'albatros_dv', 'spad_xiii'] as const)(
+    '%s retains proportional aileron response across low and fighter-class ratings',
+    (id) => {
+      const response = (ratingScale: number) => {
+        const { ac, env } = makeAircraft(id, { altitude: 1500, airspeed: 40, loaded: true });
+        ac.spec = { ...ac.spec, performance: { ...ac.spec.performance, rollRate: ac.spec.performance.rollRate * ratingScale } };
+        Object.assign(ac.controls, { roll: 0.3, throttle: 0.7, yaw: 0 });
+        run(ac, env, realism({ engineTorque: false, autoRudder: false }), 0.5);
+        expect(ac.state.stalled).toBe(false);
+        return Math.abs(ac.state.angularVelocity.z);
+      };
+      const rated = response(1);
+      const doubled = response(2);
+      expect(rated).toBeGreaterThan(0);
+      expect(response(0)).toBeLessThan(rated * 0.01);
+      expect(doubled / rated).toBeGreaterThan(1.9);
+      expect(doubled / rated).toBeLessThan(2.1);
+    },
+  );
+});
+
 describe('stall and spin', () => {
   const stallEntry = (id: AircraftId, r: RealismSettings, rudder: number) => {
     const co = getCoefficients(makeAircraft(id).spec);

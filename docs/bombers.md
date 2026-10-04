@@ -1,7 +1,74 @@
-# Bombers and gunner seats: plan (wave 1 in progress)
+# Bombers and gunner seats
 
-This is the plan for the next big feature, agreed with the user on 2026-09-28. The lead's
-`src/core` contracts landed as D-086; parallel agents now build against them (see "Tracks").
+The wave-1 implementation is merged (D-086–D-099); player access remains gated on
+simulation readiness. The original scope and implementation plan below are retained
+as historical context, not a description of the current code.
+
+## Simulation-readiness pass (2026-10-04 UTC)
+
+Base: `66518dd`, after the three cache/spatial-query PRs. Integration owner: the parent
+omp session, branch `fix/bomber-sim-readiness`. No aircraft unlocks, AI balance changes,
+night bombing, damage-path flag changes, or deployment are part of this pass.
+
+Independent ownership:
+- **Verification tooling:** `tools/dev/` differential probes and the architecture command
+  reference. Use supported TypeScript graph loading and identical scenario histories in
+  separate baseline/candidate processes; replace ad-hoc compiler-API and shared-state probes.
+- **Flight dynamics:** simulation coefficients and handling regressions. Measure low-rating
+  bomber roll response and shipped-model wheel/skid geometry before changing them.
+- **Damage geometry:** hit models and their regressions. Measure ventral crew and nacelle
+  placement; keep fuselage pusher layout separate from nacelle propeller orientation.
+- **Integration:** any shared data contract, decisions, implementation notes, independent
+  reviews, combined tests and runtime/browser evidence. Resolve shared geometry once rather
+  than copying generator tables into each simulation path.
+
+Acceptance: behavioral regression coverage, actual before/after simulation probes, model
+alignment measurements, independent review dispositions, and combined typecheck/test/build
+verification. The per-engine propeller formula already exists; verify it, do not replace it.
+
+### Implementation and evidence
+
+- **Roll:** removed the 0.7 rad/s minimum, not the established 2.5× relative-rating
+  calibration. At half aileron, 40 m/s, 1,500 m, loaded, torque disabled, the 0.5 s
+  absolute roll rates changed Gotha 0.242→0.130, O/400 0.242→0.104, AEG 0.242→0.190
+  rad/s. Camel, D.V and SPAD XIII flight states, gear and hitboxes compared exactly equal
+  to `66518dd` in fresh processes. These are scenario observations, not historical limits.
+- **Ground:** shared `geometry.gearContacts` supplies simulator and generator support
+  points. The previous settled wheel penetrations of 0.55–0.99 m are about 0.07 m after
+  the fix (intentional spring compression). Regressions cover full loads, rest, rolling
+  stops, ground clearance and takeoff without pinning those sampled values.
+- **Damage:** shared nacelle dimensions replace inferred twin engine boxes. Explicit
+  prone posture replaces the standing-body offset for Gotha/O/400 floor stations.
+  Engine-index/occlusion rays, former empty volumes, shared crew occupancy, and shipped
+  cowling/fuselage bounds are covered. The old ventral exception list is gone.
+- **No speculative fixes:** per-engine propeller-disc sizing was already correct; an
+  invariant now protects it. Gotha fuselage `pusher` stays false, while its shared nacelle
+  metadata identifies rear-facing propellers. No aircraft is newly player-selectable.
+- **Generator parity:** Blender 5.2.2 compared the baseline and migrated generators for
+  all three twins: every object transform, mesh vertex and polygon unchanged (maximum
+  geometry delta 0 m). No shipped asset regeneration was necessary. Both simulation
+  test families now share `src/sim/testing/modelGeometry.ts`, a scene-free GLB reader.
+- **Actual game:** isolated port 5269, Chrome/ANGLE Metal on Apple M3 Max, no gamepad,
+  zero wind, loaded bombing missions. Inspected all three ground stances and liftoffs,
+  spinning propellers, and a Gotha damage-box overlay. Sampled airborne heights were
+  Gotha 44.6 m, O/400 51.2 m and AEG 35.5 m, with zero damage. AEG's uncorrected
+  throttle-only run stalled; the production AI pilot from the nose station then took
+  off at 32.6 m/s without a stall. This does not establish hands-off stability,
+  crosswind/sloped-field limits, or full player-selection readiness.
+- **Review:** separate read-only reviews covered simulation/generator and tooling.
+  No simulation findings. Tool review caught Array-subclass data loss across IPC;
+  reproduced via CLI, fixed with a plain-array check and regression, then re-reviewed.
+- **Combined gate:** `pnpm typecheck`, `pnpm test` (661 Vitest tests + 8 Node tool tests
+  passed; 30 gated Vitest tests skipped), and `pnpm build` passed. No full Playwright
+  suite or AI balance re-baseline was run. The actual world differential scenario was
+  exactly equal to `66518dd`; expected bomber differences were reported as different.
+- **Retained evidence:** ignored `tools/dev/scratch/bomber-readiness/` contains screenshots,
+  runtime measurements, generator-parity and bomber-comparison JSON. Temporary probe
+  scripts were removed; the automation browser and server were stopped.
+
+Next scope is the player `flyable`/Quick Mission cutover and its UI/flight verification,
+after integrating this branch. AI balance, historical day/night availability and the
+damage-path decision remain separate.
 
 ## Scope (user decisions, 2026-09-28)
 - **New aircraft, all flyable:**

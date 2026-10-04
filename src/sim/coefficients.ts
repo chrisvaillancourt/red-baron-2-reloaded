@@ -305,8 +305,9 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
   const wnPitch = 2.4 + 1.6 * p.pitchRate;
   const pitchStiffness = (wnPitch * wnPitch) / qRef;
   const pitchDamping = (2 * 0.55 * wnPitch) / (rhoRef * vRef);
-  // Roll: steady roll rate at vRef with full aileron.
-  const rollSteady = Math.max(0.7, 2.5 * p.rollRate);
+  // Roll ratings are relative to Camel-class handling, not rates in rad/s.
+  // Preserve the calibrated fighter scale without flooring slower airframes.
+  const rollSteady = 2.5 * p.rollRate;
   const rollDamping = 4 / (rhoRef * vRef);
   const rollAuthority = (2 * rollSteady * rollDamping) / vRef;
   // Yaw: full rudder -> ~12 deg steady sideslip, weathercock wn ~2.5 rad/s.
@@ -326,13 +327,16 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
 
   const vStallSL = Math.sqrt((2 * weight) / (RHO0 * p.wingArea * clMax));
 
-  // Gear geometry: taildragger sitting ~11 degrees nose-up (less for long two-seaters).
-  // Wheels sit ~0.8 m below the lower wing root so lower wingtips clear the grass by ~0.5 m.
-  const mainY = g.layout === 'monoplane' ? -1.1 : g.layout === 'parasol' ? -1.0 : -1.2;
-  const mainZ = -Math.max(0.25, 0.05 * g.length);
-  const tailZ = 0.62 * g.length;
-  const groundPitch = (g.crew >= 2 ? 9 : 11) * DEG;
-  const tailY = mainY + Math.tan(groundPitch) * (tailZ - mainZ);
+  // Explicit support geometry shares the model's contacts. Keep the legacy
+  // taildragger heuristic for types that have not supplied measured geometry.
+  const contacts = g.gearContacts;
+  const mainY = contacts?.main[1] ?? (g.layout === 'monoplane' ? -1.1 : g.layout === 'parasol' ? -1.0 : -1.2);
+  const mainZ = contacts?.main[2] ?? -Math.max(0.25, 0.05 * g.length);
+  const halfTrack = contacts?.main[0] ?? g.wheelTrack / 2;
+  const tailZ = contacts?.tail[2] ?? 0.62 * g.length;
+  const legacyPitch = (g.crew >= 2 ? 9 : 11) * DEG;
+  const tailY = contacts?.tail[1] ?? mainY + Math.tan(legacyPitch) * (tailZ - mainZ);
+  const groundPitch = contacts ? Math.atan2(tailY - mainY, tailZ - mainZ) : legacyPitch;
   const cgHeight = -mainY * Math.cos(groundPitch) + mainZ * Math.sin(groundPitch);
 
   const co: FlightCoefficients = {
@@ -383,7 +387,7 @@ export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
     vStallSL,
     vBestClimbSL: 30,
     fuelBurnFull: p.fuelCapacityL / (p.enduranceHours * 3600 * 0.8),
-    gear: { mainY, mainZ, halfTrack: g.wheelTrack / 2, tailY, tailZ, groundPitch, cgHeight },
+    gear: { mainY, mainZ, halfTrack, tailY, tailZ, groundPitch, cgHeight },
     predicted: { timeTo3000Min: 0, ceilingM: 0 },
   };
 

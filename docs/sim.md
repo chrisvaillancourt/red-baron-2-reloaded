@@ -41,6 +41,9 @@ cached results as immutable: create a new spec object when changing geometry or 
   `tailPressureRatio(ac, env)`. Controllers inverting `stickForAlpha` must divide their
   desired wing AoA by it (the AI autopilot does); the relaxed stall cap and the relaxed /
   standard g caps are scaled by it internally.
+  `rollRate` is a relative handling rating, not rad/s. Its established 2.5× calibration
+  has no minimum floor: low-rated twins remain distinct while fighter calibration is
+  unchanged. Regression checks fly the actual model rather than pinning coefficient copies.
 * **Twins** (`performance.engineCount` > 1). `enginePowerHp` is the total, split evenly, with a
   propeller per engine sized for its share. Each engine has its own damage
   (`damage.engines`, filled in by combat; absent, the `engine` zone stands for all): power
@@ -77,6 +80,11 @@ cached results as immutable: create a new spec object when changing geometry or 
   nose/inverted contact above 9 m/s, wingtip scrape above 22 m/s. Ground height ≤ 0.3 m
   is treated as water → `ditched`. After impact the aircraft is frozen (`getSimInternal(ac).impacted`).
   Takeoff: hold the tail up to level, rotate at ~1.2 Vs (Camel lifts off in ~8 s).
+  The three heavy twins use `geometry.gearContacts`, shared with Blender, instead of the
+  generic wheel-height heuristic. Three-point pitch and CG height follow those supports.
+  Spring compression at rest is about 7 cm; zero penetration is not the contact model.
+  `bomberReadiness.test.ts` checks shipped GLB wheel/skid points and mesh clearance, loaded
+  ground stops and loaded takeoff. Other aircraft retain their existing support derivation.
 * Cost: ~0.7 µs per aircraft step on an M3 Max.
 
 ### Achieved performance (6-DOF, `performance.test.ts`, torque off)
@@ -127,10 +135,15 @@ Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s a
   box per station around its eye point (by default 0.45 m above and 0.35 m behind its first
   gun), tagged with the crew member and station. A man is only in the box of the station
   he is working now, so a round through the Gotha's empty tunnel position finds nobody.
-  The pilot's box moves to the pilot station's `eye` when one is given. Multi-engine types
-  (`engineCount` > 1 with `nacelleOffsetX`) have an engine box per nacelle (left engine 0),
-  ahead of the wing for tractors and behind it for pushers, and none in the nose. Every
-  other type's boxes are unchanged.
+  The pilot's box moves to the pilot station's `eye` when one is given. A station marked
+  `posture: 'prone'` puts the crew member horizontally forward of the floor-hatch eye,
+  instead of hanging a standing torso below it. This preserves intentional hatch exposure;
+  containment is checked against the full fuselage envelope, not every tapered skin section.
+  Multi-engine types (`engineCount` > 1 with `nacelleOffsetX`) have one engine box per nacelle
+  (left engine 0), no nose engine. Shipped twins read the shared `geometry.nacelle` cowling
+  centre and dimensions; decorative bearers and the Gotha's thin 8 cm front cap are not
+  engine block. The metadata-free fixture retains generic placement. Fuselage `pusher`
+  and nacelle propeller orientation are separate; neither changes the current thrust law.
   * **The engine stops a round.** On multi-engine types the first engine box along the
     path stops it, so a beam shot spares the far engine and everything behind the near one.
     Single-engined types keep the older cut by zone-list order. In a tractor the engine

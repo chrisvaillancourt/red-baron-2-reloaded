@@ -219,7 +219,9 @@ const SPECS: AircraftSpec[] = [
     id: 'aeg_giv', name: 'AEG G.IV', shortName: 'G.IV', manufacturer: 'Allgemeine Elektricitäts-Gesellschaft', nation: 'germany', alsoUsedBy: [],
     role: 'bomber', flyable: false, introduced: '1916-12-01', retired: '1918-11-11',
     description: 'A compact twin-engined Grossflugzeug of welded steel tube, flown by the Bogohls by day and later by night. Two Mercedes tractor engines sit between the wings; the commander aims the bombs from the nose and a gunner guards the tail.',
-    geometry: geom({ layout: 'biplane', span: 18.4, lowerSpan: 17.6, length: 9.7, chord: 1.9, lowerChord: 1.85, gap: 2.1, stagger: 0.15, height: 3.9, dihedralDeg: 2, crew: 3, tailShape: 'squared', fuselageWidth: 1.05, wheelTrack: 4.2, nacelleOffsetX: 2.1 }),
+    geometry: geom({ layout: 'biplane', span: 18.4, lowerSpan: 17.6, length: 9.7, chord: 1.9, lowerChord: 1.85, gap: 2.1, stagger: 0.15, height: 3.9, dihedralDeg: 2, crew: 3, tailShape: 'squared', fuselageWidth: 1.05, wheelTrack: 4.2, nacelleOffsetX: 2.1,
+      nacelle: { centerY: 0.21208361593267033, centerZ: -0.4295, length: 2.6, radius: 0.42, pusher: false },
+      gearContacts: { main: [2.1, -1.7229163840673296, -0.7375], tail: [0, -0.447684377, 5.923] } }),
     performance: perf({ massLoaded: 3630, massEmpty: 2400, wingArea: 67, enginePowerHp: 520, engineCount: 2, engineType: 'inline', engineName: 'Mercedes D.IVa', maxSpeedKmh: 165, maxSpeedAltM: 1000, ceilingM: 4500, climbTo3000mMin: 27, enduranceHours: 4.5, rollRate: 0.22, pitchRate: 0.3, structuralStrength: 0.85, fuelCapacityL: 560 }),
     guns: [flex('parabellum', [0, 0.9, -2.75]), flex('parabellum', [0, 0.89, 2.0])],
     crewStations: [
@@ -233,7 +235,9 @@ const SPECS: AircraftSpec[] = [
     id: 'gotha_gv', name: 'Gotha G.V', shortName: 'G.V', manufacturer: 'Gothaer Waggonfabrik', nation: 'germany', alsoUsedBy: [],
     role: 'bomber', flyable: false, introduced: '1917-08-01', retired: '1918-11-11',
     description: 'The bomber that raided London by day and night. Two pusher Mercedes behind the wings leave the nose gunner a clear field ahead; the rear gunner works a dorsal gun and the "Gotha tunnel", a gun firing down and aft through the floor at fighters hiding under the tail.',
-    geometry: geom({ layout: 'biplane', span: 23.7, lowerSpan: 22.9, length: 12.36, chord: 2.0, lowerChord: 1.9, gap: 2.4, stagger: 0, height: 4.3, dihedralDeg: 1.5, crew: 3, tailShape: 'squared', fuselageWidth: 1.1, wheelTrack: 4.8, nacelleOffsetX: 2.4 }),
+    geometry: geom({ layout: 'biplane', span: 23.7, lowerSpan: 22.9, length: 12.36, chord: 2.0, lowerChord: 1.9, gap: 2.4, stagger: 0, height: 4.3, dihedralDeg: 1.5, crew: 3, tailShape: 'squared', fuselageWidth: 1.1, wheelTrack: 4.8, nacelleOffsetX: 2.4,
+      nacelle: { centerY: 0.2553462117660487, centerZ: 0.215, length: 3.0, radius: 0.46, pusher: true },
+      gearContacts: { main: [2.4, -1.9146537882339513, -0.835], tail: [0, -0.181170195, 8.183] } }),
     performance: perf({ massLoaded: 3975, massEmpty: 2740, wingArea: 89.5, enginePowerHp: 520, engineCount: 2, engineType: 'inline', engineName: 'Mercedes D.IVa', maxSpeedKmh: 140, maxSpeedAltM: 0, ceilingM: 4650, climbTo3000mMin: 28, enduranceHours: 5, rollRate: 0.15, pitchRate: 0.25, structuralStrength: 0.75, fuelCapacityL: 840 }),
     guns: [flex('parabellum', [0, 0.84, -3.15]), flex('parabellum', [0, 0.96, 2.3]), flex('parabellum', [0, -0.72, 3.0])],
     crewStations: [
@@ -241,7 +245,7 @@ const SPECS: AircraftSpec[] = [
       { id: 'nose', label: 'Nose gunner', crewIndex: 1, guns: [0], arcs: arcs(BOMBER_NOSE_ARCS), bombAimer: true, eye: [0, 1.12, -3.15] },
       { id: 'dorsal', label: 'Rear gunner', crewIndex: 2, guns: [1], arcs: arcs(PUSHER_TWIN_DORSAL_ARCS), eye: [0, 1.24, 2.3] },
       // The same man, lying at the tunnel: his eye at the opening in the floor, behind the gun.
-      { id: 'ventral', label: 'Tunnel gun', crewIndex: 2, guns: [2], arcs: arcs(BOMBER_VENTRAL_ARCS), eye: [0, -0.62, 3.5] },
+      { id: 'ventral', label: 'Tunnel gun', crewIndex: 2, guns: [2], arcs: arcs(BOMBER_VENTRAL_ARCS), eye: [0, -0.62, 3.5], posture: 'prone' },
     ],
     // The England-raid load: 350 kg (the difference between the loaded and equipped weights).
     bombs: [
@@ -459,14 +463,16 @@ const SPECS: AircraftSpec[] = [
     id: 'handley_page_o400', name: 'Handley Page O/400', shortName: 'O/400', manufacturer: 'Handley Page', nation: 'britain', alsoUsedBy: ['usa'],
     role: 'bomber', flyable: false, introduced: '1918-04-01', retired: '1918-11-11',
     description: 'The great night bomber of the Independent Force, 100 feet across its folding wings. Two Rolls-Royce Eagles in nacelles between the wings; sixteen 112 lb bombs stand in cells inside the fuselage. Gunners in the nose, on the back and at a hatch in the floor.',
-    geometry: geom({ layout: 'biplane', span: 30.48, lowerSpan: 21.3, length: 19.16, chord: 3.05, lowerChord: 3.05, gap: 3.05, stagger: 0, height: 6.7, dihedralDeg: 2.5, crew: 4, tailShape: 'squared', fuselageWidth: 1.3, wheelTrack: 6.6, nacelleOffsetX: 3.3 }),
+    geometry: geom({ layout: 'biplane', span: 30.48, lowerSpan: 21.3, length: 19.16, chord: 3.05, lowerChord: 3.05, gap: 3.05, stagger: 0, height: 6.7, dihedralDeg: 2.5, crew: 4, tailShape: 'squared', fuselageWidth: 1.3, wheelTrack: 6.6, nacelleOffsetX: 3.3,
+      nacelle: { centerY: 0.49108111159808987, centerZ: -0.627, length: 3.6, radius: 0.52, pusher: false },
+      gearContacts: { main: [3.3, -2.15841888840191, -1.165], tail: [0, -0.047911283, 12.033] } }),
     performance: perf({ massLoaded: 6060, massEmpty: 3856, wingArea: 153.1, enginePowerHp: 720, engineCount: 2, engineType: 'inline', engineName: 'Rolls-Royce Eagle VIII', maxSpeedKmh: 157, maxSpeedAltM: 0, ceilingM: 3960, climbTo3000mMin: 40, enduranceHours: 8, rollRate: 0.12, pitchRate: 0.2, structuralStrength: 0.8, fuelCapacityL: 1320 }),
     guns: [...twinLewis(0.8, -6.1, 6), flex('lewis', [-0.5, 1.3, 3.3], 5), flex('lewis', [0.5, 1.3, 3.3], 5), flex('lewis', [0, -0.8, 4.0], 5)],
     crewStations: [
       { id: 'pilot', label: 'Pilot', crewIndex: 0, guns: [], arcs: [] },
       { id: 'nose', label: 'Nose gunner', crewIndex: 1, guns: [0, 1], arcs: arcs(BOMBER_NOSE_ARCS), bombAimer: true, eye: [0, 1.08, -6.1] },
       { id: 'dorsal', label: 'Rear gunner', crewIndex: 2, guns: [2, 3], arcs: arcs(BOMBER_DORSAL_ARCS), eye: [0, 1.5, 3.6] },
-      { id: 'ventral', label: 'Ventral gunner', crewIndex: 3, guns: [4], arcs: arcs(BOMBER_VENTRAL_ARCS), eye: [0, -0.72, 4.45] },
+      { id: 'ventral', label: 'Ventral gunner', crewIndex: 3, guns: [4], arcs: arcs(BOMBER_VENTRAL_ARCS), eye: [0, -0.72, 4.45], posture: 'prone' },
     ],
     bombs: [{ name: '112 lb R.L. HE', massKg: 51, explosiveKg: 16, count: 16 }],
   },

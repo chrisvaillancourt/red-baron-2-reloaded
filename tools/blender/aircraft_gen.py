@@ -62,11 +62,6 @@ EXPOSED_HEADS |= {'dh9'}
 BAYS_M = {'gotha_gv': [1.85, 2.95, 6.4, 10.5], 'aeg_giv': [1.6, 2.6, 5.5, 8.1], 'handley_page_o400': [2.7, 3.9, 7.0, 10.1], 'voisin_iii': [4.3, 6.5]}
 # Upper-wing overhang braced by raked struts from the lower wing tip (O/400).
 OVERHANG_STRUTS = {'handley_page_o400'}
-# Twin-engine types whose propellers are pushers behind the wings (the fuselage stays a
-# normal tractor-style fuselage; geometry.pusher means the nacelle-and-booms layout).
-PUSHER_NACELLES = {'gotha_gv'}
-# Engine nacelle height as a fraction of the gap above the lower wing, length, radius.
-NACELLE = {'gotha_gv': (0.3, 3.0, 0.46), 'aeg_giv': (0.3, 2.6, 0.42), 'handley_page_o400': (0.38, 3.6, 0.52)}
 FOUR_BLADES = {'handley_page_o400'}
 PROP_RADIUS = {'gotha_gv': 1.5, 'aeg_giv': 1.35, 'handley_page_o400': 1.65, 'voisin_iii': 1.35}
 # Cockpit centre (Blender y) for the twins: the pilot sits between the nose gunner and the wings.
@@ -1114,13 +1109,13 @@ class Aircraft:
 
     # ------------------------------------------------------------ engine / prop
     def nacelle(self):
-        """Engine nacelle placement for a twin: centre height, front/rear y, radius."""
-        frac, length, R = NACELLE[self.id]
+        """Shared body-frame nacelle data, converted to Blender's forward +Y / up +Z."""
+        n = self.g['nacelle']
+        length, R = n['length'], n['radius']
         z0l = self.wings['Lower'][0]
         zl = z0l + self.nac_x * math.tan(math.radians(self.g['dihedralDeg']))
-        pusher = self.id in PUSHER_NACELLES
-        y0 = self.upperLE + (0.7 if pusher else length * 0.42)
-        return {'z': zl + R + self.g['gap'] * frac * 0.5, 'zl': zl, 'y0': y0, 'y1': y0 - length, 'R': R, 'pusher': pusher, 'len': length}
+        y0 = -n['centerZ'] + length / 2
+        return {'z': n['centerY'], 'zl': zl, 'y0': y0, 'y1': y0 - length, 'R': R, 'pusher': n['pusher'], 'len': length}
 
     def build_nacelles(self, parent):
         n = self.nacelle()
@@ -1369,12 +1364,11 @@ class Aircraft:
         """Pairs of wheels under each engine nacelle, on V struts from the lower wing."""
         mb = MB(['Metal', 'Wood'])
         wh = MB(['Rubber', 'Livery_Accent'])
-        n = self.nacelle()
+        contacts = self.g['gearContacts']
+        ax, wheel_bottom, body_z = contacts['main']
         r = {'handley_page_o400': 0.55, 'gotha_gv': 0.5}.get(self.id, 0.45)
-        gearH = {'handley_page_o400': 1.0, 'gotha_gv': 0.85}.get(self.id, 0.75)
-        axleY = self.lowerLE + 0.25
-        axleZ = n['zl'] - gearH
-        ax = self.g['wheelTrack'] / 2
+        axleY = -body_z
+        axleZ = wheel_bottom + r
         for s in (-1, 1):
             for dx in (-0.32, 0.32):
                 self.wheel(wh, s * ax + dx, axleY, axleZ, r, 0.15, N=12)
@@ -1385,17 +1379,14 @@ class Aircraft:
                 strut(mb, (x, axleY + 0.55, zw), (s * ax + sx * 0.2, axleY, axleZ + 0.03), chord=0.06, thick=0.035, mat=0)
                 zw = self.wing_surface_z('Lower', x, axleY - 0.6)[1]
                 strut(mb, (x, axleY - 0.6, zw), (s * ax + sx * 0.2, axleY, axleZ + 0.03), chord=0.06, thick=0.035, mat=0)
-        wheel_bottom = axleZ - r
-        skidY = self.skid_y
-        skid_bottom = wheel_bottom + (axleY - skidY) * math.tan(math.radians(11))
+        skidX, skid_bottom, skidBodyZ = contacts['tail']
+        skidY = -skidBodyZ
         top = self.skid_ztop
-        if skid_bottom > top - 0.08:
-            skid_bottom = top - 0.08
-        strut(mb, (0, skidY + 0.35, top + 0.02), (0, skidY - 0.1, skid_bottom), chord=0.07, thick=0.04, mat=1)
+        strut(mb, (skidX, skidY + 0.45, top + 0.02), (skidX, skidY, skid_bottom), chord=0.07, thick=0.04, mat=1)
         self.contacts = {
             'Contact_WheelL': (-ax, axleY, wheel_bottom),
             'Contact_WheelR': (ax, axleY, wheel_bottom),
-            'Contact_Skid': (0, skidY - 0.1, skid_bottom),
+            'Contact_Skid': (skidX, skidY, skid_bottom),
         }
         return [mb.build('Undercarriage', parent, smooth=False), wh.build('Wheels', parent, smooth=True, sharp_angle=50)]
 
@@ -1563,7 +1554,7 @@ class Aircraft:
                 continue
             st = st_of.get(i) or {'id': 'observer', 'eye': None, 'crewIndex': 1}
             if st['id'] not in groups:
-                groups[st['id']] = {'id': st['id'], 'guns': [], 'eye': st.get('eye'), 'crew': st.get('crewIndex', 1)}
+                groups[st['id']] = {'id': st['id'], 'guns': [], 'eye': st.get('eye'), 'crew': st.get('crewIndex', 1), 'posture': st.get('posture', 'standing')}
                 order.append(st['id'])
             groups[st['id']]['guns'].append(i)
         self.flex = []
@@ -1581,7 +1572,7 @@ class Aircraft:
                 y = -guns[grp['guns'][0]]['position'][2]
                 gz = guns[grp['guns'][0]]['position'][1]
                 top = self.fuselage_top(y)
-                if sid == 'ventral':
+                if grp['posture'] == 'prone':
                     kind = 'ventral'
                 elif self.pusher or gz - top > 0.5:
                     kind = 'pillar'
