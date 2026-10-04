@@ -346,13 +346,33 @@ every gain with dynamic pressure automatically.
 ## Tests
 
 **A/B measurement.** Use `node tools/dev/ab.mjs` rather than hand-launching paired soaks.
-It runs a soak with a tactic off and on (`--flag <TACTICS_FLAGS name>`), or at another
-commit (`--base <ref>`), on the same seeds and in parallel. It prints both sides with 95%
-intervals and a "within noise" or "differs" verdict. For example:
-`node tools/dev/ab.mjs --soak career --flag stalk` runs 3 seed sets per side, and
-`node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk`. The
-career and quick surveys end with a `RATES` line: killed or captured and collisions per 100
-missions, both with intervals. Collisions count every event; `playerColl` is the player's.
+It supports career, quick, fairness, tailhold, defence and raid on matched seeds/counts:
+`--flag <TACTICS_FLAGS name>` switches a tactic off/on; `--base <ref> --head HEAD`
+freezes both revisions. `--jobs 1` limits CPU contention. Raw reports, stdout/stderr,
+exact revisions, relevant inputs and exits are retained in `--out <directory>` (or
+the printed temporary directory), including failures. Existing evidence is not overwritten.
+
+Career/quick `RATES` and fairness retain their 95% interval-overlap heuristic
+("within noise"/"differs"), not a paired significance test. Collisions count events;
+`playerColl` counts those involving the player. Tailhold, defence and raid are
+**descriptive aggregates only**: no inferred counts or statistical verdicts from rounded
+percentages. Raid ground destruction includes incidental AA, not only objective targets.
+
+Examples:
+- `node tools/dev/ab.mjs --soak career --flag stalk`
+- `node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk`
+- `node tools/dev/ab.mjs --soak tailhold --set default,low --reps 36 --flag escalateDefence --env AUTOPLAY_PILOT=human`
+- `node tools/dev/ab.mjs --soak defence --reps 24 --a DEFENCE_AB=off --b DEFENCE_AB=mix --env AUTOPLAY_PILOT=human`
+- `node tools/dev/ab.mjs --soak raid --set default,escort --reps 12 --flag bomberFormation`
+
+Defence activates its actual survey mode, which overrides `escalateDefence`,
+`defenceLadder` and `defenceReversal`; compare `DEFENCE_AB` modes, not those flags.
+Tailhold defaults to 36 repetitions. Repeat `--env`, `--a` and `--b` for each
+`KEY=VALUE`: commas and further equals signs belong to the value. For example,
+`--a AI_TACTICS=stalk=0,blindSpot=0 --a AUTOPLAY_PILOT=human`; the old grouped
+`--a AI_TACTICS=stalk=0,AUTOPLAY_PILOT=human` syntax is no longer supported.
+Failed workers, malformed reports, mismatched repetitions/cohorts or different
+tailhold/defence pursuers cannot produce a comparison.
 
 - `realsim.test.ts` (CI, ~13 s): scenario tests on the real `stepFlight` +
   `createCombatSystem`, standard realism, engine torque on — every type flies a
@@ -420,8 +440,8 @@ missions, both with intervals. Collisions count every event; `playerColl` is the
   D.VII v R.E.8). Baseline at 6216291, 48 reps: the Bristol wins 79% and goes down 27%
   (enemy lost 81, wingmen 7); the D.VII against R.E.8s wins 73% and goes down 25%
   (enemy-fire 7 of its 12 losses).
-- `AI_SOAK=tailhold AI_TH_SET=default,mirror,energy,low AI_TH_REPS=12 pnpm vitest run
-  src/ai/tailhold.soak.test.ts` (~3 min): for each defender type and side, how long an
+- `AI_SOAK=tailhold AI_TH_SET=default,mirror,energy,low AI_TH_REPS=36 pnpm vitest run
+  src/ai/tailhold.soak.test.ts`: for each defender type and side, how long an
   enemy held its tail (inside 400 m, within 60° of astern), and meanwhile its circling
   share, bank, height change, AI states, and hits taken per state. It also counts crashes.
   `low` is the wave-9 playtest report's setup.
