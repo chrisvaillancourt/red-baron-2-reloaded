@@ -150,6 +150,29 @@ completed successfully for `pull_request`: build passed, deploy skipped.
 This exercises the actual remote non-publishing path, not merely YAML inspection.
 Publication remains untested by this task because main was not changed.
 
+### Q-05 — Feasible escape during attack extension
+
+Reproduced three actual quick-survey collisions at base `87b798e`, retaining each
+whole approach rather than reconstructing two aircraft with fresh AI state:
+Camel dogfight seed 2747 (AI/AI), Camel intercept seed 1495 (player/AI), and
+D.VII dogfight seed 1293 (defending player/extending AI). Their regression cases
+all fail on the unchanged base and pass with the correction.
+
+Collision avoidance already runs after attack steering. The defect was a late
+escape opposite the extending aircraft's lift: rolling through more than 90°
+consumed the remaining time to contact. Within the existing imminent-conflict
+window, extension now escapes along available lift. Dead-ahead coordinated
+splitting, engagement/defence steering and longer-range avoidance stay unchanged.
+An initial phase-independent candidate regressed the non-dodging-human furball
+gate and was rejected; the extension-only correction passes it.
+
+Parent verification: typecheck; 666 Vitest tests passed, 30 gated skips; eight Node
+tool tests passed. A standalone production-sim run observed no collisions in
+the three reproduced cases, with 682/814/260 gun-fire events respectively.
+The 20-seed non-dodging-human smoke retained active combat (52 kills): one
+wingman convergence and three wreck collisions, not a claim of collision-free AI.
+No global collision-rate or fairness improvement is claimed from these cases.
+
 ## Debt dispositions
 
 - F-7 debrief order is already documented (`docs/ui.md`); do not implement a second navigation convention.

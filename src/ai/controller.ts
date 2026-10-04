@@ -1868,8 +1868,14 @@ export class AIPilot implements AIController {
       const radius = !isAlive(o) ? 40 : o.controller === 'player' || sameTarget ? 45 : 32;
       if (dcpa >= radius) continue;
       const w = (1 - dcpa / radius) * (1 - tcpa / 4.2);
-      // Dead ahead: split up or down the lift line, no roll needed (splitSide).
-      if (dcpa < 1) cpa.copy(upOf(s.orientation, new Vector3())).multiplyScalar(-splitSide(self, o));
+      const lift = upOf(s.orientation, _up);
+      // Dead ahead: retain the coordinated up/down split (splitSide).
+      if (dcpa < 1) cpa.copy(lift).multiplyScalar(-splitSide(self, o));
+      // During a committed extension, a late escape opposite the current lift needs
+      // a >90-degree roll before it can separate us. Use the available lift then;
+      // retain ordinary steering during engagement/defence and longer-range conflicts.
+      // Applying this to engagement too made avoidance worse for non-dodging humans.
+      else if (this.phase === 'extend' && tcpa > 0 && tcpa < BREAK_LEAD_S && cpa.dot(lift) > 0) cpa.copy(lift).negate();
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
     }
