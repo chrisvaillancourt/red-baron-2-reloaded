@@ -53,6 +53,8 @@ in bombing raids. Aircraft and valid crew seats survive mission changes and relo
   squadron/equipment selections equal. No physics, AI composition, campaign content,
   shared contract or dependency changes in this cutover.
 - Decisions and measured implementation notes are in `DECISIONS.md` and `docs/bombers.md`.
+- Independent Standards and Spec reviews of `a0bbd77` found no violations or missing
+  requirements. The player-access branch is a reviewed handoff, not an automatic deployment.
 
 - **Merged: bombers and gunner seats, wave 1** (plan and file ownership in
   `docs/bombers.md` "Waves"). All four tracks are on main:
@@ -73,7 +75,7 @@ in bombing raids. Aircraft and valid crew seats survive mission changes and relo
   1. **Done: readiness integration.** PR #4 resolved the low roll-rate floor, twin support
      and engine-hit geometry, and prone ventral crew. F-71 is resolved. Per-engine propeller
      sizing was already correct. Rough/sloped-field and crosswind limits remain unmeasured.
-  2. **Integrate player access** from `feat/player-aircraft-access` after review. Its
+  2. **Integrate the reviewed player-access branch** `feat/player-aircraft-access`. Its
      selection, persistence and live crew flows are verified; AI pools remain independent.
   3. **Lead:** replay the user's reports (`playtests/reports/` and the main checkout's
      `playtests/inbox/`) against the defence changes (D-085) with
