@@ -47,8 +47,10 @@ the first compatible free slot; freeze its parameters during tactical comparison
 Q-06 mutual support waits for the collision safety scenarios. Mobile acceptance
 requires a physical device, but code/layout investigation does not.
 
-PR #9 merge permission is specific to that PR. Further implementation can proceed
-autonomously on task branches; future main publication still requires authorization.
+The user selected **Verified merges and deployments** for autonomous work while away:
+publish completed PRs after independent review, relevant regression/runtime checks and
+green CI; verify each live deployment before publishing another. Do not change LICENSE
+or unresolved gameplay policies. This supersedes the earlier PR-9-only permission.
 The integration comment on PR #9 is the durable merge/deployment/live-smoke receipt.
 
 ## Initial work contracts

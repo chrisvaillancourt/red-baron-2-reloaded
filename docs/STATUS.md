@@ -4,16 +4,17 @@
 
 This table supersedes historical scheduling instructions below. Execution contracts,
 decisions, evidence and debt dispositions: [Backlog execution record](BACKLOG.md).
-Owner: parent omp integration session. User authorized PR #9 integration and its
-main-push deployment; decision D-106. The PR integration comment records the final
-merge revision, Actions run and live smoke. No workspace cleanup is authorized.
+Owner: parent omp integration session. User authorized verified merges and deployments:
+independent review, relevant checks, green CI, then live verification before the next
+publication. PR integration comments record release receipts. No workspace cleanup
+or unresolved LICENSE/gameplay-policy decisions are authorized.
 
 | ID | Outcome | State / owner | Acceptance or unblock condition |
 |---|---|---|---|
 | Q-01 | Non-publishing PR/manual validation | Integration authorized / lead | PR #9 checks passed with deploy skipped; publication verification recorded in PR |
 | Q-02 | Isolated, consistent browser automation | Integration authorized / lead | 23 browser tests and production smoke passed; PR records release verification |
 | Q-03 | Current gameplay evidence | Complete / integration lead | Frozen-SHA fairness/quick/career/raid surveys and report replays recorded in BACKLOG |
-| Q-04 | Tailhold/defence/raid A/B coverage | Ready / next tooling slot | Real survey adapters, retained raw results, no fabricated statistical verdicts |
+| Q-04 | Tailhold/defence/raid A/B coverage | Reviewed / PR #11 integration | All six real adapters and frozen refs exercised; 20 Node regressions passed; final publication receipt in PR |
 | Q-05 | Attack-extension collision reproduction | Ready / AI safety | Isolate cases from Q-03's 20 quick collision events (eight player events); no generic avoidance rewrite |
 | Q-06 | Mutual support for ordinary flight-mates | Blocked on Q-03/Q-05 / AI tactics | Both pursuers, meaningful threat, collision and mirror-fairness gates |
 | Q-07 | Human-like pursuer calibration | Ready / calibration | 12 aim-bearing reports available; comparable cohorts and held-out data required |

@@ -1184,7 +1184,7 @@ Full browser runs still need an exclusive machine GPU slot. Refactors consolidat
 existing behavior, without runtime dependencies or shared game-contract changes.
 Verification and measurement limitations are recorded in `docs/BACKLOG.md`.
 
-## D-XXX — Compare real survey outputs without manufacturing precision
+## D-107 — Compare real survey outputs without manufacturing precision
 **Context.** Tailhold, defence and raid had reporters but no A/B adapters. Their
 rounded aggregates do not contain the counts needed for new statistical verdicts.
 Comma-separated environment assignments also conflicted with comma-valued tactics.
@@ -1200,3 +1200,4 @@ the reporter overrides defence flags. Repeated identical fairness cohorts count 
 Valid zero-denominator and two-aircraft crash reports remain comparable, without
 inventing percentages or sample counts. Invalid or failed reports retain diagnostic
 evidence but emit no comparison. No runtime dependencies or gameplay-policy change.
+Number assigned by the integration owner for the user-authorized PR #11 integration.
