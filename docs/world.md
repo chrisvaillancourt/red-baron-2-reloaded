@@ -43,6 +43,15 @@ world.render(camera);
 ### Components
 Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`: quadtree LOD built in a worker pool, land-use shader, feature mask for water/roads), sea, river & road ribbons (near camera), towns/farms/ruins (`towns.ts`, instanced per 8 km tile), trees (`trees.ts`, streamed 500 m cells), aerodromes, clouds (billboard cumulus + overcast deck, in-cloud whiteout), effects (`effects/`: particles, tracers, event handling, bombs).
 
+**Cumulus appearance** (`clouds.ts`). Puffs use a dense core and a narrower,
+noise-shaped soft rim rather than a squared full-radius fade. The same three
+noise samples add subtle body shading; no extra geometry, textures or noise
+octaves are needed. Sun-facing highlights and shaded bases retain the existing
+weather/time-of-day colours. Placement, wind drift, near-camera fading,
+in-cloud whiteout and the shared AI cloud-density field are unchanged.
+Check below-cloud and cloud-level views as well as dawn and overcast: denser
+billboards must not acquire hard circular edges or visible quad boundaries.
+
 **Bombs** (`effects/bombEffects.ts`). The renderer draws the combat system's bombs in flight,
 which the game layer passes as `update(dt, camera, world, bullets, combat.bombs)`
 (`BombView`), so the drawn bomb is the sim's own, wind drift included. Each is a small finned

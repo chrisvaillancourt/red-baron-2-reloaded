@@ -93,18 +93,19 @@ void main() {
   vec2 uv = vUv * 1.25;
   float r2 = dot(uv, uv);
   if (r2 > 1.0) discard;
-  // Billowy edge noise.
+  // A dense core with a soft, irregular rim reads as water vapour rather
+  // than a Gaussian smoke sprite. Reuse the edge noise for body shading.
+  // The outer cutoff stays inside the quad, including the noise excursion.
   vec2 q = uv * 1.7 + vSeed * 17.0;
   float nz = n2(q) * 0.5 + n2(q * 2.3 + 3.0) * 0.3 + n2(q * 5.1 + 7.0) * 0.2;
-  float rr = sqrt(r2) + (nz - 0.5) * 0.6;
-  float a = 1.0 - smoothstep(0.12, 0.82, rr);
-  a *= a;
+  float rr = sqrt(r2) + (nz - 0.5) * 0.42;
+  float a = 1.0 - smoothstep(0.30, 0.76, rr);
   // Sphere normal in world space for a puffy lit look.
   float nzv = sqrt(max(0.0, 1.0 - r2));
   vec3 n = normalize(uCamRight * uv.x + uCamUp * uv.y - uCamFwd * nzv);
   float lambert = dot(n, uSunDir) * 0.5 + 0.5;
   float height = clamp(vShade + uv.y * 0.25, 0.0, 1.0);
-  float light = clamp(lambert * 0.55 + height * 0.65 - 0.1, 0.0, 1.0);
+  float light = clamp(lambert * 0.65 + height * 0.65 - 0.2 + (nz - 0.5) * 0.3, 0.0, 1.0);
   // Forward-scattering silver lining when looking toward the sun.
   vec3 viewDir = normalize(vWorldCenter - cameraPosition);
   float fwd = pow(max(dot(viewDir, uSunDir), 0.0), 6.0) * (1.0 - nzv) * 0.6;
