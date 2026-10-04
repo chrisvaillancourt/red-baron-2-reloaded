@@ -2,7 +2,7 @@ import { expect, test as base, type Page } from '@playwright/test';
 import { disableGamepads } from '../../tools/playtest/browser-automation.mjs';
 
 export { expect, type CDPSession, type Page } from '@playwright/test';
-export { FLIGHT_READY_TIMEOUT_MS, waitForFlightReady } from '../../tools/playtest/browser-automation.mjs';
+export { FLIGHT_READY_TIMEOUT_MS, waitForFlightReady, waitForDefenseReady } from '../../tools/playtest/browser-automation.mjs';
 
 // Override the context, not just the initial page: new pages and reloads must also
 // see no physical controller before any app code reads its buttons or axes (F-60).

@@ -2,9 +2,10 @@
 // audio engine into an OfflineAudioContext and prints peak / RMS in dBFS.
 // Usage: node dev/measure-ui-audio.mjs [baseUrl]
 import { chromium } from '@playwright/test';
+import { automationLaunchOptions } from '../tools/playtest/browser-automation.mjs';
 
 const base = process.argv[2] ?? 'http://localhost:5304';
-const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'chrome' });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage();
 await page.goto(base);
 const rows = await page.evaluate(async () => {

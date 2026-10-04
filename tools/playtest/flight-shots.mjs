@@ -7,7 +7,7 @@
 // Extra: --enemy albatros_dv --count 2 --alt 1500 --start head-on --eval "<js>"
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
+import { automationLaunchOptions, disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, arr) => (a.startsWith('--') ? [...acc, [a.slice(2), arr[i + 1]]] : acc), []),
@@ -20,7 +20,7 @@ const views = (args.views ?? 'cockpit,chase').split((args.views ?? '').includes(
 const flySeconds = Number(args.fly ?? 4);
 mkdirSync(out, { recursive: true });
 
-const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage({ viewport: { width: Number(args.w ?? 1280), height: Number(args.h ?? 720) } });
 await disableGamepads(page.context());
 const errors = [];

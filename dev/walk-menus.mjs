@@ -3,6 +3,7 @@
 // Usage: node dev/walk-menus.mjs [baseUrl] [outDir] [width] [height] [only]
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { automationLaunchOptions, disableGamepads } from '../tools/playtest/browser-automation.mjs';
 
 const base = process.argv[2] ?? 'http://localhost:5304';
 const out = process.argv[3] ?? 'test-results/walk';
@@ -11,11 +12,9 @@ const H = Number(process.argv[5] ?? 720);
 const only = process.argv[6] ?? '';
 mkdirSync(out, { recursive: true });
 
-const browser = await chromium.launch({
-  channel: process.env.PW_CHANNEL ?? 'chrome',
-  args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu', '--autoplay-policy=no-user-gesture-required'],
-});
+const browser = await chromium.launch(automationLaunchOptions(['--autoplay-policy=no-user-gesture-required']));
 const page = await browser.newPage({ viewport: { width: W, height: H } });
+await disableGamepads(page.context());
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => {

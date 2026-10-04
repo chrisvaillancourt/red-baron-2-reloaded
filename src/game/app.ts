@@ -7,8 +7,9 @@ import { loadSettings, saveSettings } from '../core/settings';
 import type { GameSettings } from '../core/types';
 import { catalogFromCampaignData, setUiCatalog } from '../ui';
 import { abortActiveFlight } from './activeFlight';
+import { abortActiveDefense } from './activeDefense';
 import { isBenignError, setRecoveryHandler, showFatalError } from './errorOverlay';
-import { createLazyFlightLauncher, prefetchFlightChunk } from './modules';
+import { createLazyDefenseLauncher, createLazyFlightLauncher, prefetchFlightChunk } from './modules';
 import type { MenuModules, UiHandle } from './moduleTypes';
 
 export { showFatalError } from './errorOverlay';
@@ -32,6 +33,7 @@ export function startApp(root: HTMLElement, modules: MenuModules): App {
     campaign: modules.createCampaignService(),
     audio,
     launcher: createLazyFlightLauncher(modules, audio),
+    defense: createLazyDefenseLauncher(audio),
     getSettings: () => settings,
     saveSettings(s) {
       settings = s;
@@ -52,6 +54,7 @@ export function startApp(root: HTMLElement, modules: MenuModules): App {
     },
     restart() {
       abortActiveFlight(new Error('Aborted to recover from an error'), { silent: true });
+      abortActiveDefense(new Error('Aborted to recover from an error'));
       try {
         ui.dispose();
       } catch (e) {

@@ -1,0 +1,50 @@
+.defense-session { position:absolute; inset:0; overflow:hidden; background:#161f22; color:#f0e5c8; font:15px 'American Typewriter','Courier New',monospace; }
+.defense-canvas { display:block; width:100%; height:100%; outline:none; }
+.defense-header { position:absolute; top:0; left:0; right:0; display:flex; align-items:center; gap:1.5em; padding:1em 1.5em; background:linear-gradient(#10170dd9,transparent); pointer-events:none; text-shadow:0 1px 3px #000; }
+.defense-header > div { flex:1; }
+.defense-header small,.defense-header strong { display:block; }
+.defense-header small { letter-spacing:.16em; font-size:.7em; opacity:.8; margin-bottom:.4em; }
+.defense-header .btn { pointer-events:auto; }
+.defense-objectives { position:absolute; top:5.5em; left:1.5em; display:flex; gap:1.5em; padding:.65em 1em; background:#10170dbb; border:1px solid #f0e5c833; pointer-events:none; }
+.defense-objectives span { display:block; font-size:.8em; margin-bottom:.25em; }
+.defense-objectives meter { display:block; height:.65em; width:10em; }
+.defense-reticle,.defense-hit-marker { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); pointer-events:none; }
+.defense-reticle { width:1.2em; height:1.2em; border:1px solid #e7dbbb99; border-radius:50%; box-shadow:0 0 2px #000; }
+.defense-reticle::after { content:''; position:absolute; width:3px; height:3px; top:50%; left:50%; transform:translate(-50%,-50%); background:#eee4b2; }
+.defense-lead,.defense-target { position:absolute; pointer-events:none; width:14px; height:14px; transform:translate(-50%,-50%); }
+.defense-lead { border:2px solid #e8c65f; transform:translate(-50%,-50%) rotate(45deg); box-shadow:0 0 3px #000; }
+.defense-target { border:1px solid #d9d2ba88; width:22px; height:22px; }
+.defense-hit-marker { color:#ffde8c; font-size:2em; text-shadow:0 0 4px #000; }
+.defense-bottom { position:absolute; bottom:0; left:0; right:0; padding:.6em 1.5em 1em; background:linear-gradient(transparent,#10170de8); text-shadow:0 1px 2px #000; }
+.defense-target-info { display:block; text-align:center; font-size:.85em; margin-bottom:.4em; }
+.defense-fuze { display:flex; align-items:center; justify-content:center; gap:.6em; font-size:.8em; margin-bottom:.6em; }
+.defense-fuze input { width:12em; accent-color:#d8bd75; }
+.defense-stations { display:flex; justify-content:center; gap:.7em; }
+.defense-station { flex:1; max-width:24em; padding:.6em 1em; color:inherit; font:inherit; text-align:left; background:#22271ddb; border:1px solid #9e987e; cursor:pointer; }
+.defense-station[aria-pressed=true] { background:#524c2ddd; border-color:#f0ce70; }
+.defense-station strong,.defense-weapon-status { display:block; }
+.defense-station strong { font-size:.9em; }
+.defense-weapon-status { font-size:.8em; margin:.3em 0; }
+.defense-station meter { width:100%; height:.6em; }
+.defense-bottom > small { display:block; text-align:center; font-size:.65em; margin-top:.6em; opacity:.8; }
+.defense-overlay { position:absolute; inset:0; z-index:5; display:grid; place-items:center; overflow:auto; padding:2em; background:#111b1799; backdrop-filter:blur(3px); }
+.defense-overlay[hidden],.defense-lead[hidden],.defense-target[hidden],.defense-hit-marker[hidden] { display:none; }
+.defense-command { max-width:48em; width:100%; padding:2em; color:#32291b; text-shadow:none; }
+.defense-command h1 { font:2em 'Iowan Old Style',Palatino,Georgia,serif; margin:.4em 0; }
+.defense-command p { line-height:1.5; }
+.defense-command .actions { display:flex; flex-wrap:wrap; gap:.65em; margin-top:1.2em; }
+.defense-purchases { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.6em; }
+.defense-purchases .btn { text-align:left; white-space:normal; }
+@media(max-width:760px) {
+  .defense-session { font-size:12px; }
+  .defense-header { padding:.65em; gap:.6em; }
+  .defense-header > span { max-width:13em; font-size:.8em; }
+  .defense-objectives { left:.65em; right:.65em; gap:1em; justify-content:space-between; }
+  .defense-objectives meter { width:8em; }
+  .defense-bottom { padding:.5em; }
+  .defense-station { padding:.5em; }
+  .defense-fuze { flex-wrap:wrap; }
+  .defense-command { padding:1.4em; }
+  .defense-purchases { grid-template-columns:1fr; }
+  .defense-overlay { padding:1em; }
+}

@@ -8,13 +8,15 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 
 | File | Role |
 |---|---|
-| `modules.ts` | **Composition point, menu half.** `menuModules` (audio, campaign, UI); `createLazyFlightLauncher`, `loadFlightChunk`, `prefetchFlightChunk`. |
+| `modules.ts` | **Composition point, menu half.** `menuModules` (audio, campaign, UI); lazy flight and defense launchers, `loadFlightChunk`, `prefetchFlightChunk`. |
 | `flightModules.ts` | **Composition point, flight half.** `flightModules` (sim, combat, AI, world renderer, aircraft visuals, HUD, terrain) — its own build chunk. |
 | `moduleTypes.ts` | `GameModules` factory signatures (= `MenuModules` + `FlightOnlyModules`), `AIControllerOptions`, `UiHandle`. The HUD type is `Hud` from `src/ui/hud/types.ts`. |
 | `app.ts` | `startApp(root, menuModules)`: settings, `GameServices`, display catalog (`setUiCatalog(catalogFromCampaignData())`), UI mount, error recovery (`restart()`), `installGlobalErrorHandlers`. |
 | `errorOverlay.ts` | `showFatalError` (recoverable: "Return to menu" / "Reload") and `showFlightInterrupted`. |
 | `activeFlight.ts` | Registry of the flight in progress; `abortActiveFlight(err, { silent })`. |
 | `flightSession.ts` | `createFlightLauncher(modules, audio)` → `FlightLauncher.fly`. The loop; drives the HUD cards (pause, end flight, orders, map). |
+| `activeDefense.ts` | Independent battery registry and abort path; no flight/career ownership. |
+| `defenseSession.ts` | `createDefenseLauncher(audio)` → `DefenseLauncher.defend`: fixed-step battery combat, mouse/keyboard input, HUD, pause/resupply and terminal teardown. |
 | `simCore.ts` | `SimCore`: the headless flight — world, combat, AI controllers, mission director, the fixed step, landing detection, wingman orders. Shared by `FlightSession` and the autoplayer. |
 | `heightCache.ts` | Tiled bilinear cache (32 m cells, 1024 m tiles, 600-tile LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
 | `autoplay.ts` | Autoplayer: `runAutoplay(mission)` flies a mission headlessly with the player's aircraft on an AI controller; `headlessModules`. |
@@ -39,6 +41,42 @@ spare (600 cached tiles plus one spare in ordinary use). A miss publishes only a
 sampling finishes, so callback failures cannot corrupt completed tiles. Nested
 sampling may temporarily need extra buffers. Switching tiles on every hit pays for
 recency updates; the newest-tile fast path favours clustered flight queries.
+
+## Airfield Defense
+
+`src/core/defense.ts` defines this action separately from `MissionDefinition` and
+`MissionResult`. `createLazyDefenseLauncher` dynamically loads the production scene
+and pure `createAirfieldDefense` model; the normal flight loader remains separate.
+The two launcher directions reject competing sessions. UI disposal and app restart
+abort the battery and close its host, including a scene that finishes loading late.
+
+The session uses 60 Hz fixed ticks (RAF delta capped at 0.1 s), with model-internal
+120 Hz collision slices. Local metres are centered on the gunner at `(0, 4, 0)`.
+The scene places that origin at Bertangles and supplies the actual modeled muzzle
+ray; no player aircraft, flight control manager, mission director or recorder exists.
+Enemy aircraft entities are presentation/audio mirrors of scripted raid paths.
+Audio-only event conversion never publishes kills through the flight event bus.
+
+`raid → resupply → raid` repeats through five attacks. Scheduled groups, threats,
+bombs and player ordnance all settle before resupply/victory; held fire cannot keep
+the last shells alive indefinitely. Only the battery earns aerial kill/interception
+credit. All assets destroyed means `lost`; leaving means `aborted`. Reports retain
+value snapshots; subsequent commands cannot resurrect a terminal action.
+
+Three weapons share authoritative ammunition, heat, cooldown and reload state.
+HQ protects income, the depot speeds reloads, and the hospital repairs surviving
+assets between raids. Resupply freezes combat; prices/affordability come from the
+model. Repair can rebuild a destroyed asset while another survives. Next raid
+refills magazines and clears heat/reload. Veteran changes coordination and counts,
+not health or the requisition ceiling; lead assistance changes no combat state.
+
+Pause, blur, hidden page and capture loss clear held fire/focus/keys. Escape/shared
+pause bindings still pause while the fuze slider has focus. Resume needs an explicit
+capture gesture or keyboard-mode choice. Session cancellation also terminates
+renderer workers and streaming during blocked model loading. WebGL loss interrupts
+the action rather than continuing invisibly. Terminal teardown removes RAF, observers,
+input listeners, GPU resources, audio and `window.__rb2Defense` (development only).
+
 
 ## Loop
 

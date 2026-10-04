@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { automationLaunchOptions } from './tools/playtest/browser-automation.mjs';
 
 const PORT = Number(process.env.E2E_PORT ?? 5199);
+const AUTOMATION = automationLaunchOptions();
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -13,18 +15,15 @@ export default defineConfig({
   reporter: [['list']],
   outputDir: 'test-results',
   use: {
+    headless: AUTOMATION.headless,
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1280, height: 720 },
     // Hardware GL via ANGLE/Metal (the real renderer is far too heavy for SwiftShader).
     // Set E2E_SWIFTSHADER=1 on machines without a GPU.
-    launchOptions: {
-      args: process.env.E2E_SWIFTSHADER
-        ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-        : ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'],
-    },
+    launchOptions: { args: AUTOMATION.args },
   },
   // Uses the installed Google Chrome (no browser download needed); override with PW_CHANNEL=chromium.
-  projects: [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: process.env.PW_CHANNEL ?? 'chrome', viewport: { width: 1280, height: 720 } } }],
+  projects: [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: AUTOMATION.channel, viewport: { width: 1280, height: 720 } } }],
   webServer: {
     // Call the vite shim directly: `pnpm exec` does not forward SIGTERM, which hangs teardown.
     command: `./node_modules/.bin/vite --port ${PORT} --strictPort`,

@@ -14,7 +14,7 @@
 // Logs each shot's AI state (debugState), range and the cloud density at the subject.
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
+import { automationLaunchOptions, disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const out = process.argv[2] ?? 'test-results/ai-depth';
 const port = Number(process.argv[3] ?? 5303);
@@ -72,7 +72,7 @@ const SCENES = {
   },
 };
 
-const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+const browser = await chromium.launch(automationLaunchOptions());
 for (const [name, sc] of Object.entries(SCENES)) {
   if (only.length && !only.includes(name)) continue;
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });

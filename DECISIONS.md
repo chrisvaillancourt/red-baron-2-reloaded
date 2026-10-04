@@ -1221,3 +1221,129 @@ Physical recent-iPhone Safari acceptance, repeated save/reload/app-switch checks
 a sustained 15-minute frame-time/thermal measurement remain required before claiming
 on-device playability or selecting a mobile graphics preset.
 Number assigned by the integration owner for the authorized touch-control release.
+
+## D-109 — Keep routine browser QA off the user's desktop
+**Context.** A visible automation browser could receive accidental human input.
+The user wants to keep using the computer during agent work without adding
+infrastructure or a coordination system.
+
+**Decision.** Routine QA uses a headless, separately profiled automation browser.
+Visible QA requires an agreed hands-off window and closes afterward. Keep GPU
+scheduling separate: headless prevents desktop-input interference, not resource
+contention. Record shared policy in `AGENTS.md`, launch mechanics in the existing
+harness reference, and make the Playwright runner explicitly headless.
+Custom omp Chrome launches require `--headless=new` in the executable arguments;
+the earlier custom-app `headed: false` request had left an interactable window.
+
+**Evidence.** The owning workspace's hangar rendered through Chrome/Metal on
+M3 Max. CDP reported the headless launch flag and a separate user-data directory;
+the user agent identified HeadlessChrome. Native keyboard checkbox input and a
+click-triggered pointer-lock probe worked. The screenshot was inspected and
+browser error capture was empty. No performance-isolation guarantee is implied.
+Typecheck, 677 unit tests (30 gated skips), 20 tooling tests and the existing
+controller-isolation browser regression passed. The regression used the owning
+workspace's strict port 5367, without reusing a server. The temporary hangar
+server was stopped; its screenshot remains in ignored
+`tools/dev/scratch/headless-browser-qa/`. No full GPU-heavy e2e run was needed.
+
+**Consequences.** No new dependencies, services, runtime game behavior or shared
+core contracts. The QA browser is closed after the smoke check. The retained
+task branch is a handoff; other checkouts adopt the policy when it is integrated.
+
+## D-110 — Keep Airfield Defense independent of pilot sorties
+**Context.** Flight combat, victory claims and `MissionResult` are aircraft-owned.
+The approved first-person battery action needs its own ordnance ownership and
+outcome, not an invented player aircraft or a career mission.
+
+**Decision.** Reimplement the validated gameplay as an optional main-menu action,
+not a merge or copy of the throwaway prototype. `src/core/defense.ts` defines the
+battery session/model/report; the only addition to existing shared core contracts
+is optional `GameServices.defense`. A lazy session composes pure authored raid
+combat with production Bertangles terrain, enemy aircraft GLBs, effects and audio.
+Three aligned guns, five raids including a Zeppelin, falling-bomb interception,
+asset-linked repair/rebuild/upgrades, Regular/Veteran and exact seeded replay are
+complete. Lead assistance is visual only. Veteran increases coordinated pressure,
+not enemy health or the requisition ceiling.
+
+The historical field/date host an arcade exercise, not a reenactment claim.
+Battery shells and enemy bombs have distinct owners; only battery destruction or
+interception earns aerial credit. Defense never writes a pilot, career result or
+flight report. Both launcher directions reject competing sessions; pause,
+ownership loss and teardown release held input and resources. Graphics, sound,
+mouse preferences and fire/pause bindings are shared; battery ammunition/heat are
+not disabled by flight-realism settings. Controls are mouse/keyboard, not touch.
+
+**Evidence.** The integrated model completed both difficulties. A real headless
+Chrome/Metal browser run used mouse/keyboard firing through all five Regular
+raids: 29 aerial kills, one intercepted bomb, all assets standing, 3m 43s combat
+time. Idle defense lost after three completed raids with zero aerial credit.
+Replay, fresh seed, resupply and unchanged career saves were exercised. Desktop
+and 430×900 screenshots cover all guns in normal/focused views and reports.
+The real audio context ran and emitted nonzero gun buffers; void-returning
+pointer lock also captured successfully. Final typecheck, 690 Vitest tests
+(30 gated skips), 20 Node tooling tests, production build and 33 browser tests
+(one gated soak skipped) passed.
+
+**Consequences.** No new dependencies or flight-physics/AI/career policy changes.
+The complete implementation is handed off on `feat/airfield-defense`; human feel
+approval precedes integration/publication. No merge, push or deployment is claimed.
+
+
+## D-111 — Separate development feedback from complete release proof
+**Context.** Focused battery logic took under two seconds, but complete CPU and
+browser gates took about 37 seconds and 4.4 minutes. Harness friction came from
+session-root/attach-mode assumptions, not a reason to weaken game validation.
+
+**Decision.** Keep finite test/build and publication behavior unchanged. Add
+direct unit/import-related commands and a complete CPU `check` that typechecks
+once. Explicitly fail empty related selection and explicitly enable watch in
+agent sessions; document graph-selection limits. Use the existing focused
+watch/browser lanes during edits, then full required gates at handoff.
+Correct session isolation and safe owned-browser routing/recovery recipes in
+the on-demand harness reference, without a new orchestration layer or global
+tool patches.
+
+**Evidence.** Fresh reviewers challenged both command semantics and browser
+ownership before implementation; all findings were incorporated. Real CLI
+positive/negative/partial selection and persistent file-triggered watch ran,
+complete CPU/build gates passed, and fresh-session isolation plus actual-game
+Chrome/Metal input/replay and inspected viewport screenshots were exercised.
+Counts, timings and limitations are in `docs/BACKLOG.md`.
+
+**Consequences.** No game/core/dependency changes. Shorter development loops do
+not count as complete release proof. Upstream attach/recovery defects remain
+identified, not masked. Playtest checkout stays at `0652782`; tooling is handed
+off separately on `perf/development-feedback`.
+
+
+## D-112 — Use direct native Playwright for critical gameplay QA
+**Context.** Input-critical OMP browser attachment/recovery introduced upstream
+ownership and viewport assumptions into game verification. Replacing the whole
+coding harness or patching installed globals is unnecessary.
+
+**Decision.** Critical gameplay/screenshots use direct repository Playwright with
+one shared installed-Chrome/headless/GPU profile. Bounded ad-hoc callbacks may
+reuse one owned isolated browser/context/page; complete regression runs still
+own fresh strict-port servers and one GPU worker. The fixed two-pass defense
+smoke proves real input, clean teardown/reset/replay and actual PNG dimensions,
+with failure artifacts and awaited cleanup. OMP's browser stays lightweight
+inspection; Claude changes remain explicitly deferred.
+
+**Evidence.** Plan and implementation reviewers challenged failure preservation,
+input/viewport acceptance and output ownership. Final two-pass native smoke
+passed in 20.305 s with inspected desktop/narrow images, all guns/ranging and
+no browser errors or leaks. Complete CPU, 33-case browser and production gates
+passed. Negative callback, CLI and output-boundary paths were exercised.
+Detailed timings/limits are in `docs/BACKLOG.md`; the small replay-readiness
+difference does not establish a performance improvement.
+
+**Consequences.** No runtime/core/dependency or Claude configuration changes.
+The improvement is predictable ownership and a reproducible feedback loop,
+not a substitute for complete release or human balance proof. Handoff remains
+on `perf/direct-playwright-qa`, not merged/deployed.
+
+Numbers D-109–D-112 assigned by the integration owner during the authorized
+Airfield Defense/tooling release. The user approved the battery playtest feel;
+controller support follows separately. Earlier task-handoff evidence remains
+historical, not a claim about this integration's verification.
+

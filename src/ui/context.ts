@@ -1,6 +1,7 @@
 /** Shared types for UI screens. */
 import type { MusicCue, GameServices } from '../core/interfaces';
 import type { GameSettings, MissionDefinition, MissionResult } from '../core/types';
+import type { DefenseOptions, DefenseResult } from '../core/defense';
 
 export type ScreenId =
   | 'title'
@@ -10,6 +11,9 @@ export type ScreenId =
   | 'briefing'
   | 'debrief'
   | 'quick'
+  | 'defense-briefing'
+  | 'defense-report'
+  | 'gunner-guide'
   | 'options'
   | 'controls'
   | 'credits'
@@ -59,6 +63,8 @@ export interface UiContext {
   toast(message: string): void;
   /** Hand the screen over to the flight session; resolves with the result (null if the flight failed). */
   fly(mission: MissionDefinition): Promise<MissionResult | null>;
+  /** Run an independent battery defense; null on launcher failure or UI disposal. */
+  defend(options: DefenseOptions): Promise<DefenseResult | null>;
 }
 
 export type ScreenFactory = (ctx: UiContext, params: ScreenParams) => Screen;

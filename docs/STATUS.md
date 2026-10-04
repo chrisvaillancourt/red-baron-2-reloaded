@@ -24,6 +24,8 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-11 | LICENSE | Blocked on owner choice | Explicit license selection |
 | Q-12 | Playable on a high-end modern iPhone | Browser implementation verified / physical-device acceptance blocked | Touch-only raid/debrief, multipointer and hybrid keyboard/controller flows pass; 29 full browser tests pass; physical iPhone Safari lifecycle, saves and sustained performance remain required |
 | Q-13 | Xbox controller support for common controls | Ready for mapping audit / game + UI | Comfortable flight/combat/crew/camera/menu operation, discoverable mappings, safe reconnect/cancellation and physical-controller verification; see BACKLOG |
+| Q-14 | Production Airfield Defense | Release approved / integration lead | User approved playtest feel; source feature and tooling are combined for independent review, full release gates and publication. Xbox battery controls follow separately. |
+| Q-15 | Explicit Claude worker workspace and bounded trial | Deferred / next Claude project session | Review/resume with the owner next time Claude is used here; scope and acceptance in BACKLOG; no Claude changes authorized or implemented now |
 
 States distinguish implementation from integration and deployment. Deferred visual/gameplay
 ideas below stay deferred until their stated player-evidence trigger occurs.
@@ -518,23 +520,62 @@ Remaining:
 
 ### Retained workspace inventory (2026-10-04 UTC)
 
-This is the observed handoff inventory, not cleanup authorization. No existing workspace
-was removed; re-audit ownership, dirty/ignored files, unpushed commits and active processes
-before any future removal.
-The eight registered Git worktrees below were observed during cockpit/quality handoff.
-The human's main checkout was left untouched. Earlier harness-worker records are
-retained, not fresh filesystem audits; the two new workers were imported into this branch.
+Observed during Airfield Defense handoff: 21 registered Git worktrees, plus
+separately retained harness workers. This inventory is not cleanup authorization.
+Other workspaces' dirty/ignored files, unpushed commits and processes were not
+re-audited; preserve them until their owners authorize and verify removal.
+The human checkout was untouched. This task's browsers are closed and port 5370
+is stopped; Playwright's isolated port 5371 server exited with the suite.
 
 | Workspace | Branch / owner | Preservation reason |
 |---|---|---|
-| `red-baron-2-reloaded` | `main` at `f5e0a1c`; human/integration owner | Human checkout left untouched; this task's base is merged PR #7 at `dc9f085`. |
-| `rb2r-bomber-readiness` | `fix/bomber-sim-readiness` at `8aac951`; prior parent omp session | PR #4 squash-merged; preserve original branch and ignored QA evidence pending authorized cleanup. Services stopped. |
-| `rb2r-player-aircraft-access` | `feat/player-aircraft-access`; parent omp session | Preserve the PR #5 branch and ignored screenshots/JSON in `tools/dev/scratch/player-access/` pending authorized cleanup. Browser and port 5271 service stopped; Playwright's isolated 5272 server exited. |
-| `rb2r-debt-spec` | `fix/spec-cache-identity` at `791da38`; prior spec-cache task | PR #1 squash-merged; retain original branch and workspace pending authorized cleanup. |
+| `red-baron-2-reloaded` | `main` at `87b798e`; human/integration owner | Human checkout left untouched. |
+| OS-temp `rb2r-ab-aA0DOQ` | Detached `d52b64a`; prior A/B tooling | Prior comparison workspace; output/provenance not audited, no cleanup authorization. |
+| OS-temp `rb2r-ab-dyK0Zu` | Detached `87b798e`; prior A/B tooling | Same retention rule. |
+| `rb2r-airfield-defense` | `feat/airfield-defense`; current parent omp session | Complete production mode, screenshots/JSON and committed branch handoff; human playtest/integration pending. |
+| `rb2r-archie-prototype` | `prototype/archie-defense` at `b82eab2`; prior prototype session | Validated throwaway evidence; production implementation was reimplemented, not copied. |
+| `rb2r-backlog-cycle-two` | `docs/backlog-cycle-two-evidence` at `4dc8ec8`; prior parent session | Retain cycle-two evidence and integration base. |
+| `rb2r-backlog-execution` | `chore/backlog-execution` at `b3c9623`; prior parent session | Backlog execution evidence; no cleanup authorization. |
+| `rb2r-bomber-readiness` | `fix/bomber-sim-readiness` at `8aac951`; prior parent session | PR #4 squash-merged; original branch and ignored QA evidence preserved. Its handoff recorded services stopped. |
+| `rb2r-collision-baseline` | Detached `87b798e`; prior collision track | Baseline/reproduction evidence; no cleanup authorization. |
+| `rb2r-collision-escape` | `fix/feasible-collision-escape` at `92d3dba`; prior collision track | Q-05/PR #10 release gate remains blocked; preserve candidate and evidence. |
+| `rb2r-debt-height` | `perf/height-cache-locality` at `4057201`; prior height-cache task | PR #3 squash-merged; original branch/workspace preserved. |
 | `rb2r-debt-spatial` | `perf/world-spatial-queries` at `aed20d9`; prior spatial task | PR #2 squash-merged; same retention rule. |
-| `rb2r-debt-height` | `perf/height-cache-locality` at `4057201`; prior height-cache task | PR #3 squash-merged; same retention rule. |
-| `rb2r-pr-integration` | `review/open-pr-integration` at `0ef2f76`; prior parent review | Reviewed integration snapshot/evidence; preserve until authorized cleanup. |
-| `rb2r-visual-atmosphere` | `feat/cockpit-quality-refinement`; current parent omp session | Cockpit/quality PR workspace; ignored before/after images, baseline models and flight evidence retained pending authorized cleanup. QA browser and port 5326 server stopped. |
-| omp isolated `t18fe94f19/m`, `t761509680/m`, `tb9b8755f9/m` | Completed flight, damage and tooling workers | Retained worker changes/evidence; all owned source changes incorporated into the parent branch. Separate harness workspaces, not entries in the main checkout's worktree registry. |
-| omp isolated `te0a804f7d/m`, `t722c9056b/m` | Completed MaterialQuality and CockpitGeometry workers | Commits fetched from the isolated clones and integrated as `ed2fa5b`, `bf7f6eb`, `0eed40e`; retained pending authorized cleanup. No unresolved implementation dependency. |
+| `rb2r-debt-spec` | `fix/spec-cache-identity` at `791da38`; prior spec-cache task | PR #1 squash-merged; same retention rule. |
+| `rb2r-defense-combat` | `feat/defense-combat` at `7b05fd0`; current parent session | Unused prepared external track; actual implementation ran in the harness worker. Preserved, not removed. |
+| `rb2r-defense-menu` | `feat/defense-menu` at `7b05fd0`; current parent session | Same retention rule. |
+| `rb2r-defense-render` | `feat/defense-render` at `7b05fd0`; current parent session | Same retention rule. |
+| `rb2r-headless-browser-qa` | `docs/headless-browser-qa` at `fef7d92`; prior parent session | QA policy/evidence retained; prerequisite incorporated into the defense branch. |
+| `rb2r-player-aircraft-access` | `feat/player-aircraft-access` at `37e8c0b`; prior parent session | PR #5 branch and ignored screenshots/JSON retained. Its handoff recorded browsers/servers stopped. |
+| `rb2r-pr-integration` | `review/open-pr-integration` at `0ef2f76`; prior parent review | Reviewed snapshot/evidence retained until authorized cleanup. |
+| `rb2r-survey-adapters` | `feat/survey-adapters` at `3d8ae87`; prior tooling track | Released Q-04/PR #11 source/evidence; original branch/workspace retained. |
+| `rb2r-visual-atmosphere` | `feat/cockpit-quality-refinement` at `538b6f5`; prior parent session | PR #8 before/after images, baseline models and flight evidence retained. Its handoff recorded browser/port 5326 stopped. |
+| omp isolated `t18fe94f19/m`, `t761509680/m`, `tb9b8755f9/m` | Completed flight, damage and tooling workers | Earlier source/evidence incorporated into their parent; separate harness workspaces, not registered here. |
+| omp isolated `te0a804f7d/m`, `t722c9056b/m` | Completed MaterialQuality and CockpitGeometry workers | Integrated commits `ed2fa5b`, `bf7f6eb`, `0eed40e`; earlier evidence retained. |
+| omp isolated `t9bb320d31/m`, `tf8da99131/m`, `t6ddd574a5/m` | Completed DefenseCombat, DefenseRendering and DefenseMenus workers | Owned changes integrated into `feat/airfield-defense` and verified together; retained worker patches/evidence. No unresolved implementation dependency. |
+
+
+### Development-feedback handoff addition (2026-10-04 UTC)
+
+Fresh `git worktree list` observed 22 registered worktrees: the 21 above plus
+`rb2r-development-feedback`, owned by this parent session on
+`perf/development-feedback`. Preserve its committed tooling and ignored
+screenshots/JSON pending integration/authorized cleanup. Human main remains
+`87b798e`; Airfield Defense remains `0652782`, both clean.
+The separate fresh-session isolation smoke observed child `t573d5d225/m` with
+no captured changes; its lifecycle is harness-owned, not a registered worktree.
+Task QA tabs, port 5374 server and focused watch process are stopped. Existing
+workspaces were not removed or newly authorized for cleanup.
+
+
+### Direct-Playwright handoff addition (2026-10-04 UTC)
+
+Fresh inventory observed 23 registered worktrees: the previous 22 plus
+`rb2r-direct-playwright-qa` on `perf/direct-playwright-qa`, owned by this parent.
+Retain its committed native tooling and ignored successful/failed smoke evidence
+pending integration/authorized cleanup. Main remains `87b798e`, playtest remains
+`0652782`, both observed clean; prior tooling remains `dfb8c3b`.
+Owned dev/preview ports 5382/5384 and native browsers are stopped; the isolated
+full-suite port 5383 server exited with its successful run. No existing workspace
+was removed and no Claude workflow/configuration change was made.
 

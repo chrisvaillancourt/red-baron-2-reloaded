@@ -39,12 +39,43 @@ per frame:
 events (EventBus) fan out to renderer.handleEvent, audio.handleEvent, hud, missionDirector.
 ```
 
+## Airfield Defense session (src/game/defenseSession.ts)
+
+`createLazyDefenseLauncher` loads a separate battery session on demand. Its fixed
+60 Hz ticks feed `src/sim/airfieldDefense.ts`, which slices motion at 120 Hz for
+chronological swept contacts. `src/data/airfieldDefense.ts` owns authored raids and
+battery balance; it does not change flight performance or campaign data.
+
+`src/render/airfieldDefense.ts` adapts local battery metres onto the historical
+Bertangles terrain, production aircraft GLBs/liveries, effects and audio query.
+The query has no player aircraft. Aircraft entities mirror authored enemy poses;
+they are not a second flight simulation. The airship and camera-space guns are
+procedural meshes. Muzzle geometry, physical projectile origin/direction, centered
+sight, normal/focused FOV and resize share one presentation contract.
+
+Battery events stay local. Only battery-owned aerial kills and bomb interceptions
+earn credit; enemy blasts affect defended assets only. Every scheduled group,
+threat, bomb and player shell must settle before resupply or victory. Loss and
+abandonment terminate immediately. `DefenseResult` is a copied terminal snapshot,
+never a `MissionResult`, pilot claim or flight report.
+
+The menu shares settings and navigation conventions, not career state. Input,
+pointer capture, rendering, audio and the dev-only diagnostic hook are released on
+exit/restart. Session cancellation disposes an in-progress renderer immediately,
+including while model requests are blocked; late visuals remain disposal-guarded.
+Both launcher directions reject overlapping flight/defense sessions.
+
+
 ## Contracts
 
 * `src/core/types.ts` — data types (AircraftSpec, entities, MissionDefinition, MissionResult, GameEvent, settings).
 * `src/core/interfaces.ts` — module interfaces (SimModule, CombatSystem, AIController, WorldRenderer,
   AircraftVisual, AudioEngine, CampaignService, FlightLauncher, GameServices).
 * `src/core/campaignTypes.ts` — career data (CareerPilot, SquadronInfo, DebriefReport, QuickMissionOptions).
+* `src/core/defense.ts` — independent battery options, state, owned events, commands,
+  terminal results and `DefenseLauncher`; `GameServices.defense` is optional.
+* `src/render/defensePresentation.ts` — renderer-owned first-person aim/presentation
+  seam, kept out of pure simulation contracts.
 
 ### Crew stations and bombs (D-086, docs/bombers.md)
 
@@ -69,10 +100,72 @@ events (EventBus) fan out to renderer.handleEvent, audio.handleEvent, hud, missi
 
 * `pnpm dev` — play at http://localhost:5173
 * `pnpm test` — Vitest unit tests followed by CPU-only tool regressions (also used by CI); `pnpm typecheck`; `pnpm build`
+* `pnpm check` — complete CPU gate: typecheck, all unit/tool tests, then production bundling; typechecks once
 * `pnpm e2e` — Playwright browser tests; `pnpm e2e:soak` — 20-flight leak soak
 * `pnpm build && pnpm preview --port 5325` then `pnpm prodcheck 5325` — production-build check
 * `blender --background --factory-startup --python tools/blender/build_models.py` — regenerate models
 * `pnpm test:tools` — only the Node-based `tools/dev/*.test.mjs` regressions
+
+### Development feedback
+
+Use the smallest check covering the changed behavior while editing; keep full
+gates for integration/handoff. Pass selectors to a direct runner, not the chained
+`test` or `check` command.
+
+| Change / phase | Feedback command |
+|---|---|
+| Known pure-logic seam | `pnpm test:unit src/sim/airfieldDefense.test.ts` |
+| Repeated edits at that seam | `pnpm test:watch src/sim/airfieldDefense.test.ts` |
+| Explore import-graph dependants | `pnpm test:related src/sim/airfieldDefense.ts` |
+| Node tooling | `node --test tools/dev/ab.test.mjs` |
+| Input/UI behavior | `pnpm smoke:defense --port 5382`, then `E2E_PORT=5383 pnpm e2e tests/e2e/airfield-defense.spec.ts` |
+| Integrated CPU gate | `pnpm check` |
+
+`test:related` fails when it discovers zero test files. A mixed valid/absent
+selector can still pass: report the discovered files/counts, not the requested
+list. Import-graph selection does not track GLB/filesystem inputs or replace
+explicit affected Node/browser tests. Prefer a known existing test file when
+the seam is already identified; `-t` narrows behavior within that file.
+
+Targeted results are not full-suite proof. Complete `pnpm test` and typechecking
+(both included in `check`) before committing. Runtime changes still require the
+full browser gate and inspected real-game evidence at integration, with the
+existing single GPU worker/exclusive slot and a fresh strict-port server. Reuse
+an owned browser/tab only for ad-hoc iteration, not Playwright server reuse.
+Standalone `pnpm build`, CI and publication gates remain unchanged.
+Keep the entire tracked checkout and Git state fixed during `pnpm test`/`pnpm check`,
+including documentation edits and staging/commits: the Node differential regressions
+snapshot repository-wide evidence and deliberately fail if it changes mid-scenario.
+
+
+### Native gameplay smoke
+
+From the owning task worktree, start a dedicated dev server and run the bounded
+sequence against its explicit port:
+
+```sh
+RB2R_REPORTS_DIR=tools/dev/scratch/direct-playwright-qa/flight-reports pnpm dev --port 5382 --strictPort
+pnpm smoke:defense --port 5382 --out tools/dev/scratch/direct-playwright-qa/smoke
+```
+
+The runner performs an initial launch and exact replay in one owned native
+browser/context/page. It observes aim, mouse chords, keyboard fire/reload,
+all three guns, wheel/F/slider ranging, pause/capture, desktop/narrow resize,
+complete abort teardown and fresh replay state. It changes no simulation state.
+Actual 1280×720 and 430×900 DPR-1 screenshots and checkpointed JSON accompany
+browser-run failures; cleanup is awaited before exit. Invalid CLI arguments,
+the human port 5173 and output paths/links escaping the workspace are refused
+before launch. Keep the example's output directory task-specific in other jobs.
+Readiness timings compare first launch and same-page replay under the current
+load—not a controlled A/B or proof of a faster flight model.
+
+`automationLaunchOptions()` is the sole native channel/headless/GPU policy,
+including existing `PW_CHANNEL` and `E2E_SWIFTSHADER` choices. Fixed extra flags
+(such as menu-audio autoplay) remain caller-specific. `withAutomationPage`
+owns a fresh isolated context, installs controller isolation before page startup,
+and closes its browser after its awaited callback; operation and cleanup failures
+remain distinguishable. Use it for one bounded sequence, not as a daemon or a
+replacement for regression server isolation.
 
 ### Exact CPU differential probes
 

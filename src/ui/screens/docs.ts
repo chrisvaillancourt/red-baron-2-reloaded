@@ -41,6 +41,7 @@ export const controlsScreen: ScreenFactory = (ctx) => {
     { class: 'doc-paper paper' },
     h('h2', null, 'Notes for pilots'),
     h('p', { class: 'typed muted' }, 'Current key assignments. Change them under Options → Keys. ', h('button', { class: 'btn small', onClick: () => void showFlyingSchool(ctx) }, 'Flying School primer')),
+    ctx.services.defense && h('p', { class: 'typed muted' }, 'Serving the airfield battery? ', h('button', { class: 'btn small', dataset: { action: 'gunner-guide' }, onClick: () => ctx.router.push('gunner-guide') }, "Gunner’s Guide")),
     h('h3', null, 'Touch controls'),
     h('p', { class: 'typed muted' }, 'Touch controls appear for a coarse pointer or touch-capable screen; no phone model is assumed. Use Touch controls / Hide touch controls to choose. The Menu button stays available when the decorative HUD is hidden.'),
     h('div', { class: 'key-grid' }, ...[

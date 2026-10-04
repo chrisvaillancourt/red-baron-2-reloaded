@@ -4,12 +4,14 @@
 // Usage: node dev/flow-ui.mjs [baseUrl] [shotDir]
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { automationLaunchOptions, disableGamepads } from '../tools/playtest/browser-automation.mjs';
 
 const base = process.argv[2] ?? 'http://localhost:5291';
 const shots = process.argv[3];
 if (shots) mkdirSync(shots, { recursive: true });
-const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'chrome' });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await disableGamepads(page.context());
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && !m.text().startsWith('Failed to load resource') && errors.push(m.text()));

@@ -12,6 +12,7 @@ import { createCampaignService } from '../campaign';
 import { createUi } from '../ui';
 import type { FlightLauncher } from '../core/interfaces';
 import type { AudioEngine } from '../core/interfaces';
+import type { DefenseLauncher } from '../core/defense';
 import type { FlightOnlyModules, GameModules, MenuModules } from './moduleTypes';
 
 export const menuModules: MenuModules = {
@@ -50,6 +51,21 @@ export function createLazyFlightLauncher(menu: MenuModules, audio: AudioEngine):
         launcher = c.createFlightLauncher(modules, audio);
       }
       return launcher.fly(mission, settings, container);
+    },
+  };
+}
+
+/** Battery code stays out of the menu bundle and never goes through FlightLauncher.
+ * Static import would eagerly pull WebGL rendering/simulation into menu startup;
+ * this is the intentional session-loading seam, like the flight chunk above.
+ */
+export function createLazyDefenseLauncher(audio: AudioEngine): DefenseLauncher {
+  let launcher: DefenseLauncher | null = null;
+  return {
+    async defend(options, settings, container) {
+      if (!launcher) launcher = (await import('./defenseSession')).createDefenseLauncher(audio);
+      if (!container.isConnected) throw new Error('Defense launch cancelled');
+      return launcher.defend(options, settings, container);
     },
   };
 }
