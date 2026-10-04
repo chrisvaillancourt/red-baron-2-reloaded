@@ -68,7 +68,56 @@ events (EventBus) fan out to renderer.handleEvent, audio.handleEvent, hud, missi
 ## Commands
 
 * `pnpm dev` — play at http://localhost:5173
-* `pnpm test` — unit tests; `pnpm typecheck`; `pnpm build`
+* `pnpm test` — Vitest unit tests followed by CPU-only tool regressions (also used by CI); `pnpm typecheck`; `pnpm build`
 * `pnpm e2e` — Playwright browser tests; `pnpm e2e:soak` — 20-flight leak soak
 * `pnpm build && pnpm preview --port 5325` then `pnpm prodcheck 5325` — production-build check
 * `blender --background --factory-startup --python tools/blender/build_models.py` — regenerate models
+* `pnpm test:tools` — only the Node-based `tools/dev/*.test.mjs` regressions
+
+### Exact CPU differential probes
+
+Compare existing baseline/candidate checkouts with one scenario and one set of inputs:
+
+```sh
+node tools/dev/differential-probe.mjs --baseline /path/to/baseline --candidate . \
+  --scenario tools/dev/scenarios/world-equivalence.mjs --input '{"seed":42}'
+```
+
+`geo-equivalence.mjs` is the leaf-TypeScript loader smoke; `world-equivalence.mjs`
+loads the full terrain/land-use/front-line/road graph, warms rivers, aerodrome levels,
+crater grids and roads identically, then snapshots deterministic observations. It
+includes cold/warm cache evidence and copies observations before shared scratch can
+be reused. Equal observations are evidence for these inputs, not a proof for every input.
+
+A scenario is a native Node `.mjs` file default-exporting
+`async function ({ load, input })`; use `await load('src/sim/flightModel.ts')` or another
+root-relative module path for **all project imports**. Perform warmup/setup and
+observations in that one function. There are no separate side-specific setup hooks.
+Both workers use the same absolute scenario file and cloned JSON input, with fresh
+process globals, scenario modules, dependency singletons and Vite SSR module graphs.
+For programmatic use, import `compareRoots` from `tools/dev/differential-probe.mjs`
+and pass `{ baseline, candidate, scenario, input, timeoutMs }` (timeout defaults to 60 s).
+
+The JSON report records canonical roots, Git HEADs, dirty status, tracked diff and
+untracked-file SHA-256 fingerprints, scenario SHA-256, inputs, complete observations,
+worker exits/logs and the first differing path. Exit 0 means equal, 1 different,
+2 failed; exceptions, nonzero worker exits, missing results and timeouts cannot pass.
+Return plain objects, dense arrays, strings, booleans, null and numbers. Advanced
+IPC and `Object.is` comparisons preserve NaN, infinities and signed-zero identity;
+CLI JSON represents special numbers as `{"$number":"NaN"}`, `"Infinity"`,
+`"-Infinity"` or `"-0"` tags, while module results retain native numbers. The
+`$number` object key is reserved to make this encoding unambiguous. Undefined,
+accessors, class instances and cycles fail with an observation path instead of
+silently losing data.
+
+This tool intentionally does **not** create/check out refs, install dependencies,
+invoke a browser or load project Vite config/plugins/`.env` files. Prepare detached
+worktrees separately, and make their dependencies available before running. The
+loader comes from the tool checkout's installed Vite, not TypeScript compiler
+runtime APIs (TS7 no longer exposes `transpileModule`/`ScriptTarget`). Vite runs in
+middleware mode without sockets/watchers; its cache is temporary and removed.
+Do not edit either root or the scenario during a comparison; detected checkout
+changes fail. Git evidence excludes ignored files and dependency contents, so keep
+those fixed. Scenario helper imports must also stay fixed; load candidate project
+modules through `load`, never through native scenario imports. Scenarios must seed
+randomness and avoid clock/network/filesystem-dependent observations themselves.

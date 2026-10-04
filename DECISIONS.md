@@ -1068,3 +1068,40 @@ not decorative bearers or the Gotha's 8 cm front cap. Shared scene-free GLB meas
 loaded ground/takeoff regressions and round traces cover the consumers; real Chrome/Metal
 ground/takeoff and overlay evidence is recorded in `docs/bombers.md`. Independent review
 found no defects in this slice. Aircraft availability and AI balance remain unchanged.
+
+## D-XXX — Compare exact observations in isolated Vite SSR processes
+**Context.** Ad-hoc review probes attempted to call TypeScript compiler APIs that TS7
+does not expose. A second probe differed only because one side had initialized lazy
+crater grids and the other had not. Repeated bespoke loaders and asymmetric setup
+make equivalence evidence unreliable.
+
+**Decision.** `tools/dev/differential-probe.mjs` accepts explicit existing baseline and
+candidate roots, one native `.mjs` scenario, and one input. It runs that scenario in
+sequential fresh processes with configless Vite SSR for root-relative TypeScript imports.
+There are no side-specific setup hooks, project config/plugins/environment files,
+browser launches, installs or automatic worktree management. The loader uses the tool
+checkout's existing Vite dependency, not TypeScript runtime compiler APIs.
+
+**Evidence contract.** Return plain data; compare numbers with `Object.is`, including
+nonfinite values and signed zero. IPC preserves them and CLI JSON uses reserved
+`$number` tags. Reject unsupported observations instead of erasing them. Exit codes are
+0 equal, 1 different, 2 failed; late nonzero exits, missing results, exceptions and
+timeouts cannot pass. Reports carry complete observations, scenario/input identity,
+canonical roots, revision/dirty-tree fingerprints, runtime versions and diagnostics.
+The parent cleans temporary loader caches even after timeout termination.
+
+**Limits.** Equality is evidence for the selected inputs, not universal equivalence.
+Roots are live and must stay fixed; detected Git-visible changes fail. Ignored files,
+dependency contents and native scenario helper imports are not fingerprinted. Keep those
+fixed, seed scenarios, avoid external clocks/I/O, and snapshot reusable scratch values
+before another call. Statistical AI outcomes still belong to `ab.mjs`, not this tool.
+
+**Implementation and verification (2026-10-04 UTC).** Real geo/world graphs and lazy
+initialization histories run through the public API and CLI. Baseline `66518dd` and the
+integrated tree have exactly equal world observations and three representative fighter
+flight/damage snapshots; the intended bomber changes report different. Independent
+review identified Array subclasses losing inherited information across IPC: the CLI
+reproduced false acceptance before the fix and now rejects them with exit 2. Eight Node
+regression tests pass, covering isolation, error exits/timeouts and numeric identity.
+`pnpm test` includes `pnpm test:tools`, so the existing CI gate runs them too. No runtime
+dependency or game configuration changed.
