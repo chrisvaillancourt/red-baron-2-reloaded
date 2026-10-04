@@ -31,7 +31,7 @@ export function headingDeg(q: { x: number; y: number; z: number; w: number }): n
   return h;
 }
 
-function dial(ctx: CanvasRenderingContext2D, label: string, min: number, max: number, major: number, value: number, sweep = 300, fmt = (v: number) => String(v)) {
+function dial(ctx: CanvasRenderingContext2D, label: string, min: number, max: number, major: number, value: number, sweep = 300, fmt: (v: number) => string = String, multiplier = '') {
   const c = SIZE / 2;
   ctx.fillStyle = '#e9e1c9';
   ctx.fillRect(0, 0, SIZE, SIZE);
@@ -63,7 +63,12 @@ function dial(ctx: CanvasRenderingContext2D, label: string, min: number, max: nu
     if (isMajor) ctx.fillText(fmt(v), c + Math.cos(a) * (c - 38), c + Math.sin(a) * (c - 38));
   }
   ctx.font = `${Math.round(SIZE * 0.07)}px Georgia, serif`;
-  ctx.fillText(label, c, c + SIZE * 0.2);
+  // Keep captions inside the scale, not beside its lower endpoint numbers.
+  ctx.fillText(label, c, c + SIZE * 0.115);
+  if (multiplier) {
+    ctx.font = `${Math.round(SIZE * 0.058)}px Georgia, serif`;
+    ctx.fillText(multiplier, c, c + SIZE * 0.205);
+  }
   const a = ang(Math.max(min, Math.min(max, value)));
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 4;
@@ -155,12 +160,12 @@ export function createGaugeSet(nation: Nation, rotary: boolean, fuelCapacityL: n
     draw(ac) {
       const s = ac.state;
       const rpmMax = rotary ? 1600 : 2000;
-      dial(canvases.Gauge_RPM.getContext('2d')!, 'R.P.M.', 0, rpmMax, rotary ? 400 : 500, s.engineRpm, 300, (v) => String(v / 100));
+      dial(canvases.Gauge_RPM.getContext('2d')!, 'R.P.M.', 0, rpmMax, rotary ? 400 : 500, s.engineRpm, 300, (v) => String(v / 100), '×100');
       if (imperial) {
-        dial(canvases.Gauge_Alt.getContext('2d')!, 'FEET ×1000', 0, 20, 2, (s.altitude * 3.28084) / 1000, 320);
+        dial(canvases.Gauge_Alt.getContext('2d')!, 'FEET', 0, 20, 2, (s.altitude * 3.28084) / 1000, 320, String, '×1000');
         dial(canvases.Gauge_Speed.getContext('2d')!, 'M.P.H.', 0, 160, 20, s.airspeed * 2.23694, 300);
       } else {
-        dial(canvases.Gauge_Alt.getContext('2d')!, 'm ×1000', 0, 7, 1, s.altitude / 1000, 320);
+        dial(canvases.Gauge_Alt.getContext('2d')!, 'METRES', 0, 7, 1, s.altitude / 1000, 320, String, '×1000');
         dial(canvases.Gauge_Speed.getContext('2d')!, 'km/h', 0, 260, 40, s.airspeed * 3.6, 300);
       }
       compass(canvases.Gauge_Compass.getContext('2d')!, headingDeg(ac.state.orientation));

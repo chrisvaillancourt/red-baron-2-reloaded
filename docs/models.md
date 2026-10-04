@@ -107,6 +107,19 @@ In a frozen D.H.4 cockpit on Chrome/Metal/M3 Max, 90-sample GPU medians were
 This is a material-toggle control in the new scene, not a full old-build baseline
 or a cross-hardware 60-FPS guarantee.
 
+**Instruments** (`gauges.ts`): unit captions sit inside the scale, with a separate
+multiplier line for RPM (`×100`) and altitude (`×1000`). Keep captions clear of
+the lower endpoint numerals when checking both imperial/metric and rotary/inline
+dials. The textures remain 192×192 and update at 10 Hz; ranges, conversions and
+needle angles are unchanged. These are shared period-styled faces, not reproductions
+of each aircraft's historical instrument panel.
+
+The generated gauge discs and bezels share a 32-segment outline; bezel tubes retain
+their four-sided cross-section. This adds 700 triangles per aircraft over the former
+20-segment discs and 16×4 bezels, with no new meshes/materials/draw calls and within
+the existing 12,000-triangle model budget. Inspect the real cockpit at close range
+and in subdued flight lighting after regenerating the GLBs.
+
 ## UV atlas / canvas conventions
 
 Canvas coordinates: u → right, v → **down** (v = 0 is the top row; textures use `flipY = false`).

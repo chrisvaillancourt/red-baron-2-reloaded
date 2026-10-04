@@ -1825,7 +1825,7 @@ class Aircraft:
             if abs(x) + r > phw:
                 x = math.copysign(phw - r - 0.01, x)
             g = MB(['Gauge'])
-            N = 20
+            N = 32
             c = g.vert((x, panelY - 0.013, z))
             ring = [g.vert((x + r * math.sin(TAU * j / N), panelY - 0.013, z + r * math.cos(TAU * j / N))) for j in range(N)]
             for j in range(N):
@@ -1833,7 +1833,7 @@ class Aircraft:
                 g.face([c, ring[j2], ring[j]], [(0.5, 0.5), (0.5 + 0.5 * math.sin(TAU * j2 / N), 0.5 - 0.5 * math.cos(TAU * j2 / N)), (0.5 + 0.5 * math.sin(TAU * j / N), 0.5 - 0.5 * math.cos(TAU * j / N))], 0)
             # bezel
             b = MB(['Metal'])
-            tube(b, [(x + r * math.sin(TAU * j / 16), panelY - 0.012, z + r * math.cos(TAU * j / 16)) for j in range(16)], radius=0.006, sides=4, closed_path=True)
+            tube(b, [(x + r * math.sin(TAU * j / N), panelY - 0.012, z + r * math.cos(TAU * j / N)) for j in range(N)], radius=0.006, sides=4, closed_path=True)
             b.build(name + '_Bezel', ck, smooth=True)
             g.build(name, ck, origin=(x, panelY - 0.013, z), smooth=False, recalc=False)
         return ck
