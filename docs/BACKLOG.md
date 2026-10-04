@@ -161,20 +161,30 @@ all fail on the unchanged base and pass with the correction.
 Collision avoidance already runs after attack steering. The defect was a late
 escape opposite the extending aircraft's lift: rolling through more than 90°
 consumed the remaining time to contact. Within the existing imminent-conflict
-window, extension now escapes along available lift. Dead-ahead coordinated
-splitting, engagement/defence steering and longer-range avoidance stay unchanged.
+window, the correction uses available lift. Dead-ahead coordinated splitting,
+engagement/defence steering and longer-range avoidance stay unchanged.
 An initial phase-independent candidate regressed the non-dodging-human furball
-gate and was rejected; the extension-only correction passes it.
-Independent reviews also caught reuse of the fixed world-up vector as lift scratch;
-the accepted correction uses dedicated scratch storage, preserving cloud-refuge
-orbits. The runtime and complete test checks below were rerun after that correction.
+gate and was rejected. Independent review also caught reuse of the fixed world-up
+vector as lift scratch; dedicated storage preserves cloud-refuge orbits.
 
-Parent verification: typecheck; 666 Vitest tests passed, 30 gated skips; eight Node
-tool tests passed. A standalone production-sim run observed no collisions in
-the three reproduced cases, with 682/814/260 gun-fire events respectively.
-The 20-seed non-dodging-human smoke retained active combat (52 kills): one
-wingman convergence and three wreck collisions, not a claim of collision-free AI.
-No global collision-rate or fairness improvement is claimed from these cases.
+The first extension-only candidate (`91c159f`) passed typecheck, 666 Vitest tests
+(30 gated skips), eight Node tool tests and all three collision reproductions.
+Its frozen comparison nevertheless blocked release: quick collisions/100 changed
+5.6 → 4.4 within noise and player collision events 8 → 3, but default-fairness
+player-down changed 29.2% → 4.2% and was labelled **differs**.
+
+A non-mutating 12-flight geometry probe counted 3,414 frame-level activations;
+only 20 were inside predicted physical contact radii. These are not independent
+encounters. Restricting the correction to physical radii was rejected: two of the
+three reproduced collisions returned, because curved approaches need earlier action.
+
+The revised candidate reflects only the lift component of the escape vector,
+preserving its lateral separation instead of replacing the entire direction.
+All three reproduction tests pass. Standalone production-sim smoke observed no
+collisions in those cases, with 388/521/312 gun-fire events; 20 non-dodging-human
+furballs retained combat (40 kills), with one wingman convergence and two wreck
+collisions. This is not collision-free AI or a global improvement claim.
+Release still requires independent re-review and a frozen full comparison.
 
 ## Debt dispositions
 

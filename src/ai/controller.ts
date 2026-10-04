@@ -1872,11 +1872,12 @@ export class AIPilot implements AIController {
       const lift = upOf(s.orientation, _collisionLift);
       // Dead ahead: retain the coordinated up/down split (splitSide).
       if (dcpa < 1) cpa.copy(lift).multiplyScalar(-splitSide(self, o));
-      // During a committed extension, a late escape opposite the current lift needs
-      // a >90-degree roll before it can separate us. Use the available lift then;
-      // retain ordinary steering during engagement/defence and longer-range conflicts.
-      // Applying this to engagement too made avoidance worse for non-dodging humans.
-      else if (this.phase === 'extend' && tcpa > 0 && tcpa < BREAK_LEAD_S && cpa.dot(lift) > 0) cpa.copy(lift).negate();
+      // During a late extension escape, avoid a roll through the opposite lift
+      // direction. Reflect only that component, retaining lateral separation.
+      else if (this.phase === 'extend' && tcpa > 0 && tcpa < BREAK_LEAD_S) {
+        const towardLift = cpa.dot(lift);
+        if (towardLift > 0) cpa.addScaledVector(lift, -2 * towardLift);
+      }
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
     }
