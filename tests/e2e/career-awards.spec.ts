@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, passFlyingSchool, test, type Page } from './fixtures';
 
 /**
  * Career awards path through the real UI and campaign service. A scripted flight is hard
@@ -90,9 +90,7 @@ test('career: a twelve-victory sortie earns the headline, promotion and a medal'
   await page.click('text=Proceed to briefing');
   await expectScreen(page, 'briefing');
   await page.click('button:has-text("Take off")');
-  const school = page.locator('.rb-modal:has-text("Flying School") button:has-text("Understood")');
-  await expect(school).toBeVisible({ timeout: 5_000 });
-  await school.click();
+  await passFlyingSchool(page);
   await expectScreen(page, 'debrief');
 
   // Walk the debrief, recording each page as it appears.

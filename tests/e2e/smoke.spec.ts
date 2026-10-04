@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, waitForFlightReady, type Page } from './fixtures';
 
 /**
  * Smoke test: the app boots, a quick mission launches through the
@@ -49,7 +49,7 @@ test('boots, flies a quick mission and ends cleanly', async ({ page }) => {
     });
   });
 
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 30_000 });
+  await waitForFlightReady(page);
   // Hold full throttle, fire a burst, cycle views.
   await page.keyboard.down('Equal');
   await page.keyboard.down('Space');

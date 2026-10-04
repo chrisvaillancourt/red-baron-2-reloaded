@@ -9,11 +9,13 @@
 //     (by constructor name) whose count/size grew the most. Growth that scales
 //     with `more` is a per-flight leak.
 import { chromium } from '@playwright/test';
+import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const [port = '5323', mode = 'path', a = '', b = ''] = process.argv.slice(2);
 
 const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await disableGamepads(page.context());
 page.on('pageerror', (e) => console.error('pageerror', e.message));
 await page.goto(`http://localhost:${port}/`);
 await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30000 });
@@ -36,7 +38,7 @@ async function flyN(n) {
       window.__done = false;
       s.launcher.fly(m, s.getSettings(), host).finally(() => { host.remove(); window.__done = true; });
     }, flown);
-    await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 40000 });
+    await waitForFlightReady(page);
     await page.keyboard.down('Space');
     await page.waitForTimeout(1200);
     await page.keyboard.up('Space');

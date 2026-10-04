@@ -1,5 +1,29 @@
 # Project status — release candidate, handoff 2026-10-04 UTC
 
+## Rolling queue — base `07dfaa4`
+
+This table supersedes historical scheduling instructions below. Execution contracts,
+decisions, evidence and debt dispositions: [Backlog execution record](BACKLOG.md).
+Owner: parent omp integration session, branch `chore/backlog-execution`; no main deployment.
+
+| ID | Outcome | State / owner | Acceptance or unblock condition |
+|---|---|---|---|
+| Q-01 | Non-publishing PR/manual validation | Implemented / integration lead | actionlint and independent review passed; remote PR gate pending |
+| Q-02 | Isolated, consistent browser automation | Verified on task branch / integration lead | 23 browser tests passed, one gated skip; production flight smoke passed |
+| Q-03 | Current gameplay evidence | Complete / integration lead | Frozen-SHA fairness/quick/career/raid surveys and report replays recorded in BACKLOG |
+| Q-04 | Tailhold/defence/raid A/B coverage | Ready / next tooling slot | Real survey adapters, retained raw results, no fabricated statistical verdicts |
+| Q-05 | Attack-extension collision reproduction | Ready / AI safety | Isolate cases from Q-03's 20 quick collision events (eight player events); no generic avoidance rewrite |
+| Q-06 | Mutual support for ordinary flight-mates | Blocked on Q-03/Q-05 / AI tactics | Both pursuers, meaningful threat, collision and mirror-fairness gates |
+| Q-07 | Human-like pursuer calibration | Ready / calibration | 12 aim-bearing reports available; comparable cohorts and held-out data required |
+| Q-08 | Bomber pacing/interception policy | Ready for measurement / lead | Measure speed/slot error before choosing policy; preserve aircraft performance |
+| Q-09 | Damage and career eligibility policies | Blocked on owner decision / lead | Explicit default/feel/day-bomber choices; no implicit tuning |
+| Q-10 | CI runner migration | Deferred / CI | Safe branch validation first; target 2027-01-31 |
+| Q-11 | LICENSE | Blocked on owner choice | Explicit license selection |
+| Q-12 | Playable on a high-end modern iPhone | Ready for compatibility/design spike / game + UI + render | End-to-end touch-only flight on physical iPhone Safari, responsive safe-area UI, audio/storage/lifecycle compatibility and sustained on-device performance; see BACKLOG |
+
+States distinguish implementation from integration and deployment. Deferred visual/gameplay
+ideas below stay deferred until their stated player-evidence trigger occurs.
+
 The game is playable end to end: `pnpm dev`, then open http://localhost:5173
 (README "Your first flight" walks a new player through it). Career (all four
 nations, 1915–1918), quick missions, the full flight/combat sim, AI, streamed

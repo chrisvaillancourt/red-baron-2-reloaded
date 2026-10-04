@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /**
  * Keyboard-only Quick Mission (PLAYTEST wave 7 #6): each button group is one Tab stop (the

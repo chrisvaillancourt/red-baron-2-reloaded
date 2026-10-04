@@ -1,4 +1,4 @@
-import { expect, test, type CDPSession, type Page } from '@playwright/test';
+import { expect, FLIGHT_READY_TIMEOUT_MS, test, waitForFlightReady, type CDPSession, type Page } from './fixtures';
 
 /**
  * Long-session soak (gated: E2E_SOAK=1). Flies N consecutive flights in one
@@ -12,7 +12,7 @@ import { expect, test, type CDPSession, type Page } from '@playwright/test';
 
 const FLIGHTS = Number(process.env.E2E_SOAK_FLIGHTS ?? 20);
 test.skip(!process.env.E2E_SOAK, 'soak test: set E2E_SOAK=1');
-test.setTimeout(60_000 + FLIGHTS * 45_000);
+test.setTimeout(60_000 + FLIGHTS * (FLIGHT_READY_TIMEOUT_MS + 45_000));
 
 type Win = Window & {
   __result?: unknown;
@@ -164,7 +164,7 @@ async function flyOnce(page: Page, i: number): Promise<void> {
       },
     );
   }, i);
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 40_000 });
+  await waitForFlightReady(page);
   // Fly a little with guns and views so effects, tracers and audio loops all run.
   await page.keyboard.down('Space');
   await page.evaluate(() => window.__rb2!.session!.command('viewChase'));

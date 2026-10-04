@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { bootApp, expect, test, waitForFlightReady, type Page } from './fixtures';
 
 /**
  * Crew stations in the real browser game (docs/bombers.md): the seat keys, the gunner's view
@@ -17,14 +17,6 @@ function collectErrors(page: Page): string[] {
   });
   page.on('pageerror', (e) => errors.push(e.message));
   return errors;
-}
-
-async function boot(page: Page): Promise<void> {
-  // A real gamepad on the machine (the user playing meanwhile) reaches this page too, and its
-  // buttons change views, pause and compress time. The tests drive the keyboard only.
-  await page.addInitScript(() => Object.defineProperty(navigator, 'getGamepads', { value: () => [] }));
-  await page.goto('/');
-  await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30_000 });
 }
 
 const BASE = {
@@ -68,11 +60,8 @@ async function fly(page: Page, opts: Record<string, unknown>, runInM?: number): 
     },
     [opts, runInM] as const,
   );
-  // The first flight on a fresh dev server compiles the flight chunk: allow for it.
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 90_000 });
+  await waitForFlightReady(page);
 }
-
-test.describe.configure({ timeout: 180_000 });
 
 const session = (page: Page) =>
   page.evaluate(() => {
@@ -103,7 +92,7 @@ async function end(page: Page): Promise<void> {
 
 test('Bristol: take the observer seat, aim within the arcs, hand back to the pilot', async ({ page }) => {
   const errors = collectErrors(page);
-  await boot(page);
+  await bootApp(page);
   await fly(page, { ...BASE, type: 'dogfight', playerAircraft: 'bristol_f2b' });
   await page.waitForFunction(() => window.__rb2!.session!.time > 1, undefined, { timeout: 30_000 });
   expect((await session(page)).station).toBe('pilot');
@@ -168,7 +157,7 @@ test('Bristol: take the observer seat, aim within the arcs, hand back to the pil
 
 test('a mission can start the player at the gun', async ({ page }) => {
   const errors = collectErrors(page);
-  await boot(page);
+  await bootApp(page);
   await fly(page, { ...BASE, type: 'dogfight', playerAircraft: 'bristol_f2b', playerStation: 'observer' });
   const s = await session(page);
   expect(s).toMatchObject({ station: 'observer', mode: 'gunner' });
@@ -178,7 +167,7 @@ test('a mission can start the player at the gun', async ({ page }) => {
 
 test('D.H.4 bomb run: F6 takes the observer to the bombsight', async ({ page }) => {
   const errors = collectErrors(page);
-  await boot(page);
+  await bootApp(page);
   await fly(page, { ...BASE, type: 'bombing', playerAircraft: 'dh4' }, 3500);
   await page.waitForFunction(() => window.__rb2!.session!.time > 1, undefined, { timeout: 30_000 });
   let s = await session(page);

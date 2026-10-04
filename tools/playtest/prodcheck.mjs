@@ -5,11 +5,13 @@
 // console error, worker started, and GLB/art/chunk fetched. Exits 1 on failure.
 // Each run uses a fresh browser context, so the first load is always cold-cache.
 import { chromium } from '@playwright/test';
+import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const target = process.argv[2] ?? '5325';
 const url = /^https?:\/\//.test(target) ? target : `http://localhost:${target}${process.argv[3] ?? '/'}`;
 const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await disableGamepads(page.context());
 const failed = [];
 const errors = [];
 const fetched = new Set();
@@ -47,7 +49,7 @@ await page.evaluate(() => {
   window.__done = null;
   s.launcher.fly(m, s.getSettings(), host).then((r) => (window.__done = r), (e) => (window.__done = { error: String(e) }));
 });
-await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 30, undefined, { timeout: 60000 });
+await waitForFlightReady(page, 30);
 const px = await page.evaluate(() => window.__rb2.session.samplePixels());
 await page.screenshot({ path: 'test-results/prod-flight.png' });
 await page.evaluate(() => window.__rb2.session.abandon());

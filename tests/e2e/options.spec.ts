@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /**
  * Options through the real UI: keyboard-only menu navigation, a key rebind and a graphics

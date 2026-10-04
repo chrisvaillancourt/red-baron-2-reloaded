@@ -14,6 +14,7 @@
 // Logs each shot's AI state (debugState), range and the cloud density at the subject.
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const out = process.argv[2] ?? 'test-results/ai-depth';
 const port = Number(process.argv[3] ?? 5303);
@@ -75,6 +76,7 @@ const browser = await chromium.launch({ headless: true, channel: 'chrome', args:
 for (const [name, sc] of Object.entries(SCENES)) {
   if (only.length && !only.includes(name)) continue;
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await disableGamepads(page.context());
   const errors = [];
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(e.message));
@@ -96,7 +98,7 @@ for (const [name, sc] of Object.entries(SCENES)) {
     document.body.appendChild(host);
     s.launcher.fly(mission, settings, host);
   }, [sc.opts, sc.patch ?? null]);
-  await page.waitForFunction(() => (window.__rb2?.session?.frames ?? 0) > 5, undefined, { timeout: 60_000 });
+  await waitForFlightReady(page);
   if (sc.wound) {
     await page.evaluate(() => {
       const w = window.__rb2.session.world, p = window.__rb2.session.player;
