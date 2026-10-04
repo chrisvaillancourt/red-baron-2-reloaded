@@ -1,8 +1,9 @@
 # Backlog execution record
 
-Integration owner: parent omp session. Branch: `chore/backlog-execution`.
-Base: `07dfaa462a098df633e512a86406b9d7c416fc73`. The user subsequently authorized
-merging PR #9 and its main-push deployment. Workspace cleanup remains unauthorized.
+Current integration owner: parent omp session, branch `feat/backlog-cycle-two`.
+Current base: `87b798eb0710dc7dc59d519c12634190ebdd63a0` (released PR #9).
+Initial cycle base was `07dfaa462a098df633e512a86406b9d7c416fc73`.
+Workspace cleanup remains unauthorized.
 
 ## Operating decisions
 
@@ -47,9 +48,11 @@ the first compatible free slot; freeze its parameters during tactical comparison
 Q-06 mutual support waits for the collision safety scenarios. Mobile acceptance
 requires a physical device, but code/layout investigation does not.
 
-PR #9 merge permission is specific to that PR. Further implementation can proceed
-autonomously on task branches; future main publication still requires authorization.
-The integration comment on PR #9 is the durable merge/deployment/live-smoke receipt.
+The user selected **Verified merges and deployments** for autonomous work while away:
+publish completed PRs after independent review, relevant regression/runtime checks and
+green CI; verify each live deployment before publishing another. Do not change LICENSE
+or unresolved gameplay policies. This supersedes the earlier PR-9-only permission.
+The integration comment on PR #9 is its durable merge/deployment/live-smoke receipt.
 
 ## Initial work contracts
 
@@ -180,3 +183,48 @@ viewport/orientation and graphics preset. Desktop device emulation is not accept
   desktop Ultra or infer performance from emulation.
 - Dependencies: mobile interaction design and access to a physical target device.
   Lack of device access blocks on-device acceptance, not code/layout investigation.
+
+## Q-13 — Xbox controller coverage and ergonomics
+
+User-requested backlog addition: make a modern Xbox controller work as well as
+possible for all common controls, not merely provide basic stick input.
+
+- Audit existing standard Gamepad mappings before introducing another convention.
+  Cover pitch/roll/yaw, throttle, guns/jam clearing, bombs, target selection/padlock,
+  camera/free look, crew station changes and aiming, time compression, pause,
+  map, common wingman orders, end flight and menu/briefing/debrief navigation.
+- Design contextual mappings or a discoverable modifier/radial scheme where buttons
+  are insufficient. Avoid accidental destructive actions and awkward simultaneous
+  chords; preserve keyboard, mouse and touch operation.
+- Show accurate Xbox button prompts and a controls reference. Evaluate remapping,
+  deadzones, sensitivity/inversion and connected-controller selection using the
+  existing settings model; do not add options without a demonstrated need.
+- Release held actions on disconnect, focus loss and mode changes. Test reconnect,
+  multiple controllers and transitions among pilot, gunner and menus.
+- Verify mapping semantics with deterministic tests, then play end to end on a
+  physical Xbox controller. Record model/transport/browser; browser stubs alone
+  cannot establish ergonomics or physical-device compatibility.
+- Coordinate with Q-12 at the input-command seam; serialize changes to shared
+  input/session files rather than implementing two competing control systems.
+
+## Cycle two: decisions and evidence
+
+Base `87b798e`; integration branch `feat/backlog-cycle-two`. Initial dispatch:
+SurveyAdapters (Sol high), CollisionFix (Astra high), MobileFeasibility (Sol high,
+read-only). Central docs remain lead-owned; no shared production-file writers.
+
+### Calibration evidence gate (Q-07)
+
+Further inspection of the 12 aim-bearing inbox reports found four standard
+dogfights with only 144 player rounds and two hits total. The two default Camel
+reports account for 58 rounds/two hits; the other two use different encounters.
+The remaining aim reports are one standard intercept, two standard balloon runs,
+one standard ground attack, one relaxed dogfight and three relaxed intercepts.
+Three non-dogfight reports identify a dirty build. None supplies a rating or note.
+
+Decision: do not replace the current pursuer fit with a pooled percentage or split
+these tiny default-flight counts into a misleading training/holdout set. Q-07
+parameter changes wait for a comparable, provenance-confirmed human cohort with
+enough firing opportunities for a meaningful held-out comparison. Existing telemetry
+and the original fit remain usable for diagnostics; tactical A/Bs freeze the fit.
+This evidence gate does not block collision, survey or mobile work.
