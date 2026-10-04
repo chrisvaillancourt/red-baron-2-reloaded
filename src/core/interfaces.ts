@@ -13,6 +13,7 @@
  *   src/game      -> app bootstrap, FlightSession, input, cameras
  */
 import type { Camera, Object3D, Scene, Vector3, WebGLRenderer } from 'three';
+import type { DefenseLauncher } from './defense';
 import type {
   AircraftEntity,
   AircraftSpec,
@@ -283,6 +284,8 @@ export interface GameServices {
   readonly campaign: CampaignService;
   readonly audio: AudioEngine;
   readonly launcher: FlightLauncher;
+  /** Optional for flight-only tooling; the production app always supplies it. */
+  readonly defense?: DefenseLauncher;
   getSettings(): GameSettings;
   saveSettings(s: GameSettings): void;
 }

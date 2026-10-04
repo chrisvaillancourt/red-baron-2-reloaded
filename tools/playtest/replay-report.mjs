@@ -17,7 +17,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
+import { automationLaunchOptions, disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const USAGE = 'usage: node tools/playtest/replay-report.mjs <report.json> [--reps N] [--maxtime S] | <report.json> --browser [--port P] [--out dir] [--timeout S] [--vulnerable]';
 /** Repo root, whatever the cwd (this file is tools/playtest/replay-report.mjs). */
@@ -92,7 +92,7 @@ try {
   process.exit(2);
 }
 
-const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 await disableGamepads(page.context());
 const errors = [];

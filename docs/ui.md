@@ -31,6 +31,12 @@ results go through `campaign.applyMissionResult` and into the debrief.
 The hospital "Return to duty" button calls `campaign.returnToDuty(p)` (the
 debrief has already advanced the date past the stay).
 
+Defense: `ctx.defend(options)` calls optional `services.defense.defend` in its own
+full-screen `.rb-defense-host`. The same flight/defense session guard suppresses
+competing launches. Navigation/music/focus restore after completion; disposal
+aborts loading or active defense and does not reactivate a dead menu. Battery
+results route directly to `defense-report`, never to campaign debrief/save logic.
+
 `catalogFromCampaignData()` (`src/ui/campaignCatalog.ts`) takes names,
 precedence and ids from `src/data/{ranks,medals,aces}.ts` and maps campaign
 medal ids onto the UI's hand-drawn medal visuals (`ek2` → Iron Cross, `plm` →
@@ -46,11 +52,38 @@ title ─┬─ roster ─┬─ create-pilot ─→ hq
        │          └─ hq ─┬─ briefing ─→ [flight] ─→ debrief ─→ hq
        │                 └─ options
        ├─ quick ─→ briefing ─→ [flight] ─→ debrief ─→ quick
+       ├─ defense-briefing ─→ [battery] ─→ defense-report
+       │        ├─ gunner-guide             ├─ replay same attack → [battery]
+       │        └─ options                  ├─ new defense → defense-briefing
+       │                                    └─ main menu → title
        ├─ aces (Hall of Fame)
        ├─ options (Realism / Graphics / Sound / Controls / Keys)
        ├─ controls (Flying Manual)
        └─ credits
 ```
+
+### Airfield Defense
+
+`defense-briefing` holds transient `{ seed, difficulty, aimAssist }`; visits to
+Gunner’s Guide/Options retain the draft. Realism's unlimited flight ammunition
+does not disable battery mechanics. Shared settings supply graphics/audio,
+mouse sensitivity/inversion, and fire/pause bindings; gun/aim/reload/fuze keys
+are battery-specific. This mode requires a keyboard or mouse, not touch flight
+intent.
+
+The historical field/date host an authored arcade exercise, not a reenactment
+claim. Briefing and guide explain five raids, the three guns, bomb interception,
+asset benefits and untimed purchases. `defense-report` distinguishes Won, Lost
+and Aborted and shows raids, asset health, aerial kills, interceptions, score,
+combat time and attack options. Replay uses the exact options immediately;
+New defense guarantees a different seed and reopens choices. Neither flow writes
+settings, career results or flight reports.
+
+Browser selectors use `[data-action=defense-launch/defense-replay/defense-new/
+defense-main-menu]`, `#defense-seed`, and
+`.defense-report-paper[data-outcome]`. As with debrief transitions, target
+`[data-screen=defense-report]:not(.leaving)` while old screens fade out.
+
 
 ### Debrief
 

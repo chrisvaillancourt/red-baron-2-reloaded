@@ -272,6 +272,55 @@ possible for all common controls, not merely provide basic stick input.
 - Coordinate with Q-12 at the input-command seam; serialize changes to shared
   input/session files rather than implementing two competing control systems.
 
+## Q-14 — Production Airfield Defense
+
+User approved a separate optional battery action alongside Career and Quick
+Mission. Implementation is verified on `feat/airfield-defense`, based on
+`4dc8ec8` plus the headless-QA prerequisite. This is a task-branch handoff,
+not a merged or deployed release.
+
+### Delivered behavior
+
+- Title → defense briefing / Gunner’s Guide / Options → first-person battery →
+  five raids with untimed resupply → Won/Lost/Aborted report → exact replay,
+  fresh attack or main menu.
+- Vickers MG, direct-hit cannon and ranged timed flak; physical shells,
+  falling-bomb interception and battery-only aerial credit. Veteran increases
+  pressure without inflating health; lead hints never steer or change combat.
+- HQ income, depot reload efficiency and hospital recovery; repairs, destroyed
+  asset rebuilding and power/cooling/reload upgrades. Upgrades reset each run.
+- Production Bertangles terrain, four existing aircraft types, a procedural
+  Zeppelin, aircraft damage/wrecks, ordnance/effects and real WebAudio.
+- Shared graphics/audio/mouse/fire/pause preferences, but separate battery ammo
+  and heat. Mouse/keyboard controls; touch flight intent is intentionally unused.
+- No pilot/career mutation, flight report, fake player aircraft or unfinished
+  flight-combat dependency. Shared core changes are new defense contracts plus
+  optional `GameServices.defense`.
+
+### Verification and handoff
+
+The executable model smoke won both difficulties; 13 model regressions pass.
+The physical-input Chrome/Metal browser smoke won all five Regular raids with
+all three guns, four resupplies, 29 credited kills and one bomb intercepted;
+all three assets finished intact. A separate idle run lost with no kills or
+interceptions. Reports recorded 3m 43s and 4m 49s combat time respectively.
+Replay, fresh choices, pause/chords, real audio buffers and legacy void-returning
+pointer lock were exercised; inspected gun/report screenshots cover desktop and
+430×900 viewports. Browser error captures were empty.
+
+Final owning-workspace checks: `pnpm typecheck`; `pnpm test` (690 Vitest passed,
+30 gated skips, 20 Node tooling passed); `pnpm build`;
+`E2E_PORT=5371 pnpm exec playwright test` (33 passed, one gated soak skipped).
+The browser regressions include career-save isolation, cross-mode ownership and
+shared fire/pause bindings colliding with station-selection keys.
+
+Screenshots/JSON remain in ignored `tools/dev/scratch/airfield-defense/`.
+Throwaway smoke drivers are removed, QA browsers are closed and port 5370 is
+stopped. Workspaces/worker evidence are retained without cleanup authorization.
+No unresolved implementation dependency. Next release gate: human gun-view,
+aiming and difficulty approval, then independent integration review and normal
+release checks; no publication has been performed.
+
 ## Cycle two: decisions and evidence
 
 Base `87b798e`; integration branch `feat/backlog-cycle-two`. Initial dispatch:
@@ -293,3 +342,203 @@ parameter changes wait for a comparable, provenance-confirmed human cohort with
 enough firing opportunities for a meaningful held-out comparison. Existing telemetry
 and the original fit remain usable for diagnostics; tactical A/Bs freeze the fit.
 This evidence gate does not block collision, survey or mobile work.
+
+## Development feedback — 2026-10-04
+
+Tooling branch `perf/development-feedback`, based on Airfield Defense `0652782`.
+Human main and the playtest checkout remain unchanged. No runtime, dependency,
+CI/publication or Playwright configuration changes; this is an unmerged handoff.
+
+### Measurements and decision
+
+| Existing loop | Observed wall time |
+|---|---:|
+| Focused defense unit file (13 tests) | 1.75 s; Vitest itself 308 ms |
+| Typecheck | 0.89 s |
+| Full unit/tool test command (690 + 20 tests) | 34.76 s |
+| Standalone validated build | 1.02 s |
+| Four defense browser regressions | 41.30 s |
+| Previous complete 33-case browser gate | 4.4 min |
+
+The fresh CPU and targeted-browser timing jobs overlapped; these are descriptive
+costs, not a controlled performance A/B. The full-browser figure is the previous
+feature gate. Smaller feedback scope is the main gain, not faster game time or
+less release coverage.
+
+Added direct `test:unit`, `test:related` and complete CPU `check`; kept finite
+`test` and standalone `build` unchanged. Related explicitly disables Vitest's
+successful empty-selection default. Watch explicitly sets `--watch`, because
+Vitest disables its implicit default in agent/CI sessions. Commands documentation
+now separates focused edits, affected browser smoke and complete handoff gates.
+No bespoke selector/orchestration framework or permanent shell-wiring tests.
+
+### Independent review and exercised proof
+
+Before edits, FeedbackPlanReview caught silent empty-related success and incomplete
+graph coverage; HarnessPlanReview caught possible relay/CDP/cmux routing to a
+user-owned browser. Both corrections were accepted. The watch amendment was
+separately reviewed before editing after its implicit command exited instead of
+watching.
+
+- Direct unit command: 13 passed, 540 ms wall; `-t` forwarded correctly (one
+  passed, 12 skipped, 411 ms). Related source selected the 13 tests in 993 ms.
+- Absent-only and no-argument related calls exited 1. Mixed valid/absent sources
+  still selected the valid file and exited 0: graph results are explicitly not
+  proof that every requested path or asset dependency was covered.
+- Explicit watch stayed alive, then a timestamp-only file change triggered a
+  real 13-test rerun in 211 ms. No test/source contents changed.
+- `pnpm check` passed typecheck, 690 Vitest (30 gated skips), 20 Node tooling and
+  production bundling in 35.17 s, with one TypeScript invocation. Standalone
+  `pnpm build` passed too. Timings have different load/cache conditions; no
+  numeric alias/watch speedup is claimed.
+- Fresh `omp --cwd` session produced isolated child `t573d5d225/m`, distinct
+  from the parent, at full `0652782faf2d1c3d6e87eb645a6494249f512b8f`. Both
+  committed defense contracts were present; parent/child clean, no repair, and
+  retained metadata said “Isolation: no changes captured.”
+- Safe managed route (no configured CDP/cmux route, relay explicitly disabled)
+  used cached Headless Chrome 150, ANGLE/Metal Apple M3 Max and pre-navigation
+  controller isolation. Actual defense capture/movement/fire/pause/resume/replay
+  passed; the replay retained seed 1917 and spent ammunition. Inspected desktop
+  gun and narrow resupply screenshots cover 1600×900 and 430×900 CSS layouts
+  at DPR 1.25 (2000×1125 and 538×1125 PNGs). Browser error logs were empty.
+
+F-98 was session-root misuse, not demonstrated wrong-base selection. F-99's
+attach/recovery viewport defects remain upstream; the exact pointer-lock rejection
+is unproven. Supported owned automation and explicit recovery avoid those paths;
+no installed-global patch or game error suppression was made.
+
+Full browser suite was not repeated for script/docs-only edits: runtime and
+Playwright configuration are unchanged, four affected browser cases passed and
+the actual launch workflow was exercised. Full runtime release gates remain.
+Owned QA tabs/server and watch process are stopped. Screenshots/JSON remain in
+ignored `tools/dev/scratch/development-feedback/`; throwaway probes are removed.
+
+
+## Direct native gameplay QA — 2026-10-04
+
+User authorized the direct Playwright recommendation while explicitly deferring
+Claude changes. Branch `perf/direct-playwright-qa`, based on tooling `dfb8c3b`;
+human main/playtest checkouts stay untouched. No game/core/runtime dependency,
+Claude CLI/bridge/model/auth/permission or Claude-specific instruction changes.
+No merge, push or deployment.
+
+### Cutover
+
+- The existing browser-automation module owns one installed-Chrome/headless/GPU
+  profile, preserving `PW_CHANNEL`, explicit SwiftShader fallback and the menu
+  tool's autoplay flag. Twelve direct launch scripts and the regression config
+  consume it; caller viewports, DPR and per-scene context choices stay unchanged.
+- `withAutomationPage` creates an owned isolated context, disables controllers
+  before startup, runs one awaited callback and closes the native browser.
+  A sole operation/close error is preserved; dual errors remain an AggregateError.
+- `pnpm smoke:defense --port <owned-port>` performs exactly two initial/replay
+  passes in the same browser/page. Actual controls exercise mouse/arrow aim,
+  independent focus/fire chord release, every gun's ammo, keyboard reload,
+  wheel/F/slider ranging, pause/capture and no stale held fire. Abort removes
+  hook/canvas/host/capture; replay starts paused with exact options and reset
+  timers/counters/upgrades/full magazines.
+- Native viewport screenshots assert live CSS/backing/camera dimensions and PNG
+  pixels at DPR 1. The explicit CLI refuses missing/human ports and escaping
+  output paths or links before launch; run failures save checkpoint/error JSON
+  and a screenshot where possible. There is no retry or game-state mutation.
+- The omp harness reference now selects direct Playwright for critical gameplay,
+  retaining its browser tool only for lightweight inspection. Regression server
+  isolation, GPU scheduling and complete release gates are unchanged.
+
+### Review and evidence
+
+Fresh plan reviewers tightened error preservation, observable controls, replay
+reset/teardown and resize/error acceptance before implementation. Post-change
+review found the output escape; confinement and public negative cases fixed it.
+A stale-plan request to add unused launch overrides was withdrawn against the
+accepted viewport-only contract; no unused interface was added.
+
+Final native smoke passed: browser/context/page setup **448 ms**, first defense
+readiness **4068 ms**, exact same-page replay **3956 ms**, total **20,305 ms**.
+Both passes spent ammunition with all three guns, ranged a real live target,
+completed control/lifecycle checks and removed all battery resources on abort.
+Headless Chrome 154.0.8037.93 used ANGLE/Metal Apple M3 Max; console/page errors
+were empty and browser closure was observed. All four desktop/narrow PNGs
+(1280×720 and 430×900) were inspected on the successful native path.
+
+The roughly 112 ms readiness difference is not meaningful evidence of a speedup.
+The benefit is a single bounded, repeatable, owned sequence without OMP attachment
+or worker recovery, not caching a live simulation or weakening release proof.
+The 20 s smoke and complete suite cover different scopes; do not quote a ratio.
+
+Other exercised gates:
+- `pnpm check`: typecheck, 690 Vitest tests (30 gated skips), 20 Node tooling
+  tests and production bundle passed.
+- `E2E_PORT=5383 pnpm e2e`: 33 passed, one gated soak skipped, one GPU worker
+  and fresh strict-port server; 4.4 minutes.
+- `pnpm prodcheck 5384`: production menu/flight/GLBs/four workers/pixels passed,
+  no failed requests or errors.
+- All 14 affected native scripts passed syntax checks. Actual callback failure
+  retained the same Error object and closed browser/page. Missing/human port
+  calls exited 2; an unavailable owned port exited 1, saved failure JSON/PNG
+  and observed closed browser. Absolute, relative and symlink output escapes
+  all exited 2 before browser/artifact creation; the generated link was removed.
+
+QA dev/preview services and all owned native browsers are stopped. Native success,
+initial failed-probe and negative-boundary artifacts remain under ignored
+`tools/dev/scratch/direct-playwright-qa/`. Existing workspaces remain preserved
+without cleanup authorization. No unresolved implementation dependency.
+
+
+## Q-15 — Deferred Claude worker routing
+
+**State:** deferred by the user on 2026-10-04 until the next time they use Claude
+in this project. Review/resume this item with the owner then; opening Claude
+alone does not authorize configuration changes. Nothing below is implemented.
+
+### Recommended scope
+
+1. **Explicit workspace and base.** Inspect the then-current bridge/CLI first.
+   If still absent, add a per-call working-directory/workspace selector and
+   expected-full-SHA preflight, rather than relying on task prose or the OMP
+   session's directory. Launch each worker in its separately owned worktree,
+   commit shared prerequisites before dispatch, and verify actual root/HEAD
+   before edits. Preserve parent-owned integration and scoped handoff evidence.
+   **Why:** avoids main/feature-root ambiguity and stale-base prerequisite deltas.
+2. **Assignment-appropriate mode.** Use read-only mode for static reviews;
+   use work mode only for bounded implementation or experiments in the assigned
+   workspace. Include owned paths, non-goals and acceptance evidence in the brief.
+   The bridge is not an OS filesystem sandbox; do not solve routing with blanket
+   permission expansion or change authentication/profile/signing flows.
+   **Why:** independent review and implementation need different capabilities,
+   while filesystem ownership still needs an explicit contract.
+3. **One bounded trial before expansion.** Run one independent review or disjoint
+   implementation slice; record model/effort, elapsed time, actual reported usage/
+   cost, review quality and exercised acceptance. Compare with the current OMP
+   workflow before expanding Claude's role; keep the parent as integration owner.
+   **Why:** another worker may improve independence, but lower latency/cost or
+   better quality is not established. Paid-credit use has no included-only guarantee.
+
+### Completion / limits
+
+- A fresh worker proves the intended actual directory/full commit, separate
+  ownership and loaded project instructions; no stale prerequisite-only delta.
+- Required capabilities and failure behavior are exercised without widening
+  permissions or silently substituting workspaces/models.
+- The bounded trial has an evidence-backed retain/change decision, not an
+  automatic wholesale harness migration.
+- No Claude CLI/bridge/model/auth/permission settings change is made before the
+  owner resumes this deferred item. Native Playwright remains the gameplay QA path.
+
+
+## Airfield Defense release review — 2026-10-04
+
+User approved the battery's feel and authorized release before a separate Xbox
+follow-up. Standards review found loading-abandonment resource retention and
+artifact-file symlink escapes; Spec review separately found pause ignored while
+the fuze slider owned focus.
+
+Both browser regressions failed on the release candidate before correction:
+Escape left the keyboard-mode raid running; blocked model loading left seven
+workers alive after abandonment (zero before launch). Session cancellation now
+disposes the in-progress renderer immediately. Pause handling precedes form-input
+filtering. The CLI leaf-link probe overwrote an owned external sentinel before
+correction; fixed preflight exited 2 with the sentinel unchanged and no browser
+launch. All fixed artifact leaves are checked before launch and written with
+`O_NOFOLLOW`. No unrelated tool or Claude changes were made.
+

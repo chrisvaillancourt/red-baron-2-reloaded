@@ -5,11 +5,11 @@
 // console error, worker started, and GLB/art/chunk fetched. Exits 1 on failure.
 // Each run uses a fresh browser context, so the first load is always cold-cache.
 import { chromium } from '@playwright/test';
-import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
+import { automationLaunchOptions, disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const target = process.argv[2] ?? '5325';
 const url = /^https?:\/\//.test(target) ? target : `http://localhost:${target}${process.argv[3] ?? '/'}`;
-const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 await disableGamepads(page.context());
 const failed = [];

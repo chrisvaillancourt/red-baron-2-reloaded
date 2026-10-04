@@ -96,6 +96,10 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
 - **GPU scheduling:** coordinate full e2e runs and GPU-heavy browser/render jobs through the
   integration owner; run them one at a time on the machine. Without an owner, arrange an
   exclusive slot before starting. Different ports do not isolate the GPU or a real gamepad.
+- **Headless by default:** routine browser QA uses a dedicated automation browser/profile,
+  leaving the user's browser and desktop input untouched. Keep screenshot-based visual proof.
+  A visible-browser exception needs advance notice and an agreed hands-off window; close it
+  afterward. Headless shares the GPU, so the GPU scheduling rule still applies.
 - **Browser evidence:** exercise the actual game from the owning server and inspect screenshots,
   not just DOM assertions. Respect the active harness's browser policy and linked reference.
   Check the actual browser/GPU configuration before interpreting visual or performance results;

@@ -24,6 +24,7 @@ import { CameraRig, type CameraMode } from './cameras';
 import { RenderInterpolator } from './renderInterp';
 import { advanceWaypoint, buildHudView } from './hudView';
 import { InputManager, type EdgeAction } from './input';
+import { getActiveDefense } from './activeDefense';
 import type { MissionDirector } from './missionDirector';
 import type { GameModules } from './moduleTypes';
 import type { Hud } from '../ui/hud/types';
@@ -101,6 +102,7 @@ export const CONTEXT_RESTORE_TIMEOUT_MS = 8000;
 export function createFlightLauncher(modules: GameModules, audio: AudioEngine): FlightLauncher {
   return {
     fly(mission, settings, container) {
+      if (getActiveDefense()) return Promise.reject(new Error('Another combat session is active'));
       const session = new FlightSession(modules, audio, mission, settings, container);
       return session.run();
     },

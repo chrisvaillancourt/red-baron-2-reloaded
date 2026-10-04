@@ -1,0 +1,151 @@
+.defense-brief-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(19em, 1fr);
+  gap: 1.4em;
+  flex: 1;
+  min-height: 0;
+}
+.defense-orders,
+.defense-choices,
+.defense-report-paper {
+  padding: 1.5em 1.8em;
+  overflow: auto;
+  min-height: 0;
+}
+.defense-orders h2,
+.defense-choices h2,
+.defense-report-paper h2 {
+  margin: 0 0 .35em;
+  font-family: var(--font-display);
+}
+.defense-orders h3,
+.defense-report-paper h3 {
+  font-variant: small-caps;
+  letter-spacing: .06em;
+  border-bottom: 1px solid var(--ink-faint);
+  margin: 1em 0 .3em;
+}
+.defense-orders p,
+.defense-choices p {
+  margin: .6em 0;
+}
+.defense-choices .muted {
+  font-size: .85em;
+}
+.defense-choices .field {
+  margin: 1em 0 .4em;
+}
+.defense-choices .input {
+  width: 100%;
+}
+.defense-masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+.defense-masthead .engraved {
+  font-size: .8em;
+}
+.defense-assets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1em;
+  font-size: .9em;
+}
+.defense-links {
+  display: flex;
+  gap: .6em;
+  flex-wrap: wrap;
+}
+.defense-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8em;
+  flex: none;
+  flex-wrap: wrap;
+}
+.defense-foot > .typed {
+  color: var(--paper);
+  text-shadow: 0 1px 3px #000;
+}
+.defense-report-paper {
+  width: min(70em, 100%);
+  align-self: center;
+  flex: 1;
+}
+.defense-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9em, 1fr));
+  gap: .8em;
+  margin: 1em 0;
+}
+.defense-asset-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.defense-asset-table th,
+.defense-asset-table td {
+  text-align: left;
+  padding: .35em .6em;
+  border-bottom: 1px dotted var(--ink-faint);
+}
+.defense-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .3em 1.5em;
+  font-size: .9em;
+}
+.defense-details dd {
+  margin: 0;
+}
+.defense-report-actions {
+  justify-content: center;
+}
+.defense-guide .key-grid .k {
+  align-items: start;
+}
+.defense-guide .key-grid kbd {
+  flex: none;
+  max-width: 48%;
+  overflow-wrap: anywhere;
+}
+/* The extra production menu entry must remain reachable on short viewports. */
+.scr-title .title-left {
+  min-height: 0;
+  overflow: auto;
+  padding: .3em;
+}
+.scr-title .title-menu {
+  flex-shrink: 0;
+}
+@media (max-aspect-ratio: 4/3) {
+  .defense-brief-layout {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  .defense-orders,
+  .defense-choices {
+    overflow: visible;
+  }
+}
+@media (max-width: 600px) {
+  .scr-defense-briefing .rb-content,
+  .scr-defense-report .rb-content,
+  .scr-gunner-guide .rb-content {
+    padding: 1em;
+    gap: .7em;
+  }
+  .defense-orders,
+  .defense-choices,
+  .defense-report-paper,
+  .defense-guide {
+    padding: 1em;
+  }
+  .defense-assets,
+  .defense-guide .key-grid {
+    grid-template-columns: 1fr;
+  }
+}

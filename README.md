@@ -74,6 +74,11 @@ squadron gives you. Hold on to your pilot: death and capture end a career.
 - **Quick Mission.** Pick your aircraft, the enemy, numbers, skill, altitude, start
   position, time of day and cloud. You can also face a named ace such as Richthofen or
   Fonck.
+- **Airfield Defense.** Man a first-person battery at Bertangles through five authored
+  raids, ending with an airship attack. Switch between machine gun, cannon and timed
+  flak; intercept bombs; protect headquarters, the ammo depot and the hospital.
+  Repair, rebuild and upgrade between raids. Regular/Veteran difficulty, optional
+  visual lead hints and seeded replay belong to this action alone, not your career.
 - **33 aircraft, all available to the player in Quick Mission.**
   - Fighters from the Fokker E.III, D.H.2 and Nieuport 11 to the Fokker D.VII,
     SPAD XIII, S.E.5a, Camel and Bristol Fighter.
@@ -124,8 +129,17 @@ squadron gives you. Hold on to your pilot: death and capture end a career.
 | Time | K compress · L normal |
 | Map, HUD, end flight, pause | M · H · N · Esc |
 
-The full list of keys, with the gamepad mapping, is in the in-game **Flying Manual**. Any
-key can be rebound under **Options → Keys**.
+The full list of flight keys, with the gamepad mapping, is in the in-game **Flying
+Manual**. Flight actions can be rebound under **Options → Keys**.
+
+**Airfield Defense** requires a mouse or keyboard. Mouse / arrows aim; left mouse /
+the shared fire binding fires; right mouse (held) focuses. **1 / 2 / 3** change guns,
+**R** reloads, wheel adjusts the flak fuze and **F** ranges the tracked threat.
+**Esc** pauses and releases capture; choose **Return to the guns** or **Use keyboard
+controls** to resume. The briefing's **Gunner’s Guide** explains lead, fuze range,
+asset benefits and resupply. Graphics, audio, mouse sensitivity/inversion and shared
+fire/pause bindings use ordinary Options; battery ammunition and heat remain active
+even when flight realism enables unlimited ammunition.
 
 ## How it's built
 
