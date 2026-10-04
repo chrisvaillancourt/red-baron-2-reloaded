@@ -218,7 +218,7 @@ const FRAG_COLOR = /* glsl */ `
   vec3 fieldCol = isPasture ? uPasture : uFields[int(fid * 5.999)];
   fieldCol *= 0.94 + 0.12 * th12(vec2(fid * 91.0, 3.0));
   // Pull crops toward the local average: real patchwork is lower contrast than a quilt.
-  fieldCol = mix(fieldCol, mix((uFields[0] + uFields[1] + uFields[2] + uFields[3] + uFields[4] + uFields[5]) / 6.0, uPasture, 0.3), 0.3);
+  fieldCol = mix(fieldCol, mix((uFields[0] + uFields[1] + uFields[2] + uFields[3] + uFields[4] + uFields[5]) / 6.0, uPasture, 0.3), 0.42);
   // Distant fields average out (reduces shimmer).
   vec3 avgCrop = (uFields[0] + uFields[1] + uFields[2] + uFields[3] + uFields[4] + uFields[5]) / 6.0;
   vec3 distCol = mix(avgCrop, uPasture, pastureChance) * (0.92 + 0.16 * did);
@@ -228,11 +228,11 @@ const FRAG_COLOR = /* glsl */ `
   float rowAA = clamp(1.0 - px * rowFreq * 2.0, 0.0, 1.0);
   float rowWave = 0.5 + 0.5 * sin(rowCoord * rowFreq * 6.2832);
   if (!isPasture) fieldCol *= 1.0 - 0.13 * rowAA * rowWave;
-  // Mottling (soil moisture / patchy growth).
-  fieldCol *= 0.9 + 0.2 * (tnoise(p / 900.0) * 0.65 + tnoise(p / 370.0) * 0.35);
-  // Patchy growth / damp hollows within a field (reads at strafing height).
-  fieldCol *= 1.0 + (tnoise(p / 45.0 + fid * 13.0) - 0.5) * 0.18 * clamp(1.0 - px / 40.0, 0.0, 1.0);
-  fieldCol *= 1.0 + (tnoise(p / 14.0) - 0.5) * 0.14 * clamp(1.0 - px / 6.0, 0.0, 1.0);
+  // Broad soil moisture variation crosses parcel boundaries; stronger local
+  // growth variation breaks up flat fills without erasing the field layout.
+  fieldCol *= 0.82 + 0.36 * (tnoise(p / 900.0) * 0.65 + tnoise(p / 370.0) * 0.35);
+  fieldCol *= 1.0 + (tnoise(p / 45.0 + fid * 13.0) - 0.5) * 0.36 * clamp(1.0 - px / 40.0, 0.0, 1.0);
+  fieldCol *= 1.0 + (tnoise(p / 14.0) - 0.5) * 0.24 * clamp(1.0 - px / 6.0, 0.0, 1.0);
   fieldCol *= 1.0 + (tnoise(p / 1.7) - 0.5) * 0.16 * micro;
   vec3 col = fieldCol;
 
