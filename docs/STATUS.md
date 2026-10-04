@@ -73,8 +73,8 @@ independent Standards/Spec reviews. Before/after images and measured GPU costs a
 in the PR; performance samples are scene-specific, not a general 60-FPS guarantee.
 The PR's associated GitHub Actions run and release-smoke comment record deployment status.
 
-**Cockpit/quality follow-up** on `feat/cockpit-quality-refinement`, based on merged
-PR #7 (`dc9f085`): low/medium aircraft surface shaders now cost less, while
+**Cockpit/quality integration: [PR #8](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/8),
+decision D-105**, based on PR #7 (`dc9f085`): low/medium aircraft surface shaders now cost less, while
 high/ultra retain the full finish. The generator refines pilot padding, panel
 construction and fixed guns across all 33 models; all stay below 12,000 triangles.
 Shared core change: an optional third graphics-quality factory argument, passed
@@ -86,7 +86,8 @@ Chrome/Metal/M3 Max QA inspected Camel, D.H.4, Albatros and Gotha cockpits,
 exercised flights at every preset, and verified mixed-quality material/disposal
 isolation with no browser errors. Full Playwright suite was not run.
 The hangar now pins animation/gauge time for repeatable captures (F-88).
-This follow-up is not a claim of integration or deployment.
+The user authorized the merge; the PR's associated Actions run and integration
+comment record the final merge and deployment status.
 
 - **Merged: bombers and gunner seats, wave 1** (plan and file ownership in
   `docs/bombers.md` "Waves"). All four tracks are on main:

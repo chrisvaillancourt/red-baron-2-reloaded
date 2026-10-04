@@ -1146,7 +1146,7 @@ These are short scene-specific GPU samples, not whole-game or cross-hardware
 60-FPS guarantees. Low/medium geometry attributes were compared with the baseline
 and matched exactly. Number assigned during the authorized PR #7 integration into main.
 
-## D-XXX — Scale aircraft surface shaders and refine existing cockpit shapes
+## D-105 — Scale aircraft surface shaders and refine existing cockpit shapes
 **Context.** Detailed finishes previously applied at every quality level. Close
 cockpit silhouettes still exposed square gun receivers, angular padding and flat
 panel construction.
@@ -1163,5 +1163,5 @@ triangle ceiling. Do not invent aircraft-specific historical instrumentation.
 documented in `docs/models.md`. Real flights exercised all four presets; simultaneous
 mixed-quality construction and low-instance disposal preserved high-quality finishes.
 Measurements are scene-specific. The largest regenerated model is Gotha at 11,844
-triangles. No simulation, dependency or instrument-reading changes. Integration owner
-assigns the decision number on merge.
+triangles. No simulation, dependency or instrument-reading changes. Decision number
+assigned during the authorized PR #8 integration into main.
