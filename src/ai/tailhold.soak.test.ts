@@ -28,7 +28,7 @@ import { TailHoldTracker, tailHoldLine, type TailHoldAcc } from './testing/tailH
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
 applyTacticsFlagsFromEnv(process.env);
-const REPS = Number(process.env.AI_TH_REPS ?? 12);
+const REPS = Number(process.env.AI_TH_REPS ?? 36);
 const SET = process.env.AI_TH_SET ?? 'default';
 const MAX_T = Number(process.env.AI_TH_MAXTIME ?? 600);
 const HUMAN = humanPilotFromEnv(process.env);
