@@ -1,4 +1,4 @@
-# Project status — release candidate, 2026-09-28
+# Project status — release candidate, handoff 2026-10-04 UTC
 
 The game is playable end to end: `pnpm dev`, then open http://localhost:5173
 (README "Your first flight" walks a new player through it). Career (all four
@@ -35,8 +35,24 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
   stalker ace 100% (all unseen). Unchanged from wave 8.
 - **Cloud refuge** (6 seeds): a wounded pilot takes 28 hits with refuge against 195 without.
 
-## Resume here (lead handoff, 2026-09-28, end of bombers wave 1)
-The user asked the lead to stop after the bomber merges: start nothing new until told.
+## Resume here (2026-10-04 UTC)
+
+Main includes the bomber wave-1 implementation and merged cache/spatial-query PRs #1–#3
+(`66518dd`). The next readiness pass is **committed on `fix/bomber-sim-readiness`, not
+merged or deployed**: shared contracts `cda4677`, simulation/model alignment `58b392b`,
+and exact differential tooling `4850cea`. Decisions and measured implementation notes
+are in `DECISIONS.md` and `docs/bombers.md`.
+
+- Combined verification: typecheck/build passed; 661 Vitest tests and 8 Node tool tests
+  passed, 30 gated tests skipped. Actual Chrome/Metal ground/takeoff inspection covered
+  Gotha, O/400 and AEG; no full Playwright or AI balance re-baseline is claimed.
+- Exact world and representative fighter snapshots match `66518dd`; the intended bomber
+  changes differ. Blender generator migration leaves all three twin meshes unchanged.
+- Independent reviews are complete. The tooling Array-subclass serialization finding was
+  reproduced, fixed and re-reviewed; no remaining review findings.
+- `pnpm test` now includes CPU-only tool tests, so the existing CI gate covers the new runner.
+  Optional core additions are `geometry.nacelle`, `geometry.gearContacts` and station `posture`.
+
 - **Merged: bombers and gunner seats, wave 1** (plan and file ownership in
   `docs/bombers.md` "Waves"). All four tracks are on main:
   - **Contracts** (D-086, `src/data/crew.ts`) and **track A, sim** (D-088): combat on crew
@@ -52,21 +68,15 @@ The user asked the lead to stop after the bomber merges: start nothing new until
     fairness set, repeatable seeded careers (F-33). Every A/B within noise; raid survey in
     docs/ai.md "Bombers".
   - Lead fixes on main: `splitSide` and `releaseAIPilot` (track C review).
-- **Do next (when the user says go), in this order:**
-  1. **Sim follow-ups before any bomber is flyable** (`src/sim`, one sim agent):
-     - the propeller-diameter formula uses total power, so twins get oversized propellers;
-       use power per engine
-     - the 0.7 rad/s roll-rate floor is far too fast for bombers (the Gotha's spec is 0.15)
-     - check the gear's `mainY` (-1.2) against the tall twin undercarriage in the models
-     - the Gotha keeps `pusher: false` although its nacelles push; check what the flag
-       changes (hit boxes, the prop wash) before flipping it
-     - the Gotha and O/400 ventral gunners' hit boxes hang below the fuselage
-       (`stationBoxes` in `src/sim/hitboxes.ts` puts a standing man 1.2 m below every eye):
-       centre a ventral gunner's box on his eye and empty the pinned exception list in
-       `src/sim/hitboxes.test.ts` (F-71)
-  2. **Flip `flyable`** for the bombers and two-seaters. The AI pools no longer read
-     `flyable` (D-097), so this is only a player-facing choice. Then add them to the
-     Quick Mission aircraft lists.
+- **Next work, in order:**
+  1. **Integrate the readiness branch.** The low roll-rate floor, twin ground contacts,
+     nacelle hit geometry and prone ventral crew are repaired. Per-engine propeller sizing
+     was already correct and is now regression-protected. Keep the Gotha's fuselage
+     `pusher` false; nacelle propeller orientation has its own metadata. F-71 is resolved.
+     Rough/sloped-field limits and crosswind handling were not established by this pass.
+  2. **Enable player access** by flipping `flyable` for the bombers and two-seaters, then
+     updating the Quick Mission aircraft lists and verifying the real selection/flight/crew
+     flow. AI pools no longer read `flyable` (D-097), so this is a player-facing cutover.
   3. **Lead:** replay the user's reports (`playtests/reports/` and the main checkout's
      `playtests/inbox/`) against the defence changes (D-085) with
      `node tools/playtest/replay-report.mjs`, and re-baseline "Current figures" with
@@ -444,3 +454,20 @@ Remaining:
 - Human play keeps port 5173. Agent servers use explicit strict ports and isolated
   flight-report output; e2e uses a free `E2E_PORT` (for example, `E2E_PORT=5241 pnpm e2e`).
   Ports do not isolate GPU load: coordinate heavy runs rather than launching them together.
+
+### Retained workspace inventory (2026-10-04 UTC)
+
+This is the observed handoff inventory, not cleanup authorization. No existing workspace
+was removed; re-audit ownership, dirty/ignored files, unpushed commits and active processes
+before any future removal.
+
+| Workspace | Branch / owner | Preservation reason |
+|---|---|---|
+| `red-baron-2-reloaded` | `main` at `66518dd`; human/integration owner | Reserved main checkout; unchanged by this task. |
+| `rb2r-bomber-readiness` | `fix/bomber-sim-readiness`; parent omp session | Unmerged deliverable and ignored QA screenshots/JSON in `tools/dev/scratch/bomber-readiness/`. Temporary scripts removed, port 5269 service and browser stopped. |
+| `rb2r-debt-spec` | `fix/spec-cache-identity` at `791da38`; prior spec-cache task | PR #1 squash-merged; retain original branch and workspace pending authorized cleanup. |
+| `rb2r-debt-spatial` | `perf/world-spatial-queries` at `aed20d9`; prior spatial task | PR #2 squash-merged; same retention rule. |
+| `rb2r-debt-height` | `perf/height-cache-locality` at `4057201`; prior height-cache task | PR #3 squash-merged; same retention rule. |
+| `rb2r-pr-integration` | `review/open-pr-integration` at `0ef2f76`; prior parent review | Reviewed integration snapshot/evidence; preserve until authorized cleanup. |
+| omp isolated `t18fe94f19/m`, `t761509680/m`, `tb9b8755f9/m` | Completed flight, damage and tooling workers | Retained worker changes/evidence; all owned source changes incorporated into the parent branch. Separate harness workspaces, not entries in the main checkout's worktree registry. |
+
