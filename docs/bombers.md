@@ -1,7 +1,31 @@
-# Bombers and gunner seats: plan (wave 1 in progress)
+# Bombers and gunner seats
 
-This is the plan for the next big feature, agreed with the user on 2026-09-28. The lead's
-`src/core` contracts landed as D-086; parallel agents now build against them (see "Tracks").
+The wave-1 implementation is merged (D-086–D-099); player access remains gated on
+simulation readiness. The original scope and implementation plan below are retained
+as historical context, not a description of the current code.
+
+## Simulation-readiness pass (2026-10-03)
+
+Base: `66518dd`, after the three cache/spatial-query PRs. Integration owner: the parent
+omp session, branch `fix/bomber-sim-readiness`. No aircraft unlocks, AI balance changes,
+night bombing, damage-path flag changes, or deployment are part of this pass.
+
+Independent ownership:
+- **Verification tooling:** `tools/dev/` differential probes and the architecture command
+  reference. Use supported TypeScript graph loading and identical scenario histories in
+  separate baseline/candidate processes; replace ad-hoc compiler-API and shared-state probes.
+- **Flight dynamics:** simulation coefficients and handling regressions. Measure low-rating
+  bomber roll response and shipped-model wheel/skid geometry before changing them.
+- **Damage geometry:** hit models and their regressions. Measure ventral crew and nacelle
+  placement; keep fuselage pusher layout separate from nacelle propeller orientation.
+- **Integration:** any shared data contract, decisions, implementation notes, independent
+  reviews, combined tests and runtime/browser evidence. Resolve shared geometry once rather
+  than copying generator tables into each simulation path.
+
+Acceptance: behavioral regression coverage, actual before/after simulation probes, model
+alignment measurements, independent review dispositions, and combined typecheck/test/build
+verification. The per-engine propeller formula already exists; verify it, do not replace it.
+
 
 ## Scope (user decisions, 2026-09-28)
 - **New aircraft, all flyable:**

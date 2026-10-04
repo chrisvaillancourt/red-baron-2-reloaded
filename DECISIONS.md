@@ -1034,3 +1034,25 @@ Claude read only its section. omp requested its exact section range, but the rea
 tools included adjacent previews; section-only exposure is therefore a tool limitation,
 not guaranteed by the pointer. The harness reference is not eagerly imported. Typecheck and the
 623-test passing unit suite remained green after the extraction.
+
+## D-XXX — Share bomber support geometry, nacelle placement and crew posture
+**Context.** The shipped Gotha, AEG and O/400 models have wheel contacts 0.52–0.96 m
+below the simulation's generic −1.2 m datum. Their nacelles are positioned by private
+Blender tables, while damage uses wing-edge heuristics. Floor gunners receive the same
+standing body offset as ring gunners. Flipping the Gotha's `geometry.pusher` would corrupt
+its fuselage layout rather than describe its nacelles.
+
+**Decision.** Add optional `AircraftGeometry.gearContacts` (right main support and central
+skid, body-frame metres), `AircraftGeometry.nacelle` (body Y/Z centre, length, radius and
+independent pusher orientation), and `CrewStation.posture` (standing by default, prone for
+the two floor stations). The three twin specs own values recovered from the shipped
+generator and checked against GLB geometry. These are model-alignment data, not a claim
+of measured historical airframe dimensions. The existing JSON exporter carries geometry
+into Blender; the generator and simulation consume the same data rather than duplicate
+aircraft-ID tables. Single-engine types keep their existing derivation.
+
+**Consequences.** Contracts are additive; no public signature or aircraft availability
+changes. Specs remain immutable after caching. Ground attitude must follow the support
+points, and engine damage must follow cowling volume, not its decorative bearers.
+Independent shipped-model measurements, ground/roll simulation, and hit rays are the
+verification seams. Branch decisions keep D-XXX until integration into main.

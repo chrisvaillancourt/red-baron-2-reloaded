@@ -93,6 +93,10 @@ export interface AircraftGeometry {
    * means the engine is on the centre line. The flight model, hit boxes and models share it.
    */
   nacelleOffsetX?: number;
+  /** Twin nacelle cowling in body metres; X comes from nacelleOffsetX. Independent of fuselage pusher layout. */
+  nacelle?: { centerY: number; centerZ: number; length: number; radius: number; pusher: boolean };
+  /** Ground support points in body metres: right main wheel pair and centre-line tailskid. */
+  gearContacts?: { main: [number, number, number]; tail: [number, number, number] };
 }
 
 export interface AircraftPerformance {
@@ -190,6 +194,8 @@ export interface CrewStation {
    * 0.45 m above and 0.35 m behind his first gun's mount.
    */
   eye?: [number, number, number];
+  /** Gunner posture at this station; absent means standing. Prone crew lie at the floor hatch. */
+  posture?: 'standing' | 'prone';
   /** Aims and releases the bombs (the D.H.4's observer, the Gotha's nose gunner). */
   bombAimer?: boolean;
 }
