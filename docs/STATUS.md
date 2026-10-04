@@ -8,7 +8,7 @@ Owner: parent omp integration session, branch `chore/backlog-execution`; no main
 
 | ID | Outcome | State / owner | Acceptance or unblock condition |
 |---|---|---|---|
-| Q-01 | Non-publishing PR/manual validation | Implemented / integration lead | actionlint and independent review passed; remote PR gate pending |
+| Q-01 | Non-publishing PR/manual validation | Verified on task branch / integration lead | PR #9 run 37184184678 passed build with deploy skipped; main unchanged |
 | Q-02 | Isolated, consistent browser automation | Verified on task branch / integration lead | 23 browser tests passed, one gated skip; production flight smoke passed |
 | Q-03 | Current gameplay evidence | Complete / integration lead | Frozen-SHA fairness/quick/career/raid surveys and report replays recorded in BACKLOG |
 | Q-04 | Tailhold/defence/raid A/B coverage | Ready / next tooling slot | Real survey adapters, retained raw results, no fabricated statistical verdicts |

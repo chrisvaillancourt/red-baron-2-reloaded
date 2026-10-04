@@ -106,6 +106,12 @@ BrowserReliability workers (patches integrated). Existing worktrees were preserv
 The cited inbox report was copied to the task's tracked reports without removing
 the human checkout's copy. No human inbox or public deployment was modified.
 
+PR #9: commit `5761599`; Actions run
+https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37184184678
+completed successfully for `pull_request`: build passed, deploy skipped.
+This exercises the actual remote non-publishing path, not merely YAML inspection.
+Publication remains untested by this task because main was not changed.
+
 ## Debt dispositions
 
 - F-7 debrief order is already documented (`docs/ui.md`); do not implement a second navigation convention.
