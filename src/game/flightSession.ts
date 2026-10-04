@@ -156,6 +156,15 @@ export class FlightSession {
     if (document.hidden) this.interruptTouch();
   };
   private onBlur = () => this.interruptTouch();
+  private onMapKey = (event: KeyboardEvent) => {
+    // The map holds touch-capable flights, but has no modal keyboard handler.
+    if ((!this.touchCapable && !this.touchActive) || !this.canCloseMap || event.repeat) return;
+    const bindings = this.settings.controls.keyBindings;
+    if (!bindings.map?.includes(event.code) && !bindings.pause?.includes(event.code)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.touchCommand('pause');
+  };
   private contextLost = false;
   private contextLostAt = 0;
   private throwOnNextFrame: string | null = null;
@@ -296,11 +305,13 @@ export class FlightSession {
       capture: (open) => {
         this.touchCapture = open;
         this.input.enabled = !this.inputCaptured;
+        if (!open && !this.inputCaptured) this.canvas.focus();
       },
       active: (active) => {
         this.cancelInputs();
         this.touchActive = active;
         this.input.touchActive = active;
+        if (!this.inputCaptured) this.canvas.focus();
       },
     });
     this.updateTouch();
@@ -311,6 +322,7 @@ export class FlightSession {
     window.addEventListener('resize', this.onResize);
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('blur', this.onBlur);
+    window.addEventListener('keydown', this.onMapKey, true);
     this.resize();
     await this.warmUpTerrain(loading);
     if (this.finished) return;
@@ -392,6 +404,10 @@ export class FlightSession {
 
   private get inputCaptured(): boolean {
     return this.hud.menuOpen || this.touchCapture || this.contextLost || ((this.touchCapable || this.touchActive) && (this.mapOpen || document.hidden));
+  }
+
+  private get canCloseMap(): boolean {
+    return this.mapOpen && !this.hud.menuOpen && !this.touchCapture && !this.contextLost && !document.hidden;
   }
 
   private cancelInputs(): void {
@@ -599,6 +615,7 @@ export class FlightSession {
   private handleCommands(cmds: EdgeAction[]): void {
     const player = this.world.player;
     for (const c of cmds) {
+      if (c === 'map' && this.inputCaptured && !this.canCloseMap) continue;
       // Seats, the bombsight, bomb release, and F1 at a gun (the gunner's view).
       const station = this.core.playerStation;
       if (this.crew.command(c, this.waypointIndex)) {
@@ -958,6 +975,7 @@ export class FlightSession {
     window.removeEventListener('resize', this.onResize);
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('blur', this.onBlur);
+    window.removeEventListener('keydown', this.onMapKey, true);
     step('touch controls', () => this.touch?.dispose());
     step('canvas listeners', () => {
       this.canvas?.removeEventListener('webglcontextlost', this.onContextLost);

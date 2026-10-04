@@ -77,6 +77,95 @@ test('touch-only raid route: crew, bombs, map, pause menu and debrief', async ({
   expect(errors).toEqual([]);
 });
 
+test('returning from touch UI restores keyboard flight shortcuts', async ({ page }) => {
+  await startRaid(page);
+  for (const exit of ['resume', 'escape', 'hide']) {
+    if (exit === 'hide') {
+      await page.locator('[data-touch="toggle"]').tap();
+    } else {
+      await page.locator('[data-touch="menu"]').tap();
+      if (exit === 'resume') await page.locator('[data-touch="resume"]').tap();
+      else await page.keyboard.press('Escape');
+    }
+    await page.keyboard.down('Space');
+    await expect.poll(() => page.evaluate(() => window.__rb2!.session!.player!.controls.fireGuns)).toBe(true);
+    await page.keyboard.up('Space');
+    await expect.poll(() => page.evaluate(() => window.__rb2!.session!.player!.controls.fireGuns)).toBe(false);
+  }
+});
+
+test('keyboard closes the captured map on a touch-capable device', async ({ page }) => {
+  await startRaid(page);
+  await page.locator('[data-touch="toggle"]').tap();
+  await page.locator('.rb-flight canvas').focus();
+  await page.keyboard.press('KeyM');
+  await expect(page.locator('.hud-map')).toBeVisible();
+  const time = await page.evaluate(() => window.__rb2!.session!.time);
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => window.__rb2!.session!.time)).toBe(time);
+  expect(await page.evaluate(() => window.__rb2!.session!.player!.controls.fireGuns)).toBe(false);
+  await page.keyboard.up('Space');
+  await page.locator('[data-touch="toggle"]').tap(); // Toolbar keeps focus while the map is captured.
+  await page.keyboard.press('KeyM');
+  await expect(page.locator('.hud-map')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__rb2!.session!.time)).toBeGreaterThan(time);
+});
+
+test('keyboard autorepeat cannot reassert bomb release after a seat change', async ({ page }) => {
+  await startRaid(page);
+  await action(page, 'stationNext');
+  await expect.poll(() => page.evaluate(() => window.__rb2!.session!.station)).toBe('observer');
+  await page.locator('.rb-flight canvas').focus();
+  const bombs = () => page.evaluate(() => window.__rb2!.session!.player!.bombs!.reduce((sum, count) => sum + count, 0));
+  const before = await bombs();
+  await page.keyboard.down('KeyR');
+  await expect.poll(bombs).toBe(before - 1);
+  await action(page, 'stationPilot');
+  await expect.poll(() => page.evaluate(() => window.__rb2!.session!.station)).toBe('pilot');
+  await action(page, 'stationNext');
+  await expect.poll(() => page.evaluate(() => window.__rb2!.session!.station)).toBe('observer');
+  await page.locator('.rb-flight canvas').focus();
+  await page.keyboard.down('KeyR'); // Still physically down: Chromium sends a repeat.
+  await page.waitForTimeout(150);
+  expect(await bombs()).toBe(before - 1);
+  await page.keyboard.up('KeyR');
+  await page.keyboard.down('KeyR');
+  await expect.poll(bombs).toBe(before - 2);
+  await page.keyboard.up('KeyR');
+});
+
+test('controller Back closes a captured map without applying flight input', async ({ browser, baseURL }) => {
+  // A dedicated context replaces physical pads with a controllable pad before startup.
+  const context = await browser.newContext({ baseURL, viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
+  try {
+    await context.addInitScript(() => {
+      const pad = { index: 0, id: 'hybrid controller', connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
+        buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })) };
+      Object.defineProperty(navigator, 'getGamepads', { value: () => [pad] });
+    });
+    const page = await context.newPage();
+    await startRaid(page);
+    await page.locator('[data-touch="toggle"]').tap();
+    const back = (pressed: boolean) => page.evaluate((held) => {
+      Object.assign(navigator.getGamepads()[0]!.buttons[8], { pressed: held });
+    }, pressed);
+    await page.waitForTimeout(100);
+    await back(true);
+    await expect(page.locator('.hud-map')).toBeVisible();
+    await back(false);
+    const time = await page.evaluate(() => window.__rb2!.session!.time);
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => window.__rb2!.session!.time)).toBe(time);
+    await back(true);
+    await expect(page.locator('.hud-map')).toBeHidden();
+    await back(false);
+    await expect.poll(() => page.evaluate(() => window.__rb2!.session!.time)).toBeGreaterThan(time);
+  } finally {
+    await context.close();
+  }
+});
+
 test('simultaneous touch owners survive partial release and cancel on rotation', async ({ page, context }) => {
   await startRaid(page);
   const cdp = await context.newCDPSession(page);

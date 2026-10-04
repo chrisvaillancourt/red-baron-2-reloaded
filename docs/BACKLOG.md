@@ -199,12 +199,23 @@ paused action sheet, throttle command, map and hidden-HUD access. A hidden-HUD
 end-flight prompt defect was reproduced and fixed. The multipointer test's initial
 CDP partial-release calls were corrected after tracing real pointer IDs.
 
-Final `E2E_PORT=5358 pnpm e2e`: 25 passed, one gated soak skipped, one GPU worker.
+Final `E2E_PORT=5358 pnpm e2e`: 29 passed, one gated soak skipped, one GPU worker.
 This includes touch-only D.H.4 crew/bomb/map/end/debrief and multi-owner release,
 rudder, throttle, cancellation, rotation and toggle scenarios. The desktop frozen
 crew-handback test caught conflation of simulation hold with input capture; the fix
 preserves that seam and AI handback. Typecheck, 677 Vitest tests (30 gated skips),
 eight Node regressions and production build passed.
+
+Independent review reproduced hybrid-input defects: returning from the sheet left
+keyboard focus trapped, captured maps lost keyboard/controller close commands, and
+keyboard autorepeat could revive a canceled bomb hold after a crew-seat change.
+The session now restores canvas ownership, shares map-close permission across the
+capture-phase keyboard route and polled controller edges, and rejects map edges
+under other captures. Input cancellation requires a fresh non-repeat keydown.
+Four additional browser regressions cover these paths; all six touch/hybrid cases
+pass. An actual 844×390 Chrome flight confirmed canvas focus, keyboard fire and
+map open/close with gestures hidden; the inspected screenshot rendered correctly
+and the browser reported no errors. Both independent re-reviews are clear.
 
 Screenshots and earlier failure evidence remain in the task workspace's ignored
 `tools/dev/scratch/q12/`. No physical iPhone/Safari or thermal/frame-time claim:

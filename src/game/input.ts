@@ -419,7 +419,8 @@ export class InputManager {
 
   attach(): void {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!this.enabled) return;
+      // Cancellation is not a physical key-up: repeats cannot revive discarded holds.
+      if (!this.enabled || (e.repeat && !this.held.has(e.code))) return;
       if (e.code === 'Tab' || e.code.startsWith('F') || e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
       if (!e.repeat) this.pressedQueue.push(e.code);
       this.held.add(e.code);
@@ -550,12 +551,12 @@ export class InputManager {
     if (this.lastMouseMode !== null && this.lastMouseMode !== cs.mouseMode) this.cancelTransientInput();
     this.lastMouseMode = cs.mouseMode;
     if (!this.enabled) {
-      // HUD owns keyboard focus. Keep only Start's pause edge so a pad can unpause;
-      // still sample its history while blocked, without retaining any flight intent.
+      // Keep navigation edges while discarding flight intent. The session decides
+      // whether the current overlay allows pause or map-close.
       const pad = this.pollGamepad(cs, 0);
       return {
         controls: { pitch: 0, roll: 0, yaw: 0, throttle: this.throttle, blip: false, fireGuns: false, clearJam: false, releaseBomb: false },
-        commands: pad?.commands.includes('pause') ? ['pause'] : [],
+        commands: pad?.commands.filter((command) => command === 'pause' || command === 'map') ?? [],
         snapLook: null,
         lookDelta: { yaw: 0, pitch: 0 },
         aimDirection: null,

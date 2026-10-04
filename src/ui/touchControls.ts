@@ -113,14 +113,13 @@ export function createTouchControls(container: HTMLElement, sink: TouchControlSi
       if (owner.element.hasPointerCapture(id)) owner.element.releasePointerCapture(id);
     }
   }
-  function closeSheet(focus = false): void {
+  function closeSheet(): void {
     if (!sheetOpen) return;
     sheetOpen = false;
     backdrop.hidden = true;
     menu.setAttribute('aria-expanded', 'false');
     sink.capture(false);
     render();
-    if (focus && view.active) menu.focus();
   }
   function cancel(): void {
     if (disposed) return;
@@ -254,7 +253,7 @@ export function createTouchControls(container: HTMLElement, sink: TouchControlSi
   bindAction(toggle, () => { preference = !enabled; syncActive(); });
   bindAction(menu, () => {
     if (!enabled && !touchCapable) return;
-    if (sheetOpen) { clearGestures(); closeSheet(true); return; }
+    if (sheetOpen) { clearGestures(); closeSheet(); return; }
     if (view.blocked) { clearGestures(); sink.command('pause'); return; }
     clearGestures();
     sheetOpen = true;
@@ -264,7 +263,7 @@ export function createTouchControls(container: HTMLElement, sink: TouchControlSi
     render();
     cancelButton.focus();
   });
-  bindAction(cancelButton, () => { clearGestures(); closeSheet(true); });
+  bindAction(cancelButton, () => { clearGestures(); closeSheet(); });
   for (const group of ACTION_GROUPS) {
     const buttons = group.actions.map(([action, label]) => {
       const button = h('button', { type: 'button', dataset: { touchAction: action } }, label);
@@ -299,7 +298,7 @@ export function createTouchControls(container: HTMLElement, sink: TouchControlSi
   listen(root, 'keydown', (raw) => {
     const event = raw as KeyboardEvent;
     event.stopPropagation();
-    if (sheetOpen && event.key === 'Escape') { event.preventDefault(); cancel(); menu.focus(); }
+    if (sheetOpen && event.key === 'Escape') { event.preventDefault(); cancel(); }
     if (sheetOpen && event.key === 'Tab') {
       const buttons = Array.from(sheet.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
       const first = buttons[0], last = buttons[buttons.length - 1];
