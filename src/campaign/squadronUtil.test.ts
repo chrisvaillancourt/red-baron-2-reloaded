@@ -15,16 +15,14 @@ function allPools(): string[] {
 
 describe('AI aircraft pools', () => {
   it('do not depend on which types the player may fly', () => {
-    // The two-seaters and bombers become flyable in the bombers wave; the AI's recon and
-    // bomber flights must keep flying the same types when they do.
+    // Player availability must not change any AI role or date pool.
     const before = allPools();
-    const flipped = AIRCRAFT_LIST.filter((a) => (a.role === 'two-seater' || a.role === 'bomber') && !a.flyable) as AircraftSpec[];
-    expect(flipped.length).toBeGreaterThan(5);
+    const original = AIRCRAFT_LIST.map((spec) => [spec as AircraftSpec, spec.flyable] as const);
     try {
-      for (const a of flipped) a.flyable = true;
+      for (const [spec, flyable] of original) spec.flyable = !flyable;
       expect(allPools()).toEqual(before);
     } finally {
-      for (const a of flipped) a.flyable = false;
+      for (const [spec, flyable] of original) spec.flyable = flyable;
     }
   });
 
@@ -36,7 +34,7 @@ describe('AI aircraft pools', () => {
     expect(aircraftPool('allied', 'bomber', '1917-10-01')).toContain('dh4');
   });
 
-  it('never put a bomber or a bomb carrier in a fighter pool, and no bomber is flyable', () => {
+  it('never put a bomber or a bomb carrier in a fighter pool', () => {
     for (const side of ['allied', 'central'] as const)
       for (const date of DATES)
         for (const id of aircraftPool(side, 'fighter', date)) {
@@ -44,6 +42,5 @@ describe('AI aircraft pools', () => {
           expect(spec.role, `${side} ${date} ${id}`).toBe('fighter');
           expect(spec.bombs?.length ?? 0, `${side} ${date} ${id}`).toBe(0);
         }
-    for (const a of AIRCRAFT_LIST.filter((s) => s.role === 'bomber')) expect(a.flyable, a.id).toBe(false);
   });
 });

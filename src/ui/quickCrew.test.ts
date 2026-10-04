@@ -13,10 +13,22 @@ describe('quick mission crew options', () => {
     expect(raid.every((s) => !!s.bombs?.length)).toBe(true);
     const fight = quickPlayerAircraft('dogfight');
     expect(fight.every((s) => s.flyable)).toBe(true);
-    expect(fight.map((s) => s.id)).not.toContain('dh4');
   });
 
-  it('switches to a bomber for a raid and back to a fighter after one, and drops a seat the aircraft lacks', () => {
+  it('does not bypass player availability for a bomb-carrying aircraft', () => {
+    const spec = AIRCRAFT.dh4;
+    const flyable = spec.flyable;
+    try {
+      spec.flyable = false;
+      for (const type of ['bombing', 'dogfight'] as const) {
+        expect(quickPlayerAircraft(type).map((s) => s.id)).not.toContain(spec.id);
+      }
+    } finally {
+      spec.flyable = flyable;
+    }
+  });
+
+  it('selects a suitable raid aircraft, preserves a valid aircraft and seat, and removes missing seats', () => {
     expect(sanitizeQuickOptions({ ...QUICK_DEFAULTS, type: 'bombing' }).playerAircraft).toBe('dh4');
     // Of the player's side and nearest his type's service: a Fokker D.VII pilot gets a German bomber of 1917-18.
     const german = AIRCRAFT[sanitizeQuickOptions({ ...QUICK_DEFAULTS, playerAircraft: 'fokker_dvii', type: 'bombing' }).playerAircraft];
@@ -25,8 +37,8 @@ describe('quick mission crew options', () => {
     // A Nieuport 11 pilot (1916) gets the Voisin of his day, not a 1917 type.
     expect(AIRCRAFT[sanitizeQuickOptions({ ...QUICK_DEFAULTS, playerAircraft: 'nieuport_11', type: 'bombing' }).playerAircraft].id).toBe('voisin_iii');
     const back = sanitizeQuickOptions({ ...QUICK_DEFAULTS, playerAircraft: 'dh4', playerStation: 'observer', type: 'dogfight' });
-    expect(back.playerAircraft).toBe(QUICK_DEFAULTS.playerAircraft);
-    expect(back.playerStation).toBeUndefined(); // the default fighter has one seat
+    expect(back.playerAircraft).toBe('dh4');
+    expect(back.playerStation).toBe('observer');
     expect(sanitizeQuickOptions({ ...QUICK_DEFAULTS, type: 'bombing', playerAircraft: 'dh4', playerStation: 'observer' }).playerStation).toBe('observer');
     expect(sanitizeQuickOptions({ ...QUICK_DEFAULTS, playerStation: 'observer' }).playerStation).toBeUndefined(); // a Camel
     expect(sanitizeQuickOptions({ ...QUICK_DEFAULTS, playerAircraft: 'bristol_f2b', playerStation: 'observer' }).playerStation).toBe('observer');

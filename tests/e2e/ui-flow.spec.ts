@@ -117,9 +117,10 @@ test('bombing raid from the Quick Mission screen: a D.H.4, the observer seat, bo
   await expectScreen(page, 'debrief');
   await leaveDebrief(page);
   await expectScreen(page, 'quick');
-  // Back to a dogfight: the AI-only bomber gives way to a flyable fighter.
+  // Switching missions preserves the now-player-accessible bomber and observer seat.
   await page.click('button:has-text("Dogfight")');
-  await expect(aircraft).not.toHaveValue('dh4');
+  await expect(aircraft).toHaveValue('dh4');
+  await expect(page.locator('.field:has-text("Your seat") button:has-text("Observer")')).toHaveAttribute('aria-pressed', 'true');
   expect(errors).toEqual([]);
 });
 

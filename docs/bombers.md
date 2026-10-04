@@ -1,8 +1,38 @@
 # Bombers and gunner seats
 
-The wave-1 implementation is merged (D-086–D-099); player access remains gated on
-simulation readiness. The original scope and implementation plan below are retained
-as historical context, not a description of the current code.
+The wave-1 implementation (D-086–D-099) and simulation-readiness pass (D-101–D-102)
+are merged. Player access is implemented on `feat/player-aircraft-access`, not yet merged.
+The original scope and wave plan below remain historical context.
+
+## Player-access cutover (2026-10-04 UTC)
+
+Base: `f814e2a`, the authorized PR #4 squash merge. GitHub Pages build/deploy succeeded
+in run `37174451413`. Integration owner: parent omp session; isolated workspace
+`rb2r-player-aircraft-access`, branch `feat/player-aircraft-access`.
+
+- Enabled the 14 previously gated types in `src/data/aircraft.ts`: seven reconnaissance
+  two-seaters and seven bombers. All 33 shipped aircraft are now offered in ordinary
+  Quick Missions; the seven bomb carriers are offered for bombing raids.
+- `quickPlayerAircraft` requires `flyable` for every mission and a bomb load for raids.
+  Saved selections and valid crew seats survive mission changes and reloads; incompatible
+  choices still use the existing nation/side/service-date fallback and clear missing seats.
+- No second UI list, migration shim, AI role-pool change, career squadron addition, shared
+  contract change or dependency. The AI-pool regression now inverts and restores original
+  availability flags instead of assuming that several types will always remain gated.
+- Actual UI on isolated port 5271: selected all 14 unlocked types; Gotha survived
+  raid→dogfight→reload with its tunnel seat. Launched through the real briefing into that
+  station, then returned to the pilot and exercised roll input. Launched the F.E.2b from
+  its nose-gunner choice. Shipped models loaded; screenshots inspected on Chrome/ANGLE
+  Metal (Apple M3 Max), gamepads stubbed, no browser errors.
+- The existing bombing-raid Playwright regression passed on isolated port 5272: D.H.4
+  observer launch with four bombs, debrief, then dogfight with aircraft and seat retained.
+  The full Playwright suite was not run.
+- Exact fresh-process comparison with `f814e2a`: all 40 sampled AI role/date pools and
+  20 nation/date career squadron/equipment selections equal. This is selection-equivalence
+  evidence, not a new combat-balance survey.
+- `pnpm typecheck`, `pnpm test` (662 Vitest + 8 Node tests passed, 30 gated tests skipped),
+  and `pnpm build` passed. Screenshots and JSON remain in ignored
+  `tools/dev/scratch/player-access/`; temporary probe removed and QA services stopped.
 
 ## Simulation-readiness pass (2026-10-04 UTC)
 
@@ -66,9 +96,9 @@ verification. The per-engine propeller formula already exists; verify it, do not
   runtime measurements, generator-parity and bomber-comparison JSON. Temporary probe
   scripts were removed; the automation browser and server were stopped.
 
-Next scope is the player `flyable`/Quick Mission cutover and its UI/flight verification,
-after integrating this branch. AI balance, historical day/night availability and the
-damage-path decision remain separate.
+This pass was merged as PR #4 (`f814e2a`) and deployed successfully. The player-access
+cutover above follows it; AI balance, historical day/night availability and the damage-path
+decision remain separate.
 
 ## Scope (user decisions, 2026-09-28)
 - **New aircraft, all flyable:**

@@ -1105,3 +1105,24 @@ reproduced false acceptance before the fix and now rejects them with exit 2. Eig
 regression tests pass, covering isolation, error exits/timeouts and numeric identity.
 `pnpm test` includes `pnpm test:tools`, so the existing CI gate runs them too. No runtime
 dependency or game configuration changed.
+
+## D-XXX — Expose the verified bomber and two-seater roster to players
+**Context.** D-101 resolves the simulation-readiness blockers and D-097 already separates
+AI role pools from player availability. The original bomber scope calls for all shipped
+multi-crew aircraft to be player-accessible; keeping them gated now only hides working
+aircraft and forces a bomber/seat reset when leaving a raid.
+
+**Decision.** Set `flyable` for the 14 remaining gated aircraft. Keep one selection
+policy in `quickPlayerAircraft`: every mission requires player availability, and bombing
+raids also require bombs. Preserve valid aircraft and station choices across mission
+changes and saved-option reloads. Retain existing fallback/seat-sanitization behavior for
+incompatible choices rather than adding a parallel aircraft list or save migration.
+
+**Scope and verification (2026-10-04 UTC).** No aircraft physics, AI role composition,
+career squadron content, shared contracts or dependencies change. The actual UI offers
+33 aircraft, seven of them for raids. All 14 new choices were exercised; real Gotha tunnel
+and pilot handoff plus F.E.2b nose-gunner flights rendered successfully. The updated D.H.4
+raid/debrief/mission-transition browser regression passes. Fresh-process baseline
+comparison shows equal AI pools and career equipment selections at five service dates.
+Availability regression fixtures invert and restore original flags rather than pinning
+the old release gate. Commands and evidence are recorded in `docs/bombers.md`.

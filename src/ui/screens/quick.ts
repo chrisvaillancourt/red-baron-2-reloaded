@@ -190,7 +190,7 @@ export const quickScreen: ScreenFactory = (ctx) => {
         (v) => {
           o.type = v;
           escortField.hidden = v !== 'bombing';
-          // A raid needs a bomber, and a bomber that isn't flyable can't fly anything else.
+          // Keep the aircraft and seat when offered; a raid additionally requires bombs.
           const fixed = sanitizeQuickOptions(o);
           if (fixed.playerAircraft !== o.playerAircraft) onPlayerAircraft(fixed.playerAircraft);
           rebuildPlayerSelect();
