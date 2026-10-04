@@ -165,6 +165,9 @@ window, extension now escapes along available lift. Dead-ahead coordinated
 splitting, engagement/defence steering and longer-range avoidance stay unchanged.
 An initial phase-independent candidate regressed the non-dodging-human furball
 gate and was rejected; the extension-only correction passes it.
+Independent reviews also caught reuse of the fixed world-up vector as lift scratch;
+the accepted correction uses dedicated scratch storage, preserving cloud-refuge
+orbits. The runtime and complete test checks below were rerun after that correction.
 
 Parent verification: typecheck; 666 Vitest tests passed, 30 gated skips; eight Node
 tool tests passed. A standalone production-sim run observed no collisions in

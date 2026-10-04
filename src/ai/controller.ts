@@ -181,6 +181,7 @@ const _tmp2 = new Vector3();
 const _tmp3 = new Vector3();
 const _rel = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _collisionLift = new Vector3();
 
 export class AIPilot implements AIController {
   readonly entityId: number;
@@ -1868,7 +1869,7 @@ export class AIPilot implements AIController {
       const radius = !isAlive(o) ? 40 : o.controller === 'player' || sameTarget ? 45 : 32;
       if (dcpa >= radius) continue;
       const w = (1 - dcpa / radius) * (1 - tcpa / 4.2);
-      const lift = upOf(s.orientation, _up);
+      const lift = upOf(s.orientation, _collisionLift);
       // Dead ahead: retain the coordinated up/down split (splitSide).
       if (dcpa < 1) cpa.copy(lift).multiplyScalar(-splitSide(self, o));
       // During a committed extension, a late escape opposite the current lift needs
