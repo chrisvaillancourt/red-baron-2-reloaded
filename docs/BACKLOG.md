@@ -1,7 +1,8 @@
 # Backlog execution record
 
 Integration owner: parent omp session. Branch: `chore/backlog-execution`.
-Base: `07dfaa462a098df633e512a86406b9d7c416fc73`. No main publication or workspace cleanup authorized by this execution plan.
+Base: `07dfaa462a098df633e512a86406b9d7c416fc73`. The user subsequently authorized
+merging PR #9 and its main-push deployment. Workspace cleanup remains unauthorized.
 
 ## Operating decisions
 
@@ -12,6 +13,43 @@ Base: `07dfaa462a098df633e512a86406b9d7c416fc73`. No main publication or workspa
 - Prioritize release safety, reproduced player problems, enabling work, repeated friction, then conditional polish. Refactor locally where duplicated knowledge is already causing errors; do not build speculative frameworks.
 - Record committed, reviewed, integrated, deployed and release-verified separately. No task-branch handoff implies deployment.
 - Baseline numbers identify commit, seeds/settings, cohort and command. Same-SHA A/B runs establish reproducibility, not improvement. CPU surveys do not replace human ratings or actual-browser evidence.
+
+### Completion-triggered dispatch
+
+The first execution was a bounded three-track batch, not a continuously refilled
+queue. The operating policy below makes subsequent active sessions a pull loop;
+there is no unattended scheduler running between sessions.
+
+1. On a worker result, blocker, review result or new report: update STATUS, resolve
+   changed dependencies, and choose the highest-impact eligible task.
+2. Keep at most three workers plus one integration lead active. A completed worker
+   hands off its patch/commit and evidence, then its slot takes the next independent
+   ready slice without waiting for the other tracks.
+3. Two changes waiting for review/integration stop new implementation dispatch.
+   Drain that queue first; completed code without acceptance evidence is not progress.
+4. Give each worker an exact base SHA, isolated workspace, file ownership, observable
+   acceptance, non-goals, resource needs and a retained handoff location. Review the
+   changed commit, not a moving branch. Parent integrates and checks the combined tree.
+5. Use one GPU lease and one coordinated CPU survey budget. Separate ports are not
+   GPU isolation. Schedule independent code work while expensive checks run; do not
+   run multiple full suites or redundant same-SHA A/Bs merely to keep agents busy.
+6. A blocker names the exact decision/evidence needed, releases the worker slot,
+   and leaves all independently reachable work eligible. Batch owner questions with
+   recommendations; do not wait for LICENSE or iPhone hardware to do unrelated work.
+7. Refactor only a touched area with demonstrated duplication or maintenance cost;
+   isolate behavior-preserving work from tuning. Log unrelated debt with its trigger.
+8. Close tasks against their acceptance evidence. Record bug fixes separately from
+   duplicate/stale-item closure; track reopened defects and queue age, not agent count.
+
+Next dispatch: Q-05 collision-case extraction/fix, Q-04 demanded survey adapters,
+and Q-12 iPhone compatibility/touch-design investigation. Q-07 calibration can take
+the first compatible free slot; freeze its parameters during tactical comparisons.
+Q-06 mutual support waits for the collision safety scenarios. Mobile acceptance
+requires a physical device, but code/layout investigation does not.
+
+PR #9 merge permission is specific to that PR. Further implementation can proceed
+autonomously on task branches; future main publication still requires authorization.
+The integration comment on PR #9 is the durable merge/deployment/live-smoke receipt.
 
 ## Initial work contracts
 

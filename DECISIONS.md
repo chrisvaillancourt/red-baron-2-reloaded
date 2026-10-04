@@ -1166,7 +1166,7 @@ Measurements are scene-specific. The largest regenerated model is Gotha at 11,84
 triangles. No simulation, dependency or instrument-reading changes. Decision number
 assigned during the authorized PR #8 integration into main.
 
-## D-XXX — Separate validation from publication and centralize browser setup
+## D-106 — Separate validation from publication and centralize browser setup
 **Context.** Backlog execution found manual branch CI could reach Pages deployment,
 and browser specs duplicated controller stubs and incompatible cold-flight waits.
 Historical task dispositions obscured already-completed work.
@@ -1178,8 +1178,8 @@ Browser automation shares context-level gamepad isolation and one session-frame
 readiness policy; GPU specs use one worker. Real game input remains unchanged.
 STATUS owns the rolling queue; BACKLOG records execution, measurements and debt.
 
-**Consequences.** Branch checks cannot publish, including manual main validation once
-this workflow lands. The existing main workflow remains unchanged until integration.
+**Consequences.** Branch checks cannot publish, including manual main validation.
+Number assigned by the integration owner during the user-authorized PR #9 merge.
 Full browser runs still need an exclusive machine GPU slot. Refactors consolidate
 existing behavior, without runtime dependencies or shared game-contract changes.
 Verification and measurement limitations are recorded in `docs/BACKLOG.md`.

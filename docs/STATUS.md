@@ -4,12 +4,14 @@
 
 This table supersedes historical scheduling instructions below. Execution contracts,
 decisions, evidence and debt dispositions: [Backlog execution record](BACKLOG.md).
-Owner: parent omp integration session, branch `chore/backlog-execution`; no main deployment.
+Owner: parent omp integration session. User authorized PR #9 integration and its
+main-push deployment; decision D-106. The PR integration comment records the final
+merge revision, Actions run and live smoke. No workspace cleanup is authorized.
 
 | ID | Outcome | State / owner | Acceptance or unblock condition |
 |---|---|---|---|
-| Q-01 | Non-publishing PR/manual validation | Verified on task branch / integration lead | PR #9 run 37184184678 passed build with deploy skipped; main unchanged |
-| Q-02 | Isolated, consistent browser automation | Verified on task branch / integration lead | 23 browser tests passed, one gated skip; production flight smoke passed |
+| Q-01 | Non-publishing PR/manual validation | Integration authorized / lead | PR #9 checks passed with deploy skipped; publication verification recorded in PR |
+| Q-02 | Isolated, consistent browser automation | Integration authorized / lead | 23 browser tests and production smoke passed; PR records release verification |
 | Q-03 | Current gameplay evidence | Complete / integration lead | Frozen-SHA fairness/quick/career/raid surveys and report replays recorded in BACKLOG |
 | Q-04 | Tailhold/defence/raid A/B coverage | Ready / next tooling slot | Real survey adapters, retained raw results, no fabricated statistical verdicts |
 | Q-05 | Attack-extension collision reproduction | Ready / AI safety | Isolate cases from Q-03's 20 quick collision events (eight player events); no generic avoidance rewrite |
