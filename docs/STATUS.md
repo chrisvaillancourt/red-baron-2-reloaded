@@ -25,6 +25,7 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-12 | Playable on a high-end modern iPhone | Browser implementation verified / physical-device acceptance blocked | Touch-only raid/debrief, multipointer and hybrid keyboard/controller flows pass; 29 full browser tests pass; physical iPhone Safari lifecycle, saves and sustained performance remain required |
 | Q-13 | Xbox controller support for common controls | Ready for mapping audit / game + UI | Comfortable flight/combat/crew/camera/menu operation, discoverable mappings, safe reconnect/cancellation and physical-controller verification; see BACKLOG |
 | Q-14 | Production Airfield Defense | Implementation verified / `feat/airfield-defense` | Complete five-raid browser win/idle loss, career isolation and 33 browser checks pass; human feel approval and integration remain, not deployed |
+| Q-15 | Explicit Claude worker workspace and bounded trial | Deferred / next Claude project session | Review/resume with the owner next time Claude is used here; scope and acceptance in BACKLOG; no Claude changes authorized or implemented now |
 
 States distinguish implementation from integration and deployment. Deferred visual/gameplay
 ideas below stay deferred until their stated player-evidence trigger occurs.

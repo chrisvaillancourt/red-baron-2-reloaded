@@ -484,3 +484,44 @@ initial failed-probe and negative-boundary artifacts remain under ignored
 `tools/dev/scratch/direct-playwright-qa/`. Existing workspaces remain preserved
 without cleanup authorization. No unresolved implementation dependency.
 
+
+## Q-15 — Deferred Claude worker routing
+
+**State:** deferred by the user on 2026-10-04 until the next time they use Claude
+in this project. Review/resume this item with the owner then; opening Claude
+alone does not authorize configuration changes. Nothing below is implemented.
+
+### Recommended scope
+
+1. **Explicit workspace and base.** Inspect the then-current bridge/CLI first.
+   If still absent, add a per-call working-directory/workspace selector and
+   expected-full-SHA preflight, rather than relying on task prose or the OMP
+   session's directory. Launch each worker in its separately owned worktree,
+   commit shared prerequisites before dispatch, and verify actual root/HEAD
+   before edits. Preserve parent-owned integration and scoped handoff evidence.
+   **Why:** avoids main/feature-root ambiguity and stale-base prerequisite deltas.
+2. **Assignment-appropriate mode.** Use read-only mode for static reviews;
+   use work mode only for bounded implementation or experiments in the assigned
+   workspace. Include owned paths, non-goals and acceptance evidence in the brief.
+   The bridge is not an OS filesystem sandbox; do not solve routing with blanket
+   permission expansion or change authentication/profile/signing flows.
+   **Why:** independent review and implementation need different capabilities,
+   while filesystem ownership still needs an explicit contract.
+3. **One bounded trial before expansion.** Run one independent review or disjoint
+   implementation slice; record model/effort, elapsed time, actual reported usage/
+   cost, review quality and exercised acceptance. Compare with the current OMP
+   workflow before expanding Claude's role; keep the parent as integration owner.
+   **Why:** another worker may improve independence, but lower latency/cost or
+   better quality is not established. Paid-credit use has no included-only guarantee.
+
+### Completion / limits
+
+- A fresh worker proves the intended actual directory/full commit, separate
+  ownership and loaded project instructions; no stale prerequisite-only delta.
+- Required capabilities and failure behavior are exercised without widening
+  permissions or silently substituting workspaces/models.
+- The bounded trial has an evidence-backed retain/change decision, not an
+  automatic wholesale harness migration.
+- No Claude CLI/bridge/model/auth/permission settings change is made before the
+  owner resumes this deferred item. Native Playwright remains the gameplay QA path.
+

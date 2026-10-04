@@ -9,6 +9,9 @@ The active harness's instructions and current tool schema govern invocation synt
 permissions. Historical workarounds are observations, not permission to bypass a safety denial.
 
 ## Claude Code
+- **Next Claude project session:** review deferred [Q-15 in the backlog](BACKLOG.md)
+  with the owner before changing worker routing or configuration. It is a queued
+  recommendation, not an enabled workflow or permission change.
 - **Editing subagents:** explicitly request worktree isolation, or set `isolation: worktree`
   in a reusable implementation-agent definition. A separate agent conversation alone does
   not isolate files. Follow Base commit verification below before the child edits.
