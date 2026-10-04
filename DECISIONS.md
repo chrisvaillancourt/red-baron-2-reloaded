@@ -1128,7 +1128,7 @@ Availability regression fixtures invert and restore original flags rather than p
 the old release gate. Commands and evidence are recorded in `docs/bombers.md`.
 Number assigned during the authorized PR #5 integration into main.
 
-## D-XXX — Spend high-quality scenery detail on nearby tree silhouettes
+## D-104 — Spend high-quality scenery detail on nearby tree silhouettes
 **Context.** The selected graphics target is high-end visuals at 60 FPS, with
 cheaper low/medium presets retained. Broadleaf crowns were two overlapping masses,
 even at close range; adding density would multiply that repetition.
@@ -1144,4 +1144,4 @@ Chrome/Metal on Apple M3 Max measured baseline GPU p50 4.86 ms versus 5.49–5.5
 with clustered crowns; ultra measured p50 11.80 ms, p95 12.63 ms in that view.
 These are short scene-specific GPU samples, not whole-game or cross-hardware
 60-FPS guarantees. Low/medium geometry attributes were compared with the baseline
-and matched exactly. Integration owner assigns the decision number.
+and matched exactly. Number assigned during the authorized PR #7 integration into main.
