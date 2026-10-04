@@ -47,8 +47,10 @@ the first compatible free slot; freeze its parameters during tactical comparison
 Q-06 mutual support waits for the collision safety scenarios. Mobile acceptance
 requires a physical device, but code/layout investigation does not.
 
-PR #9 merge permission is specific to that PR. Further implementation can proceed
-autonomously on task branches; future main publication still requires authorization.
+The user selected **Verified merges and deployments** for autonomous work while away:
+publish completed PRs after independent review, relevant regression/runtime checks and
+green CI; verify each live deployment before publishing another. Do not change LICENSE
+or unresolved gameplay policies. This supersedes the earlier PR-9-only permission.
 The integration comment on PR #9 is the durable merge/deployment/live-smoke receipt.
 
 ## Initial work contracts
@@ -150,12 +152,35 @@ completed successfully for `pull_request`: build passed, deploy skipped.
 This exercises the actual remote non-publishing path, not merely YAML inspection.
 Publication remains untested by this task because main was not changed.
 
+### Q-04 — Survey adapters
+
+`tools/dev/ab.mjs` now runs the actual tailhold, defence and raid reporters alongside
+career/quick/fairness. New aggregates are descriptive; existing interval heuristics
+remain limited to career/quick rates and fairness fate counts. Defence mode selection
+is explicit because `DEFENCE_AB` overrides the three defence tactic flags.
+Repeated `--env`/`--a`/`--b KEY=VALUE` arguments preserve comma-valued tactics/JSON;
+grouping separate variables with commas is removed, with migration diagnostics.
+
+Parent smoke: all six actual adapters completed, serially (`--jobs 1`), including
+human-like tailhold and `DEFENCE_AB=off` versus `mix`; raw recipes/stdout/stderr/reports
+remain under `tools/dev/scratch/q04-*` in the survey task workspace. Tiny smoke samples
+prove the adapters run, not tactical improvements. Twelve parser/summary regressions
+passed. Three invalid CLI cases exited 2 before launch; an empty fairness cohort
+retained both successful worker outputs but exited 2 without a comparison.
+Independent review found inherited-mode loss, missing damage-mode evidence, and
+valid zero-drop/two-aircraft-crash/overlapping-set reports rejected by parser guards.
+Corrections have failing-before/passing-after regressions. Actual inherited off/mix
+defence runs preserve `SIM_DAMAGE_PATH=1` in both recipes; actual overlapping fairness
+sets produce one cohort at n=1, not a doubled sample. Frozen-ref CLI smoke passed.
+Final typecheck, 663 Vitest tests (30 gated skips) and 20 Node tool tests passed.
+Usage, defaults and interpretation are in `docs/ai.md` → A/B measurement.
+
 ## Debt dispositions
 
 - F-7 debrief order is already documented (`docs/ui.md`); do not implement a second navigation convention.
 - F-23 pursuer exists; remaining work is cohort-aware calibration, not another pursuer.
 - F-43/F-64 are one staging utility request. Defer until staging needs recur; prefer separate logical edits/commits now.
-- Missing A/B adapters for tailhold/defence/raid remain queued. Existing direct raid survey is usable; no reason to block baseline measurement on a framework.
+- Q-04 implements the demanded tailhold/defence/raid A/B adapters; direct surveys remain available.
 - CI runner migration remains scheduled for 2027-01-31; establish safe validation before any rehearsal.
 - LICENSE, damage default and historical career eligibility remain explicit owner decisions. Telemetry is not permission to change gameplay policy.
 

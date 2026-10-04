@@ -1,23 +1,31 @@
 #!/usr/bin/env node
 /**
- * A/B soak runner (FRICTION F-22, F-8, F-9): run one soak two ways on the same seeds, in parallel,
- * and print the two results side by side with 95% intervals.
+ * Paired A/B surveys on identical seeds and repetition counts.
  *
- *   node tools/dev/ab.mjs --soak career --flag escalateDefence            # AI_TACTICS=<flag>=0 v =1
+ *   node tools/dev/ab.mjs --soak career --flag stalk --seeds 0,1000,2000
  *   node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk
- *   node tools/dev/ab.mjs --soak quick --reps 24 --a AI_TACTICS=stalk=0 --b AI_TACTICS=stalk=1
- *   node tools/dev/ab.mjs --soak career --base HEAD~3                     # that commit v this tree
- *   node tools/dev/ab.mjs --soak career --base main --head HEAD --out /tmp/ab  # two commits, raw kept
- *   node tools/dev/ab.mjs --soak career --flag x --env AUTOPLAY_PILOT=human
+ *   node tools/dev/ab.mjs --soak tailhold --set default,low --flag escalateDefence
+ *   node tools/dev/ab.mjs --soak defence --reps 24 --a DEFENCE_AB=off --b DEFENCE_AB=mix
+ *   node tools/dev/ab.mjs --soak raid --set escort --flag bomberFormation
+ *   node tools/dev/ab.mjs --soak quick --a AI_TACTICS=stalk=0,blindSpot=0 --b AI_TACTICS=stalk=1,blindSpot=1
+ *   node tools/dev/ab.mjs --soak career --base main --head HEAD --out tools/dev/scratch/ab
  *
- * Soaks: `career` (AUTOPLAY=career; one run per --seeds entry, AUTOPLAY_SEED_BASE, summed),
- * `quick` (AUTOPLAY=quick, --reps), `fairness` (AI_SOAK=fairness, --set, --reps).
- * Variants: `--flag f` sets AI_TACTICS=f=0 (A) and f=1 (B); `--a` / `--b` take comma-separated
- * KEY=VALUE env; `--base <ref>` runs A in a scratch `git worktree` at that ref (node_modules
- * linked from here) and B in this tree; `--head <ref>` runs B in a scratch worktree too, so editing
- * files during a long soak can't change B (FRICTION F-34). `--out <dir>` keeps each run's raw
- * output there as `<A|B>-seed<n>.txt` (F-25). `--env` adds KEY=VALUE to both. `--jobs` caps parallel
- * processes (default: half the cores, at most 6). Intervals overlapping means "within noise".
+ * Soaks: career, quick, fairness, tailhold, defence, raid. --set selects the existing
+ * fairness/tailhold/raid sets; for defence it selects DEFENCE_AB modes (default mix).
+ * --reps sets the count (defence seeds); tailhold defaults to 36, fairness to 48,
+ * raid to 12, quick/defence to 24. --missions sets career missions per pilot (10).
+ * --env, --a and --b are repeatable KEY=VALUE entries, split only at the first '='.
+ * Commas belong to the value, never separate variables: migrate --env X=1,Y=2 to
+ * --env X=1 --env Y=2. Single entries remain unchanged; there is no legacy comma shim.
+ * --flag appends f=0/f=1 to each variant's effective AI_TACTICS, retaining other flags.
+ * Defence modes overwrite the three defence flags; select --a/--b DEFENCE_AB instead.
+ * --base/--head run A/B in frozen scratch worktrees sharing this tree's node_modules.
+ * Without them each side uses this working tree; do not edit it while a survey runs.
+ * --jobs caps child processes (half the cores, at most 6); use --jobs 1 under load.
+ * Raw reports, stdout, stderr and run inputs/exits are always retained in --out or a
+ * printed temporary directory. Failed/incomplete surveys never emit a comparison.
+ * Career/quick and fairness retain the existing interval-overlap heuristic, not a
+ * paired significance test. New survey aggregates are descriptive, without verdicts.
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, symlinkSync, existsSync, writeFileSync } from 'node:fs';
@@ -25,205 +33,202 @@ import { cpus, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { poissonInterval, wilsonInterval } from '../../src/game/testing/stats.ts';
+import { summarizeComparison } from './ab-surveys.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-
-const { values: o } = parseArgs({
-  options: {
-    soak: { type: 'string' },
-    flag: { type: 'string' },
-    a: { type: 'string' },
-    b: { type: 'string' },
-    base: { type: 'string' },
-    head: { type: 'string' },
-    out: { type: 'string' },
-    env: { type: 'string' },
-    seeds: { type: 'string', default: '0,1000,2000' },
-    missions: { type: 'string', default: '10' },
-    reps: { type: 'string' },
-    set: { type: 'string', default: 'default' },
-    jobs: { type: 'string' },
-    help: { type: 'boolean', short: 'h' },
-  },
-});
-const die = (msg) => {
-  process.stderr.write(`ab: ${msg}\n(run with --help for usage)\n`);
-  process.exit(2);
+const SOAKS = ['career', 'quick', 'fairness', 'tailhold', 'defence', 'raid'];
+const DEFENCE_MODES = ['off', 'brake', 'ladder', 'mix'];
+const DEFENCE_FLAGS = ['escalateDefence', 'defenceLadder', 'defenceReversal'];
+const SETS = {
+  fairness: ['default', 'vet', 'even', 'dvii', 'dviiground', 'dviitypes', 'twoseat', 'mirror', 'matrix', 'camel', 'energy', 'survey'],
+  tailhold: ['default', 'mirror', 'energy', 'low'],
+  raid: ['default', 'escort'],
+  defence: DEFENCE_MODES,
 };
-if (o.help) {
-  process.stdout.write(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0] + '*/\n');
-  process.exit(0);
-}
-const SOAKS = ['career', 'quick', 'fairness'];
-if (!SOAKS.includes(o.soak)) die(`--soak must be one of ${SOAKS.join(', ')}`);
-const posInt = (name, v) => {
-  if (!/^[1-9]\d*$/.test(String(v))) die(`--${name} must be a positive integer, got ${JSON.stringify(v)}`);
-  return Number(v);
+// Record only actual survey inputs from the ambient environment, not credentials or machine secrets.
+const SURVEY_ENV = [
+  'AI_TACTICS', 'AUTOPLAY_PILOT', 'AUTOPLAY_HUMAN', 'AUTOPLAY_MAXTIME', 'AUTOPLAY_DIFFICULTY',
+  'AUTOPLAY_QUICK_SETUPS', 'AUTOPLAY_QUICK_TYPES', 'AUTOPLAY_QUICK_BY_SETUP',
+  'AI_FAIR_SKILL', 'AI_FAIR_ONLY', 'AI_TH_MAXTIME', 'DEFENCE_TRACE', 'SIM_DAMAGE_PATH',
+];
+const fail = (message) => { throw new Error(message); };
+const posInt = (name, value) => {
+  if (!/^[1-9]\d*$/.test(String(value)) || !Number.isSafeInteger(Number(value))) fail(`--${name} must be a positive safe integer, got ${JSON.stringify(value)}`);
+  return Number(value);
 };
-const envList = (s) =>
-  Object.fromEntries(
-    (s ?? '')
-      .split(',')
-      .filter(Boolean)
-      .map((kv) => {
-        const i = kv.indexOf('=');
-        if (i < 1) die(`expected KEY=VALUE, got ${JSON.stringify(kv)}`);
-        return [kv.slice(0, i), kv.slice(i + 1)];
-      }),
-  );
-// "AI_TACTICS=stalk=0" splits at the first '=' only, so flag values survive.
-let A = envList(o.a);
-let B = envList(o.b);
-if (o.flag) {
-  A = { ...A, AI_TACTICS: [A.AI_TACTICS, `${o.flag}=0`].filter(Boolean).join(',') };
-  B = { ...B, AI_TACTICS: [B.AI_TACTICS, `${o.flag}=1`].filter(Boolean).join(',') };
-}
-if (!o.flag && !o.a && !o.b && !o.base && !o.head) die('give --flag, --a/--b, --base or --head');
-const common = envList(o.env);
-const jobs = o.jobs ? posInt('jobs', o.jobs) : Math.max(1, Math.min(6, Math.floor(cpus().length / 2)));
-const seeds = o.soak === 'career' ? o.seeds.split(',').map((s) => (/^\d+$/.test(s) ? s : die(`bad seed ${s}`))) : ['-'];
-const reps = o.reps ? posInt('reps', o.reps) : o.soak === 'fairness' ? 48 : 24;
-const missions = posInt('missions', o.missions);
+const envEntries = (entries = []) => {
+  const result = new Map();
+  for (const entry of entries) {
+    const i = entry.indexOf('=');
+    const key = entry.slice(0, i);
+    if (i < 1 || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) fail(`expected KEY=VALUE, got ${JSON.stringify(entry)}`);
+    if (result.has(key)) fail(`duplicate environment key ${key}; supply one value per variant`);
+    const value = entry.slice(i + 1);
+    // Known survey variable assignments are not tactic flags or JSON; catch the old syntax.
+    if (/,(?:AI_|AUTOPLAY_|DEFENCE_)[A-Z0-9_]*=/.test(value)) fail(`ambiguous comma-separated environment entries in ${key}; repeat --env/--a/--b KEY=VALUE instead`);
+    result.set(key, value);
+  }
+  return Object.fromEntries(result);
+};
+const validateSet = (soak, set) => {
+  if (!SETS[soak]) return;
+  const names = set.split(',');
+  if (new Set(names).size !== names.length) fail(`duplicate ${soak} set/mode in ${set}`);
+  for (const name of names) if (!SETS[soak].includes(name)) fail(`unknown ${soak} set/mode ${JSON.stringify(name)}; use ${SETS[soak].join(', ')}`);
+};
 
-/** A scratch worktree at `ref`, sharing this tree's node_modules (never `cp -r` a worktree). */
-function baseTree(ref) {
+/** Parse the CLI's actual environment transport and cohort selection, without launching soaks. */
+export function parseOptions(args) {
+  const { values: o } = parseArgs({ args, options: {
+    soak: { type: 'string' }, flag: { type: 'string' },
+    a: { type: 'string', multiple: true }, b: { type: 'string', multiple: true }, env: { type: 'string', multiple: true },
+    base: { type: 'string' }, head: { type: 'string' }, out: { type: 'string' },
+    seeds: { type: 'string', default: '0,1000,2000' }, missions: { type: 'string', default: '10' },
+    reps: { type: 'string' }, set: { type: 'string' }, jobs: { type: 'string' }, help: { type: 'boolean', short: 'h' },
+  } });
+  if (o.help) return o;
+  if (!SOAKS.includes(o.soak)) fail(`--soak must be one of ${SOAKS.join(', ')}`);
+  const common = envEntries(o.env), A = envEntries(o.a), B = envEntries(o.b);
+  if (!o.flag && !o.a?.length && !o.b?.length && !o.base && !o.head) fail('give --flag, --a/--b, --base or --head');
+  if (o.flag) {
+    if (!/^[A-Za-z][A-Za-z0-9]*$/.test(o.flag)) fail('invalid tactic flag name');
+    if (o.soak === 'defence' && DEFENCE_FLAGS.includes(o.flag)) fail(`DEFENCE_AB overwrites --flag ${o.flag}; use --a DEFENCE_AB=off --b DEFENCE_AB=mix (or brake/ladder)`);
+    for (const [variant, value] of [[A, 0], [B, 1]]) {
+      variant.AI_TACTICS = [variant.AI_TACTICS ?? common.AI_TACTICS ?? process.env.AI_TACTICS, `${o.flag}=${value}`].filter(Boolean).join(',');
+    }
+  }
+  const set = o.set ?? (o.soak === 'defence' ? 'mix' : 'default');
+  validateSet(o.soak, set);
+  if (o.soak === 'defence') {
+    for (const variant of [A, B]) {
+      variant.DEFENCE_AB = variant.DEFENCE_AB ?? common.DEFENCE_AB ?? o.set ?? process.env.DEFENCE_AB ?? set;
+      validateSet('defence', variant.DEFENCE_AB);
+      const tactics = variant.AI_TACTICS ?? common.AI_TACTICS ?? process.env.AI_TACTICS ?? '';
+      if (tactics.split(',').some((kv) => DEFENCE_FLAGS.includes(kv.split('=')[0]))) fail('DEFENCE_AB overwrites configured defence AI_TACTICS; compare DEFENCE_AB modes instead');
+    }
+  }
+  const seeds = o.soak === 'career' ? o.seeds.split(',').map((s) => {
+    if (!/^\d+$/.test(s) || !Number.isSafeInteger(Number(s))) fail(`bad seed ${JSON.stringify(s)}`);
+    return s;
+  }) : ['-'];
+  if (new Set(seeds).size !== seeds.length) fail('duplicate career seed');
+  return { ...o, A, B, common, set, seeds,
+    jobs: o.jobs ? posInt('jobs', o.jobs) : Math.max(1, Math.min(6, Math.floor(cpus().length / 2))),
+    reps: o.reps ? posInt('reps', o.reps) : ({ fairness: 48, tailhold: 36, raid: 12 }[o.soak] ?? 24),
+    missions: posInt('missions', o.missions),
+  };
+}
+
+function frozenTree(ref, trees) {
   const dir = mkdtempSync(join(tmpdir(), 'rb2r-ab-'));
-  execFileSync('git', ['-C', ROOT, 'worktree', 'add', '--detach', dir, ref], { stdio: 'ignore' });
+  execFileSync('git', ['-C', ROOT, 'worktree', 'add', '--detach', dir, ref], { stdio: 'pipe' });
+  trees.push(dir); // Track before linking: a setup failure must still remove this scratch tree.
   symlinkSync(join(ROOT, 'node_modules'), join(dir, 'node_modules'));
   return dir;
 }
 
-function soakJob(cwd, env, seed, tag) {
-  const out = join(mkdtempSync(join(tmpdir(), 'rb2r-ab-out-')), `${tag}.txt`);
-  const e = { ...process.env, ...common, ...env };
+function soakJob(o, cwd, variant, seed, outputDir) {
+  const tag = `${variant}-seed${seed}`;
+  const out = join(outputDir, `${tag}.report.txt`);
+  const inherited = Object.fromEntries(SURVEY_ENV.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k]]));
+  const overrides = { ...inherited, ...o.common, ...o[variant] };
   let file;
-  if (o.soak === 'career') {
-    Object.assign(e, { AUTOPLAY: 'career', AUTOPLAY_MISSIONS: String(missions), AUTOPLAY_SEED_BASE: seed, AUTOPLAY_OUT: out });
+  if (o.soak === 'career' || o.soak === 'quick') {
+    Object.assign(overrides, { AUTOPLAY: o.soak, AUTOPLAY_OUT: out });
+    if (o.soak === 'career') Object.assign(overrides, { AUTOPLAY_MISSIONS: String(o.missions), AUTOPLAY_SEED_BASE: seed });
+    else overrides.AUTOPLAY_QUICK_REPS = String(o.reps);
     file = 'src/game/autoplay.soak.test.ts';
-  } else if (o.soak === 'quick') {
-    Object.assign(e, { AUTOPLAY: 'quick', AUTOPLAY_QUICK_REPS: String(reps), AUTOPLAY_OUT: out });
-    file = 'src/game/autoplay.soak.test.ts';
+  } else if (o.soak === 'defence') {
+    Object.assign(overrides, { DEFENCE_SEEDS: String(o.reps) });
+    file = 'src/ai/defence.realsim.test.ts';
   } else {
-    Object.assign(e, { AI_SOAK: 'fairness', AI_FAIR_SET: o.set, AI_FAIR_REPS: String(reps) });
-    file = 'src/ai/fairness.soak.test.ts';
+    const prefix = { fairness: 'AI_FAIR', tailhold: 'AI_TH', raid: 'AI_RAID' }[o.soak];
+    Object.assign(overrides, { AI_SOAK: o.soak, [`${prefix}_SET`]: o.set, [`${prefix}_REPS`]: String(o.reps) });
+    file = `src/ai/${o.soak}.soak.test.ts`;
   }
-  return { cwd, env: e, file, out, tag };
+  return { cwd, variant, seed, tag, file, out, overrides };
 }
 
 function run(job) {
   return new Promise((done) => {
     const vitest = join(job.cwd, 'node_modules/.bin/vitest');
-    if (!existsSync(vitest)) die(`no vitest at ${vitest}; run sfw pnpm install`);
-    const p = spawn(vitest, ['run', job.file], { cwd: job.cwd, env: job.env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    p.stdout.on('data', (d) => (stdout += d));
-    p.stderr.on('data', (d) => (stdout += d));
-    p.on('error', (err) => die(`could not start vitest: ${err.message}`));
-    p.on('close', (code) => {
-      const text = o.soak === 'fairness' ? stdout : existsSync(job.out) ? readFileSync(job.out, 'utf8') : '';
-      if (code !== 0) process.stderr.write(`ab: ${job.tag} exited ${code}\n${stdout.slice(-2000)}\n`);
-      process.stderr.write(`ab: ${job.tag} done\n`);
-      done({ ...job, text, code });
+    const child = spawn(vitest, ['run', job.file], { cwd: job.cwd, env: { ...process.env, ...job.overrides }, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '', error;
+    child.stdout.on('data', (d) => { stdout += d; });
+    child.stderr.on('data', (d) => { stderr += d; });
+    child.on('error', (err) => { error = err.message; });
+    child.on('close', (code, signal) => {
+      let text = stdout;
+      if (job.file === 'src/game/autoplay.soak.test.ts') text = existsSync(job.out) ? readFileSync(job.out, 'utf8') : '';
+      process.stderr.write(`ab: ${job.tag} exited ${code ?? signal ?? error}\n`);
+      done({ ...job, text, stdout, stderr, code, signal, error });
     });
   });
 }
 
-async function pool(list) {
-  const results = [];
+async function pool(list, jobs) {
+  const results = new Array(list.length);
   let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(jobs, list.length) }, async () => {
-      while (next < list.length) results.push(await run(list[next++]));
-    }),
-  );
+  await Promise.all(Array.from({ length: Math.min(jobs, list.length) }, async () => {
+    while (next < list.length) {
+      const index = next++;
+      results[index] = await run(list[index]);
+    }
+  }));
   return results;
 }
 
-// ---- parse and summarise ----------------------------------------------------------
-function ratesOf(texts) {
-  const sum = { missions: 0, killedCaptured: 0, coll: 0, playerColl: 0 };
-  for (const t of texts) {
-    const line = t.split('\n').find((l) => l.startsWith('RATES '));
-    if (!line) die('a run printed no RATES line (does its soak predate the RATES line? see FRICTION F-9)');
-    const kv = Object.fromEntries(line.split(' ').slice(1).map((p) => p.split('=')));
-    for (const k of Object.keys(sum)) sum[k] += Number(kv[k]);
-  }
-  return sum;
-}
-function fairnessOf(texts) {
-  const rows = new Map();
-  for (const t of texts)
-    for (const l of t.split('\n')) {
-      const m = /^(.+?)\s*\|\s*(\d+)\s*\|\s*(\d+)%\s*\|\s*\d+% \((\d+)\/(\d+)\/(\d+)\)/.exec(l);
-      if (!m) continue;
-      const r = rows.get(m[1]) ?? { n: 0, down: 0, win: 0 };
-      const n = Number(m[2]);
-      r.n += n;
-      r.win += Math.round((Number(m[3]) * n) / 100);
-      r.down += Number(m[4]) + Number(m[5]) + Number(m[6]);
-      rows.set(m[1], r);
-    }
-  return rows;
-}
-const pct = (k, n) => {
-  const [lo, hi] = wilsonInterval(k, n);
-  return `${((100 * k) / Math.max(1, n)).toFixed(1)}% (${(100 * lo).toFixed(1)}–${(100 * hi).toFixed(1)})`;
-};
-const per100 = (k, n) => {
-  const [lo, hi] = poissonInterval(k);
-  const f = (x) => ((100 * x) / Math.max(1, n)).toFixed(1);
-  return `${f(k)} (${f(lo)}–${f(hi)})`;
-};
-const overlap = (a, b) => a[0] <= b[1] && b[0] <= a[1];
-const verdict = (ka, na, kb, nb) => (overlap(wilsonInterval(ka, na), wilsonInterval(kb, nb)) ? 'within noise' : 'differs');
-
-async function main() {
+async function main(o) {
+  const outputDir = o.out ? resolve(o.out) : mkdtempSync(join(tmpdir(), 'rb2r-ab-out-'));
+  mkdirSync(outputDir, { recursive: true });
+  if (existsSync(join(outputDir, 'runs.json'))) fail(`output directory already contains runs.json: ${outputDir}; choose a new --out directory`);
+  process.stderr.write(`ab: raw evidence in ${outputDir}\n`);
   const trees = [];
-  const aCwd = o.base ? baseTree(o.base) : ROOT;
-  if (o.base) trees.push(aCwd);
-  const bCwd = o.head ? baseTree(o.head) : ROOT;
-  if (o.head) trees.push(bCwd);
-  const list = [];
-  for (const s of seeds) {
-    list.push(soakJob(aCwd, A, s, `A-seed${s}`));
-    list.push(soakJob(bCwd, B, s, `B-seed${s}`));
-  }
-  const label = (env, cwd) => [cwd === ROOT ? 'this tree' : `commit ${cwd === aCwd ? o.base : o.head}`, ...Object.entries(env).map(([k, v]) => `${k}=${v}`)].join(', ');
-  process.stderr.write(`ab: ${list.length} runs, ${jobs} at a time\n`);
   try {
-    const res = await pool(list);
-    if (o.out) {
-      mkdirSync(o.out, { recursive: true });
-      for (const r of res) writeFileSync(join(o.out, `${r.tag}.txt`), r.text);
-      process.stderr.write(`ab: raw outputs in ${o.out}\n`);
+    const commitOf = (ref) => execFileSync('git', ['-C', ROOT, 'rev-parse', '--verify', `${ref}^{commit}`], { encoding: 'utf8' }).trim();
+    const aCommit = o.base ? commitOf(o.base) : null;
+    const bCommit = o.head ? commitOf(o.head) : null;
+    const aCwd = aCommit ? frozenTree(aCommit, trees) : ROOT;
+    const bCwd = bCommit ? frozenTree(bCommit, trees) : ROOT;
+    const list = o.seeds.flatMap((s) => [soakJob(o, aCwd, 'A', s, outputDir), soakJob(o, bCwd, 'B', s, outputDir)]);
+    for (const job of list) for (const suffix of ['.txt', '.report.txt', '.stdout.txt', '.stderr.txt']) {
+      if (existsSync(join(outputDir, `${job.tag}${suffix}`))) fail(`raw evidence already exists for ${job.tag}; choose a new --out directory`);
     }
-    const byVariant = (v) => res.filter((r) => r.tag.startsWith(v)).map((r) => r.text);
-    const lines = [`A/B ${o.soak}${o.soak === 'career' ? ` (seeds ${seeds.join(' ')}; ${missions} mission${missions > 1 ? 's' : ''} a pilot)` : ` (${reps} reps)`}`, `  A: ${label(A, aCwd)}`, `  B: ${label(B, bCwd)}`];
-    if (Object.keys(common).length) lines.push(`  both: ${Object.entries(common).map(([k, v]) => `${k}=${v}`).join(', ')}`);
-    if (o.soak === 'fairness') {
-      const ra = fairnessOf(byVariant('A'));
-      const rb = fairnessOf(byVariant('B'));
-      lines.push('setup | player down A | player down B | verdict');
-      for (const [k, a] of ra) {
-        const b = rb.get(k);
-        if (!b) continue;
-        lines.push(`${k} | ${pct(a.down, a.n)} n=${a.n} | ${pct(b.down, b.n)} n=${b.n} | ${verdict(a.down, a.n, b.down, b.n)}`);
-      }
-    } else {
-      const a = ratesOf(byVariant('A'));
-      const b = ratesOf(byVariant('B'));
-      lines.push('metric | A | B | verdict');
-      lines.push(`killed or captured | ${pct(a.killedCaptured, a.missions)} n=${a.missions} | ${pct(b.killedCaptured, b.missions)} n=${b.missions} | ${verdict(a.killedCaptured, a.missions, b.killedCaptured, b.missions)}`);
-      const pv = overlap(poissonInterval(a.coll).map((x) => x / a.missions), poissonInterval(b.coll).map((x) => x / b.missions)) ? 'within noise' : 'differs';
-      lines.push(`collisions per 100 missions | ${per100(a.coll, a.missions)} | ${per100(b.coll, b.missions)} | ${pv}`);
-      lines.push(`player collisions | ${a.playerColl} | ${b.playerColl} |`);
-      if (o.soak === 'career' && (o.base || o.head)) lines.push('note: career seeds draw different squadrons across commits, so --base compares are about the whole career, not mission by mission');
+    const roots = { A: { cwd: aCwd, ref: o.base ?? null, head: execFileSync('git', ['-C', aCwd, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() },
+      B: { cwd: bCwd, ref: o.head ?? null, head: execFileSync('git', ['-C', bCwd, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() } };
+    const record = (results) => writeFileSync(join(outputDir, 'runs.json'), JSON.stringify({ soak: o.soak, set: o.set, reps: o.reps,
+      missions: o.missions, seeds: o.seeds, roots, runs: results.map(({ stdout, stderr, text, ...r }) => r) }, null, 2) + '\n');
+    record(list);
+    process.stderr.write(`ab: ${list.length} runs, ${o.jobs} at a time\n`);
+    const results = await pool(list, o.jobs);
+    for (const r of results) {
+      writeFileSync(join(outputDir, `${r.tag}.txt`), r.text);
+      writeFileSync(join(outputDir, `${r.tag}.stdout.txt`), r.stdout);
+      writeFileSync(join(outputDir, `${r.tag}.stderr.txt`), r.stderr);
     }
-    process.stdout.write(lines.join('\n') + '\n');
-    if (res.some((r) => r.code !== 0)) process.exitCode = 1;
+    record(results);
+    const summary = summarizeComparison(o.soak, results, { reps: o.reps });
+    const label = (variant) => `${o[variant === 'A' ? 'base' : 'head'] ?? 'this tree'}; ${Object.entries(o[variant]).map(([k, v]) => `${k}=${v}`).join(', ') || 'default environment'}`;
+    const lines = [`A/B ${o.soak}${o.soak === 'career' ? ` (seeds ${o.seeds.join(' ')}; ${o.missions} missions a pilot)` : ` (${o.reps} reps; set ${o.set})`}`,
+      `  A: ${label('A')}`, `  B: ${label('B')}`, `  raw evidence: ${outputDir}`];
+    if (Object.keys(o.common).length) lines.push(`  both: ${Object.entries(o.common).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+    lines.push(summary);
+    if (o.soak === 'career' && (o.base || o.head)) lines.push('note: career bases before the deterministic posting fix (F-33) are not comparable; no compatibility patch is applied');
+    const report = lines.join('\n') + '\n';
+    writeFileSync(join(outputDir, 'summary.txt'), report);
+    process.stdout.write(report);
   } finally {
-    for (const t of trees) execFileSync('git', ['-C', ROOT, 'worktree', 'remove', '--force', t], { stdio: 'ignore' });
+    for (const tree of trees) execFileSync('git', ['-C', ROOT, 'worktree', 'remove', '--force', tree], { stdio: 'pipe' });
   }
 }
-main();
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const o = parseOptions(process.argv.slice(2));
+    if (o.help) process.stdout.write(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0] + '*/\n');
+    else await main(o);
+  } catch (error) {
+    process.stderr.write(`ab: ${error.message}\n(run with --help for usage)\n`);
+    process.exitCode = 2;
+  }
+}
