@@ -36,15 +36,38 @@ permissions. Historical workarounds are observations, not permission to bypass a
 - Finite background commands use `async: true`; their timeout still applies. Long-lived
   services use a unique `name` plus `ready`, without `async` or `timeout`. Use native `cwd`
   instead of a Node wrapper merely to change directory; use `wait` only when blocked.
-- Use the browser tool for browser QA, with a harness-owned automation profile. For a custom
-  Chrome `app.path` launch, put `--headless=new` in `app.args`; `headed: false` alone did not
-  prevent an interactable custom-app window. Verify the effective launch and Chrome/GPU setup
-  before interpretation. Use the user's browser/relay only with explicit authorization.
-  Preserve the existing Playwright runner; a browser-tool smoke run does not replace its tests.
+- Routine game QA uses owned managed Chromium after a non-mutating routing check:
+  no configured `browser.cdpUrl`, no active cmux socket route, and an already
+  available managed executable. Open with `headed:false` and
+  `app:{relay:false,tern:false}`; those flags do not override configured CDP/cmux.
+  If routing cannot be established safely, use the existing isolated native
+  Playwright/Chrome path instead of changing settings. The user's browser/relay
+  requires explicit authorization. Verify the returned owned backend and effective
+  Chrome/GPU setup before input; preserve the existing Playwright release runner.
+- Install controller isolation before navigation. Reuse an owned tab during an
+  ad-hoc edit/smoke loop (`persist:true` when it must stay live), then close that
+  tab and its task server; keep the shared browser daemon owned by its broker.
+  Use viewport-aware screenshots and reconcile live CSS dimensions, observed DPR
+  and PNG pixels after resize. Emulation/init scripts are worker-local: after
+  recovery, reopen/reinitialize or re-prove those invariants before continuing.
+- Custom Chrome `app.path` selects attach mode, not managed automation, even with
+  `--headless=new`; initial viewport and recovery state have known defects (F-99).
+  Use it only when that mode is required, with explicit headless arguments and
+  inspected dimensions. Do not alter game capture behavior to mask a tool failure.
+  A browser-tool smoke does not replace required tests.
+- Pause a stateful game probe before inspecting files or doing other work: a live
+  tab's raid clock keeps advancing. Send physical key codes with key-down/frame
+  wait/key-up for game controls, and verify the current phase before the next action.
 - **Editing subagents:** set `isolated: true` on each parallel editing task. If unavailable,
   assign an explicitly created worktree; do not silently run concurrent writers in the
   parent's checkout. Read-only agents ordinarily need no separate workspace. Follow Base
   commit verification below before the child edits.
+- Isolation inherits the **session's checkout**, not a shell call's `cwd` or a
+  SHA written in the brief. Start with `omp --cwd <committed-task-worktree>` or
+  `/move <task-worktree>` before dependent dispatch. `/wt` creates from the
+  current HEAD, not an arbitrary task base; its configured source cleanup can
+  reset/clean the old workspace, so do not use it as a blind relocation shortcut.
+  Do not create unused external tracks alongside harness-isolated children.
 - Inspect the actual returned workspace/patch/branch and integration state; paths, lifecycle
   and whether changes are auto-applied vary by harness configuration. Follow `AGENTS.md`'s
   parent integration rule.
@@ -60,7 +83,9 @@ Before spawning an isolated implementation agent in either harness:
 3. In the child's workspace, run `git merge-base --is-ancestor <base-sha> HEAD`. A zero exit
    status proves the required base is present. For a fresh track, also require HEAD to equal
    the named base; an existing track may include its own commits above it.
-4. If the check fails, stop before editing and have the parent correct the workspace/base.
+4. If the check fails, stop before editing and correct the source session/base,
+   then redispatch. Isolation captures its baseline before child execution;
+   fast-forwarding the child afterward puts prerequisites into its retained delta.
    Do not improvise against stale contracts or merge an unspecified moving `main`.
 
 These checks complement the ownership and integration rules in `AGENTS.md`; they do not

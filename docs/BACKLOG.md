@@ -342,3 +342,74 @@ parameter changes wait for a comparable, provenance-confirmed human cohort with
 enough firing opportunities for a meaningful held-out comparison. Existing telemetry
 and the original fit remain usable for diagnostics; tactical A/Bs freeze the fit.
 This evidence gate does not block collision, survey or mobile work.
+
+## Development feedback — 2026-10-04
+
+Tooling branch `perf/development-feedback`, based on Airfield Defense `0652782`.
+Human main and the playtest checkout remain unchanged. No runtime, dependency,
+CI/publication or Playwright configuration changes; this is an unmerged handoff.
+
+### Measurements and decision
+
+| Existing loop | Observed wall time |
+|---|---:|
+| Focused defense unit file (13 tests) | 1.75 s; Vitest itself 308 ms |
+| Typecheck | 0.89 s |
+| Full unit/tool test command (690 + 20 tests) | 34.76 s |
+| Standalone validated build | 1.02 s |
+| Four defense browser regressions | 41.30 s |
+| Previous complete 33-case browser gate | 4.4 min |
+
+The fresh CPU and targeted-browser timing jobs overlapped; these are descriptive
+costs, not a controlled performance A/B. The full-browser figure is the previous
+feature gate. Smaller feedback scope is the main gain, not faster game time or
+less release coverage.
+
+Added direct `test:unit`, `test:related` and complete CPU `check`; kept finite
+`test` and standalone `build` unchanged. Related explicitly disables Vitest's
+successful empty-selection default. Watch explicitly sets `--watch`, because
+Vitest disables its implicit default in agent/CI sessions. Commands documentation
+now separates focused edits, affected browser smoke and complete handoff gates.
+No bespoke selector/orchestration framework or permanent shell-wiring tests.
+
+### Independent review and exercised proof
+
+Before edits, FeedbackPlanReview caught silent empty-related success and incomplete
+graph coverage; HarnessPlanReview caught possible relay/CDP/cmux routing to a
+user-owned browser. Both corrections were accepted. The watch amendment was
+separately reviewed before editing after its implicit command exited instead of
+watching.
+
+- Direct unit command: 13 passed, 540 ms wall; `-t` forwarded correctly (one
+  passed, 12 skipped, 411 ms). Related source selected the 13 tests in 993 ms.
+- Absent-only and no-argument related calls exited 1. Mixed valid/absent sources
+  still selected the valid file and exited 0: graph results are explicitly not
+  proof that every requested path or asset dependency was covered.
+- Explicit watch stayed alive, then a timestamp-only file change triggered a
+  real 13-test rerun in 211 ms. No test/source contents changed.
+- `pnpm check` passed typecheck, 690 Vitest (30 gated skips), 20 Node tooling and
+  production bundling in 35.17 s, with one TypeScript invocation. Standalone
+  `pnpm build` passed too. Timings have different load/cache conditions; no
+  numeric alias/watch speedup is claimed.
+- Fresh `omp --cwd` session produced isolated child `t573d5d225/m`, distinct
+  from the parent, at full `0652782faf2d1c3d6e87eb645a6494249f512b8f`. Both
+  committed defense contracts were present; parent/child clean, no repair, and
+  retained metadata said “Isolation: no changes captured.”
+- Safe managed route (no configured CDP/cmux route, relay explicitly disabled)
+  used cached Headless Chrome 150, ANGLE/Metal Apple M3 Max and pre-navigation
+  controller isolation. Actual defense capture/movement/fire/pause/resume/replay
+  passed; the replay retained seed 1917 and spent ammunition. Inspected desktop
+  gun and narrow resupply screenshots cover 1600×900 and 430×900 CSS layouts
+  at DPR 1.25 (2000×1125 and 538×1125 PNGs). Browser error logs were empty.
+
+F-98 was session-root misuse, not demonstrated wrong-base selection. F-99's
+attach/recovery viewport defects remain upstream; the exact pointer-lock rejection
+is unproven. Supported owned automation and explicit recovery avoid those paths;
+no installed-global patch or game error suppression was made.
+
+Full browser suite was not repeated for script/docs-only edits: runtime and
+Playwright configuration are unchanged, four affected browser cases passed and
+the actual launch workflow was exercised. Full runtime release gates remain.
+Owned QA tabs/server and watch process are stopped. Screenshots/JSON remain in
+ignored `tools/dev/scratch/development-feedback/`; throwaway probes are removed.
+

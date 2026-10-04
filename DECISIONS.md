@@ -1288,3 +1288,30 @@ pointer lock also captured successfully. Final typecheck, 690 Vitest tests
 The complete implementation is handed off on `feat/airfield-defense`; human feel
 approval precedes integration/publication. No merge, push or deployment is claimed.
 
+
+## D-XXX — Separate development feedback from complete release proof
+**Context.** Focused battery logic took under two seconds, but complete CPU and
+browser gates took about 37 seconds and 4.4 minutes. Harness friction came from
+session-root/attach-mode assumptions, not a reason to weaken game validation.
+
+**Decision.** Keep finite test/build and publication behavior unchanged. Add
+direct unit/import-related commands and a complete CPU `check` that typechecks
+once. Explicitly fail empty related selection and explicitly enable watch in
+agent sessions; document graph-selection limits. Use the existing focused
+watch/browser lanes during edits, then full required gates at handoff.
+Correct session isolation and safe owned-browser routing/recovery recipes in
+the on-demand harness reference, without a new orchestration layer or global
+tool patches.
+
+**Evidence.** Fresh reviewers challenged both command semantics and browser
+ownership before implementation; all findings were incorporated. Real CLI
+positive/negative/partial selection and persistent file-triggered watch ran,
+complete CPU/build gates passed, and fresh-session isolation plus actual-game
+Chrome/Metal input/replay and inspected viewport screenshots were exercised.
+Counts, timings and limitations are in `docs/BACKLOG.md`.
+
+**Consequences.** No game/core/dependency changes. Shorter development loops do
+not count as complete release proof. Upstream attach/recovery defects remain
+identified, not masked. Playtest checkout stays at `0652782`; tooling is handed
+off separately on `perf/development-feedback`.
+

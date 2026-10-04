@@ -553,3 +553,16 @@ is stopped; Playwright's isolated port 5371 server exited with the suite.
 | omp isolated `te0a804f7d/m`, `t722c9056b/m` | Completed MaterialQuality and CockpitGeometry workers | Integrated commits `ed2fa5b`, `bf7f6eb`, `0eed40e`; earlier evidence retained. |
 | omp isolated `t9bb320d31/m`, `tf8da99131/m`, `t6ddd574a5/m` | Completed DefenseCombat, DefenseRendering and DefenseMenus workers | Owned changes integrated into `feat/airfield-defense` and verified together; retained worker patches/evidence. No unresolved implementation dependency. |
 
+
+### Development-feedback handoff addition (2026-10-04 UTC)
+
+Fresh `git worktree list` observed 22 registered worktrees: the 21 above plus
+`rb2r-development-feedback`, owned by this parent session on
+`perf/development-feedback`. Preserve its committed tooling and ignored
+screenshots/JSON pending integration/authorized cleanup. Human main remains
+`87b798e`; Airfield Defense remains `0652782`, both clean.
+The separate fresh-session isolation smoke observed child `t573d5d225/m` with
+no captured changes; its lifecycle is harness-owned, not a registered worktree.
+Task QA tabs, port 5374 server and focused watch process are stopped. Existing
+workspaces were not removed or newly authorized for cleanup.
+

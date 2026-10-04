@@ -8,9 +8,12 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm test && vite build",
     "test": "vitest run && pnpm test:tools",
+    "test:unit": "vitest run",
+    "test:related": "vitest related --run --passWithNoTests=false",
     "test:tools": "node --test tools/dev/*.test.mjs",
-    "test:watch": "vitest",
+    "test:watch": "vitest --watch",
     "e2e": "playwright test",
     "e2e:soak": "E2E_SOAK=1 playwright test tests/e2e/soak.spec.ts",
     "prodcheck": "node tools/playtest/prodcheck.mjs"

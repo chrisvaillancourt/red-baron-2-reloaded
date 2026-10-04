@@ -98,10 +98,39 @@ exit/restart. Both launcher directions reject overlapping flight/defense session
 
 * `pnpm dev` — play at http://localhost:5173
 * `pnpm test` — Vitest unit tests followed by CPU-only tool regressions (also used by CI); `pnpm typecheck`; `pnpm build`
+* `pnpm check` — complete CPU gate: typecheck, all unit/tool tests, then production bundling; typechecks once
 * `pnpm e2e` — Playwright browser tests; `pnpm e2e:soak` — 20-flight leak soak
 * `pnpm build && pnpm preview --port 5325` then `pnpm prodcheck 5325` — production-build check
 * `blender --background --factory-startup --python tools/blender/build_models.py` — regenerate models
 * `pnpm test:tools` — only the Node-based `tools/dev/*.test.mjs` regressions
+
+### Development feedback
+
+Use the smallest check covering the changed behavior while editing; keep full
+gates for integration/handoff. Pass selectors to a direct runner, not the chained
+`test` or `check` command.
+
+| Change / phase | Feedback command |
+|---|---|
+| Known pure-logic seam | `pnpm test:unit src/sim/airfieldDefense.test.ts` |
+| Repeated edits at that seam | `pnpm test:watch src/sim/airfieldDefense.test.ts` |
+| Explore import-graph dependants | `pnpm test:related src/sim/airfieldDefense.ts` |
+| Node tooling | `node --test tools/dev/ab.test.mjs` |
+| Input/UI behavior | Actual surface smoke, then `E2E_PORT=5372 pnpm e2e tests/e2e/airfield-defense.spec.ts` |
+| Integrated CPU gate | `pnpm check` |
+
+`test:related` fails when it discovers zero test files. A mixed valid/absent
+selector can still pass: report the discovered files/counts, not the requested
+list. Import-graph selection does not track GLB/filesystem inputs or replace
+explicit affected Node/browser tests. Prefer a known existing test file when
+the seam is already identified; `-t` narrows behavior within that file.
+
+Targeted results are not full-suite proof. Complete `pnpm test` and typechecking
+(both included in `check`) before committing. Runtime changes still require the
+full browser gate and inspected real-game evidence at integration, with the
+existing single GPU worker/exclusive slot and a fresh strict-port server. Reuse
+an owned browser/tab only for ad-hoc iteration, not Playwright server reuse.
+Standalone `pnpm build`, CI and publication gates remain unchanged.
 
 ### Exact CPU differential probes
 
