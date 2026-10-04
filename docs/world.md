@@ -49,6 +49,12 @@ moisture variation crosses parcel boundaries, with stronger patchy growth inside
 each field. This reuses the existing noise samples and distance fades; parcel
 layout, regional field shapes, crop rows and land-use data are unchanged.
 
+**Canopy lighting** (`trees.ts`). Detailed tree crowns retain their smooth radial
+normals when their silhouette vertices are jittered. Recomputing normals on the
+non-indexed crown would give each triangle flat lighting. This approximation
+keeps foliage masses softly lit without adding triangles, textures or draw calls;
+the simpler distant crowns retain their original faceted normals.
+
 **Cumulus appearance** (`clouds.ts`). Puffs use a dense core and a narrower,
 noise-shaped soft rim rather than a squared full-radius fade. The same three
 noise samples add subtle body shading; no extra geometry, textures or noise

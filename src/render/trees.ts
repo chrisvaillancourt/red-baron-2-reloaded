@@ -69,7 +69,9 @@ function jitterSphere(g: BufferGeometry, amount: number, seed: number): BufferGe
     if (f === undefined) map.set(k, (f = 1 + (r() - 0.5) * amount));
     p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f);
   }
-  g.computeVertexNormals();
+  // Keep the crown's original normals: smooth radial lighting for detailed
+  // foliage, faceted for distant low-poly crowns. Recomputing on these
+  // non-indexed triangles makes every near-canopy face a separate flat plane.
   return g;
 }
 
