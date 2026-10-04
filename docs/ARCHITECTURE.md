@@ -102,6 +102,9 @@ The JSON report records canonical roots, Git HEADs, dirty status, tracked diff a
 untracked-file SHA-256 fingerprints, scenario SHA-256, inputs, complete observations,
 worker exits/logs and the first differing path. Exit 0 means equal, 1 different,
 2 failed; exceptions, nonzero worker exits, missing results and timeouts cannot pass.
+Regression-test verdict failures include both workers' complete reports. CLI
+exit-status failures include stdout, stderr, signal and spawn errors, so an
+unexpected `failed` verdict does not hide the underlying worker diagnostics.
 Return plain objects, dense arrays, strings, booleans, null and numbers. Advanced
 IPC and `Object.is` comparisons preserve NaN, infinities and signed-zero identity;
 CLI JSON represents special numbers as `{"$number":"NaN"}`, `"Infinity"`,
