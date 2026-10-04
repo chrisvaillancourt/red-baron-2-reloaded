@@ -24,6 +24,7 @@ import type {
   GameEvent,
   GameSettings,
   GroundTargetEntity,
+  GraphicsQuality,
   GroundTargetType,
   Livery,
   MissionDefinition,
@@ -219,7 +220,8 @@ export interface AircraftVisual {
   dispose(): void;
 }
 
-export type AircraftVisualFactory = (spec: AircraftSpec, livery: Livery) => Promise<AircraftVisual>;
+/** Quality is optional for existing adapters; the renderer's compatibility finish is high. */
+export type AircraftVisualFactory = (spec: AircraftSpec, livery: Livery, quality?: GraphicsQuality) => Promise<AircraftVisual>;
 
 // ---------------------------------------------------------------------------
 // src/audio

@@ -217,7 +217,7 @@ export class FlightSession {
     // Visuals.
     const all = this.world.allAircraft();
     await modules.preloadAircraftModels([...new Set(all.map((a) => a.spec.id))]);
-    const vis = await Promise.all(all.map((a) => modules.createAircraftVisual(a.spec, a.livery)));
+    const vis = await Promise.all(all.map((a) => modules.createAircraftVisual(a.spec, a.livery, settings.graphics)));
     if (this.finished) return;
     all.forEach((a, i) => {
       this.visuals.set(a.id, vis[i]);
