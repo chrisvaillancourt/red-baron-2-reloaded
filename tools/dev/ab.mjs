@@ -49,7 +49,7 @@ const SETS = {
 const SURVEY_ENV = [
   'AI_TACTICS', 'AUTOPLAY_PILOT', 'AUTOPLAY_HUMAN', 'AUTOPLAY_MAXTIME', 'AUTOPLAY_DIFFICULTY',
   'AUTOPLAY_QUICK_SETUPS', 'AUTOPLAY_QUICK_TYPES', 'AUTOPLAY_QUICK_BY_SETUP',
-  'AI_FAIR_SKILL', 'AI_FAIR_ONLY', 'AI_TH_MAXTIME', 'DEFENCE_TRACE',
+  'AI_FAIR_SKILL', 'AI_FAIR_ONLY', 'AI_TH_MAXTIME', 'DEFENCE_TRACE', 'SIM_DAMAGE_PATH',
 ];
 const fail = (message) => { throw new Error(message); };
 const posInt = (name, value) => {
@@ -94,17 +94,17 @@ export function parseOptions(args) {
     if (!/^[A-Za-z][A-Za-z0-9]*$/.test(o.flag)) fail('invalid tactic flag name');
     if (o.soak === 'defence' && DEFENCE_FLAGS.includes(o.flag)) fail(`DEFENCE_AB overwrites --flag ${o.flag}; use --a DEFENCE_AB=off --b DEFENCE_AB=mix (or brake/ladder)`);
     for (const [variant, value] of [[A, 0], [B, 1]]) {
-      variant.AI_TACTICS = [variant.AI_TACTICS ?? common.AI_TACTICS, `${o.flag}=${value}`].filter(Boolean).join(',');
+      variant.AI_TACTICS = [variant.AI_TACTICS ?? common.AI_TACTICS ?? process.env.AI_TACTICS, `${o.flag}=${value}`].filter(Boolean).join(',');
     }
   }
   const set = o.set ?? (o.soak === 'defence' ? 'mix' : 'default');
   validateSet(o.soak, set);
   if (o.soak === 'defence') {
     for (const variant of [A, B]) {
-      variant.DEFENCE_AB = variant.DEFENCE_AB ?? common.DEFENCE_AB ?? set;
+      variant.DEFENCE_AB = variant.DEFENCE_AB ?? common.DEFENCE_AB ?? o.set ?? process.env.DEFENCE_AB ?? set;
       validateSet('defence', variant.DEFENCE_AB);
-      const tactics = variant.AI_TACTICS ?? common.AI_TACTICS ?? '';
-      if (tactics.split(',').some((kv) => DEFENCE_FLAGS.includes(kv.split('=')[0]))) fail('DEFENCE_AB overwrites explicit defence AI_TACTICS; compare DEFENCE_AB modes instead');
+      const tactics = variant.AI_TACTICS ?? common.AI_TACTICS ?? process.env.AI_TACTICS ?? '';
+      if (tactics.split(',').some((kv) => DEFENCE_FLAGS.includes(kv.split('=')[0]))) fail('DEFENCE_AB overwrites configured defence AI_TACTICS; compare DEFENCE_AB modes instead');
     }
   }
   const seeds = o.soak === 'career' ? o.seeds.split(',').map((s) => {

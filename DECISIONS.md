@@ -1183,3 +1183,20 @@ Number assigned by the integration owner during the user-authorized PR #9 merge.
 Full browser runs still need an exclusive machine GPU slot. Refactors consolidate
 existing behavior, without runtime dependencies or shared game-contract changes.
 Verification and measurement limitations are recorded in `docs/BACKLOG.md`.
+
+## D-XXX — Compare real survey outputs without manufacturing precision
+**Context.** Tailhold, defence and raid had reporters but no A/B adapters. Their
+rounded aggregates do not contain the counts needed for new statistical verdicts.
+Comma-separated environment assignments also conflicted with comma-valued tactics.
+
+**Decision.** Drive the existing reporters with matched inputs and preserve raw
+output, relevant environment (including damage mode), resolved revisions and exits.
+Keep existing career/quick/fairness intervals; new adapters are descriptive only.
+Repeat `--env`/`--a`/`--b KEY=VALUE`, splitting only the first equals sign; remove the
+ambiguous grouped-variable syntax. Defence compares explicit survey modes because
+the reporter overrides defence flags. Repeated identical fairness cohorts count once.
+
+**Consequences.** CLI users must repeat options for multiple environment variables.
+Valid zero-denominator and two-aircraft crash reports remain comparable, without
+inventing percentages or sample counts. Invalid or failed reports retain diagnostic
+evidence but emit no comparison. No runtime dependencies or gameplay-policy change.

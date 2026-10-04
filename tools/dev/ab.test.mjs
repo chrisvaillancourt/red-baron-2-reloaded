@@ -19,6 +19,27 @@ test('flag comparison retains common comma-valued tactics with the variant takin
   assert.equal(o.B.AI_TACTICS, 'blindSpot=0,stalk=1,stalk=1');
 });
 
+test('inherited defence modes and tactics survive unless explicitly overridden', () => {
+  const saved = { DEFENCE_AB: process.env.DEFENCE_AB, AI_TACTICS: process.env.AI_TACTICS };
+  try {
+    process.env.DEFENCE_AB = 'off';
+    process.env.AI_TACTICS = 'blindSpot=0';
+    const modes = parseOptions(['--soak', 'defence', '--b', 'DEFENCE_AB=mix']);
+    assert.equal(modes.A.DEFENCE_AB, 'off');
+    assert.equal(modes.B.DEFENCE_AB, 'mix');
+    assert.equal(parseOptions(['--soak', 'defence', '--set', 'brake', '--b', 'DEFENCE_AB=mix']).A.DEFENCE_AB, 'brake');
+    assert.equal(options('--flag', 'stalk').A.AI_TACTICS, 'blindSpot=0,stalk=0');
+    assert.equal(options('--env', 'AI_TACTICS=blindSpot=1', '--flag', 'stalk').A.AI_TACTICS, 'blindSpot=1,stalk=0');
+    process.env.AI_TACTICS = 'escalateDefence=0';
+    assert.throws(() => parseOptions(['--soak', 'defence', '--b', 'DEFENCE_AB=mix']), /overwrites/);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test('ambiguous duplicates, invalid keys and overwritten defence flags fail before launching', () => {
   assert.throws(() => options('--a', 'X=1', '--a', 'X=2'), /duplicate.*X/);
   assert.throws(() => options('--a', 'BAD KEY=x'), /KEY=VALUE/);
@@ -54,6 +75,12 @@ test('fairness uses exact fate counts, not rounded win percentages, for its exis
   assert.match(text, /within noise/);
 });
 
+test('overlapping fairness sets do not multiply identical seeded samples', () => {
+  const row = 'sopwith_camel v albatros_dv | 4 | 33% | 50% (1/0/1)';
+  assert.equal(compare('fairness', `${row}\n${row}`), compare('fairness', row));
+  assert.throws(() => compare('fairness', `${row}\n${row.replace('33%', '67%')}`), /conflicting.*row/);
+});
+
 test('raid exposes exact bomb and loss counts but preserves rounded success as descriptive evidence', () => {
   const text = compare('raid', 'raid set=default reps=4\nraid setup | n | dropped/carried\n' +
     'raid one | 4 | 8/16 (50%) | 3/8 (38%) | 2/8 | 33% | 2/12 (17%) | 0/0 | 1/12 | 1 (25%)');
@@ -64,6 +91,13 @@ test('raid exposes exact bomb and loss counts but preserves rounded success as d
   assert.throws(() => compare('raid', 'one | 4 | 8/16 (50%) | 3/8 (38%) | 2/8 | 33% | 2/12 (17%) | 0/0 | 1/12 | 5 (125%)'), /player down/);
   const collateral = compare('raid', 'raid one | 4 | 8/16 (50%) | 3/8 (38%) | 10/8 | 33% | 2/12 (17%) | 0/0 | 1/12 | 1 (25%)');
   assert.match(collateral, /ground destroyed\/objective targets.*10\/8/);
+});
+
+test('zero-drop raid reports retain zero counts without inventing a percentage', () => {
+  const row = 'raid one | 4 | 0/16 (0%) | 0/0 (-) | 0/8 | 0% | 4/12 (33%) | 0/0 | 0/12 | 4 (100%)';
+  const text = compare('raid', row);
+  assert.match(text, /on target\/dropped \| 0\/0 \| 0\/0/);
+  assert.throws(() => compare('raid', row.replace('0/0 (-)', '0/16 (-)')), /percentage/);
 });
 
 const defence = (mode, hits) => `defence veteran D.VII, Camel on its tail at 2,000 m, pursuer human-like, 4 seeds\n` +
@@ -79,6 +113,12 @@ test('defence compares survey modes on the same case, and rejects ordinary asser
   assert.throws(() => compare('defence', defence('off', 12), defence('mix', 8).replaceAll('human-like', 'veteran autoplayer')), /pursuers differ/);
   assert.doesNotMatch(text, /within noise|verdict/);
   assert.throws(() => compare('defence', 'defence veteran D.VII\n  veteran pursuer, off: flew 200 s'), /survey/);
+});
+
+test('defence crash counts include both aircraft per seed', () => {
+  const both = defence('off', 0).replaceAll('unhit crashes 0', 'unhit crashes 8');
+  assert.match(compare('defence', both), /unhit crashes.*8.*8/);
+  assert.throws(() => compare('defence', both.replaceAll('unhit crashes 8', 'unhit crashes 9')), /unhit crashes/);
 });
 
 const tail = (bucket = '') => 'tailhold set=default reps=4 AI_TACTICS=(default) player=veteran\n' +

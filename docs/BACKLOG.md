@@ -162,9 +162,15 @@ grouping separate variables with commas is removed, with migration diagnostics.
 Parent smoke: all six actual adapters completed, serially (`--jobs 1`), including
 human-like tailhold and `DEFENCE_AB=off` versus `mix`; raw recipes/stdout/stderr/reports
 remain under `tools/dev/scratch/q04-*` in the survey task workspace. Tiny smoke samples
-prove the adapters run, not tactical improvements. Eight parser/summary regressions
+prove the adapters run, not tactical improvements. Twelve parser/summary regressions
 passed. Three invalid CLI cases exited 2 before launch; an empty fairness cohort
 retained both successful worker outputs but exited 2 without a comparison.
+Independent review found inherited-mode loss, missing damage-mode evidence, and
+valid zero-drop/two-aircraft-crash/overlapping-set reports rejected by parser guards.
+Corrections have failing-before/passing-after regressions. Actual inherited off/mix
+defence runs preserve `SIM_DAMAGE_PATH=1` in both recipes; actual overlapping fairness
+sets produce one cohort at n=1, not a doubled sample. Frozen-ref CLI smoke passed.
+Final typecheck, 663 Vitest tests (30 gated skips) and 20 Node tool tests passed.
 Usage, defaults and interpretation are in `docs/ai.md` → A/B measurement.
 
 ## Debt dispositions

@@ -27,12 +27,14 @@ const nonempty = (rows, name) => {
   return rows;
 };
 const ratio = (s, name, subset = true) => {
-  const m = /^(\d+)\/(\d+)(?: \((\d+)%\))?$/.exec(s);
+  const m = /^(\d+)\/(\d+)(?: \((\d+%|-)\))?$/.exec(s);
   if (!m) fail(`invalid ${name}: ${JSON.stringify(s)}`);
   const n = integer(m[2], name);
   if (subset) count(m[1], n, name);
   else integer(m[1], name);
-  if (m[3] !== undefined && Number(m[3]) > 100) fail(`invalid ${name} percentage`);
+  if (m[3] === '-') {
+    if (n !== 0) fail(`undefined ${name} percentage with nonzero denominator`);
+  } else if (m[3] !== undefined) percent(m[3], name);
   return `${m[1]}/${m[2]}`;
 };
 const percent = (s, name) => {
@@ -70,7 +72,15 @@ function fairnessOf(texts, reps) {
     percent(parts[2], 'win percentage');
     percent(`${m[1]}%`, 'down percentage');
     const down = count(Number(m[2]) + Number(m[3]) + Number(m[4]), n, 'player down');
-    put(rows, parts[0], { n, down });
+    // Overlapping named sets rerun the same matchup with the same seed schedule.
+    // Keep one identical observation, never inflate n or silently replace disagreement.
+    const report = parts.join('|');
+    const previous = rows.get(parts[0]);
+    if (previous) {
+      if (previous.report !== report) fail(`conflicting fairness row ${parts[0]}`);
+      continue;
+    }
+    put(rows, parts[0], { n, down, report });
   }
   return nonempty(rows, 'fairness');
 }
@@ -127,7 +137,7 @@ function defenceOf(texts, reps) {
       const n = integer(m[12], 'defence down denominator', true);
       if (n !== header.n) fail('defence seed and down denominators disagree');
       count(m[11], n, 'defence down');
-      count(m[13], n, 'unhit crashes');
+      count(m[13], 2 * n, 'unhit crashes'); // defender and pursuer are both counted
       ratio(`${m[14]}/${m[15]}`, 'pursuer fixed guns');
       percent(`${m[5]}%`, 'circling');
       percent(`${m[6]}%`, 'varied');
