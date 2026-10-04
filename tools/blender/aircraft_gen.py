@@ -164,6 +164,16 @@ class MB:
     def face(self, idx, uvs=None, mat=0):
         if len(set(idx)) < 3:
             return
+        if uvs is None and self.mats[mat] in ('Wood', 'Leather', 'Metal', 'Cloth'):
+            # Repeating detail maps use metre-scaled, dominant-plane UVs.
+            # Explicit livery/gauge atlases remain untouched.
+            points = [Vector(self.v[i]) for i in idx]
+            normal = Vector((0, 0, 0))
+            for a, b in zip(points, points[1:] + points[:1]):
+                normal += a.cross(b)
+            axis = max(range(3), key=lambda i: abs(normal[i]))
+            axes = ((1, 2), (0, 2), (0, 1))[axis]
+            uvs = [(p[axes[0]], p[axes[1]]) for p in points]
         self.f.append(tuple(idx))
         self.fuv.append(uvs if uvs is not None else [(0.0, 0.0)] * len(idx))
         self.fm.append(mat)
@@ -1815,7 +1825,7 @@ class Aircraft:
             if abs(x) + r > phw:
                 x = math.copysign(phw - r - 0.01, x)
             g = MB(['Gauge'])
-            N = 20
+            N = 32
             c = g.vert((x, panelY - 0.013, z))
             ring = [g.vert((x + r * math.sin(TAU * j / N), panelY - 0.013, z + r * math.cos(TAU * j / N))) for j in range(N)]
             for j in range(N):
@@ -1823,7 +1833,7 @@ class Aircraft:
                 g.face([c, ring[j2], ring[j]], [(0.5, 0.5), (0.5 + 0.5 * math.sin(TAU * j2 / N), 0.5 - 0.5 * math.cos(TAU * j2 / N)), (0.5 + 0.5 * math.sin(TAU * j / N), 0.5 - 0.5 * math.cos(TAU * j / N))], 0)
             # bezel
             b = MB(['Metal'])
-            tube(b, [(x + r * math.sin(TAU * j / 16), panelY - 0.012, z + r * math.cos(TAU * j / 16)) for j in range(16)], radius=0.006, sides=4, closed_path=True)
+            tube(b, [(x + r * math.sin(TAU * j / N), panelY - 0.012, z + r * math.cos(TAU * j / N)) for j in range(N)], radius=0.006, sides=4, closed_path=True)
             b.build(name + '_Bezel', ck, smooth=True)
             g.build(name, ck, origin=(x, panelY - 0.013, z), smooth=False, recalc=False)
         return ck

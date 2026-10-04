@@ -8,15 +8,20 @@ import {
   CanvasTexture,
   CircleGeometry,
   Color,
+  DataTexture,
   Float32BufferAttribute,
   BufferGeometry,
   DirectionalLight,
   DoubleSide,
+  LinearFilter,
+  LinearMipmapLinearFilter,
   Mesh,
   MeshBasicMaterial,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
   Quaternion,
+  RepeatWrapping,
   SRGBColorSpace,
   Sprite,
   SpriteMaterial,
@@ -88,20 +93,66 @@ function updateGroundBounce(scene: Object3D | null): void {
 }
 const _sunDir = new Vector3();
 
+type SurfaceKind = 'wood' | 'leather' | 'fabric' | 'metal';
+const surfaceDetails: Partial<Record<SurfaceKind, Texture>> = {};
+
+/** Linear-data maps: red is relief, green is roughness. Shared across aircraft. */
+function surfaceDetail(kind: SurfaceKind): Texture {
+  const cached = surfaceDetails[kind];
+  if (cached) return cached;
+  const size = 128;
+  const pixels = new Uint8Array(size * size * 4);
+  let seed = 173;
+  for (let y = 0; y < size; y++) {
+    const warp = kind === 'wood' ? 0.3 * Math.sin(y * 2 * Math.PI / size) : 0;
+    const weft = kind === 'fabric' ? Math.sin(y * Math.PI / 2) : 0;
+    for (let x = 0; x < size; x++) {
+      let relief: number;
+      if (kind === 'wood') relief = 0.5 + 0.5 * Math.sin(2 * Math.PI * (x / 8 + warp));
+      else if (kind === 'fabric') relief = 0.5 + 0.25 * (Math.sin(x * Math.PI / 2) + weft);
+      else {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        relief = seed / 4294967296;
+      }
+      const i = (y * size + x) * 4;
+      pixels[i] = Math.round(255 * relief);
+      pixels[i + 1] = Math.round(255 * (0.78 + 0.22 * relief));
+      pixels[i + 2] = 0;
+      pixels[i + 3] = 255;
+    }
+  }
+  const texture = new DataTexture(pixels, size, size);
+  texture.name = `${kind}-surface-detail`;
+  texture.wrapS = texture.wrapT = RepeatWrapping;
+  texture.magFilter = LinearFilter;
+  const repeat = kind === 'fabric' ? 64 : kind === 'leather' ? 8 : 1;
+  texture.repeat.set(repeat, repeat);
+  texture.generateMipmaps = true;
+  texture.minFilter = LinearMipmapLinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  surfaceDetails[kind] = texture;
+  return texture;
+}
+
 let shared: Record<string, Material> | null = null;
 function sharedMaterials(): Record<string, Material> {
   if (shared) return shared;
   const woodTex = woodTexture();
   shared = {
     // Gunmetal: moderately metallic so it still reads under a dim sky env map (0.85 went black).
-    Metal: new MeshStandardMaterial({ color: 0x4c4c48, metalness: 0.55, roughness: 0.5, name: 'Metal' }),
-    Wood: new MeshStandardMaterial({ color: 0xffffff, map: woodTex, metalness: 0, roughness: 0.5, name: 'Wood' }),
+    Metal: new MeshStandardMaterial({ color: 0x4c4c48, metalness: 0.55, roughness: 0.5, roughnessMap: surfaceDetail('metal'), name: 'Metal' }),
+    Wood: new MeshPhysicalMaterial({ color: 0xffffff, map: woodTex, metalness: 0, roughness: 0.5,
+      roughnessMap: surfaceDetail('wood'), bumpMap: surfaceDetail('wood'), bumpScale: 0.0004,
+      clearcoat: 0.25, clearcoatRoughness: 0.35, name: 'Wood' }),
     Rubber: new MeshStandardMaterial({ color: 0x151412, roughness: 0.92, name: 'Rubber' }),
     Pilot: new MeshStandardMaterial({ color: 0x4a2f1d, roughness: 0.62, name: 'Pilot' }),
     Skin: new MeshStandardMaterial({ color: 0xc99577, roughness: 0.6, name: 'Skin' }),
-    Leather: new MeshStandardMaterial({ color: 0x3a2416, roughness: 0.6, side: DoubleSide, name: 'Leather' }),
+    Leather: new MeshStandardMaterial({ color: 0x3a2416, roughness: 0.78, side: DoubleSide,
+      roughnessMap: surfaceDetail('leather'), bumpMap: surfaceDetail('leather'), bumpScale: 0.0003, name: 'Leather' }),
     Glass: new MeshStandardMaterial({ color: 0x9fc7d8, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.55, name: 'Glass' }),
-    Cloth: new MeshStandardMaterial({ color: 0xe9e4d6, roughness: 0.9, name: 'Cloth' }),
+    Cloth: new MeshStandardMaterial({ color: 0xe9e4d6, roughness: 0.9,
+      roughnessMap: surfaceDetail('fabric'), bumpMap: surfaceDetail('fabric'), bumpScale: 0.0002, name: 'Cloth' }),
     Bomb: new MeshStandardMaterial({ color: 0x55583f, metalness: 0.35, roughness: 0.55, name: 'Bomb' }),
     Gauge: new MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.4, name: 'Gauge' }),
   };
@@ -111,22 +162,27 @@ function sharedMaterials(): Record<string, Material> {
 
 function woodTexture(): Texture {
   const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 256;
+  c.width = 256;
+  c.height = 512;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#6e4526';
-  ctx.fillRect(0, 0, 64, 256);
-  for (let i = 0; i < 40; i++) {
-    ctx.strokeStyle = i % 3 ? 'rgba(40,20,8,0.25)' : 'rgba(160,110,60,0.25)';
-    ctx.lineWidth = 1 + (i % 4);
-    ctx.beginPath();
-    const x = (i * 37) % 64;
-    ctx.moveTo(x, 0);
-    ctx.bezierCurveTo(x + 6, 80, x - 6, 170, x + 3, 256);
-    ctx.stroke();
+  const image = ctx.createImageData(c.width, c.height);
+  for (let y = 0; y < c.height; y++) {
+    const warp = 1.3 * Math.sin(y * 2 * Math.PI / c.height) + 0.35 * Math.sin(y * 8 * Math.PI / c.height);
+    for (let x = 0; x < c.width; x++) {
+      const phase = x * 64 * Math.PI / c.width + warp;
+      const grain = Math.sin(phase) * 7 + Math.sin(phase * 3) * 2;
+      const i = (y * c.width + x) * 4;
+      image.data[i] = 110 + grain;
+      image.data[i + 1] = 73 + grain * 0.75;
+      image.data[i + 2] = 40 + grain * 0.45;
+      image.data[i + 3] = 255;
+    }
   }
+  ctx.putImageData(image, 0, 0);
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
+  t.wrapS = t.wrapT = RepeatWrapping;
+  t.anisotropy = 8;
   return t;
 }
 
@@ -316,6 +372,12 @@ class AircraftVisualImpl implements AircraftVisual {
           roughness: slot === 'cowling' ? 0.38 : ply ? 0.5 : 0.8,
           metalness: slot === 'cowling' ? 0.45 : 0,
         });
+        const surface = surfaceDetail(slot === 'cowling' ? 'metal' : ply ? 'wood' : 'fabric');
+        m.roughnessMap = surface;
+        if (slot !== 'cowling') {
+          m.bumpMap = surface;
+          m.bumpScale = ply ? 0.0004 : 0.0002;
+        }
         if (slot === 'fuselage' || slot === 'tail' || slot === 'cowling') m.side = DoubleSide;
       }
       m.name = name;

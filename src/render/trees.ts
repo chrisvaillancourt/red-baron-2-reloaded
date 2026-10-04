@@ -91,6 +91,27 @@ function broadleaf(detail: boolean): BufferGeometry {
   return mergeGeometries([ni(trunk), ni(crown)])!;
 }
 
+/** Four overlapping growth masses, with branches visible through crown gaps. */
+function clusteredBroadleaf(): BufferGeometry {
+  const parts = [
+    paint(new CylinderGeometry(0.18, 0.28, 3.2, 6).translate(0, 1.6, 0), BARK),
+    paint(new CylinderGeometry(0.07, 0.15, 3.2, 5).rotateZ(0.55).translate(-0.7, 3.8, 0), BARK),
+    paint(new CylinderGeometry(0.06, 0.14, 3.0, 5).rotateZ(-0.6).translate(0.7, 3.7, 0), BARK),
+  ];
+  const lobes = [
+    // radius xyz, centre xyz, jitter seed; keep the existing overall tree scale.
+    [2.3, 2.7, 2.2, 0.0, 6.0, 0.0, 11],
+    [2.0, 2.2, 1.9, -1.7, 4.7, 0.4, 23],
+    [2.0, 2.4, 1.8, 1.6, 5.1, 0.5, 37],
+    [2.1, 2.2, 1.9, 0.2, 4.8, -1.5, 53],
+  ];
+  for (const [sx, sy, sz, x, y, z, seed] of lobes) {
+    parts.push(paintCrown(jitterSphere(new IcosahedronGeometry(1, 1), 0.45, seed)
+      .scale(sx, sy, sz).translate(x, y, z)));
+  }
+  return mergeGeometries(parts.map(ni))!;
+}
+
 function poplar(detail: boolean): BufferGeometry {
   const trunk = paint(new CylinderGeometry(0.15, 0.25, 2.5, detail ? 6 : 4).translate(0, 1.25, 0), BARK);
   const crown = paintCrown(jitterSphere(new IcosahedronGeometry(1, detail ? 1 : 0), 0.25, 5).scale(1.5, 7, 1.5).translate(0, 8.5, 0));
@@ -164,7 +185,7 @@ export class TreeLayer {
       }
     }
     this.capacity = Math.round(60_000 * q.treeDensity + 10_000);
-    const geos = [broadleaf(true), poplar(true), stump()];
+    const geos = [q.clusteredTreeCrowns ? clusteredBroadleaf() : broadleaf(true), poplar(true), stump()];
     for (let k = 0; k < KINDS; k++) {
       const m = new InstancedMesh(geos[k], this.material, k === KIND_BROAD ? this.capacity : Math.round(this.capacity / 3));
       m.instanceMatrix.setUsage(DynamicDrawUsage);

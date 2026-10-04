@@ -56,6 +56,23 @@ changes and reloads. The user authorized integration into main after independent
 - Independent Standards and Spec reviews of `a0bbd77` found no violations or missing
   requirements. The associated GitHub Actions run records deployment status.
 
+**Atmosphere pass: PR #6 merged and deployed** as `89ae060`. GitHub Pages
+[run 37181203687](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37181203687)
+passed typecheck, tests, build and deployment. A fresh Chrome/Metal session on the
+public site exercised Quick Mission, briefing, first-flight instructions and an
+actual Camel flight; the cockpit screenshot was inspected and no browser errors
+were observed. This is a release smoke, not a full Playwright run.
+
+**Graphics detail cutover: [PR #7](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/7),
+decision D-104.** The user authorized integration after independent review.
+The cutover includes clustered high/ultra crowns, aircraft surface UVs/material
+finishes, instrument readability and differential-test failure diagnostics.
+Behaviour through `59f3fc7` passed typecheck, 663 Vitest tests
+and 8 Node tool regressions (30 gated tests skipped), in-engine visual checks and
+independent Standards/Spec reviews. Before/after images and measured GPU costs are
+in the PR; performance samples are scene-specific, not a general 60-FPS guarantee.
+The PR's associated GitHub Actions run and release-smoke comment record deployment status.
+
 - **Merged: bombers and gunner seats, wave 1** (plan and file ownership in
   `docs/bombers.md` "Waves"). All four tracks are on main:
   - **Contracts** (D-086, `src/data/crew.ts`) and **track A, sim** (D-088): combat on crew
@@ -460,15 +477,19 @@ Remaining:
 This is the observed handoff inventory, not cleanup authorization. No existing workspace
 was removed; re-audit ownership, dirty/ignored files, unpushed commits and active processes
 before any future removal.
+The eight registered Git worktrees below were observed during PR #7 integration preparation.
+The human's main checkout was left untouched; the separate harness-worker row
+remains the earlier retention record, not a fresh filesystem audit.
 
 | Workspace | Branch / owner | Preservation reason |
 |---|---|---|
-| `red-baron-2-reloaded` | `main`; human/integration owner | Authorized PR #5 integration checkout; previous deployed base `f814e2a`. |
+| `red-baron-2-reloaded` | `main` at `f5e0a1c`; human/integration owner | Human checkout left untouched; deployed integration base is PR #6 at `89ae060`. |
 | `rb2r-bomber-readiness` | `fix/bomber-sim-readiness` at `8aac951`; prior parent omp session | PR #4 squash-merged; preserve original branch and ignored QA evidence pending authorized cleanup. Services stopped. |
 | `rb2r-player-aircraft-access` | `feat/player-aircraft-access`; parent omp session | Preserve the PR #5 branch and ignored screenshots/JSON in `tools/dev/scratch/player-access/` pending authorized cleanup. Browser and port 5271 service stopped; Playwright's isolated 5272 server exited. |
 | `rb2r-debt-spec` | `fix/spec-cache-identity` at `791da38`; prior spec-cache task | PR #1 squash-merged; retain original branch and workspace pending authorized cleanup. |
 | `rb2r-debt-spatial` | `perf/world-spatial-queries` at `aed20d9`; prior spatial task | PR #2 squash-merged; same retention rule. |
 | `rb2r-debt-height` | `perf/height-cache-locality` at `4057201`; prior height-cache task | PR #3 squash-merged; same retention rule. |
 | `rb2r-pr-integration` | `review/open-pr-integration` at `0ef2f76`; prior parent review | Reviewed integration snapshot/evidence; preserve until authorized cleanup. |
+| `rb2r-visual-atmosphere` | `feat/vegetation-detail`; current parent omp session | PR #7 integration workspace and ignored comparison/flight evidence; preserve pending authorized cleanup. PR #6 release-smoke browser and prior QA servers stopped. |
 | omp isolated `t18fe94f19/m`, `t761509680/m`, `tb9b8755f9/m` | Completed flight, damage and tooling workers | Retained worker changes/evidence; all owned source changes incorporated into the parent branch. Separate harness workspaces, not entries in the main checkout's worktree registry. |
 

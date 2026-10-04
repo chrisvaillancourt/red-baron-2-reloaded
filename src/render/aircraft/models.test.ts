@@ -23,6 +23,29 @@ function parse(file: string): Promise<Object3D> {
 }
 
 describe('aircraft GLB models', () => {
+  it('cockpit wood and leather have surface area in UV space', async () => {
+    const scene = await parse(`${MODELS}sopwith_camel.glb`);
+    const cockpit = scene.getObjectByName('CockpitInterior')!;
+    const checked = new Set<string>();
+    cockpit.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh || Array.isArray(mesh.material) || !['Wood', 'Leather'].includes(mesh.material.name)) return;
+      const uv = mesh.geometry.getAttribute('uv');
+      const index = mesh.geometry.getIndex();
+      let area = 0;
+      for (let i = 0; i < (index?.count ?? uv.count); i += 3) {
+        const a = index ? index.getX(i) : i;
+        const b = index ? index.getX(i + 1) : i + 1;
+        const c = index ? index.getX(i + 2) : i + 2;
+        area += Math.abs((uv.getX(b) - uv.getX(a)) * (uv.getY(c) - uv.getY(a)) -
+          (uv.getY(b) - uv.getY(a)) * (uv.getX(c) - uv.getX(a)));
+      }
+      expect(area, `${mesh.material.name} must not sample a single texel`).toBeGreaterThan(1e-6);
+      checked.add(mesh.material.name);
+    });
+    expect([...checked].sort()).toEqual(['Leather', 'Wood']);
+  });
+
   for (const spec of AIRCRAFT_LIST) {
     it(`${spec.id} follows the node/material/frame contract`, async () => {
       const file = `${MODELS}${spec.id}.glb`;

@@ -55,6 +55,13 @@ non-indexed crown would give each triangle flat lighting. This approximation
 keeps foliage masses softly lit without adding triangles, textures or draw calls;
 the simpler distant crowns retain their original faceted normals.
 
+High/ultra use four asymmetric crown lobes and visible supporting branches for
+nearby broadleaf trees (`clusteredTreeCrowns` in `quality.ts`): 384 triangles per
+tree versus 184 on low/medium. Placement, instance counts, draw calls, distant
+crowns, poplars and stumps are unchanged. This improves forest silhouettes rather
+than increasing tree density; see DECISIONS "Spend high-quality scenery detail
+on nearby tree silhouettes" for the measured GPU cost and its limits.
+
 **Cumulus appearance** (`clouds.ts`). Puffs use a dense core and a narrower,
 noise-shaped soft rim rather than a squared full-radius fade. The same three
 noise samples add subtle body shading; no extra geometry, textures or noise

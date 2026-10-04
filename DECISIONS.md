@@ -1127,3 +1127,21 @@ comparison shows equal AI pools and career equipment selections at five service 
 Availability regression fixtures invert and restore original flags rather than pinning
 the old release gate. Commands and evidence are recorded in `docs/bombers.md`.
 Number assigned during the authorized PR #5 integration into main.
+
+## D-104 — Spend high-quality scenery detail on nearby tree silhouettes
+**Context.** The selected graphics target is high-end visuals at 60 FPS, with
+cheaper low/medium presets retained. Broadleaf crowns were two overlapping masses,
+even at close range; adding density would multiply that repetition.
+
+**Decision.** High/ultra use four asymmetric crown lobes and two branch segments
+for nearby broadleaf trees (384 triangles instead of 184). Keep the same instanced
+draw call, placement, near/far switching and distant geometry. Low/medium retain
+their exact prior near-tree geometry through an explicit renderer quality setting.
+No shared core contract, simulation or dependency changes.
+
+**Evidence and limits.** In a Ypres forest view with 7,295 near broadleaf instances,
+Chrome/Metal on Apple M3 Max measured baseline GPU p50 4.86 ms versus 5.49–5.52 ms
+with clustered crowns; ultra measured p50 11.80 ms, p95 12.63 ms in that view.
+These are short scene-specific GPU samples, not whole-game or cross-hardware
+60-FPS guarantees. Low/medium geometry attributes were compared with the baseline
+and matched exactly. Number assigned during the authorized PR #7 integration into main.
