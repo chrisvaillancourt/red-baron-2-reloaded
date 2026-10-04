@@ -413,3 +413,74 @@ the actual launch workflow was exercised. Full runtime release gates remain.
 Owned QA tabs/server and watch process are stopped. Screenshots/JSON remain in
 ignored `tools/dev/scratch/development-feedback/`; throwaway probes are removed.
 
+
+## Direct native gameplay QA — 2026-10-04
+
+User authorized the direct Playwright recommendation while explicitly deferring
+Claude changes. Branch `perf/direct-playwright-qa`, based on tooling `dfb8c3b`;
+human main/playtest checkouts stay untouched. No game/core/runtime dependency,
+Claude CLI/bridge/model/auth/permission or Claude-specific instruction changes.
+No merge, push or deployment.
+
+### Cutover
+
+- The existing browser-automation module owns one installed-Chrome/headless/GPU
+  profile, preserving `PW_CHANNEL`, explicit SwiftShader fallback and the menu
+  tool's autoplay flag. Twelve direct launch scripts and the regression config
+  consume it; caller viewports, DPR and per-scene context choices stay unchanged.
+- `withAutomationPage` creates an owned isolated context, disables controllers
+  before startup, runs one awaited callback and closes the native browser.
+  A sole operation/close error is preserved; dual errors remain an AggregateError.
+- `pnpm smoke:defense --port <owned-port>` performs exactly two initial/replay
+  passes in the same browser/page. Actual controls exercise mouse/arrow aim,
+  independent focus/fire chord release, every gun's ammo, keyboard reload,
+  wheel/F/slider ranging, pause/capture and no stale held fire. Abort removes
+  hook/canvas/host/capture; replay starts paused with exact options and reset
+  timers/counters/upgrades/full magazines.
+- Native viewport screenshots assert live CSS/backing/camera dimensions and PNG
+  pixels at DPR 1. The explicit CLI refuses missing/human ports and escaping
+  output paths or links before launch; run failures save checkpoint/error JSON
+  and a screenshot where possible. There is no retry or game-state mutation.
+- The omp harness reference now selects direct Playwright for critical gameplay,
+  retaining its browser tool only for lightweight inspection. Regression server
+  isolation, GPU scheduling and complete release gates are unchanged.
+
+### Review and evidence
+
+Fresh plan reviewers tightened error preservation, observable controls, replay
+reset/teardown and resize/error acceptance before implementation. Post-change
+review found the output escape; confinement and public negative cases fixed it.
+A stale-plan request to add unused launch overrides was withdrawn against the
+accepted viewport-only contract; no unused interface was added.
+
+Final native smoke passed: browser/context/page setup **448 ms**, first defense
+readiness **4068 ms**, exact same-page replay **3956 ms**, total **20,305 ms**.
+Both passes spent ammunition with all three guns, ranged a real live target,
+completed control/lifecycle checks and removed all battery resources on abort.
+Headless Chrome 154.0.8037.93 used ANGLE/Metal Apple M3 Max; console/page errors
+were empty and browser closure was observed. All four desktop/narrow PNGs
+(1280×720 and 430×900) were inspected on the successful native path.
+
+The roughly 112 ms readiness difference is not meaningful evidence of a speedup.
+The benefit is a single bounded, repeatable, owned sequence without OMP attachment
+or worker recovery, not caching a live simulation or weakening release proof.
+The 20 s smoke and complete suite cover different scopes; do not quote a ratio.
+
+Other exercised gates:
+- `pnpm check`: typecheck, 690 Vitest tests (30 gated skips), 20 Node tooling
+  tests and production bundle passed.
+- `E2E_PORT=5383 pnpm e2e`: 33 passed, one gated soak skipped, one GPU worker
+  and fresh strict-port server; 4.4 minutes.
+- `pnpm prodcheck 5384`: production menu/flight/GLBs/four workers/pixels passed,
+  no failed requests or errors.
+- All 14 affected native scripts passed syntax checks. Actual callback failure
+  retained the same Error object and closed browser/page. Missing/human port
+  calls exited 2; an unavailable owned port exited 1, saved failure JSON/PNG
+  and observed closed browser. Absolute, relative and symlink output escapes
+  all exited 2 before browser/artifact creation; the generated link was removed.
+
+QA dev/preview services and all owned native browsers are stopped. Native success,
+initial failed-probe and negative-boundary artifacts remain under ignored
+`tools/dev/scratch/direct-playwright-qa/`. Existing workspaces remain preserved
+without cleanup authorization. No unresolved implementation dependency.
+

@@ -9,11 +9,11 @@
 //     (by constructor name) whose count/size grew the most. Growth that scales
 //     with `more` is a per-flight leak.
 import { chromium } from '@playwright/test';
-import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
+import { automationLaunchOptions, disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const [port = '5323', mode = 'path', a = '', b = ''] = process.argv.slice(2);
 
-const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 await disableGamepads(page.context());
 page.on('pageerror', (e) => console.error('pageerror', e.message));

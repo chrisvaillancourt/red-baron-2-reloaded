@@ -2,6 +2,7 @@
 // Usage: node dev/screenshot-ui.mjs [baseUrl] [outDir] [width] [height] [filter]
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { automationLaunchOptions } from '../tools/playtest/browser-automation.mjs';
 
 const base = process.argv[2] ?? 'http://localhost:5291';
 const out = process.argv[3] ?? 'docs/screenshots';
@@ -36,7 +37,7 @@ const shots = [
   ['hud', 'screen=hud'],
 ];
 
-const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'chrome' });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
 const errors = [];
 page.on('pageerror', (e) => errors.push(`${page.url()}: ${e.message}`));

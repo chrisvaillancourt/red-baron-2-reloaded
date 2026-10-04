@@ -116,7 +116,7 @@ gates for integration/handoff. Pass selectors to a direct runner, not the chaine
 | Repeated edits at that seam | `pnpm test:watch src/sim/airfieldDefense.test.ts` |
 | Explore import-graph dependants | `pnpm test:related src/sim/airfieldDefense.ts` |
 | Node tooling | `node --test tools/dev/ab.test.mjs` |
-| Input/UI behavior | Actual surface smoke, then `E2E_PORT=5372 pnpm e2e tests/e2e/airfield-defense.spec.ts` |
+| Input/UI behavior | `pnpm smoke:defense --port 5382`, then `E2E_PORT=5383 pnpm e2e tests/e2e/airfield-defense.spec.ts` |
 | Integrated CPU gate | `pnpm check` |
 
 `test:related` fails when it discovers zero test files. A mixed valid/absent
@@ -131,6 +131,35 @@ full browser gate and inspected real-game evidence at integration, with the
 existing single GPU worker/exclusive slot and a fresh strict-port server. Reuse
 an owned browser/tab only for ad-hoc iteration, not Playwright server reuse.
 Standalone `pnpm build`, CI and publication gates remain unchanged.
+
+### Native gameplay smoke
+
+From the owning task worktree, start a dedicated dev server and run the bounded
+sequence against its explicit port:
+
+```sh
+RB2R_REPORTS_DIR=tools/dev/scratch/direct-playwright-qa/flight-reports pnpm dev --port 5382 --strictPort
+pnpm smoke:defense --port 5382 --out tools/dev/scratch/direct-playwright-qa/smoke
+```
+
+The runner performs an initial launch and exact replay in one owned native
+browser/context/page. It observes aim, mouse chords, keyboard fire/reload,
+all three guns, wheel/F/slider ranging, pause/capture, desktop/narrow resize,
+complete abort teardown and fresh replay state. It changes no simulation state.
+Actual 1280×720 and 430×900 DPR-1 screenshots and checkpointed JSON accompany
+browser-run failures; cleanup is awaited before exit. Invalid CLI arguments,
+the human port 5173 and output paths/links escaping the workspace are refused
+before launch. Keep the example's output directory task-specific in other jobs.
+Readiness timings compare first launch and same-page replay under the current
+load—not a controlled A/B or proof of a faster flight model.
+
+`automationLaunchOptions()` is the sole native channel/headless/GPU policy,
+including existing `PW_CHANNEL` and `E2E_SWIFTSHADER` choices. Fixed extra flags
+(such as menu-audio autoplay) remain caller-specific. `withAutomationPage`
+owns a fresh isolated context, installs controller isolation before page startup,
+and closes its browser after its awaited callback; operation and cleanup failures
+remain distinguishable. Use it for one bounded sequence, not as a daemon or a
+replacement for regression server isolation.
 
 ### Exact CPU differential probes
 

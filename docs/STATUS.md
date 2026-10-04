@@ -566,3 +566,15 @@ no captured changes; its lifecycle is harness-owned, not a registered worktree.
 Task QA tabs, port 5374 server and focused watch process are stopped. Existing
 workspaces were not removed or newly authorized for cleanup.
 
+
+### Direct-Playwright handoff addition (2026-10-04 UTC)
+
+Fresh inventory observed 23 registered worktrees: the previous 22 plus
+`rb2r-direct-playwright-qa` on `perf/direct-playwright-qa`, owned by this parent.
+Retain its committed native tooling and ignored successful/failed smoke evidence
+pending integration/authorized cleanup. Main remains `87b798e`, playtest remains
+`0652782`, both observed clean; prior tooling remains `dfb8c3b`.
+Owned dev/preview ports 5382/5384 and native browsers are stopped; the isolated
+full-suite port 5383 server exited with its successful run. No existing workspace
+was removed and no Claude workflow/configuration change was made.
+

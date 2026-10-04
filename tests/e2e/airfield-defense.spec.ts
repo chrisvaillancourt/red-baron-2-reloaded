@@ -1,11 +1,11 @@
 import type { Page } from './fixtures';
-import { bootApp, expect, test } from './fixtures';
+import { bootApp, expect, test, waitForDefenseReady } from './fixtures';
 import { QUICK_DEFAULTS } from '../../src/data/quickDefaults';
 
 async function openDefense(page: Page): Promise<void> {
   await page.getByRole('button', { name: /Airfield Defense/ }).click();
   await page.locator('[data-screen="defense-briefing"] button').filter({ hasText: 'Man the guns' }).click();
-  await page.waitForFunction(() => !!window.__rb2Defense?.scene, undefined, { timeout: 90_000 });
+  await waitForDefenseReady(page);
   await page.locator('.defense-overlay button').filter({ hasText: 'Return to the guns' }).click();
   await page.waitForFunction(() => document.pointerLockElement?.classList.contains('defense-canvas') && !window.__rb2Defense?.paused);
 }
@@ -60,7 +60,7 @@ test('a defense report and exact replay leave an existing career unchanged', asy
   expect(await page.evaluate((id) => JSON.stringify(window.__rb2!.services!.campaign.loadPilot(id)), pilot.id)).toBe(pilot.snapshot);
   expect(await page.evaluate(() => window.__rb2Defense)).toBeUndefined();
   await report.getByRole('button', { name: /Replay same attack/i }).click();
-  await page.waitForFunction(() => !!window.__rb2Defense?.scene, undefined, { timeout: 90_000 });
+  await waitForDefenseReady(page);
   expect(await page.evaluate(() => ({ ...window.__rb2Defense!.state.options }))).toEqual(options);
   await page.getByRole('button', { name: 'Abandon defense', exact: true }).click();
   await expect(report).toBeVisible();

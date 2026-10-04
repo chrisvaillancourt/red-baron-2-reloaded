@@ -2,10 +2,11 @@
 //   node tools/hangar-shots.mjs <baseUrl> <outDir> '<json list of shots>'
 // shot: { name, id, livery, opts, camera: [pos, target], wait }
 import { chromium } from '@playwright/test';
+import { automationLaunchOptions } from './playtest/browser-automation.mjs';
 
 const [base = 'http://localhost:5291', out = 'tools/blender/out/shots', json = '[]'] = process.argv.slice(2);
 const shots = JSON.parse(json);
-const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'chrome', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.text()); });

@@ -1315,3 +1315,30 @@ not count as complete release proof. Upstream attach/recovery defects remain
 identified, not masked. Playtest checkout stays at `0652782`; tooling is handed
 off separately on `perf/development-feedback`.
 
+
+## D-XXX — Use direct native Playwright for critical gameplay QA
+**Context.** Input-critical OMP browser attachment/recovery introduced upstream
+ownership and viewport assumptions into game verification. Replacing the whole
+coding harness or patching installed globals is unnecessary.
+
+**Decision.** Critical gameplay/screenshots use direct repository Playwright with
+one shared installed-Chrome/headless/GPU profile. Bounded ad-hoc callbacks may
+reuse one owned isolated browser/context/page; complete regression runs still
+own fresh strict-port servers and one GPU worker. The fixed two-pass defense
+smoke proves real input, clean teardown/reset/replay and actual PNG dimensions,
+with failure artifacts and awaited cleanup. OMP's browser stays lightweight
+inspection; Claude changes remain explicitly deferred.
+
+**Evidence.** Plan and implementation reviewers challenged failure preservation,
+input/viewport acceptance and output ownership. Final two-pass native smoke
+passed in 20.305 s with inspected desktop/narrow images, all guns/ranging and
+no browser errors or leaks. Complete CPU, 33-case browser and production gates
+passed. Negative callback, CLI and output-boundary paths were exercised.
+Detailed timings/limits are in `docs/BACKLOG.md`; the small replay-readiness
+difference does not establish a performance improvement.
+
+**Consequences.** No runtime/core/dependency or Claude configuration changes.
+The improvement is predictable ownership and a reproducible feedback loop,
+not a substitute for complete release or human balance proof. Handoff remains
+on `perf/direct-playwright-qa`, not merged/deployed.
+

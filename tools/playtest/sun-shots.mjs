@@ -5,14 +5,14 @@
 //   node tools/playtest/sun-shots.mjs <outDir> [port] [timeOfDay]
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { disableGamepads, waitForFlightReady } from './browser-automation.mjs';
+import { automationLaunchOptions, disableGamepads, waitForFlightReady } from './browser-automation.mjs';
 
 const out = process.argv[2] ?? 'test-results/sun';
 const port = Number(process.argv[3] ?? 5342);
 const tod = process.argv[4] ?? 'afternoon';
 mkdirSync(out, { recursive: true });
 
-const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+const browser = await chromium.launch(automationLaunchOptions());
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 await disableGamepads(page.context());
 const errors = [];

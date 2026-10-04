@@ -36,25 +36,26 @@ permissions. Historical workarounds are observations, not permission to bypass a
 - Finite background commands use `async: true`; their timeout still applies. Long-lived
   services use a unique `name` plus `ready`, without `async` or `timeout`. Use native `cwd`
   instead of a Node wrapper merely to change directory; use `wait` only when blocked.
-- Routine game QA uses owned managed Chromium after a non-mutating routing check:
-  no configured `browser.cdpUrl`, no active cmux socket route, and an already
-  available managed executable. Open with `headed:false` and
-  `app:{relay:false,tern:false}`; those flags do not override configured CDP/cmux.
-  If routing cannot be established safely, use the existing isolated native
-  Playwright/Chrome path instead of changing settings. The user's browser/relay
-  requires explicit authorization. Verify the returned owned backend and effective
-  Chrome/GPU setup before input; preserve the existing Playwright release runner.
-- Install controller isolation before navigation. Reuse an owned tab during an
-  ad-hoc edit/smoke loop (`persist:true` when it must stay live), then close that
-  tab and its task server; keep the shared browser daemon owned by its broker.
-  Use viewport-aware screenshots and reconcile live CSS dimensions, observed DPR
-  and PNG pixels after resize. Emulation/init scripts are worker-local: after
-  recovery, reopen/reinitialize or re-prove those invariants before continuing.
-- Custom Chrome `app.path` selects attach mode, not managed automation, even with
-  `--headless=new`; initial viewport and recovery state have known defects (F-99).
-  Use it only when that mode is required, with explicit headless arguments and
-  inspected dimensions. Do not alter game capture behavior to mask a tool failure.
-  A browser-tool smoke does not replace required tests.
+- Input-critical gameplay and screenshot QA default to **direct repository
+  Playwright**, not OMP's browser attachment/worker path. Use the shared native
+  policy and bounded page callback in `tools/playtest/browser-automation.mjs`;
+  the ready-to-run defense sequence is `pnpm smoke:defense --port <owned-port>`.
+  This launches headless installed Chrome with a fresh owned context, controller
+  isolation before navigation, and cleanup after success or failure. No user's
+  profile, relay or CDP endpoint is involved.
+- Reuse one native browser/page only through a bounded ad-hoc sequence; the
+  regression runner keeps its fresh strict-port server, one GPU worker and
+  existing release gates. Inspect screenshots and record the actual browser/GPU,
+  live CSS/backing dimensions, DPR and PNG pixels. Native smoke does not replace
+  the full browser suite or a human balance playtest.
+- OMP's browser tool is for lightweight inspection. Before opening, verify routing
+  cannot adopt a user-owned tab: no configured CDP/cmux route, explicit
+  `headed:false` and `app:{relay:false,tern:false}` where supported. Those flags
+  do not override configured CDP/cmux. User-browser access needs explicit
+  authorization; use native Playwright instead when routing is uncertain.
+  Custom `app.path` is attach mode even with headless flags; its viewport/recovery
+  defects remain upstream. Reinitialize after recovery rather than trusting stale
+  state, and close only owned tabs—not the shared browser daemon.
 - Pause a stateful game probe before inspecting files or doing other work: a live
   tab's raid clock keeps advancing. Send physical key codes with key-down/frame
   wait/key-up for game controls, and verify the current phase before the next action.

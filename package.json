@@ -15,6 +15,7 @@
     "test:tools": "node --test tools/dev/*.test.mjs",
     "test:watch": "vitest --watch",
     "e2e": "playwright test",
+    "smoke:defense": "node tools/playtest/defense-smoke.mjs",
     "e2e:soak": "E2E_SOAK=1 playwright test tests/e2e/soak.spec.ts",
     "prodcheck": "node tools/playtest/prodcheck.mjs"
   },
