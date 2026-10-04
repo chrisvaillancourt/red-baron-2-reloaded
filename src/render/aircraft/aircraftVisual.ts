@@ -30,7 +30,7 @@ import {
   type Texture,
 } from 'three';
 import type { AircraftVisual, AircraftVisualFactory } from '../../core/interfaces';
-import type { AircraftEntity, AircraftSpec, CrewStationId, DamageZone, FireArc, Livery } from '../../core/types';
+import type { AircraftEntity, AircraftSpec, CrewStationId, DamageZone, FireArc, GraphicsQuality, Livery } from '../../core/types';
 import { crewStations } from '../../data/crew';
 import { getStationAim } from '../../sim/combat';
 import { gunPitchLimits } from './gunAim';
@@ -135,32 +135,50 @@ function surfaceDetail(kind: SurfaceKind): Texture {
   return texture;
 }
 
-let shared: Record<string, Material> | null = null;
-function sharedMaterials(): Record<string, Material> {
-  if (shared) return shared;
-  const woodTex = woodTexture();
-  shared = {
+type SurfaceFinish = 'low' | 'medium' | 'full';
+let commonMaterials: Record<string, Material> | null = null;
+const materialsByFinish: Partial<Record<SurfaceFinish, Record<string, Material>>> = {};
+
+function sharedMaterials(finish: SurfaceFinish): Record<string, Material> {
+  const cached = materialsByFinish[finish];
+  if (cached) return cached;
+  if (!commonMaterials) {
+    commonMaterials = {
+      Rubber: new MeshStandardMaterial({ color: 0x151412, roughness: 0.92, name: 'Rubber' }),
+      Pilot: new MeshStandardMaterial({ color: 0x4a2f1d, roughness: 0.62, name: 'Pilot' }),
+      Skin: new MeshStandardMaterial({ color: 0xc99577, roughness: 0.6, name: 'Skin' }),
+      Glass: new MeshStandardMaterial({ color: 0x9fc7d8, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.55, name: 'Glass' }),
+      Bomb: new MeshStandardMaterial({ color: 0x55583f, metalness: 0.35, roughness: 0.55, name: 'Bomb' }),
+      Gauge: new MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.4, name: 'Gauge' }),
+    };
+    for (const m of Object.values(commonMaterials)) patchGroundBounce(m as MeshStandardMaterial);
+  }
+  const detail = finish !== 'low';
+  const relief = finish === 'full';
+  const wood = { color: 0xffffff, map: woodTexture(), metalness: 0, roughness: 0.5,
+    roughnessMap: detail ? surfaceDetail('wood') : null, name: 'Wood' };
+  const variants = {
     // Gunmetal: moderately metallic so it still reads under a dim sky env map (0.85 went black).
-    Metal: new MeshStandardMaterial({ color: 0x4c4c48, metalness: 0.55, roughness: 0.5, roughnessMap: surfaceDetail('metal'), name: 'Metal' }),
-    Wood: new MeshPhysicalMaterial({ color: 0xffffff, map: woodTex, metalness: 0, roughness: 0.5,
-      roughnessMap: surfaceDetail('wood'), bumpMap: surfaceDetail('wood'), bumpScale: 0.0004,
-      clearcoat: 0.25, clearcoatRoughness: 0.35, name: 'Wood' }),
-    Rubber: new MeshStandardMaterial({ color: 0x151412, roughness: 0.92, name: 'Rubber' }),
-    Pilot: new MeshStandardMaterial({ color: 0x4a2f1d, roughness: 0.62, name: 'Pilot' }),
-    Skin: new MeshStandardMaterial({ color: 0xc99577, roughness: 0.6, name: 'Skin' }),
+    Metal: new MeshStandardMaterial({ color: 0x4c4c48, metalness: 0.55, roughness: 0.5,
+      roughnessMap: detail ? surfaceDetail('metal') : null, name: 'Metal' }),
+    Wood: relief ? new MeshPhysicalMaterial({ ...wood, bumpMap: surfaceDetail('wood'), bumpScale: 0.0004,
+      clearcoat: 0.25, clearcoatRoughness: 0.35 }) : new MeshStandardMaterial(wood),
     Leather: new MeshStandardMaterial({ color: 0x3a2416, roughness: 0.78, side: DoubleSide,
-      roughnessMap: surfaceDetail('leather'), bumpMap: surfaceDetail('leather'), bumpScale: 0.0003, name: 'Leather' }),
-    Glass: new MeshStandardMaterial({ color: 0x9fc7d8, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.55, name: 'Glass' }),
+      roughnessMap: detail ? surfaceDetail('leather') : null,
+      bumpMap: relief ? surfaceDetail('leather') : null, bumpScale: 0.0003, name: 'Leather' }),
     Cloth: new MeshStandardMaterial({ color: 0xe9e4d6, roughness: 0.9,
-      roughnessMap: surfaceDetail('fabric'), bumpMap: surfaceDetail('fabric'), bumpScale: 0.0002, name: 'Cloth' }),
-    Bomb: new MeshStandardMaterial({ color: 0x55583f, metalness: 0.35, roughness: 0.55, name: 'Bomb' }),
-    Gauge: new MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.4, name: 'Gauge' }),
+      roughnessMap: detail ? surfaceDetail('fabric') : null,
+      bumpMap: relief ? surfaceDetail('fabric') : null, bumpScale: 0.0002, name: 'Cloth' }),
   };
-  for (const m of Object.values(shared)) patchGroundBounce(m as MeshStandardMaterial);
-  return shared;
+  for (const m of Object.values(variants)) patchGroundBounce(m);
+  const materials = { ...commonMaterials, ...variants };
+  materialsByFinish[finish] = materials;
+  return materials;
 }
 
+let woodTex: Texture | null = null;
 function woodTexture(): Texture {
+  if (woodTex) return woodTex;
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 512;
@@ -183,6 +201,7 @@ function woodTexture(): Texture {
   t.colorSpace = SRGBColorSpace;
   t.wrapS = t.wrapT = RepeatWrapping;
   t.anisotropy = 8;
+  woodTex = t;
   return t;
 }
 
@@ -340,15 +359,18 @@ class AircraftVisualImpl implements AircraftVisual {
   private readonly discGeometry: BufferGeometry;
   private flexAim: Vector3 | null = null;
 
-  constructor(template: Object3D, spec: AircraftSpec, livery: Livery) {
+  constructor(template: Object3D, spec: AircraftSpec, livery: Livery, quality: GraphicsQuality) {
     this.spec = spec;
     const root = template.clone(true);
     this.object = root;
     root.name = `Aircraft_${spec.id}`;
     this.meta = metaFromUserData(template.userData, spec.geometry);
     root.userData = { ...template.userData };
+    root.userData.graphicsQuality = quality;
     const tex = getLiveryTextures(spec, livery, this.meta);
-    const sm = sharedMaterials();
+    // High and ultra share the unchanged full finish; cheaper tiers never mutate it.
+    const finish: SurfaceFinish = quality === 'high' || quality === 'ultra' ? 'full' : quality;
+    const sm = sharedMaterials(finish);
     const bombHolder = root.getObjectByName('Bombs');
     if (bombHolder) {
       const racks = mergeBombStores(bombHolder);
@@ -372,11 +394,13 @@ class AircraftVisualImpl implements AircraftVisual {
           roughness: slot === 'cowling' ? 0.38 : ply ? 0.5 : 0.8,
           metalness: slot === 'cowling' ? 0.45 : 0,
         });
-        const surface = surfaceDetail(slot === 'cowling' ? 'metal' : ply ? 'wood' : 'fabric');
-        m.roughnessMap = surface;
-        if (slot !== 'cowling') {
-          m.bumpMap = surface;
-          m.bumpScale = ply ? 0.0004 : 0.0002;
+        if (finish !== 'low') {
+          const surface = surfaceDetail(slot === 'cowling' ? 'metal' : ply ? 'wood' : 'fabric');
+          m.roughnessMap = surface;
+          if (finish === 'full' && slot !== 'cowling') {
+            m.bumpMap = surface;
+            m.bumpScale = ply ? 0.0004 : 0.0002;
+          }
         }
         if (slot === 'fuselage' || slot === 'tail' || slot === 'cowling') m.side = DoubleSide;
       }
@@ -795,9 +819,9 @@ export type AircraftVisualExt = AircraftVisual & {
 };
 
 /** Factory matching AircraftVisualFactory; resolves to the extended visual. */
-export async function createAircraftVisual(spec: AircraftSpec, livery: Livery): Promise<AircraftVisualExt> {
+export async function createAircraftVisual(spec: AircraftSpec, livery: Livery, quality: GraphicsQuality = 'high'): Promise<AircraftVisualExt> {
   const template = await loadTemplate(spec);
-  return new AircraftVisualImpl(template, spec, livery);
+  return new AircraftVisualImpl(template, spec, livery, quality);
 }
 
 // Compile-time check that the factory satisfies the shared contract.

@@ -674,7 +674,38 @@ class Aircraft:
                 path.append(rings[i1][j])
             for i in reversed(ids[1:-1]):
                 path.append(rings[i][N - 2])
-            tube(mb, path, radius=0.024, sides=6, closed_path=True)
+            pilot_hole = a <= self.t_of(self.cpY) <= b
+            if pilot_hole:
+                # Ease the four opening corners without changing the fuselage cut.
+                # Padding covers the small cutback; observer rings keep their budget.
+                rounded = []
+                for k, p in enumerate(path):
+                    p = Vector(p)
+                    incoming = p - Vector(path[k - 1])
+                    outgoing = Vector(path[(k + 1) % len(path)]) - p
+                    if incoming.normalized().dot(outgoing.normalized()) < 0.85:
+                        cut = min(0.045, incoming.length * 0.25, outgoing.length * 0.25)
+                        enter = p - incoming.normalized() * cut
+                        leave = p + outgoing.normalized() * cut
+                        rounded.extend([enter, enter * 0.25 + p * 0.5 + leave * 0.25, leave])
+                    else:
+                        rounded.append(p)
+                path = rounded
+            # Keep the section upright along the whole rim. The general-purpose
+            # tube's changing reference axis otherwise twists the padding at turns.
+            sides = (8 if self.twin else 10) if pilot_hole else 6
+            width, height = (0.034, 0.028) if pilot_hole else (0.024, 0.024)
+            sections = []
+            for k, p in enumerate(path):
+                p = Vector(p)
+                tangent = (Vector(path[(k + 1) % len(path)]) - Vector(path[k - 1])).normalized()
+                up = Vector((0, 0, 1))
+                up = (up - tangent * up.dot(tangent)).normalized()
+                across = tangent.cross(up)
+                centre = p + up * (0.008 if pilot_hole else 0.0)
+                sections.append([tuple(centre + up * (height * math.cos(TAU * j / sides)) +
+                                       across * (width * math.sin(TAU * j / sides))) for j in range(sides)])
+            loft(mb, sections + [sections[0]], closed=True)
         return mb.build('Coaming', parent, smooth=True)
 
     # ------------------------------------------------------------ wings
@@ -1481,8 +1512,24 @@ class Aircraft:
     def gun_mesh(self, mb, gtype, muzzle, length, mat=0, drum=False):
         mx, my, mz = muzzle
         if gtype in ('vickers', 'spandau'):
-            cylinder(mb, (mx, my - length * 0.35, mz), (0, 1, 0), 0.045, length * 0.7, sides=8, mat=mat)
-            box(mb, (mx, my - length * 0.83, mz - 0.01), (0.075, length * 0.3, 0.095), mat=mat)
+            # Stepped jacket ends and a chamfered receiver read at pilot distance,
+            # instead of a smooth pipe disappearing into a square breech block.
+            jacket = []
+            for along, radius in ((-0.7, 0.039), (-0.675, 0.047), (-0.025, 0.047), (0.0, 0.037)):
+                jacket.append([(mx + radius * math.sin(TAU * j / 12), my + length * along,
+                                mz + radius * math.cos(TAU * j / 12)) for j in range(12)])
+            loft(mb, jacket, mats=lambda i, j: mat, cap_start=True, cap_end=True, cap_mat=mat)
+            section = [(-0.72, -1), (0.72, -1), (1, -0.72), (1, 0.72),
+                       (0.72, 1), (-0.72, 1), (-1, 0.72), (-1, -0.72)]
+            receiver = []
+            for along, halfw, halfh in ((-0.98, 0.034, 0.039), (-0.95, 0.041, 0.05),
+                                       (-0.70, 0.041, 0.05), (-0.68, 0.034, 0.039)):
+                receiver.append([(mx + x * halfw, my + length * along, mz - 0.01 + z * halfh)
+                                 for x, z in section])
+            loft(mb, receiver, mats=lambda i, j: mat, cap_start=True, cap_end=True, cap_mat=mat)
+            box(mb, (mx, my - length * 0.825, mz + 0.044), (0.065, length * 0.22, 0.009), mat=mat)
+            box(mb, (mx, my - length * 0.08, mz + 0.059), (0.012, 0.022, 0.03), mat=mat)
+            box(mb, (mx, my - length * 0.89, mz + 0.054), (0.032, 0.025, 0.012), mat=mat)
             cylinder(mb, (mx, my + 0.02, mz), (0, 1, 0), 0.02, 0.06, sides=6, mat=mat)
         elif gtype == 'hotchkiss':
             # Finned barrel, receiver, and a 25-round strip sticking out of the left side.
@@ -1808,7 +1855,25 @@ class Aircraft:
         ptop = self.fuselage_top(panelY) - 0.03
         phw = self.fuselage_halfw(panelY) * 0.92
         pbot = self.fuselage_bot(panelY) + 0.1
-        box(mb, (0, panelY, (ptop + pbot) / 2), (phw * 1.8, 0.02, ptop - pbot), mat=0)  # panel + bulkhead
+        # This remains a shared period-styled panel, not a type-specific replica.
+        # Shaped shoulders, a bevel and a lower bearer give the existing bulkhead
+        # thickness and construction while leaving every instrument centre fixed.
+        pw = phw * 0.96
+        outline = [(-pw * 0.88, pbot), (pw * 0.88, pbot),
+                   (pw, pbot + 0.06), (pw, ptop - 0.075),
+                   (pw * 0.85, ptop - 0.025), (pw * 0.5, ptop),
+                   (-pw * 0.5, ptop), (-pw * 0.85, ptop - 0.025),
+                   (-pw, ptop - 0.075), (-pw, pbot + 0.06)]
+        midz = (ptop + pbot) / 2
+        panel = []
+        for y, inset in ((panelY + 0.01, 0.0), (panelY - 0.002, 0.0), (panelY - 0.01, 0.006)):
+            panel.append([(x * (1 - inset / pw), y, z + math.copysign(inset, midz - z))
+                          for x, z in outline])
+        loft(mb, panel, cap_start=True, cap_end=True)
+        box(mb, (0, panelY - 0.016, ptop - 0.255), (pw * 1.85, 0.016, 0.018), mat=0)
+        for x in (-pw * 0.82, pw * 0.82):
+            for z in (ptop - 0.09, ptop - 0.255):
+                cylinder(mb, (x, panelY - 0.013, z), (0, 1, 0), 0.007, 0.006, sides=6, mat=2)
         box(mb, (0, cy, bot + 0.12), (hw * 1.6, 1.1, 0.02), mat=0)  # floor
         box(mb, (0, cy - 0.3, bot + 0.3), (0.42, 0.35, 0.05), mat=1)  # seat
         box(mb, (0, cy - 0.47, bot + 0.52), (0.42, 0.05, 0.45), mat=1)  # seat back

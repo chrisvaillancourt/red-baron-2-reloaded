@@ -73,6 +73,22 @@ independent Standards/Spec reviews. Before/after images and measured GPU costs a
 in the PR; performance samples are scene-specific, not a general 60-FPS guarantee.
 The PR's associated GitHub Actions run and release-smoke comment record deployment status.
 
+**Cockpit/quality integration: [PR #8](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/8),
+decision D-105**, based on PR #7 (`dc9f085`): low/medium aircraft surface shaders now cost less, while
+high/ultra retain the full finish. The generator refines pilot padding, panel
+construction and fixed guns across all 33 models; all stay below 12,000 triangles.
+Shared core change: an optional third graphics-quality factory argument, passed
+explicitly by live-flight and hangar consumers. No simulation changes.
+Matched comparisons are in `docs/screenshots/cockpit-quality/`; method and
+scene-specific timings are in `docs/models.md`. Local typecheck, 663 Vitest tests,
+8 tool regressions and production build passed (30 gated tests skipped).
+Chrome/Metal/M3 Max QA inspected Camel, D.H.4, Albatros and Gotha cockpits,
+exercised flights at every preset, and verified mixed-quality material/disposal
+isolation with no browser errors. Full Playwright suite was not run.
+The hangar now pins animation/gauge time for repeatable captures (F-88).
+The user authorized the merge; the PR's associated Actions run and integration
+comment record the final merge and deployment status.
+
 - **Merged: bombers and gunner seats, wave 1** (plan and file ownership in
   `docs/bombers.md` "Waves"). All four tracks are on main:
   - **Contracts** (D-086, `src/data/crew.ts`) and **track A, sim** (D-088): combat on crew
@@ -477,19 +493,20 @@ Remaining:
 This is the observed handoff inventory, not cleanup authorization. No existing workspace
 was removed; re-audit ownership, dirty/ignored files, unpushed commits and active processes
 before any future removal.
-The eight registered Git worktrees below were observed during PR #7 integration preparation.
-The human's main checkout was left untouched; the separate harness-worker row
-remains the earlier retention record, not a fresh filesystem audit.
+The eight registered Git worktrees below were observed during cockpit/quality handoff.
+The human's main checkout was left untouched. Earlier harness-worker records are
+retained, not fresh filesystem audits; the two new workers were imported into this branch.
 
 | Workspace | Branch / owner | Preservation reason |
 |---|---|---|
-| `red-baron-2-reloaded` | `main` at `f5e0a1c`; human/integration owner | Human checkout left untouched; deployed integration base is PR #6 at `89ae060`. |
+| `red-baron-2-reloaded` | `main` at `f5e0a1c`; human/integration owner | Human checkout left untouched; this task's base is merged PR #7 at `dc9f085`. |
 | `rb2r-bomber-readiness` | `fix/bomber-sim-readiness` at `8aac951`; prior parent omp session | PR #4 squash-merged; preserve original branch and ignored QA evidence pending authorized cleanup. Services stopped. |
 | `rb2r-player-aircraft-access` | `feat/player-aircraft-access`; parent omp session | Preserve the PR #5 branch and ignored screenshots/JSON in `tools/dev/scratch/player-access/` pending authorized cleanup. Browser and port 5271 service stopped; Playwright's isolated 5272 server exited. |
 | `rb2r-debt-spec` | `fix/spec-cache-identity` at `791da38`; prior spec-cache task | PR #1 squash-merged; retain original branch and workspace pending authorized cleanup. |
 | `rb2r-debt-spatial` | `perf/world-spatial-queries` at `aed20d9`; prior spatial task | PR #2 squash-merged; same retention rule. |
 | `rb2r-debt-height` | `perf/height-cache-locality` at `4057201`; prior height-cache task | PR #3 squash-merged; same retention rule. |
 | `rb2r-pr-integration` | `review/open-pr-integration` at `0ef2f76`; prior parent review | Reviewed integration snapshot/evidence; preserve until authorized cleanup. |
-| `rb2r-visual-atmosphere` | `feat/vegetation-detail`; current parent omp session | PR #7 integration workspace and ignored comparison/flight evidence; preserve pending authorized cleanup. PR #6 release-smoke browser and prior QA servers stopped. |
+| `rb2r-visual-atmosphere` | `feat/cockpit-quality-refinement`; current parent omp session | Cockpit/quality PR workspace; ignored before/after images, baseline models and flight evidence retained pending authorized cleanup. QA browser and port 5326 server stopped. |
 | omp isolated `t18fe94f19/m`, `t761509680/m`, `tb9b8755f9/m` | Completed flight, damage and tooling workers | Retained worker changes/evidence; all owned source changes incorporated into the parent branch. Separate harness workspaces, not entries in the main checkout's worktree registry. |
+| omp isolated `te0a804f7d/m`, `t722c9056b/m` | Completed MaterialQuality and CockpitGeometry workers | Commits fetched from the isolated clones and integrated as `ed2fa5b`, `bf7f6eb`, `0eed40e`; retained pending authorized cleanup. No unresolved implementation dependency. |
 

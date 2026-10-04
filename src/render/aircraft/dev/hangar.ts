@@ -25,7 +25,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import type { AircraftEntity, AircraftId, CrewStationId, DamageZone, Livery } from '../../../core/types';
+import type { AircraftEntity, AircraftId, CrewStationId, DamageZone, GraphicsQuality, Livery } from '../../../core/types';
 import { AIRCRAFT_LIST, getAircraft } from '../../../data/aircraft';
 import { composeLivery } from '../../../data/liveries';
 import { createAircraftVisual, type AircraftVisualExt } from '../aircraftVisual';
@@ -103,6 +103,9 @@ function makeEntity(id: AircraftId, livery: Livery): AircraftEntity {
 }
 
 const DEFAULTS = {
+  quality: 'high' as GraphicsQuality,
+  /** Pin simulated readings/poses for matched screenshots; null keeps live animation. */
+  animationTime: null as number | null,
   rpm: 0,
   wiggle: false,
   firing: false,
@@ -121,6 +124,8 @@ const DEFAULTS = {
 const state = {
   id: 'fokker_dri' as AircraftId,
   livery: 'Richthofen (all red)',
+  quality: DEFAULTS.quality,
+  animationTime: DEFAULTS.animationTime,
   rpm: 0,
   wiggle: false,
   firing: false,
@@ -146,12 +151,13 @@ async function load() {
       : state.livery === 'Factory'
         ? composeLivery({ aircraftId: spec.id, nation: spec.nation, date: spec.retired < '1918-04-15' ? spec.introduced : '1918-06-01' })
         : SAMPLE_LIVERIES[state.livery];
-  const v = await createAircraftVisual(spec, liv);
+  const v = await createAircraftVisual(spec, liv, state.quality);
   if (token !== loadToken) return v.dispose();
   visual?.dispose();
   visual = v;
   entity = makeEntity(state.id, liv);
   scene.add(v.object);
+  v.setCockpitView(state.cockpit);
   applyDamage();
 }
 
@@ -185,6 +191,7 @@ const ui = document.getElementById('ui')!;
 ui.innerHTML = `
   <label>Aircraft <select id="ac">${AIRCRAFT_LIST.map((s) => `<option value="${s.id}">${s.name}</option>`).join('')}</select></label>
   <label>Livery <select id="liv"><option>Default</option><option>Factory</option>${Object.keys(SAMPLE_LIVERIES).map((k) => `<option>${k}</option>`).join('')}</select></label>
+  <label>Surface quality <select id="quality">${['low', 'medium', 'high', 'ultra'].map((q) => `<option>${q}</option>`).join('')}</select></label>
   <label>RPM <input id="rpm" type="range" min="0" max="1600" value="0"></label>
   <label><input id="wig" type="checkbox"> controls</label>
   <label><input id="fire" type="checkbox"> fire</label>
@@ -195,8 +202,10 @@ ui.innerHTML = `
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 $<HTMLSelectElement>('ac').value = state.id;
 $<HTMLSelectElement>('liv').value = state.livery;
+$<HTMLSelectElement>('quality').value = state.quality;
 $<HTMLSelectElement>('ac').onchange = (e) => { state.id = (e.target as HTMLSelectElement).value as AircraftId; load(); };
 $<HTMLSelectElement>('liv').onchange = (e) => { state.livery = (e.target as HTMLSelectElement).value; load(); };
+$<HTMLSelectElement>('quality').onchange = (e) => { state.quality = (e.target as HTMLSelectElement).value as GraphicsQuality; load(); };
 $<HTMLInputElement>('rpm').oninput = (e) => { state.rpm = +(e.target as HTMLInputElement).value; };
 $<HTMLInputElement>('wig').onchange = (e) => { state.wiggle = (e.target as HTMLInputElement).checked; };
 $<HTMLInputElement>('fire').onchange = (e) => { state.firing = (e.target as HTMLInputElement).checked; };
@@ -216,15 +225,16 @@ function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   t += dt;
+  const poseTime = state.animationTime ?? t;
   if (visual && entity) {
-    placePose(t);
+    placePose(poseTime);
     entity.state.engineRpm = state.rpm;
-    entity.state.altitude = 1200 + 200 * Math.sin(t * 0.3);
-    entity.state.airspeed = 45 + 10 * Math.sin(t * 0.4);
+    entity.state.altitude = 1200 + 200 * Math.sin(poseTime * 0.3);
+    entity.state.airspeed = 45 + 10 * Math.sin(poseTime * 0.4);
     if (state.wiggle) {
-      entity.controls.pitch = Math.sin(t * 1.3);
-      entity.controls.roll = Math.sin(t * 1.7);
-      entity.controls.yaw = Math.sin(t * 0.9);
+      entity.controls.pitch = Math.sin(poseTime * 1.3);
+      entity.controls.roll = Math.sin(poseTime * 1.7);
+      entity.controls.yaw = Math.sin(poseTime * 0.9);
     } else entity.controls.pitch = entity.controls.roll = entity.controls.yaw = 0;
     if (state.firing) for (const g of entity.guns) g.roundsLeft = g.roundsLeft > 1 ? g.roundsLeft - 1 : 400;
     entity.bombs = entity.spec.bombs?.map((b) => Math.round(b.count * state.bombs));
@@ -253,7 +263,7 @@ function frame(now: number) {
     } else {
       if (state.turntable) {
         const r = Math.max(8, entity.spec.geometry.span * 1.1);
-        const a = t * 0.25 + 2.3;
+        const a = poseTime * 0.25 + 2.3;
         camera.position.set(Math.sin(a) * r, 2.2 + r * 0.18, Math.cos(a) * r);
       }
       controls.target.set(0, visual.object.position.y + 0.3, 0);
@@ -288,7 +298,7 @@ window.__hangar = {
     state.livery = livery;
     Object.assign(state, DEFAULTS, opts);
     await load();
-    setCockpit(state.cockpit);
+    $<HTMLSelectElement>('quality').value = state.quality;
     applyDamage();
   },
   setCamera(pos: [number, number, number], target: [number, number, number]) {
@@ -302,9 +312,13 @@ window.__hangar = {
     scene.background = new Color(0xff00ff);
     scene.fog = null;
   },
-  set(opts: Partial<typeof state>) {
+  async set(opts: Partial<typeof state>) {
+    const oldQuality = state.quality;
     Object.assign(state, opts);
-    if ('cockpit' in opts) setCockpit(!!opts.cockpit);
+    if (state.quality !== oldQuality) {
+      await load();
+      $<HTMLSelectElement>('quality').value = state.quality;
+    } else if ('cockpit' in opts) setCockpit(!!opts.cockpit);
     applyDamage();
   },
   breakWing() {
@@ -313,10 +327,31 @@ window.__hangar = {
   ready: () => !!visual,
   /** Diagnostics for screenshots: draw calls and triangles of the last frame. */
   stats: () => ({
+    quality: visual?.object.userData.graphicsQuality ?? state.quality,
+    animationTime: state.animationTime,
     calls: renderer.info.render.calls,
     triangles: renderer.info.render.triangles,
     eyes: visual ? Object.fromEntries([...visual.stationEyes].map(([k, v]) => [k, v.toArray().map((x) => +x.toFixed(2))])) : {},
     camera: camera.position.toArray().map((x) => +x.toFixed(2)),
   }),
+  /** Actual assigned shader features, including per-zone livery materials and cockpit gauges. */
+  materials: () => {
+    const materials = new Set<MeshStandardMaterial>();
+    visual?.object.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if ((m as MeshStandardMaterial).isMeshStandardMaterial) materials.add(m as MeshStandardMaterial);
+      }
+    });
+    return [...materials].map((m) => ({
+      name: m.name,
+      type: m.type,
+      baseMap: !!m.map,
+      roughnessMap: m.roughnessMap?.name ?? null,
+      bumpMap: m.bumpMap?.name ?? null,
+      clearcoat: 'clearcoat' in m ? m.clearcoat : 0,
+    }));
+  },
 };
 load();
