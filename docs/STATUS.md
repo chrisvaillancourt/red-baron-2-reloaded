@@ -14,15 +14,15 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-01 | Non-publishing PR/manual validation | Released / lead | PR #9 merged as 87b798e; deploy run 37184804448 and live smoke passed |
 | Q-02 | Isolated, consistent browser automation | Released / lead | 23 browser tests and live production smoke passed |
 | Q-03 | Current gameplay evidence | Complete / integration lead | Frozen-SHA fairness/quick/career/raid surveys and report replays recorded in BACKLOG |
-| Q-04 | Tailhold/defence/raid A/B coverage | Active / SurveyAdapters | Real survey adapters, retained raw results, no fabricated statistical verdicts |
-| Q-05 | Attack-extension collision reproduction | Active / CollisionFix | Isolate cases from Q-03's 20 quick collision events (eight player events); no generic avoidance rewrite |
+| Q-04 | Tailhold/defence/raid A/B coverage | Reviewed / PR #11 awaiting release | All six actual adapters, inherited options and frozen refs exercised; 20 Node regressions pass |
+| Q-05 | Attack-extension collision reproduction | Release blocked / PR #10 | Three reproduced cases fixed, but final default-fairness player-down 29.2% → 4.2% differs; narrow the correction before publication |
 | Q-06 | Mutual support for ordinary flight-mates | Blocked on Q-03/Q-05 / AI tactics | Both pursuers, meaningful threat, collision and mirror-fairness gates |
 | Q-07 | Human-like pursuer calibration | Blocked on comparable human evidence / calibration | Only 58 rounds/two hits in aim-bearing default flights; require provenance-confirmed cohort and meaningful held-out evaluation before changing fit |
 | Q-08 | Bomber pacing/interception policy | Ready for measurement / lead | Measure speed/slot error before choosing policy; preserve aircraft performance |
 | Q-09 | Damage and career eligibility policies | Blocked on owner decision / lead | Explicit default/feel/day-bomber choices; no implicit tuning |
 | Q-10 | CI runner migration | Deferred / CI | Safe branch validation first; target 2027-01-31 |
 | Q-11 | LICENSE | Blocked on owner choice | Explicit license selection |
-| Q-12 | Playable on a high-end modern iPhone | Active investigation / MobileFeasibility | End-to-end touch-only flight on physical iPhone Safari, responsive safe-area UI, audio/storage/lifecycle compatibility and sustained on-device performance; see BACKLOG |
+| Q-12 | Playable on a high-end modern iPhone | Browser implementation verified / physical-device acceptance blocked | Touch-only raid/debrief and multipointer flow pass; 25 full browser tests pass; physical iPhone Safari lifecycle, saves and sustained performance remain required |
 | Q-13 | Xbox controller support for common controls | Ready for mapping audit / game + UI | Comfortable flight/combat/crew/camera/menu operation, discoverable mappings, safe reconnect/cancellation and physical-controller verification; see BACKLOG |
 
 States distinguish implementation from integration and deployment. Deferred visual/gameplay

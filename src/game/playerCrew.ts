@@ -205,6 +205,15 @@ export class PlayerCrew {
     }
   }
 
+  /** Discard held and queued actions when a modal or interruption takes input away. */
+  cancelInput(): void {
+    this.fire = false;
+    this.releaseHeld = false;
+    this.releaseTapped = false;
+    this.releaseArmed = false;
+    this.jamPending = false;
+  }
+
   /** Per rendered frame: the release key, and at a gun: swing it, read fire and clear-jam, keep the view on the seat. */
   applyInput(inp: InputFrame): void {
     this.followSimSeat();

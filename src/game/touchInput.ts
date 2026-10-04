@@ -23,14 +23,16 @@ export interface TouchControlSink {
   cancel(): void;
   /** Called synchronously from trusted gestures to resume suspended audio. */
   gesture(): void;
-  /** Opening the actions sheet captures input and pauses; closing releases capture. */
+  /** Sheet-owned simulation hold, separate from `view.blocked`; close before dispatching its command. */
   capture(open: boolean): void;
+  /** UI owns the selected touch preference; this selects InputManager's source. */
   active(value: boolean): void;
 }
 
 export interface TouchControlView {
+  /** Flight host availability, not the user's touch preference (the UI owns its toggle). */
   active: boolean;
-  /** Another dialog or an interruption owns the controls. */
+  /** External dialog/interruption owns input; must not include the touch sheet's own capture. */
   blocked: boolean;
   throttle: number;
   stationLabel: string;

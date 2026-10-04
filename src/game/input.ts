@@ -1,7 +1,7 @@
 /**
  * Input: keyboard (rebindable actions), mouse (direct stick or mouse-aim
- * "instructor"), gamepad (standard mapping). Produces an InputFrame per
- * render frame; the flight session copies `controls` into the player.
+ * "instructor"), gamepad (standard mapping), and normalized touch intent.
+ * Produces an InputFrame per render frame; the session copies `controls` into the player.
  */
 import { Quaternion, Vector3 } from 'three';
 import type { WorldQuery } from '../core/interfaces';
@@ -9,6 +9,7 @@ import type { AircraftEntity, ControlInputs, ControlSettings, FlightModelLevel }
 import { Autopilot } from '../ai/autopilot';
 import { traitsFor } from '../ai/traits';
 import { getCoefficients } from '../sim/coefficients';
+import type { TouchInputState } from './touchInput';
 
 /** Edge-triggered actions (fire once per press). */
 export const EDGE_ACTIONS = [
@@ -51,7 +52,7 @@ export interface InputFrame {
   lookDelta: { yaw: number; pitch: number };
   /** Mouse-aim target direction in world space (unit), when mouse-aim is active. */
   aimDirection: Vector3 | null;
-  /** True if the player is actively overriding with keys/pad this frame. */
+  /** True when keys/pad override the instructor, or touch owns the pilot's controls (even centred). */
   manualOverride: boolean;
   /**
    * At a gunner's station (`InputManager.stationMode`): how far to swing the gun this frame,
@@ -338,6 +339,9 @@ const _gu = new Vector3();
 const KEY_AXIS_RATE = 3.5; // per s toward full deflection
 const KEY_AXIS_RETURN = 6;
 const THROTTLE_RATE = 0.5;
+// Same full-deflection camera rates as the gamepad, in radians per second.
+const TOUCH_LOOK_YAW_RATE = 2.5;
+const TOUCH_LOOK_PITCH_RATE = 2.0;
 
 /** Snap-look directions (radians): yaw + = left. */
 export function snapLookFrom(actions: ReadonlySet<string>): { yaw: number; pitch: number } | null {
@@ -357,6 +361,7 @@ export function snapLookFrom(actions: ReadonlySet<string>): { yaw: number; pitch
 export class InputManager {
   private held = new Set<string>();
   private pressedQueue: string[] = [];
+  private commandQueue: EdgeAction[] = [];
   private mouseDX = 0;
   private mouseDY = 0;
   private wheel = 0;
@@ -368,16 +373,41 @@ export class InputManager {
   private keyYaw = 0;
   private throttle = 0.85;
   private prevPadButtons: boolean[] = [];
+  /** After cancellation, adopt the first observed pad state without synthesizing fresh edges. */
+  private rebasePadEdges = false;
   private aim: Vector3 | null = null;
   private aimState = createMouseAimState();
   private detachFns: (() => void)[] = [];
-  enabled = true;
+  private lastMouseMode: ControlSettings['mouseMode'] | null = null;
+  private _enabled = true;
+  private _touchActive = false;
+  private touch: TouchInputState = { stickX: 0, stickY: 0, rudder: 0, lookX: 0, lookY: 0, fire: false, blip: false };
+
+  get enabled(): boolean { return this._enabled; }
+  set enabled(value: boolean) {
+    if (this._enabled === value) return;
+    this._enabled = value;
+    this.cancelTransientInput();
+  }
+
+  get touchActive(): boolean { return this._touchActive; }
+  set touchActive(value: boolean) {
+    if (this._touchActive === value) return;
+    this._touchActive = value;
+    this.cancelTransientInput();
+  }
   /**
    * The player works a gun, not the controls: the mouse, the flight keys and the left stick
    * swing the gun (`InputFrame.stationAim`), the left button and fire key fire it, and the
    * right button drags the view. Flight controls come from the AI pilot meanwhile.
    */
-  stationMode = false;
+  private _stationMode = false;
+  get stationMode(): boolean { return this._stationMode; }
+  set stationMode(value: boolean) {
+    if (this._stationMode === value) return;
+    this._stationMode = value;
+    this.cancelTransientInput();
+  }
 
   constructor(
     private readonly element: HTMLElement,
@@ -395,23 +425,26 @@ export class InputManager {
       this.held.add(e.code);
     };
     const onKeyUp = (e: KeyboardEvent) => this.held.delete(e.code);
-    const onBlur = () => {
-      this.held.clear();
-      this.mouseButtons = 0;
-    };
+    const onBlur = () => this.cancelTransientInput();
     const onMouseMove = (e: MouseEvent) => {
+      if (!this.enabled || this.touchActive) return;
       this.mouseDX += e.movementX;
       this.mouseDY += e.movementY;
     };
     const onMouseDown = (e: MouseEvent) => {
+      if (!this.enabled || this.touchActive) return;
       this.mouseButtons = e.buttons;
       const mode = this.getControls().mouseMode;
       if (mode !== 'off' && document.pointerLockElement !== this.element) {
         this.element.requestPointerLock?.()?.catch?.(() => {});
       }
     };
-    const onMouseUp = (e: MouseEvent) => (this.mouseButtons = e.buttons);
+    const onMouseUp = (e: MouseEvent) => {
+      if (!this.enabled || this.touchActive) return;
+      this.mouseButtons = e.buttons;
+    };
     const onWheel = (e: WheelEvent) => {
+      if (!this.enabled || this.touchActive) return;
       this.wheel += e.deltaY;
       e.preventDefault();
     };
@@ -437,13 +470,58 @@ export class InputManager {
   }
 
   detach(): void {
+    this.cancelTransientInput();
     this.detachFns.forEach((f) => f());
     this.detachFns = [];
-    if (document.pointerLockElement === this.element) document.exitPointerLock?.();
+    if (typeof document !== 'undefined' && document.pointerLockElement === this.element) document.exitPointerLock?.();
   }
 
   setThrottle(t: number): void {
     this.throttle = clamp(t, 0, 1);
+  }
+
+  get throttleValue(): number { return this.throttle; }
+
+  /** The UI supplies normalized intent, never synthetic keyboard/mouse events. */
+  setTouchState(change: Partial<TouchInputState>): void {
+    if (!this.enabled || !this.touchActive) return;
+    Object.assign(this.touch, change);
+  }
+
+  /** An on-screen action follows the same edge path as a fresh keyboard press. */
+  queueCommand(action: EdgeAction): void {
+    if (this.enabled) this.commandQueue.push(action);
+  }
+
+  /** Neutralize interrupted gestures and held inputs without changing the authoritative throttle. */
+  cancelTransientInput(): void {
+    this.held.clear();
+    this.pressedQueue.length = 0;
+    this.commandQueue.length = 0;
+    this.mouseDX = this.mouseDY = this.wheel = this.mouseButtons = 0;
+    this.stickX = this.stickY = this.keyPitch = this.keyRoll = this.keyYaw = 0;
+    this.touch.stickX = this.touch.stickY = this.touch.rudder = this.touch.lookX = this.touch.lookY = 0;
+    this.touch.fire = this.touch.blip = false;
+    this.prevPadButtons = [];
+    this.rebasePadEdges = true;
+    this.aim = null;
+    this.aimState.prevPitchErr = this.aimState.prevRollErr = this.aimState.prevYawErr = 0;
+    this.aimState.pilot = null;
+    this.aimState.pilotKey = '';
+  }
+
+  private pollGamepad(cs: ControlSettings, dt: number): PadFrame | null {
+    if (!cs.gamepadEnabled || typeof navigator === 'undefined' || !navigator.getGamepads) return null;
+    const pad = [...navigator.getGamepads()].find((p) => p && p.connected);
+    if (!pad) {
+      this.prevPadButtons = [];
+      return null;
+    }
+    const prev = this.rebasePadEdges ? pad.buttons.map((b) => b.pressed) : this.prevPadButtons;
+    const frame = readGamepad(pad, prev, cs, dt);
+    this.prevPadButtons = frame.pressed;
+    this.rebasePadEdges = false;
+    return frame;
   }
 
   /** Reset mouse-aim to the aircraft's current heading (e.g. after a view change or spawn). */
@@ -456,12 +534,10 @@ export class InputManager {
    * left them, key axes centred, the mouse-aim point on the nose and its instructor fresh.
    */
   syncTo(ac: AircraftEntity): void {
+    this.cancelTransientInput();
     this.throttle = clamp(ac.controls.throttle, 0, 1);
     this.stickX = clamp(ac.controls.roll, -1, 1);
     this.stickY = clamp(ac.controls.pitch, -1, 1);
-    this.keyPitch = this.keyRoll = this.keyYaw = 0;
-    this.mouseDX = this.mouseDY = 0;
-    this.aimState = createMouseAimState();
     this.resetAim(ac);
   }
 
@@ -471,9 +547,24 @@ export class InputManager {
    */
   update(dt: number, player: AircraftEntity | null, mouseSteers: boolean): InputFrame {
     const cs = this.getControls();
+    if (this.lastMouseMode !== null && this.lastMouseMode !== cs.mouseMode) this.cancelTransientInput();
+    this.lastMouseMode = cs.mouseMode;
+    if (!this.enabled) {
+      // HUD owns keyboard focus. Keep only Start's pause edge so a pad can unpause;
+      // still sample its history while blocked, without retaining any flight intent.
+      const pad = this.pollGamepad(cs, 0);
+      return {
+        controls: { pitch: 0, roll: 0, yaw: 0, throttle: this.throttle, blip: false, fireGuns: false, clearJam: false, releaseBomb: false },
+        commands: pad?.commands.includes('pause') ? ['pause'] : [],
+        snapLook: null,
+        lookDelta: { yaw: 0, pitch: 0 },
+        aimDirection: null,
+        manualOverride: false,
+      };
+    }
     const bindings = cs.keyBindings;
     const actions = resolveHeldActions(this.held, bindings);
-    const commands: EdgeAction[] = [];
+    const commands = this.commandQueue.splice(0);
     for (const code of this.pressedQueue) {
       for (const a of actionsForCode(code, bindings)) if ((EDGE_ACTIONS as readonly string[]).includes(a)) commands.push(a as EdgeAction);
     }
@@ -496,8 +587,8 @@ export class InputManager {
       this.wheel = 0;
     }
 
-    let fire = actions.has('fire');
-    let blip = actions.has('blip');
+    let fire = actions.has('fire') || (this.touchActive && this.touch.fire);
+    let blip = actions.has('blip') || (this.touchActive && this.touch.blip);
     let clearJam = commands.includes('clearJam');
     let padPitch = 0;
     let padRoll = 0;
@@ -506,37 +597,43 @@ export class InputManager {
     const snapLook = snapLookFrom(actions);
 
     // --- gamepad
-    if (cs.gamepadEnabled && typeof navigator !== 'undefined' && navigator.getGamepads) {
-      const pad = [...navigator.getGamepads()].find((p) => p && p.connected);
-      if (pad) {
-        const g = readGamepad(pad, this.prevPadButtons, cs, dt);
-        padRoll = g.roll;
-        padPitch = g.pitch;
-        padYaw = g.yaw;
-        lookDelta.yaw += g.lookYaw;
-        lookDelta.pitch += g.lookPitch;
-        fire ||= g.fire;
-        blip ||= g.blip;
-        clearJam ||= g.clearJam;
-        this.throttle += g.throttleDelta;
-        commands.push(...g.commands);
-        this.prevPadButtons = g.pressed;
-      }
+    const g = this.pollGamepad(cs, dt);
+    if (g) {
+      padRoll = g.roll;
+      padPitch = g.pitch;
+      padYaw = g.yaw;
+      lookDelta.yaw += g.lookYaw;
+      lookDelta.pitch += g.lookPitch;
+      fire ||= g.fire;
+      blip ||= g.blip;
+      clearJam ||= g.clearJam;
+      this.throttle += g.throttleDelta;
+      commands.push(...g.commands);
     }
     this.throttle = clamp(this.throttle, 0, 1);
 
+    // Screen down pulls the pilot's stick back; at a gun it lowers the aim.
+    // Shape with the same deadzone/response as the pad, applying pitch inversion only at use.
+    const touchRoll = this.touchActive ? expo(applyDeadzone(clamp(this.touch.stickX, -1, 1), cs.gamepadDeadzone)) : 0;
+    const touchPitch = this.touchActive ? expo(applyDeadzone(clamp(this.touch.stickY, -1, 1), cs.gamepadDeadzone)) : 0;
+    const touchYaw = this.touchActive ? applyDeadzone(clamp(this.touch.rudder, -1, 1), cs.gamepadDeadzone) : 0;
+    if (this.touchActive) {
+      lookDelta.yaw -= applyDeadzone(clamp(this.touch.lookX, -1, 1), cs.gamepadDeadzone) * TOUCH_LOOK_YAW_RATE * dt;
+      lookDelta.pitch -= applyDeadzone(clamp(this.touch.lookY, -1, 1), cs.gamepadDeadzone) * TOUCH_LOOK_PITCH_RATE * dt;
+    }
+
     // --- mouse
     const sens = cs.mouseSensitivity;
-    const mdx = this.mouseDX;
-    const mdy = this.mouseDY;
+    const mdx = this.touchActive ? 0 : this.mouseDX;
+    const mdy = this.touchActive ? 0 : this.mouseDY;
     this.mouseDX = 0;
     this.mouseDY = 0;
     let aimDirection: Vector3 | null = null;
     let mousePitch = 0;
     let mouseRoll = 0;
     let mouseYaw = 0;
-    const leftDown = (this.mouseButtons & 1) !== 0;
-    const rightDown = (this.mouseButtons & 2) !== 0;
+    const leftDown = !this.touchActive && (this.mouseButtons & 1) !== 0;
+    const rightDown = !this.touchActive && (this.mouseButtons & 2) !== 0;
     let stationAim: InputFrame['stationAim'];
     if (this.stationMode) {
       // Gunner: every mouse mode aims the gun (right button drags the view instead).
@@ -548,12 +645,12 @@ export class InputManager {
       const inv = cs.invertPitch ? -1 : 1;
       stationAim = stationAimDelta(
         // readGamepad has applied invert pitch to padPitch already; stationAimDelta applies it once.
-        { mouseDX: aimMouse ? mdx : 0, mouseDY: aimMouse ? mdy : 0, keyAz: kr, keyEl: kp, padAz: padRoll, padEl: padPitch * inv },
+        { mouseDX: aimMouse ? mdx : 0, mouseDY: aimMouse ? mdy : 0, keyAz: kr, keyEl: kp, padAz: padRoll + touchRoll, padEl: padPitch * inv - touchPitch },
         cs,
         dt,
       );
       if (leftDown && cs.mouseMode !== 'off') fire = true;
-    } else if (cs.mouseMode === 'mouse-aim' && player) {
+    } else if (!this.touchActive && cs.mouseMode === 'mouse-aim' && player) {
       if (!this.aim) this.resetAim(player);
       if (mouseSteers && !rightDown) {
         // Rotate the aim direction: yaw about world up, pitch about the aim's right axis.
@@ -578,7 +675,7 @@ export class InputManager {
       mouseRoll = out.roll;
       mouseYaw = out.yaw;
       if (leftDown) fire = true;
-    } else if (cs.mouseMode === 'direct-stick') {
+    } else if (!this.touchActive && cs.mouseMode === 'direct-stick') {
       if (rightDown || !mouseSteers) {
         lookDelta.yaw -= mdx * 0.003 * sens;
         lookDelta.pitch -= mdy * 0.003 * sens;
@@ -600,20 +697,20 @@ export class InputManager {
     const keyActive = Math.abs(this.keyPitch) + Math.abs(this.keyRoll) + Math.abs(this.keyYaw) > 0.01;
     const padActive = Math.abs(padPitch) + Math.abs(padRoll) + Math.abs(padYaw) > 0.01;
     // At a gun the keys and stick aim it; they don't fly (and don't reset the mouse-aim point).
-    const manualOverride = !this.stationMode && (keyActive || padActive);
+    const manualOverride = !this.stationMode && (this.touchActive || keyActive || padActive);
     const invertKeys = cs.invertPitch ? -1 : 1;
     let pitch: number, roll: number, yaw: number;
     if (this.stationMode) {
       pitch = roll = yaw = 0;
     } else if (cs.mouseMode === 'mouse-aim' && manualOverride) {
-      pitch = this.keyPitch * invertKeys + padPitch;
-      roll = this.keyRoll + padRoll;
-      yaw = this.keyYaw + padYaw;
-      if (player) this.resetAim(player); // re-sync aim with the nose after manual flying
+      pitch = this.keyPitch * invertKeys + padPitch + touchPitch * invertKeys;
+      roll = this.keyRoll + padRoll + touchRoll;
+      yaw = this.keyYaw + padYaw + touchYaw;
+      if (player && !this.touchActive) this.resetAim(player); // re-sync aim with the nose after desktop manual flying
     } else {
-      pitch = this.keyPitch * invertKeys + padPitch + mousePitch;
-      roll = this.keyRoll + padRoll + mouseRoll;
-      yaw = this.keyYaw + padYaw + mouseYaw;
+      pitch = this.keyPitch * invertKeys + padPitch + mousePitch + touchPitch * invertKeys;
+      roll = this.keyRoll + padRoll + mouseRoll + touchRoll;
+      yaw = this.keyYaw + padYaw + mouseYaw + touchYaw;
     }
 
     return {

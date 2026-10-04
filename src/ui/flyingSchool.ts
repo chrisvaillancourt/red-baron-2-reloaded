@@ -51,6 +51,15 @@ export function showFlyingSchool(ctx: UiContext): Promise<boolean> {
       return c ? [h('kbd', null, codeLabel(c))] : [];
     });
   const mouseAim = s.controls.mouseMode === 'mouse-aim';
+  const touch = window.matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  const TOUCH: Record<string, string> = {
+    I: 'Stick / aim: down pulls back, up pushes forward · Rudder left / right · Look pad',
+    II: 'Throttle slider · hold Blip',
+    III: 'Hold Fire · Menu → Clear gun jam',
+    IV: 'Menu → Padlock view · Next target · Nearest enemy',
+    V: 'Menu → Cockpit view / Chase view',
+    VI: 'Menu → Map / End flight · Return to flight closes menus',
+  };
 
   // With a controller plugged in, each lesson also shows its gamepad buttons
   // (mapping: readGamepad in src/game/input.ts).
@@ -68,7 +77,7 @@ export function showFlyingSchool(ctx: UiContext): Promise<boolean> {
       'div',
       { class: 'fs-lesson' },
       h('div', { class: 'fs-n' }, n),
-      h('div', null, h('h3', null, title), h('p', null, text), k.length ? h('div', { class: 'fs-keys' }, ...k) : null, pad && PAD[n] ? h('div', { class: 'fs-keys fs-pad' }, ...PAD[n]) : null),
+      h('div', null, h('h3', null, title), h('p', null, text), touch && TOUCH[n] ? h('div', { class: 'fs-keys' }, TOUCH[n]) : k.length ? h('div', { class: 'fs-keys' }, ...k) : null, pad && PAD[n] ? h('div', { class: 'fs-keys fs-pad' }, ...PAD[n]) : null),
     );
 
   const body = h(
@@ -81,9 +90,11 @@ export function showFlyingSchool(ctx: UiContext): Promise<boolean> {
       lesson(
         'I',
         'Flying',
-        mouseAim
-          ? 'Move the mouse and your machine turns towards the aiming circle — just point where you want to go. The stick keys fly by hand and take over from the mouse.'
-          : 'Fly the stick with the keys. Pull back to climb, bank to turn; an aeroplane turns by banking, not by rudder.',
+        touch
+          ? 'Move the on-screen stick from its centre. Down pulls back to climb, left and right bank to turn. Release it to centre. At a gun, the same pad aims; up raises the gun. Use the separate Look pad to turn your head.'
+          : mouseAim
+            ? 'Move the mouse and your machine turns towards the aiming circle — just point where you want to go. The stick keys fly by hand and take over from the mouse.'
+            : 'Fly the stick with the keys. Pull back to climb, bank to turn; an aeroplane turns by banking, not by rudder.',
         ...stickKeys(0),
         ' or ',
         ...stickKeys(1),
@@ -94,6 +105,7 @@ export function showFlyingSchool(ctx: UiContext): Promise<boolean> {
       lesson('V', 'Views', 'The cockpit is where the fighting is done; the outside views help you learn your machine.', ...keys('viewCockpit', 1), ' cockpit · ', ...keys('viewChase', 1), ' chase'),
       lesson('VI', 'Coming home', 'Land at your aerodrome, or end the flight over friendly ground when no enemy is near. The map shows your route.', ...keys('endFlight', 1), ' end flight · ', ...keys('map', 1), ' map · ', ...keys('pause', 1), ' pause'),
     ),
+    touch ? h('p', { class: 'typed fs-intro' }, 'Touch controls appear automatically; Hide touch controls turns them off and Touch controls brings them back. Menu stays available even with the HUD hidden. Its scrollable action sheet pauses your flight and includes crew stations, bombsight, bomb release and wingman orders. At a crew station the AI pilot flies; hand back with Menu → Pilot station.') : null,
   );
 
   return ctx.confirm({ title: 'Flying School', body, confirmLabel: 'Understood — take off', infoOnly: true, className: 'wide' });

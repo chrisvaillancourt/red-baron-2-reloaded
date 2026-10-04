@@ -184,6 +184,32 @@ viewport/orientation and graphics preset. Desktop device emulation is not accept
 - Dependencies: mobile interaction design and access to a physical target device.
   Lack of device access blocks on-device acceptance, not code/layout investigation.
 
+### Implemented browser path (cycle two)
+
+Touch intent now feeds the existing input frame and crew/command path. The UI owns
+per-pointer capture, a native throttle slider and a scrollable flight action sheet;
+Menu remains accessible with gestures or HUD hidden. Responsive screens/cards scroll,
+44px touch targets and safe-area padding avoid fixed desktop-only layout assumptions.
+Lifecycle/seat/modal transitions cancel transient input; backgrounded touch flights
+pause for explicit resume, whose gesture unlocks audio.
+
+Parent Chrome/ANGLE Metal (Apple M3 Max) smoke inspected real 844×390 and 390×844
+game screenshots, exercised simultaneous stick/fire with neutral release, the
+paused action sheet, throttle command, map and hidden-HUD access. A hidden-HUD
+end-flight prompt defect was reproduced and fixed. The multipointer test's initial
+CDP partial-release calls were corrected after tracing real pointer IDs.
+
+Final `E2E_PORT=5358 pnpm e2e`: 25 passed, one gated soak skipped, one GPU worker.
+This includes touch-only D.H.4 crew/bomb/map/end/debrief and multi-owner release,
+rudder, throttle, cancellation, rotation and toggle scenarios. The desktop frozen
+crew-handback test caught conflation of simulation hold with input capture; the fix
+preserves that seam and AI handback. Typecheck, 677 Vitest tests (30 gated skips),
+eight Node regressions and production build passed.
+
+Screenshots and earlier failure evidence remain in the task workspace's ignored
+`tools/dev/scratch/q12/`. No physical iPhone/Safari or thermal/frame-time claim:
+the on-device acceptance above remains blocked on hardware access, not on a stub.
+
 ## Q-13 — Xbox controller coverage and ergonomics
 
 User-requested backlog addition: make a modern Xbox controller work as well as

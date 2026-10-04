@@ -110,7 +110,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 2.2em 3em 1.6em;
+  padding: max(2.2em, env(safe-area-inset-top)) max(3em, env(safe-area-inset-right)) max(1.6em, env(safe-area-inset-bottom)) max(3em, env(safe-area-inset-left));
   gap: 1.2em;
 }
 
@@ -706,6 +706,7 @@ select.input option {
   inset: 0;
   z-index: 50;
   display: grid;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   place-items: center;
   background: rgba(10, 6, 3, 0.65);
   backdrop-filter: blur(3px) sepia(0.4);
@@ -2612,4 +2613,59 @@ select.input option {
 .fs-pad {
   margin-top: 0.3em;
   opacity: 0.9;
+}
+
+/* Phones and short landscape viewports scroll the complete screen, including
+ * footer actions. Do not trap the form in a shrinking nested flex/grid panel. */
+@media (max-width: 600px), (max-height: 500px) {
+  .rb-content {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    gap: 12px;
+  }
+  .rb-content > :not(.rb-header):not(.rb-hints) { flex-shrink: 0; }
+  .rb-header { flex-wrap: wrap; gap: 8px; }
+  .rb-header h1 { font-size: 1.6em; }
+  .rb-hints { flex-wrap: wrap; gap: 8px; }
+  .scr-title .rb-content { flex-direction: column; }
+  .title-left { flex: none; }
+  .title-menu { width: 100%; max-width: 30em; margin: 0; }
+  .logo .main { font-size: 3.2em; }
+  .logo .tagline { max-width: 100%; margin-top: .6em; }
+  .title-foot { margin-top: 1em; }
+  .title-quote { display: none; }
+  .quick, .enlist, .roster-wrap, .briefing, .hq, .fame {
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+  .quick > *, .enlist > *, .briefing > *, .hq > *, .roster-wrap > *, .fame > * {
+    min-width: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .paper.tilt-l, .paper.tilt-r { transform: none; }
+  .debrief { flex: none; justify-content: flex-start; }
+  .report { width: 100%; max-height: none; overflow: visible; padding: 1em; }
+  .report-body, .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .brief-foot { flex-wrap: wrap; }
+  .doc-paper { flex: none; overflow: visible; padding: 1em; }
+  .key-grid { grid-template-columns: minmax(0, 1fr); }
+  .tabs { flex-wrap: wrap; padding-left: 0; }
+  .tab-panel { flex: none; overflow: visible; padding: 1em; }
+  .flying-school .fs-grid { grid-template-columns: minmax(0, 1fr); }
+  .rb-modal, .rb-modal.wide {
+    width: min(56em, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 1em;
+  }
+  .rb-modal .actions { flex-wrap: wrap; }
+}
+@media (any-pointer: coarse) {
+  .rb-ui :where(button, input:not([type='checkbox']):not([type='radio']), select) { min-height: 44px; }
+  .rb-ui :where(button, select) { min-width: 44px; }
+  .rb-ui :where(input, select, textarea) { font-size: max(16px, 1em); }
+  .rb-hints { display: none; }
 }

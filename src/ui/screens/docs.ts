@@ -30,11 +30,30 @@ const tactics = (key: (action: string) => string): [string, string][] => [
 export const controlsScreen: ScreenFactory = (ctx) => {
   const shell = screenShell({ id: 'controls', title: 'Flying Manual', kicker: 'Controls & tactics', background: BG, onBack: () => ctx.router.back() });
   const b = ctx.settings().controls.keyBindings;
+  const touch = window.matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  const touchActionLabels: Record<string, string> = {
+    clearJam: 'Menu → Clear gun jam', viewPadlock: 'Menu → Padlock view', lookBack: 'Look pad',
+    endFlight: 'Menu → End flight', stationNext: 'Menu → Next crew station', stationPilot: 'Menu → Pilot station',
+    viewBombsight: 'Menu → Bombsight', releaseBomb: 'Menu → Release bomb',
+  };
   const paper = h(
     'article',
     { class: 'doc-paper paper' },
     h('h2', null, 'Notes for pilots'),
     h('p', { class: 'typed muted' }, 'Current key assignments. Change them under Options → Keys. ', h('button', { class: 'btn small', onClick: () => void showFlyingSchool(ctx) }, 'Flying School primer')),
+    h('h3', null, 'Touch controls'),
+    h('p', { class: 'typed muted' }, 'Touch controls appear for a coarse pointer or touch-capable screen; no phone model is assumed. Use Touch controls / Hide touch controls to choose. The Menu button stays available when the decorative HUD is hidden.'),
+    h('div', { class: 'key-grid' }, ...[
+      ['Stick / aim', 'Move from the centre to pitch and bank; down pulls back, up pushes forward. At a gun, up raises the aim. Release to centre.'],
+      ['Rudder left / right', 'Hold for rudder; simultaneous opposite holds cancel out.'],
+      ['Look', 'Hold away from the centre to look around; release to stop turning your head.'],
+      ['Fire / Blip', 'Hold Fire for a burst; hold Blip to cut rotary ignition.'],
+      ['Throttle slider', 'Set engine power; the displayed percentage follows the flight state.'],
+      ['Menu', 'Pauses the flight while the action sheet is open. Scroll for views, targets, map, time, crew, bombs, gun jams, wingmen, HUD and end flight.'],
+      ['Return to flight', 'Closes the action sheet without a command, or returns from a pause, map or crew dialog.'],
+    ].map(([label, description]) => h('div', { class: 'k' }, h('span', null, description), h('strong', null, label)))),
+    h('p', { class: 'typed muted' }, 'At a gun or bombsight your AI pilot flies. Use Menu → Pilot station to take the controls back. Opening a dialog, changing stations, rotating the screen or leaving the app releases held touch gestures; lift your fingers before starting again. Menus and the action sheet scroll normally.'),
+    h('h3', null, 'Keyboard assignments'),
     ...ACTION_GROUPS.flatMap((g) => [
       h('h3', null, g),
       h(
@@ -96,7 +115,7 @@ export const controlsScreen: ScreenFactory = (ctx) => {
       ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
     ),
     h('h3', null, 'Tactics'),
-    ...tactics((a) => (b[a]?.[0] ? codeLabel(b[a][0]) : 'unbound')).map(([t, d]) => h('p', null, h('strong', { class: 'engraved' }, t, '. '), d)),
+    ...tactics((a) => touch ? (touchActionLabels[a] ?? keyOf(b, a)) : keyOf(b, a)).map(([t, d]) => h('p', null, h('strong', { class: 'engraved' }, t, '. '), d)),
   );
   shell.content.append(paper);
   withHints(shell);
