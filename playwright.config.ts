@@ -13,6 +13,7 @@ export default defineConfig({
   reporter: [['list']],
   outputDir: 'test-results',
   use: {
+    headless: true,
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1280, height: 720 },
     // Hardware GL via ANGLE/Metal (the real renderer is far too heavy for SwiftShader).

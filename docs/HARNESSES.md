@@ -18,9 +18,10 @@ permissions. Historical workarounds are observations, not permission to bypass a
   merely for one task, and do not assume uncommitted parent edits reach a worktree.
 - Finite long jobs use Bash's `run_in_background` when supported; consume the completion
   result using the current wait/output mechanism. Do not end a task with unobserved owned jobs.
-- Interactive browser QA may use installed Playwright with
-  `chromium.launch({ channel: 'chrome' })` (see `tools/hangar-shots.mjs`). The cached Chromium
-  revision does not match the installed Playwright; use installed Chrome rather than downloading.
+- Browser QA may use installed Playwright with
+  `chromium.launch({ channel: 'chrome', headless: true })` (see `tools/hangar-shots.mjs`).
+  This creates an isolated automation profile. The cached Chromium revision does not match
+  the installed Playwright; use installed Chrome rather than downloading.
 - **Worktree-isolated subagents:** historical sandbox refusals include `cd` (even subshells),
   compound commands, loops, `$VAR` paths and process substitution (F-3, F-11, F-18, F-21).
   Use simple worktree-relative/absolute paths. If an allowed operation needs a workaround,
@@ -35,9 +36,11 @@ permissions. Historical workarounds are observations, not permission to bypass a
 - Finite background commands use `async: true`; their timeout still applies. Long-lived
   services use a unique `name` plus `ready`, without `async` or `timeout`. Use native `cwd`
   instead of a Node wrapper merely to change directory; use `wait` only when blocked.
-- Use the browser tool for interactive web QA. It supports explicit browser launch/attachment;
-  verify the chosen Chrome/GPU setup rather than assuming it matches Playwright. Preserve the
-  existing Playwright test runner; a browser-tool smoke run does not replace required tests.
+- Use the browser tool for browser QA, with a harness-owned automation profile. For a custom
+  Chrome `app.path` launch, put `--headless=new` in `app.args`; `headed: false` alone did not
+  prevent an interactable custom-app window. Verify the effective launch and Chrome/GPU setup
+  before interpretation. Use the user's browser/relay only with explicit authorization.
+  Preserve the existing Playwright runner; a browser-tool smoke run does not replace its tests.
 - **Editing subagents:** set `isolated: true` on each parallel editing task. If unavailable,
   assign an explicitly created worktree; do not silently run concurrent writers in the
   parent's checkout. Read-only agents ordinarily need no separate workspace. Follow Base

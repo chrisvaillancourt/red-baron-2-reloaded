@@ -1221,3 +1221,31 @@ Physical recent-iPhone Safari acceptance, repeated save/reload/app-switch checks
 a sustained 15-minute frame-time/thermal measurement remain required before claiming
 on-device playability or selecting a mobile graphics preset.
 Number assigned by the integration owner for the authorized touch-control release.
+
+## D-XXX — Keep routine browser QA off the user's desktop
+**Context.** A visible automation browser could receive accidental human input.
+The user wants to keep using the computer during agent work without adding
+infrastructure or a coordination system.
+
+**Decision.** Routine QA uses a headless, separately profiled automation browser.
+Visible QA requires an agreed hands-off window and closes afterward. Keep GPU
+scheduling separate: headless prevents desktop-input interference, not resource
+contention. Record shared policy in `AGENTS.md`, launch mechanics in the existing
+harness reference, and make the Playwright runner explicitly headless.
+Custom omp Chrome launches require `--headless=new` in the executable arguments;
+the earlier custom-app `headed: false` request had left an interactable window.
+
+**Evidence.** The owning workspace's hangar rendered through Chrome/Metal on
+M3 Max. CDP reported the headless launch flag and a separate user-data directory;
+the user agent identified HeadlessChrome. Native keyboard checkbox input and a
+click-triggered pointer-lock probe worked. The screenshot was inspected and
+browser error capture was empty. No performance-isolation guarantee is implied.
+Typecheck, 677 unit tests (30 gated skips), 20 tooling tests and the existing
+controller-isolation browser regression passed. The regression used the owning
+workspace's strict port 5367, without reusing a server. The temporary hangar
+server was stopped; its screenshot remains in ignored
+`tools/dev/scratch/headless-browser-qa/`. No full GPU-heavy e2e run was needed.
+
+**Consequences.** No new dependencies, services, runtime game behavior or shared
+core contracts. The QA browser is closed after the smoke check. The retained
+task branch is a handoff; other checkouts adopt the policy when it is integrated.
