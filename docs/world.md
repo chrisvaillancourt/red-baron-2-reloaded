@@ -43,6 +43,12 @@ world.render(camera);
 ### Components
 Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`: quadtree LOD built in a worker pool, land-use shader, feature mask for water/roads), sea, river & road ribbons (near camera), towns/farms/ruins (`towns.ts`, instanced per 8 km tile), trees (`trees.ts`, streamed 500 m cells), aerodromes, clouds (billboard cumulus + overcast deck, in-cloud whiteout), effects (`effects/`: particles, tracers, event handling, bombs).
 
+**Field materials** (`terrain/terrainMaterial.ts`). Neighboring crop colours are
+pulled toward the seasonal local average to reduce the quilt effect. Broad soil
+moisture variation crosses parcel boundaries, with stronger patchy growth inside
+each field. This reuses the existing noise samples and distance fades; parcel
+layout, regional field shapes, crop rows and land-use data are unchanged.
+
 **Cumulus appearance** (`clouds.ts`). Puffs use a dense core and a narrower,
 noise-shaped soft rim rather than a squared full-radius fade. The same three
 noise samples add subtle body shading; no extra geometry, textures or noise
