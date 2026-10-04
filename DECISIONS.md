@@ -1145,3 +1145,23 @@ with clustered crowns; ultra measured p50 11.80 ms, p95 12.63 ms in that view.
 These are short scene-specific GPU samples, not whole-game or cross-hardware
 60-FPS guarantees. Low/medium geometry attributes were compared with the baseline
 and matched exactly. Number assigned during the authorized PR #7 integration into main.
+
+## D-XXX — Scale aircraft surface shaders and refine existing cockpit shapes
+**Context.** Detailed finishes previously applied at every quality level. Close
+cockpit silhouettes still exposed square gun receivers, angular padding and flat
+panel construction.
+
+**Decision.** Low keeps base colours/livery/wood grain; medium adds roughness detail;
+high/ultra retain relief and varnish. Cache immutable materials by finish and share
+textures lazily. Pass the session quality explicitly through the aircraft factory;
+its shared contract gains only an optional third graphics-quality argument.
+Refine the generator's existing pilot padding, panel and fixed gun shapes across
+the roster, preserving node/transform contracts, primitive count and the 12,000
+triangle ceiling. Do not invent aircraft-specific historical instrumentation.
+
+**Evidence and limits.** Pinned in-engine before/after captures and GPU samples are
+documented in `docs/models.md`. Real flights exercised all four presets; simultaneous
+mixed-quality construction and low-instance disposal preserved high-quality finishes.
+Measurements are scene-specific. The largest regenerated model is Gotha at 11,844
+triangles. No simulation, dependency or instrument-reading changes. Integration owner
+assigns the decision number on merge.

@@ -99,13 +99,26 @@ a small repeating weave; metal uses roughness variation without added relief.
 Four deterministic 128×128 linear-data textures pack relief in red and roughness
 in green. They are shared across aircraft, mipmapped and anisotropically filtered.
 Livery colours/insignia remain on their existing atlases; the detail maps modulate
-roughness and normals rather than repainting markings. Finishes currently apply
-at every quality preset; they add texture sampling/shader work, not draw calls.
+roughness and normals rather than repainting markings. Surface work follows the
+session graphics preset without changing livery colours or instrument readability:
 
-In a frozen D.H.4 cockpit on Chrome/Metal/M3 Max, 90-sample GPU medians were
-4.52–4.64 ms with detail maps/varnish versus 2.93 ms with those features disabled.
-This is a material-toggle control in the new scene, not a full old-build baseline
-or a cross-hardware 60-FPS guarantee.
+| Preset | Surface finish |
+|---|---|
+| Low | Base/livery maps and wood grain; no detail roughness/bump maps or clearcoat |
+| Medium | Roughness detail only; no bump maps or clearcoat |
+| High / ultra | Full relief, roughness detail and wood varnish, as before |
+
+Materials are cached by finish, never mutated when another quality loads. High/ultra
+share the full finish; wood colour and detail textures are generated lazily once.
+`AircraftVisualFactory` accepts an additive optional third `GraphicsQuality` argument;
+the renderer defaults it to high, while flight sessions and the hangar pass it explicitly.
+
+In a pinned Camel hangar view on Chrome/Metal/M3 Max (2400×1904 capture), 108-sample
+GPU medians on the original geometry were 6.30/6.39/7.65/7.65 ms for low/medium/high/ultra.
+With the refined geometry they were 6.41/6.49/7.76/7.77 ms. This isolates the surface
+policy at fixed hangar resolution/lighting; it is not a whole-game preset benchmark.
+Short-run p95 values ranged 10.77–15.91 ms across these samples and were variable;
+no universal 60-FPS or cross-hardware guarantee is implied.
 
 **Instruments** (`gauges.ts`): unit captions sit inside the scale, with a separate
 multiplier line for RPM (`×100`) and altitude (`×1000`). Keep captions clear of
@@ -119,6 +132,26 @@ their four-sided cross-section. This adds 700 triangles per aircraft over the fo
 20-segment discs and 16×4 bezels, with no new meshes/materials/draw calls and within
 the existing 12,000-triangle model budget. Inspect the real cockpit at close range
 and in subdued flight lighting after regenerating the GLBs.
+
+**Close cockpit geometry.** Pilot coamings use rounded opening turns and a stable
+upright padded section (10 sides, 8 on twins); observer coamings retain 6 sides.
+Shared panels gain shaped shoulders, bevelled thickness, a lower bearer and fasteners.
+Fixed Vickers/Spandau guns gain stepped jackets, chamfered receivers and compact sights.
+These are refinements of the existing period-styled models, not newly researched
+historical panels. All 33 GLBs are regenerated without new mesh/material primitives
+or changes to gauge, eye, crew or muzzle transforms. Camel: 6,988 → 7,708 triangles;
+Gotha: 11,516 → 11,844, the largest model, below the unchanged 12,000 ceiling.
+
+**Matched captures.** In `dev/hangar.html`, use
+`await window.__hangar.show('sopwith_camel', 'Default', {quality: 'high',
+animationTime: 0, cockpit: true, turntable: false, lookDown: 0.43})`.
+Wait for gauge refresh frames before capturing. `animationTime: null` resumes the
+normal animation; RPM/firing remain separate controls. `await window.__hangar.set({
+quality: 'low'})` reloads the finish without losing cockpit visibility.
+`materials()` reports actual assigned shader features, and `stats()` reports the
+loaded quality/time. See [cockpit before/after](screenshots/cockpit-quality/camel.png)
+and [low/medium surface comparison](screenshots/cockpit-quality/materials.png).
+
 
 ## UV atlas / canvas conventions
 
