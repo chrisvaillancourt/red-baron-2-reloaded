@@ -1,0 +1,144 @@
+/* Interactive controls are independent of decorative HUD visibility. */
+.rb-touch-controls {
+  --touch-edge: 10px;
+  --touch-deck: 244px;
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  color: #f3ead3;
+  font: 14px/1.3 'American Typewriter', 'Courier New', monospace;
+  pointer-events: none;
+}
+.rb-touch-controls *, .rb-touch-controls *::before { box-sizing: border-box; }
+.rb-touch-controls [hidden], .rb-touch-controls[hidden] { display: none !important; }
+.rb-touch-controls button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #baa373;
+  border-radius: 7px;
+  background: rgba(24, 19, 12, .86);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.rb-touch-controls button:focus-visible, .rb-touch-controls input:focus-visible {
+  outline: 3px solid #f2c75c;
+  outline-offset: 2px;
+}
+.rb-touch-controls button:disabled { opacity: .4; cursor: default; }
+.touch-toolbar {
+  position: absolute;
+  top: max(var(--touch-edge), env(safe-area-inset-top));
+  left: max(var(--touch-edge), env(safe-area-inset-left));
+  right: max(var(--touch-edge), env(safe-area-inset-right));
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.touch-toggle { margin-left: auto; }
+.rb-touch-controls:not(.touch-enabled) .touch-toggle {
+  opacity: .6;
+  font-size: 12px;
+  background: rgba(24, 19, 12, .55);
+}
+.rb-touch-controls:not(.touch-enabled):not(.touch-capable) .touch-toolbar {
+  top: 50%;
+  left: auto;
+}
+.touch-station { padding: 6px 8px; text-shadow: 0 1px 3px #000; background: rgba(24, 19, 12, .65); border-radius: 4px; }
+.touch-flight {
+  position: absolute;
+  bottom: max(var(--touch-edge), env(safe-area-inset-bottom));
+  left: max(var(--touch-edge), env(safe-area-inset-left));
+  right: max(var(--touch-edge), env(safe-area-inset-right));
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+.touch-left, .touch-right { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.touch-left { width: 156px; }
+.touch-right { width: 156px; }
+.touch-pad {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 136px;
+  height: 136px;
+  border: 2px solid rgba(243, 234, 211, .65);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(24, 19, 12, .24), rgba(24, 19, 12, .6));
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
+}
+.touch-pad::before, .touch-pad::after { content: ''; position: absolute; background: rgba(243, 234, 211, .25); pointer-events: none; }
+.touch-pad::before { width: 1px; height: 70%; }
+.touch-pad::after { height: 1px; width: 70%; }
+.touch-look { width: 104px; height: 104px; }
+.touch-pad-label { position: absolute; top: 12px; font-size: 12px; text-shadow: 0 1px 3px #000; }
+.touch-pad-dot { width: 28px; height: 28px; border: 1px solid #f3ead3; border-radius: 50%; background: rgba(186, 163, 115, .55); pointer-events: none; }
+.touch-rudders, .touch-weapons { display: flex; gap: 6px; width: 100%; }
+.touch-rudders button, .touch-weapons button { flex: 1; padding: 6px; font-size: 12px; }
+.rb-touch-controls .touch-hold { touch-action: none; user-select: none; -webkit-user-select: none; }
+.rb-touch-controls .touch-hold[aria-pressed='true'] { background: #baa373; color: #17130d; }
+.touch-throttle {
+  pointer-events: auto;
+  width: 100%;
+  padding: 5px 8px 0;
+  border-radius: 7px;
+  background: rgba(24, 19, 12, .86);
+  text-align: center;
+  font-size: 12px;
+}
+.touch-throttle input { display: block; width: 100%; min-height: 44px; margin: 0; accent-color: #e6cb8f; }
+.touch-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  background: rgba(10, 6, 3, .75);
+  pointer-events: auto;
+}
+.touch-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  max-height: 100%;
+  min-height: 0;
+  border: 1px solid #baa373;
+  border-radius: 10px;
+  background: #211b12;
+  box-shadow: 0 10px 40px #000;
+}
+.touch-sheet header, .touch-sheet footer { flex: none; padding: 12px 16px; }
+.touch-sheet h2 { margin: 0; font-size: 20px; }
+.touch-sheet p { margin: 4px 0 0; color: #d4c6a8; }
+.touch-sheet footer { border-top: 1px solid #baa373; }
+.touch-sheet footer button { width: 100%; }
+.touch-sheet-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 16px; }
+.touch-action-group h3 { margin: 14px 0 8px; font-size: 15px; color: #e6cb8f; }
+.touch-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.touch-action-grid button { text-align: left; }
+@media (max-width: 380px) {
+  .touch-left, .touch-right { width: 142px; }
+  .touch-pad { width: 124px; height: 124px; }
+  .touch-look { width: 92px; height: 92px; }
+  .touch-station { max-width: 105px; font-size: 12px; }
+  .touch-toolbar button { font-size: 12px; padding: 6px 8px; }
+}
+@media (max-height: 500px) and (min-aspect-ratio: 4/3) {
+  .rb-touch-controls { --touch-deck: 184px; }
+  .touch-left { width: 150px; }
+  .touch-right { width: 232px; display: grid; grid-template-columns: 104px 120px; }
+  .touch-look { grid-column: 1; grid-row: 1 / 3; }
+  .touch-weapons { grid-column: 2; grid-row: 1; }
+  .touch-throttle { grid-column: 2; grid-row: 2; }
+  .touch-pad.touch-stick { width: 112px; height: 112px; }
+  .touch-sheet header, .touch-sheet footer { padding: 8px 12px; }
+  .touch-sheet p { font-size: 12px; }
+}

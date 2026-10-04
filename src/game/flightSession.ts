@@ -28,6 +28,8 @@ import type { MissionDirector } from './missionDirector';
 import type { GameModules } from './moduleTypes';
 import type { Hud } from '../ui/hud/types';
 import type { MapMarker, MapView } from '../ui/map/mapRenderer';
+import { createTouchControls } from '../ui/touchControls';
+import type { TouchControls } from './touchInput';
 import { resolveUnits } from '../ui/format';
 // Read-only gunner state for the rear-gun visuals (pure sim helper, no composition needed).
 import { getGunnerTarget, pilotGTolerance } from '../sim';
@@ -116,6 +118,10 @@ export class FlightSession {
   private director!: MissionDirector;
   private hud!: Hud;
   private input!: InputManager;
+  private touch: TouchControls | null = null;
+  private touchCapable = false;
+  private touchActive = false;
+  private touchCapture = false;
   private rig!: CameraRig;
   private crew!: PlayerCrew;
   private mapOpen = false;
@@ -146,16 +152,37 @@ export class FlightSession {
   private reject!: (e: unknown) => void;
   private finished = false;
   private onResize = () => this.resize();
+  private onVisibility = () => {
+    if (document.hidden) this.interruptTouch();
+  };
+  private onBlur = () => this.interruptTouch();
+  private onMapKey = (event: KeyboardEvent) => {
+    // The map holds touch-capable flights, but has no modal keyboard handler.
+    if ((!this.touchCapable && !this.touchActive) || !this.canCloseMap || event.repeat) return;
+    const bindings = this.settings.controls.keyBindings;
+    if (!bindings.map?.includes(event.code) && !bindings.pause?.includes(event.code)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.touchCommand('pause');
+  };
   private contextLost = false;
   private contextLostAt = 0;
   private throwOnNextFrame: string | null = null;
   /** Audio is not flight-critical: after its first exception it is switched off for this session. */
   private audioFailed = false;
+  private resumeAudio = () => {
+    if (this.audioFailed) return;
+    // Invoke inside the trusted gesture, before any awaited work (Safari autoplay policy).
+    void this.audio.resume().catch((e) => console.warn('[flight] audio resume failed', e));
+  };
   private onContextLost = (e: Event) => {
     if (this.finished) return;
     e.preventDefault(); // lets the browser restore the context
     this.contextLost = true;
     this.contextLostAt = performance.now();
+    this.cancelInputs();
+    if (this.input) this.input.enabled = false;
+    if (this.touch) this.updateTouch();
     this.hud?.showMessage('Graphics device reset: restoring…', { kind: 'warning', duration: 4 });
   };
   private onContextRestored = () => {
@@ -259,11 +286,43 @@ export class FlightSession {
     } else {
       this.rig.setMode('chase');
     }
+    this.touchCapable = navigator.maxTouchPoints > 0 || window.matchMedia('(any-pointer: coarse)').matches;
+    this.touchActive = this.touchCapable;
+    this.input.touchActive = this.touchActive;
+    this.touch = createTouchControls(this.root, {
+      state: (change) => this.input.setTouchState(change),
+      throttle: (value) => {
+        if (!this.inputCaptured) this.input.setThrottle(value);
+      },
+      command: (action) => this.touchCommand(action),
+      cancel: () => {
+        if (this.touchActive) {
+          this.input.cancelTransientInput();
+          this.crew.cancelInput();
+        }
+      },
+      gesture: this.resumeAudio,
+      capture: (open) => {
+        this.touchCapture = open;
+        this.input.enabled = !this.inputCaptured;
+        if (!open && !this.inputCaptured) this.canvas.focus();
+      },
+      active: (active) => {
+        this.cancelInputs();
+        this.touchActive = active;
+        this.input.touchActive = active;
+        if (!this.inputCaptured) this.canvas.focus();
+      },
+    });
+    this.updateTouch();
     // Event fan-out.
     this.unsubs.push(
       this.bus.onAny((e) => this.onEvent(e)),
     );
     window.addEventListener('resize', this.onResize);
+    document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('blur', this.onBlur);
+    window.addEventListener('keydown', this.onMapKey, true);
     this.resize();
     await this.warmUpTerrain(loading);
     if (this.finished) return;
@@ -271,7 +330,7 @@ export class FlightSession {
     this.canvas.focus();
 
     window.__rb2 = { ...window.__rb2, session: this.debugHandle() };
-    this.bus.emit({ type: 'radio', from: '', text: `${mission.title}. Esc for the menu, M for the map.` });
+    this.bus.emit({ type: 'radio', from: '', text: `${mission.title}. ${this.touchActive ? 'Menu opens flight actions and the map.' : 'Esc for the menu, M for the map.'}` });
     this.lastT = performance.now();
     this.started = true;
     this.raf = requestAnimationFrame(this.frame);
@@ -332,24 +391,86 @@ export class FlightSession {
   }
 
   private resize(): void {
+    this.cancelInputs();
     const w = this.root.clientWidth || window.innerWidth;
     const h = this.root.clientHeight || window.innerHeight;
     this.renderer.resize(w, h);
     this.rig.setAspect(w / Math.max(1, h));
   }
 
+  private get flightHeld(): boolean {
+    return this.paused || this.touchCapture || ((this.touchCapable || this.touchActive) && (this.mapOpen || document.hidden));
+  }
+
+  private get inputCaptured(): boolean {
+    return this.hud.menuOpen || this.touchCapture || this.contextLost || ((this.touchCapable || this.touchActive) && (this.mapOpen || document.hidden));
+  }
+
+  private get canCloseMap(): boolean {
+    return this.mapOpen && !this.hud.menuOpen && !this.touchCapture && !this.contextLost && !document.hidden;
+  }
+
+  private cancelInputs(): void {
+    this.touch?.cancel();
+    this.input?.cancelTransientInput();
+    this.crew?.cancelInput();
+  }
+
+  private interruptTouch(): void {
+    if ((!this.touchCapable && !this.touchActive) || !this.started || this.finished) return;
+    this.cancelInputs();
+    this.setPaused(true);
+    this.lastT = performance.now();
+    this.guardAudio(() => this.audio.stopFlight());
+  }
+
+  private updateTouch(): void {
+    const player = this.world.player;
+    this.touch?.update({
+      active: !this.finished,
+      blocked: this.mapOpen || this.hud.menuOpen || document.hidden || this.contextLost,
+      throttle: this.input.throttleValue,
+      stationLabel: this.crew.station?.label ?? 'Pilot',
+      hasCrew: !!player && crewStations(player.spec).length > 1,
+      hasBombs: !!player?.bombs?.length,
+    });
+  }
+
+  private touchCommand(action: EdgeAction): void {
+    if (this.finished || this.contextLost || document.hidden) return;
+    if (action === 'pause' && (this.mapOpen || this.hud.menuOpen)) {
+      this.mapOpen = false;
+      this.ordersOpen = false;
+      this.hud.showMap(null);
+      this.hud.showWingmanMenu(false);
+      this.hud.hideEndFlightPrompt();
+      this.setPaused(false);
+    } else if (!this.mapOpen && !this.hud.menuOpen) {
+      this.input.queueCommand(action);
+    }
+    this.updateTouch();
+  }
+
   /** Pause/resume the simulation; `menu` shows the HUD pause card while paused. */
   private setPaused(p: boolean, menu = true): void {
+    this.cancelInputs();
     this.paused = p;
     if (p && document.pointerLockElement) document.exitPointerLock?.();
     if (!p) {
       this.hud.hidePauseMenu();
+      this.hud.setVisible(this.hudVisible);
+      this.input.enabled = !this.inputCaptured;
       this.canvas.focus();
       return;
     }
+    this.input.enabled = false;
+    this.hud.setVisible(true);
     if (!menu) return;
     this.hud.showPauseMenu({
-      onResume: () => this.setPaused(false),
+      onResume: () => {
+        this.resumeAudio();
+        this.setPaused(false);
+      },
       onEndFlight: () => this.promptEndFlight(true),
       onQuit: () => {
         this.director.abort();
@@ -494,8 +615,17 @@ export class FlightSession {
   private handleCommands(cmds: EdgeAction[]): void {
     const player = this.world.player;
     for (const c of cmds) {
+      if (c === 'map' && this.inputCaptured && !this.canCloseMap) continue;
       // Seats, the bombsight, bomb release, and F1 at a gun (the gunner's view).
-      if (this.crew.command(c, this.waypointIndex)) continue;
+      const station = this.core.playerStation;
+      if (this.crew.command(c, this.waypointIndex)) {
+        if (station !== this.core.playerStation) {
+          // syncTo already restored desktop handback; do not erase its stick/aim.
+          this.touch?.cancel();
+          this.crew.cancelInput();
+        }
+        continue;
+      }
       switch (c) {
         case 'pause':
           this.setPaused(!this.paused);
@@ -538,6 +668,7 @@ export class FlightSession {
           this.timeScaleIdx = 0;
           break;
         case 'map':
+          this.cancelInputs();
           this.mapOpen = !this.mapOpen;
           if (!this.mapOpen) this.hud.showMap(null);
           break;
@@ -626,17 +757,20 @@ export class FlightSession {
     const dtRaw = Math.max(0, (now - this.lastT) / 1000);
     const dtReal = Math.min(MAX_FRAME_DT, dtRaw);
     // fps from the raw frame time (real hitches count); compression from what the sim advanced.
-    this.recorder?.frame(dtRaw, dtReal, this.paused ? 1 : this.timeScale);
+    this.recorder?.frame(dtRaw, dtReal, this.flightHeld ? 1 : this.timeScale);
     this.lastT = now;
     this.frames++;
     const world = this.world;
     const player = world.player;
 
-    // HUD cards (pause, end flight) own the keyboard while open.
-    this.input.enabled = !this.hud.menuOpen;
+    // Modal capture blocks input; a silent simulation freeze still permits commands.
+    this.updateTouch();
+    this.input.enabled = !this.inputCaptured;
+    const station = this.core.playerStation;
     const inp = this.input.update(dtReal, player && player.outcome === null ? player : null, this.rig.mouseSteers);
     this.handleCommands(inp.commands);
-    if (player && player.outcome === null && !this.paused) {
+    const held = this.flightHeld;
+    if (player && player.outcome === null && !held && station === this.core.playerStation) {
       // At a gun the AI pilot owns the controls; the player's input swings and fires the gun.
       this.crew.pilotControls(inp, player.controls);
       this.crew.applyInput(inp);
@@ -654,7 +788,7 @@ export class FlightSession {
       }
     }
 
-    if (!this.paused) {
+    if (!held) {
       const h = 1 / SIM_HZ;
       this.accumulator += dtReal * this.timeScale;
       let first = true;
@@ -673,14 +807,14 @@ export class FlightSession {
     }
 
     // Visual sync (poses blended between sim steps; see renderInterp.ts).
-    this.interp.apply(world.aircraft, this.paused ? 1 : this.accumulator * SIM_HZ);
+    this.interp.apply(world.aircraft, held ? 1 : this.accumulator * SIM_HZ);
     // Through the bombsight the aimer looks past his own airframe: hide it rather than stare at the wing.
     const hideOwn = this.rig.mode === 'bombsight';
     for (const ac of world.aircraft) {
       const v = this.visuals.get(ac.id);
       if (!v) continue;
       v.object.visible = !(hideOwn && ac === player);
-      v.update(ac, this.paused ? 0 : dtReal);
+      v.update(ac, held ? 0 : dtReal);
       if (ac === player && this.crew.aimsFlexibleGun) this.crew.syncVisual();
       else if (ac.spec.guns.some((g) => g.mount === 'flexible')) this.aimGunnerVisual(ac, v);
     }
@@ -693,11 +827,11 @@ export class FlightSession {
       this.crew.frame();
       this.rig.update(dtReal, player, world, vis ? this.crew.eye(_eye) : DEFAULT_EYE, inp);
     }
-    this.renderer.update(this.paused ? 0 : dtReal, this.rig.camera, world, this.combat.bullets, this.combat.bombs);
+    this.renderer.update(held ? 0 : dtReal, this.rig.camera, world, this.combat.bullets, this.combat.bombs);
     this.renderer.render(this.rig.camera);
     this.interp.restore();
     if (this.pixelRequests.length) this.samplePixels();
-    this.guardAudio(() => this.audio.updateFlight(this.rig.camera, player, world, this.paused ? 0 : dtReal, this.rig.inCockpit));
+    this.guardAudio(() => this.audio.updateFlight(this.rig.camera, player, world, held ? 0 : dtReal, this.rig.inCockpit));
     if (player) {
       this.waypointIndex = advanceWaypoint(player, world, this.waypointIndex);
       this.hud.update(
@@ -714,7 +848,7 @@ export class FlightSession {
           aimDirection: inp.aimDirection,
           waypointIndex: this.waypointIndex,
           wingmanOrders: this.wingmanOrders,
-          hint: this.settings.showTutorialHints && world.time < 20 ? START_HINT + (crewStations(player.spec).length > 1 ? CREW_HINT : '') : null,
+          hint: this.settings.showTutorialHints && world.time < 20 ? (this.touchActive ? 'Touch stick to steer · FIRE shoots · MENU for views, crew and orders' : START_HINT + (crewStations(player.spec).length > 1 ? CREW_HINT : '')) : null,
           knowsEnemy: (id) => this.awareness.knows(id, world.time),
           crew: this.crew.hud(this.rig.camera),
         }),
@@ -839,6 +973,10 @@ export class FlightSession {
     };
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('blur', this.onBlur);
+    window.removeEventListener('keydown', this.onMapKey, true);
+    step('touch controls', () => this.touch?.dispose());
     step('canvas listeners', () => {
       this.canvas?.removeEventListener('webglcontextlost', this.onContextLost);
       this.canvas?.removeEventListener('webglcontextrestored', this.onContextRestored);

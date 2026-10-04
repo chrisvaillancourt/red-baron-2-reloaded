@@ -247,6 +247,26 @@ describe('PlayerCrew bombs', () => {
     expect(t.player.stationInputs!.releaseBomb).toBe(false);
   });
 
+  it('discards an interrupted bomb tap, then releases one bomb on a fresh press', () => {
+    const t = setup(dh4BombRun('observer'));
+    t.crew.start();
+    const aboard = () => t.player.bombs!.reduce((sum, n) => sum + n, 0);
+    const before = aboard();
+    t.crew.command('releaseBomb', 0);
+    t.crew.cancelInput();
+    t.crew.applyInput(frame());
+    step(t.core, t.crew, 8);
+    expect(aboard()).toBe(before);
+
+    t.crew.command('releaseBomb', 0);
+    t.crew.applyInput(frame());
+    step(t.core, t.crew, 8);
+    expect(aboard()).toBe(before - 1);
+    t.crew.applyInput(frame());
+    step(t.core, t.crew, 8);
+    expect(aboard()).toBe(before - 1);
+  });
+
   it('says so on a type without bombs, or with none left', () => {
     const t = setup();
     t.crew.command('viewBombsight', 0);

@@ -119,6 +119,36 @@ The Options key list and the Flying Manual pick up the Crew key group from
 `src/ui/bindings.ts`; the Manual also has an "At a gun or the bombsight" table (which
 mirrors `InputManager.stationMode`) and gunner and bomb-aimer notes.
 
+## Touch flight controls
+
+`src/ui/touchControls.ts` owns pointer capture and a scrollable action sheet;
+`src/game/touchInput.ts` is the intent-only seam. `InputManager` converts normalized
+stick/rudder/look rates using existing settings and emits the same input frame and
+edge commands as desktop controls. Neutral touch stick still owns the aircraft;
+the mouse instructor must not take over at its centre.
+
+Touch-capable browsers enable the overlay automatically; its toggle also allows
+manual selection. Stick down pulls back at the pilot seat, while up raises the gun
+at a crew station. Fire/Blip/rudder/look support independent simultaneous pointers.
+Throttle uses the authoritative game value. Menu exposes views, targeting, map,
+time, crew, bombs, jam clearing, wingman orders, HUD visibility and end flight.
+The Menu stays available when touch gestures or the decorative HUD are hidden.
+
+`TouchControlView.active` means the flight host exists, not the selected input
+preference. The UI owns that preference and calls `sink.active`. The action sheet
+owns a separate simulation/input capture; close it before enqueueing its command.
+External modals block the overlay, but a silent simulation freeze is not an input
+capture. Crew changes discard stale held/queued actions without erasing AI-to-player
+throttle/direct-stick handback. Pointer cancellation, rotation, blur, backgrounding
+and context loss release transient intent; touch-device focus loss pauses for an
+explicit resume. Resume gestures unlock audio synchronously.
+
+Menus/cards scroll on narrow or short screens, interactive targets are at least
+44px in coarse-pointer layouts, and `viewport-fit=cover` pairs with safe-area padding.
+Projected world markers retain full-canvas coordinates. Chromium touch emulation
+exercises these paths; physical iPhone Safari audio, saves, lifecycle and sustained
+frame time still require the device acceptance in BACKLOG Q-12.
+
 ## HudView contract
 
 See `src/ui/hud/types.ts` (fully documented). Units are SI; screen points are

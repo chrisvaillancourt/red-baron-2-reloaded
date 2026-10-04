@@ -998,3 +998,55 @@
 .hud-cue.cue-past {
   color: var(--hud-red);
 }
+
+/* Keep only edge-anchored decoration inside notches. Projected crew/target
+ * markers retain the full canvas coordinate space and are never inset. */
+.hud-tape, .hud-tape-overlay { top: max(1.1em, env(safe-area-inset-top)); }
+.hud-heading { top: calc(max(1.1em, env(safe-area-inset-top)) + 2.3em); }
+.hud-readout { bottom: max(1.1em, env(safe-area-inset-bottom)); }
+.hud-messages { left: max(1.3em, env(safe-area-inset-left)); top: max(1.1em, env(safe-area-inset-top)); }
+.hud-status { right: max(1.3em, env(safe-area-inset-right)); top: max(1.1em, env(safe-area-inset-top)); }
+.hud-cluster { left: max(1.2em, env(safe-area-inset-left)); bottom: max(1em, env(safe-area-inset-bottom)); }
+.hud-guns { right: max(1.4em, env(safe-area-inset-right)); bottom: max(1.1em, env(safe-area-inset-bottom)); }
+.hud-bombs { right: max(1.4em, env(safe-area-inset-right)); bottom: max(.15em, env(safe-area-inset-bottom)); }
+.rb-hud.in-cockpit .hud-readout { left: max(1.2em, env(safe-area-inset-left)); bottom: max(1.1em, env(safe-area-inset-bottom)); }
+.hud-menu-backdrop {
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+}
+.hud-card { max-height: 100%; overflow-y: auto; }
+.rb-touch-menu-available .hud-menu-backdrop { padding-top: max(60px, env(safe-area-inset-top)); }
+.hud-map { top: max(5%, env(safe-area-inset-top)); right: max(8%, env(safe-area-inset-right)); bottom: max(5%, calc(env(safe-area-inset-bottom) + 20px)); left: max(8%, env(safe-area-inset-left)); }
+.rb-touch-active { --touch-deck: 260px; }
+.rb-touch-menu-available .hud-tape, .rb-touch-menu-available .hud-tape-overlay { top: calc(max(10px, env(safe-area-inset-top)) + 50px); }
+.rb-touch-menu-available .hud-heading { top: calc(max(10px, env(safe-area-inset-top)) + 78px); }
+.rb-touch-menu-available .hud-messages { top: calc(max(10px, env(safe-area-inset-top)) + 102px); max-width: 48%; }
+.rb-touch-menu-available .hud-status { top: calc(max(10px, env(safe-area-inset-top)) + 102px); }
+.rb-touch-active .hud-cluster { display: none; }
+.rb-touch-active .rb-hud .hud-readout {
+  left: 50%;
+  bottom: calc(var(--touch-deck) + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  width: calc(100% - max(12px, env(safe-area-inset-left)) - max(12px, env(safe-area-inset-right)));
+  gap: .6em;
+  font-size: .85em;
+}
+.rb-touch-active .rb-hud .hud-readout .r { display: flex; flex-direction: column; align-items: center; min-width: 3.8em; gap: 0; }
+.rb-touch-active .hud-guns { bottom: calc(var(--touch-deck) + 54px + env(safe-area-inset-bottom)); font-size: .8em; }
+.rb-touch-active .hud-bombs { bottom: calc(var(--touch-deck) + 40px + env(safe-area-inset-bottom)); }
+.rb-touch-active .hud-seat { bottom: calc(var(--touch-deck) + 56px + env(safe-area-inset-bottom)); max-width: 58%; white-space: normal; text-align: center; }
+.rb-touch-active .hud-cue { top: auto; bottom: calc(var(--touch-deck) + 80px + env(safe-area-inset-bottom)); max-width: 90%; white-space: normal; text-align: center; }
+@media (max-height: 500px) and (min-aspect-ratio: 4/3) {
+  .rb-touch-active { --touch-deck: 184px; }
+  .rb-touch-active .rb-hud .hud-readout { top: 112px; bottom: auto; width: auto; flex-wrap: nowrap; }
+  .rb-touch-active .hud-guns { bottom: calc(184px + env(safe-area-inset-bottom)); }
+  .rb-touch-active .hud-bombs { bottom: calc(166px + env(safe-area-inset-bottom)); right: max(10px, env(safe-area-inset-right)); }
+  .rb-touch-active .hud-seat { bottom: 76px; max-width: 36%; }
+  .rb-touch-active .hud-cue { bottom: 112px; max-width: 36%; font-size: .8em; }
+}
+@media (any-pointer: coarse) {
+  .hud-card button { min-width: 44px; min-height: 44px; }
+}

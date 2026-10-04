@@ -1201,3 +1201,23 @@ Valid zero-denominator and two-aircraft crash reports remain comparable, without
 inventing percentages or sample counts. Invalid or failed reports retain diagnostic
 evidence but emit no comparison. No runtime dependencies or gameplay-policy change.
 Number assigned by the integration owner for the user-authorized PR #11 integration.
+
+## D-108 — Add touch intent without a second flight-control system
+**Context.** Browser menus already use native controls, but a phone could not fly
+without a keyboard, mouse or controller. iPhone performance and lifecycle behavior
+cannot be inferred from a desktop GPU or emulated viewport.
+
+**Decision.** A pointer-owning UI overlay sends normalized intent through InputManager
+and the existing crew/command path. Keep throttle authoritative, bypass the mouse
+instructor while touch owns the stick, and treat bomb/jam/menu presses as edges.
+Separate the sheet's simulation hold from external modal input capture; retain a
+Menu escape when the HUD or gesture controls are hidden. Cancel transient intent
+on seat/ownership/lifecycle transitions without erasing desktop AI handback.
+Use capability detection and an explicit toggle, not user-agent sniffing.
+
+**Consequences.** Responsive safe-area menus and touch-only browser flights can be
+verified locally without changing physics, shared core contracts or dependencies.
+Physical recent-iPhone Safari acceptance, repeated save/reload/app-switch checks and
+a sustained 15-minute frame-time/thermal measurement remain required before claiming
+on-device playability or selecting a mobile graphics preset.
+Number assigned by the integration owner for the authorized touch-control release.
