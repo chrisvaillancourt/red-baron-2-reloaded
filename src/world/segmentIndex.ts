@@ -49,6 +49,8 @@ export class SegmentIndex {
   private readonly segs: Seg[] = [];
   private readonly cell: number;
   private readonly buckets = new Map<number, number[]>();
+  private readonly seen: Uint32Array;
+  private generation = 0;
   private minCX = Infinity;
   private maxCX = -Infinity;
   private minCZ = Infinity;
@@ -108,6 +110,7 @@ export class SegmentIndex {
           this.maxCZ = Math.max(this.maxCZ, cz);
         }
     });
+    this.seen = new Uint32Array(this.segs.length);
   }
 
   private key(cx: number, cz: number): number {
@@ -133,20 +136,29 @@ export class SegmentIndex {
     let best = maxDistance;
     let bestSeg = -1;
     let bestT = 0;
-    const seen = new Set<number>();
+    // Each segment can occupy many buckets; stamp it once per query without
+    // allocating a Set. Clear old stamps before reusing a wrapped generation.
+    this.generation = (this.generation + 1) >>> 0;
+    if (this.generation === 0) {
+      this.seen.fill(0);
+      this.generation = 1;
+    }
+    const generation = this.generation;
     // Max ring needed to cover the whole index from this point.
     const maxRing = Math.max(Math.abs(cx - this.minCX), Math.abs(cx - this.maxCX), Math.abs(cz - this.minCZ), Math.abs(cz - this.maxCZ)) + 1;
     for (let r = 0; r <= maxRing; r++) {
       // Any segment in ring r is at least (r - 1) * cell away.
       if ((r - 1) * this.cell > best) break;
       for (let ix = cx - r; ix <= cx + r; ix++) {
-        for (let iz = cz - r; iz <= cz + r; iz++) {
-          if (Math.max(Math.abs(ix - cx), Math.abs(iz - cz)) !== r) continue;
+        // Keep ix/iz ascending, including tie order: outer columns visit every
+        // row, while inner columns visit only the bottom and top perimeter.
+        const zStep = ix === cx - r || ix === cx + r ? 1 : 2 * r;
+        for (let iz = cz - r; iz <= cz + r; iz += zStep) {
           const b = this.buckets.get(this.key(ix, iz));
           if (!b) continue;
           for (const si of b) {
-            if (seen.has(si)) continue;
-            seen.add(si);
+            if (this.seen[si] === generation) continue;
+            this.seen[si] = generation;
             const s = this.segs[si];
             const abx = s.bx - s.ax;
             const abz = s.bz - s.az;

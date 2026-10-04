@@ -13,6 +13,13 @@
 | `forestDensityAt`, `townDensityAt`, `aerodromeClearance`, `nearestTown`, `TOWNS_WORLD` | Land-use helpers (towns bucketed). |
 | `riverQuery`, `riverPolylines`, `coastDistance`, `roadNetwork` | Water/coast/roads for placement and rendering. |
 
+`SegmentIndex` serves nearest-segment and signed-distance queries for front lines,
+rivers, coast and ridges. Queries visit bucket-ring perimeters in stable column/row
+order and reuse per-segment generation stamps instead of allocating a visited set.
+Passing a `NearestHit` output object also avoids result allocation. The distance cap
+is exclusive; equal-distance ties keep the first segment visited. Generation wrap
+clears the stamps before reuse, and each index owns its visitation storage.
+
 ## Renderer (`src/render`)
 
 ```ts
