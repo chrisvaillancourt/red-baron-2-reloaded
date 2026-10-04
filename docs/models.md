@@ -93,6 +93,20 @@ Materials: `Livery_Fuselage`, `Livery_WingTop`, `Livery_WingBottom`, `Livery_Tai
 `Livery_Accent` (wheel covers, spinner) plus `Metal`, `Wood`, `Rubber`, `Pilot`, `Skin`, `Leather`,
 `Glass`, `Gauge`, `Cloth`, `Bomb` and `BombRacks`. The runtime replaces all of them.
 
+**Surface finishes** (`aircraftVisual.ts`): wood has a repeating grain colour map,
+subtle relief and a light varnish clearcoat; leather has fine relief; fabric uses
+a small repeating weave; metal uses roughness variation without added relief.
+Four deterministic 128×128 linear-data textures pack relief in red and roughness
+in green. They are shared across aircraft, mipmapped and anisotropically filtered.
+Livery colours/insignia remain on their existing atlases; the detail maps modulate
+roughness and normals rather than repainting markings. Finishes currently apply
+at every quality preset; they add texture sampling/shader work, not draw calls.
+
+In a frozen D.H.4 cockpit on Chrome/Metal/M3 Max, 90-sample GPU medians were
+4.52–4.64 ms with detail maps/varnish versus 2.93 ms with those features disabled.
+This is a material-toggle control in the new scene, not a full old-build baseline
+or a cross-hardware 60-FPS guarantee.
+
 ## UV atlas / canvas conventions
 
 Canvas coordinates: u → right, v → **down** (v = 0 is the top row; textures use `flipY = false`).
@@ -111,6 +125,11 @@ Metadata keys (root `userData`) give the metres each atlas spans so insignia sta
   to its own chord, `uv_fin_chord`, `uv_rudder_chord`), v over `uv_vtail_height`. Bottom half:
   horizontal tail, u = 0.5 + x / `uv_tail_span`, v = 0.5 + 0.5 · (aft of stab LE / `uv_tail_chord`).
 * **Cowling** (256×128). u around, v front → back.
+* **Unatlased surfaces:** `Wood`, `Leather`, `Metal` and `Cloth` faces without
+  explicit UVs use dominant-plane projection in Blender model coordinates,
+  one UV unit per metre. This replaces collapsed `(0, 0)` coordinates that sampled
+  only one texel. Explicit atlas/gauge UVs are preserved. Regenerate all GLBs after
+  changing this generator rule; the cockpit UV regression checks nonzero mapped area.
 
 ## Runtime (`src/render/aircraft`)
 

@@ -164,6 +164,16 @@ class MB:
     def face(self, idx, uvs=None, mat=0):
         if len(set(idx)) < 3:
             return
+        if uvs is None and self.mats[mat] in ('Wood', 'Leather', 'Metal', 'Cloth'):
+            # Repeating detail maps use metre-scaled, dominant-plane UVs.
+            # Explicit livery/gauge atlases remain untouched.
+            points = [Vector(self.v[i]) for i in idx]
+            normal = Vector((0, 0, 0))
+            for a, b in zip(points, points[1:] + points[:1]):
+                normal += a.cross(b)
+            axis = max(range(3), key=lambda i: abs(normal[i]))
+            axes = ((1, 2), (0, 2), (0, 1))[axis]
+            uvs = [(p[axes[0]], p[axes[1]]) for p in points]
         self.f.append(tuple(idx))
         self.fuv.append(uvs if uvs is not None else [(0.0, 0.0)] * len(idx))
         self.fm.append(mat)
