@@ -1035,7 +1035,7 @@ tools included adjacent previews; section-only exposure is therefore a tool limi
 not guaranteed by the pointer. The harness reference is not eagerly imported. Typecheck and the
 623-test passing unit suite remained green after the extraction.
 
-## D-XXX — Share bomber support geometry, nacelle placement and crew posture
+## D-101 — Share bomber support geometry, nacelle placement and crew posture
 **Context.** The shipped Gotha, AEG and O/400 models have wheel contacts 0.52–0.96 m
 below the simulation's generic −1.2 m datum. Their nacelles are positioned by private
 Blender tables, while damage uses wing-edge heuristics. Floor gunners receive the same
@@ -1055,7 +1055,7 @@ aircraft-ID tables. Single-engine types keep their existing derivation.
 changes. Specs remain immutable after caching. Ground attitude must follow the support
 points, and engine damage must follow cowling volume, not its decorative bearers.
 Independent shipped-model measurements, ground/roll simulation, and hit rays are the
-verification seams. Branch decisions keep D-XXX until integration into main.
+verification seams. Numbered during the authorized PR #4 integration into main.
 
 **Implementation and verification (2026-10-04 UTC).** The simulator and Blender now
 consume this metadata; baseline/candidate Blender meshes are identical for all three
@@ -1069,7 +1069,7 @@ loaded ground/takeoff regressions and round traces cover the consumers; real Chr
 ground/takeoff and overlay evidence is recorded in `docs/bombers.md`. Independent review
 found no defects in this slice. Aircraft availability and AI balance remain unchanged.
 
-## D-XXX — Compare exact observations in isolated Vite SSR processes
+## D-102 — Compare exact observations in isolated Vite SSR processes
 **Context.** Ad-hoc review probes attempted to call TypeScript compiler APIs that TS7
 does not expose. A second probe differed only because one side had initialized lazy
 crater grids and the other had not. Repeated bespoke loaders and asymmetric setup
