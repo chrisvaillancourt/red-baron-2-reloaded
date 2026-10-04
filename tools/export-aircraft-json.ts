@@ -22,7 +22,7 @@ const data = AIRCRAFT_LIST.map((s) => ({
   engineCount: s.performance.engineCount ?? 1,
   guns: s.guns,
   // Resolved through crew.ts, so the models' EyePoint_<id> empties match the sim's defaults.
-  stations: crewStations(s).map((st) => ({ id: st.id, crewIndex: st.crewIndex, guns: st.guns, bombAimer: !!st.bombAimer, eye: stationEye(s, st) })),
+  stations: crewStations(s).map((st) => ({ id: st.id, crewIndex: st.crewIndex, guns: st.guns, bombAimer: !!st.bombAimer, eye: stationEye(s, st), posture: st.posture ?? 'standing' })),
   // Sizes from the table the renderer's falling bombs use, so a bomb keeps its size on release.
   bombs: (s.bombs ?? []).map((b) => ({ ...b, ...bombDimensions(b) })),
 }));

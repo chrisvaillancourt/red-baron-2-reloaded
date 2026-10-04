@@ -15,6 +15,19 @@ describe('coefficient calibration (point mass)', () => {
     }
   });
 
+  it('sizes each twin propeller for its own engine rather than the combined power', () => {
+    for (const id of ['gotha_gv', 'handley_page_o400', 'aeg_giv'] as const) {
+      const twin = getAircraft(id);
+      const engines = twin.performance.engineCount!;
+      const oneEngine = {
+        ...twin,
+        performance: { ...twin.performance, engineCount: 1, enginePowerHp: twin.performance.enginePowerHp / engines },
+      };
+      // Adding identical engines adds discs, not diameter to each disc.
+      expect(getCoefficients(twin).propDiscArea / engines).toBeCloseTo(getCoefficients(oneEngine).propDiscArea, 8);
+    }
+  });
+
   it('matches historical figures for every aircraft', () => {
     const rows: string[] = [];
     const errs: string[] = [];

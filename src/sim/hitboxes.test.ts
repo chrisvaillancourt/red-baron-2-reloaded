@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_LIST, getAircraft } from '../data/aircraft';
-import { crewStations } from '../data/crew';
+import { crewStations, stationEye } from '../data/crew';
 import { getHitModel, traceRound, type ZoneBox } from './hitboxes';
 import { TEST_TWIN } from './testing/fixtures';
 
@@ -35,8 +35,7 @@ describe('hit boxes', () => {
     }
   });
 
-  it('every type has a gunner box per station and an engine box per engine, inside its airframe', () => {
-    const outside: string[] = [];
+  it('every type has a gunner box per station and an engine box per engine, within its span and length', () => {
     for (const spec of AIRCRAFT_LIST) {
       const hm = getHitModel(spec);
       const gunners = hm.zones.filter((z) => z.zone === 'gunner');
@@ -56,22 +55,16 @@ describe('hit boxes', () => {
       const n = spec.performance.engineCount ?? 1;
       expect(engines, spec.id).toHaveLength(n);
       if (n > 1) expect(engines.map((e) => e.engineIndex).sort(), spec.id).toEqual([...Array(n).keys()]);
-      // The airframe: the fuselage, wings and tail boxes together, from the spec's geometry.
-      const frame = hm.zones.filter((z) => ['fuselage', 'leftWing', 'rightWing', 'tail'].includes(z.zone));
-      const lo = [0, 1, 2].map((i) => Math.min(...frame.map((z) => z.min[i])));
-      const hi = [0, 1, 2].map((i) => Math.max(...frame.map((z) => z.max[i])));
+      // Check whole boxes, not just their centres. Vertical placement against the shipped
+      // fuselage and nacelle meshes is covered by damageGeometry.test.ts.
       for (const b of [...gunners, ...engines]) {
-        const c = [0, 1, 2].map((i) => (b.min[i] + b.max[i]) / 2);
-        const what = `${spec.id} ${b.zone} ${b.station ?? b.engineIndex ?? ''} at ${c.map((v) => v.toFixed(2))}`;
-        // Inside the frame's boxes, and within the span and length as the spec states them.
-        const out = [0, 1, 2].some((i) => c[i] < lo[i] || c[i] > hi[i]) || Math.abs(c[0]) >= spec.geometry.span / 2 || Math.abs(c[2]) >= spec.geometry.length * 0.7;
-        if (out) outside.push(what);
+        const what = `${spec.id} ${b.zone} ${b.station ?? b.engineIndex ?? ''}`;
+        expect(b.min[0], what).toBeGreaterThanOrEqual(-spec.geometry.span / 2);
+        expect(b.max[0], what).toBeLessThanOrEqual(spec.geometry.span / 2);
+        expect(b.min[2], what).toBeGreaterThanOrEqual(-spec.geometry.length * 0.7);
+        expect(b.max[2], what).toBeLessThanOrEqual(spec.geometry.length * 0.7);
       }
     }
-    // Known, reported to track A: stationBoxes hangs a standing man 1.2 m below every eye, so a
-    // ventral gunner (eye at the floor hatch) ends up under the fuselage. When that's fixed this
-    // list empties; any other box outside its airframe fails here.
-    expect(outside.map((w) => w.replace(/ at .*/, ''))).toEqual(['gotha_gv gunner ventral', 'handley_page_o400 gunner ventral']);
   });
 
   it('explicit stations get a gunner box each, at their guns, tagged with the crew member', () => {
@@ -106,6 +99,29 @@ describe('hit boxes', () => {
     expect(inside(right, [x, 0, (right.min[2] + right.max[2]) / 2])).toBe(true);
     expect(engines.some((e) => inside(e, [0, 0, (e.min[2] + e.max[2]) / 2]))).toBe(false);
   });
+  it('uses explicit prone posture at a gunless bombsight, without relying on the station id', () => {
+    const spec = { ...TEST_TWIN, crewStations: TEST_TWIN.crewStations!.map((s) => s.id === 'observer' ? { ...s, posture: 'prone' as const } : s) };
+    const station = crewStations(spec).find((s) => s.id === 'observer')!;
+    const [, y, z] = station.eye!;
+    const occupied = (b: ZoneBox) => b.station === station.id;
+    const body = traceRound(getHitModel(spec), { x: -2, y: y + 0.3, z }, { x: 2, y: y + 0.3, z }, occupied, true);
+    expect(body?.damaged.map((h) => h.index)).toEqual([station.crewIndex]);
+    expect(traceRound(getHitModel(spec), { x: -2, y: y - 0.8, z }, { x: 2, y: y - 0.8, z }, occupied, true)).toBeNull();
+  });
+
+  it('keeps unmarked stations standing, including a low eye and the pilot seat', () => {
+    const model = getHitModel(TEST_TWIN);
+    for (const station of crewStations(TEST_TWIN)) {
+      const eye = stationEye(TEST_TWIN, station);
+      if (!eye) continue;
+      const [x, y, z] = eye;
+      for (const height of [-0.9, 0]) {
+        const trace = traceRound(model, { x: x - 2, y: y + height, z }, { x: x + 2, y: y + height, z }, (b) => station.crewIndex === 0 ? b.zone === 'pilot' : b.station === station.id, true);
+        expect(trace?.damaged.map((h) => h.zone), station.id).toEqual([station.crewIndex === 0 ? 'pilot' : 'gunner']);
+      }
+    }
+  });
+
 });
 
 describe('a round through the airframe', () => {

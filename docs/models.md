@@ -33,10 +33,15 @@ zsh tools/blender/render_art.sh [samples] [title aerodrome desk debrief] # publi
   prints `station <id>.<station>: <kind> at body z …, gun y …, fuselage top … bottom …` for
   those, to tune positions against the modelled fuselage (keep a ring gun about 0.32 m over
   the fuselage top, where a standing gunner's hands are).
-* **Twins** (`engineCount` 2): `build_nacelles()` makes two nacelles at `±nacelleOffsetX` on
-  bearers between the wings (`NACELLE` sets their gap fraction, length and radius), tractor or
-  pusher (`PUSHER_NACELLES`: the Gotha), with radiators, Mercedes heads or Eagle exhausts, and
-  paired main wheels (`build_twin_gear`, `FOUR_WHEEL`). The nose ends 0.45 m ahead of the nose
+  Floor-hatch stations explicitly carry `posture: 'prone'`; the exporter supplies it to the
+  generator and hitboxes instead of inferring body posture from an eye height or station ID.
+* **Twins** (`engineCount` 2): `build_nacelles()` reads `geometry.nacelle` (body-frame Y/Z
+  centre, length, radius and pusher orientation), with X at `±nacelleOffsetX`. The simulator
+  uses the same cowling geometry for engine damage. `geometry.pusher` still describes the
+  fuselage-and-booms layout, not the nacelle propellers. `build_twin_gear()` reads the shared
+  `geometry.gearContacts` support points for its paired wheels and tailskid; wheel radii and
+  decorative details remain generator-owned. These fields preserve the shipped twin models.
+  The nose ends 0.45 m ahead of the nose
   gunner's ring. Big spans take strut stations in metres (`BAYS_M`), and the O/400's upper-wing
   overhang gets its raked struts (`OVERHANG_STRUTS`). `PILOT_Y` places the pilot where the data
   can't say (Gotha, AEG, O/400, Voisin).
@@ -81,7 +86,7 @@ translations only.
 | `Pilot` (`Pilot_Figure`), `Gunner`, `Gunner_2`, `Gunner_3` | Crew: `Gunner` is crew member 1, `Gunner_2` crew 2, `Gunner_3` crew 3 (`CrewStation.crewIndex`). `Pilot` is hidden in cockpit view, and the figure of the station the camera is at by `setStationView`. |
 | `Cockpit` | `CockpitInterior`, `Gauge_RPM`, `Gauge_Alt`, `Gauge_Speed`, `Gauge_Compass`, `Gauge_Fuel` (+ `_Bezel`). Gauge discs face the pilot with UV 0..1, canvas-top = gauge-top. |
 | `EyePoint` | Pilot eye (cockpit camera): over the seat (cockpit centre − 0.2 m), 0.2 m above the coaming (kept under an overhead wing), so the gauges — just under the coaming — sit in the forward view. |
-| `Contact_WheelL`, `Contact_WheelR`, `Contact_Skid` | Ground contact points (wheel bottoms, skid tip). The generator gives every type an ~11° tail-down ground angle. |
+| `Contact_WheelL`, `Contact_WheelR`, `Contact_Skid` | Ground contact points (wheel bottoms, skid tip). Twins use `geometry.gearContacts`; other types derive a roughly 11° tail-down ground angle. |
 | `Muzzle_<i>` | Muzzle of `spec.guns[i]` (child of its station's `Gun_<station>` pivot for flexible guns). Visual positions can differ slightly from `GunMount.position`, which the sim uses for ballistics. |
 
 Materials: `Livery_Fuselage`, `Livery_WingTop`, `Livery_WingBottom`, `Livery_Tail`, `Livery_Cowling`,

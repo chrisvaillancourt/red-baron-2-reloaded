@@ -1056,3 +1056,15 @@ changes. Specs remain immutable after caching. Ground attitude must follow the s
 points, and engine damage must follow cowling volume, not its decorative bearers.
 Independent shipped-model measurements, ground/roll simulation, and hit rays are the
 verification seams. Branch decisions keep D-XXX until integration into main.
+
+**Implementation and verification (2026-10-04 UTC).** The simulator and Blender now
+consume this metadata; baseline/candidate Blender meshes are identical for all three
+twins. Ground support pitch follows the actual support line. Remove the 0.7 rad/s roll
+floor, retaining the fighter calibration and relative `rollRate` semantics. Propeller
+discs already use per-engine power; protect that invariant instead of changing it.
+Prone boxes extend forward of the eye, retain floor-hatch exposure and fit the full
+fuselage envelope, not every tapered skin section. Engine boxes cover cowling bodies,
+not decorative bearers or the Gotha's 8 cm front cap. Shared scene-free GLB measurements,
+loaded ground/takeoff regressions and round traces cover the consumers; real Chrome/Metal
+ground/takeoff and overlay evidence is recorded in `docs/bombers.md`. Independent review
+found no defects in this slice. Aircraft availability and AI balance remain unchanged.
