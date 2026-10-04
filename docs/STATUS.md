@@ -3,7 +3,7 @@
 The game is playable end to end: `pnpm dev`, then open http://localhost:5173
 (README "Your first flight" walks a new player through it). Career (all four
 nations, 1915–1918), quick missions, the full flight/combat sim, AI, streamed
-Western Front terrain, 27 Blender-built aircraft and procedural audio are all
+Western Front terrain, 33 Blender-built aircraft and procedural audio are all
 integrated on `main`.
 
 The wave-7 release check (docs/PLAYTEST.md, top section) gave a **GO**: a fan
@@ -37,21 +37,24 @@ commands and full tables are in docs/ai.md ("Wave 9 re-baseline").
 
 ## Resume here (2026-10-04 UTC)
 
-Main includes the bomber wave-1 implementation and merged cache/spatial-query PRs #1–#3
-(`66518dd`). The next readiness pass is **committed on `fix/bomber-sim-readiness`, not
-merged or deployed**: shared contracts `cda4677`, simulation/model alignment `58b392b`,
-and exact differential tooling `4850cea`. Decisions and measured implementation notes
-are in `DECISIONS.md` and `docs/bombers.md`.
+**PR #4 is merged and deployed:** `f814e2a` on main, decisions D-101/D-102.
+GitHub Pages build/deploy run `37174451413` succeeded. This includes the bomber
+simulation/model-alignment fixes and exact differential tooling.
 
-- Combined verification: typecheck/build passed; 661 Vitest tests and 8 Node tool tests
-  passed, 30 gated tests skipped. Actual Chrome/Metal ground/takeoff inspection covered
-  Gotha, O/400 and AEG; no full Playwright or AI balance re-baseline is claimed.
-- Exact world and representative fighter snapshots match `66518dd`; the intended bomber
-  changes differ. Blender generator migration leaves all three twin meshes unchanged.
-- Independent reviews are complete. The tooling Array-subclass serialization finding was
-  reproduced, fixed and re-reviewed; no remaining review findings.
-- `pnpm test` now includes CPU-only tool tests, so the existing CI gate covers the new runner.
-  Optional core additions are `geometry.nacelle`, `geometry.gearContacts` and station `posture`.
+**Player-access cutover: PR #5, decision D-103.** All 33 aircraft are available in ordinary
+Quick Missions, seven in bombing raids. Aircraft and valid crew seats survive mission
+changes and reloads. The user authorized integration into main after independent review.
+
+- Typecheck/build passed; 662 Vitest and 8 Node tool tests passed, 30 gated tests skipped.
+- The updated D.H.4 raid/observer/debrief/mission-transition Playwright test passed.
+  Actual Chrome/Metal UI checks selected all 14 unlocked types and flew the Gotha tunnel/
+  pilot and F.E.2b nose-gunner stations. No full Playwright or AI balance survey is claimed.
+- Fresh-process comparison against main: all 40 sampled AI pools and 20 career
+  squadron/equipment selections equal. No physics, AI composition, campaign content,
+  shared contract or dependency changes in this cutover.
+- Decisions and measured implementation notes are in `DECISIONS.md` and `docs/bombers.md`.
+- Independent Standards and Spec reviews of `a0bbd77` found no violations or missing
+  requirements. The associated GitHub Actions run records deployment status.
 
 - **Merged: bombers and gunner seats, wave 1** (plan and file ownership in
   `docs/bombers.md` "Waves"). All four tracks are on main:
@@ -69,14 +72,11 @@ are in `DECISIONS.md` and `docs/bombers.md`.
     docs/ai.md "Bombers".
   - Lead fixes on main: `splitSide` and `releaseAIPilot` (track C review).
 - **Next work, in order:**
-  1. **Integrate the readiness branch.** The low roll-rate floor, twin ground contacts,
-     nacelle hit geometry and prone ventral crew are repaired. Per-engine propeller sizing
-     was already correct and is now regression-protected. Keep the Gotha's fuselage
-     `pusher` false; nacelle propeller orientation has its own metadata. F-71 is resolved.
-     Rough/sloped-field limits and crosswind handling were not established by this pass.
-  2. **Enable player access** by flipping `flyable` for the bombers and two-seaters, then
-     updating the Quick Mission aircraft lists and verifying the real selection/flight/crew
-     flow. AI pools no longer read `flyable` (D-097), so this is a player-facing cutover.
+  1. **Done: readiness integration.** PR #4 resolved the low roll-rate floor, twin support
+     and engine-hit geometry, and prone ventral crew. F-71 is resolved. Per-engine propeller
+     sizing was already correct. Rough/sloped-field and crosswind limits remain unmeasured.
+  2. **Done: player-access cutover (PR #5, D-103).** Selection, persistence and live crew
+     flows are verified; AI pools remain independent.
   3. **Lead:** replay the user's reports (`playtests/reports/` and the main checkout's
      `playtests/inbox/`) against the defence changes (D-085) with
      `node tools/playtest/replay-report.mjs`, and re-baseline "Current figures" with
@@ -463,8 +463,9 @@ before any future removal.
 
 | Workspace | Branch / owner | Preservation reason |
 |---|---|---|
-| `red-baron-2-reloaded` | `main` at `66518dd`; human/integration owner | Reserved main checkout; unchanged by this task. |
-| `rb2r-bomber-readiness` | `fix/bomber-sim-readiness`; parent omp session | Unmerged deliverable and ignored QA screenshots/JSON in `tools/dev/scratch/bomber-readiness/`. Temporary scripts removed, port 5269 service and browser stopped. |
+| `red-baron-2-reloaded` | `main`; human/integration owner | Authorized PR #5 integration checkout; previous deployed base `f814e2a`. |
+| `rb2r-bomber-readiness` | `fix/bomber-sim-readiness` at `8aac951`; prior parent omp session | PR #4 squash-merged; preserve original branch and ignored QA evidence pending authorized cleanup. Services stopped. |
+| `rb2r-player-aircraft-access` | `feat/player-aircraft-access`; parent omp session | Preserve the PR #5 branch and ignored screenshots/JSON in `tools/dev/scratch/player-access/` pending authorized cleanup. Browser and port 5271 service stopped; Playwright's isolated 5272 server exited. |
 | `rb2r-debt-spec` | `fix/spec-cache-identity` at `791da38`; prior spec-cache task | PR #1 squash-merged; retain original branch and workspace pending authorized cleanup. |
 | `rb2r-debt-spatial` | `perf/world-spatial-queries` at `aed20d9`; prior spatial task | PR #2 squash-merged; same retention rule. |
 | `rb2r-debt-height` | `perf/height-cache-locality` at `4057201`; prior height-cache task | PR #3 squash-merged; same retention rule. |

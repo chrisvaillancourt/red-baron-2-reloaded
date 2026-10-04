@@ -190,7 +190,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'halberstadt_clii', name: 'Halberstadt CL.II', shortName: 'CL.II', manufacturer: 'Halberstädter Flugzeugwerke', nation: 'germany', alsoUsedBy: [],
-    role: 'two-seater', flyable: false, introduced: '1917-08-01', retired: '1918-11-11',
+    role: 'two-seater', flyable: true, introduced: '1917-08-01', retired: '1918-11-11',
     description: 'A compact two-seat escort and ground-attack aeroplane. The observer shares a single cockpit with the pilot and wields a Parabellum.',
     geometry: geom({ layout: 'biplane', span: 10.77, lowerSpan: 10.3, length: 7.3, chord: 1.6, gap: 1.5, stagger: 0.3, height: 2.75, crew: 2, tailShape: 'squared', wheelTrack: 1.9 }),
     performance: perf({ massLoaded: 1133, massEmpty: 773, wingArea: 27.5, enginePowerHp: 160, engineType: 'inline', engineName: 'Mercedes D.III', maxSpeedKmh: 165, maxSpeedAltM: 1000, ceilingM: 5100, climbTo3000mMin: 15, enduranceHours: 3, rollRate: 0.6, pitchRate: 0.6, structuralStrength: 0.9, fuelCapacityL: 160 }),
@@ -198,7 +198,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'rumpler_civ', name: 'Rumpler C.IV', shortName: 'C.IV', manufacturer: 'Rumpler', nation: 'germany', alsoUsedBy: [],
-    role: 'two-seater', flyable: false, introduced: '1917-01-01', retired: '1918-11-11',
+    role: 'two-seater', flyable: true, introduced: '1917-01-01', retired: '1918-11-11',
     description: 'A high-flying reconnaissance two-seater. Its photographs guide the German artillery; bringing one down is a prized assignment.',
     geometry: geom({ layout: 'biplane', span: 12.66, lowerSpan: 12.0, length: 8.4, chord: 1.75, gap: 1.7, stagger: 0.4, height: 3.25, crew: 2, tailShape: 'rounded', fuselageWidth: 0.95, wheelTrack: 2.1 }),
     performance: perf({ massLoaded: 1630, massEmpty: 1080, wingArea: 33.5, enginePowerHp: 260, engineType: 'inline', engineName: 'Mercedes D.IVa', maxSpeedKmh: 170, maxSpeedAltM: 1000, ceilingM: 6400, climbTo3000mMin: 18, enduranceHours: 3.5, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.85, fuelCapacityL: 250 }),
@@ -207,7 +207,7 @@ const SPECS: AircraftSpec[] = [
 
   {
     id: 'albatros_ciii', name: 'Albatros C.III', shortName: 'C.III', manufacturer: 'Albatros Flugzeugwerke', nation: 'germany', alsoUsedBy: [],
-    role: 'two-seater', flyable: false, introduced: '1915-12-01', retired: '1917-06-01',
+    role: 'two-seater', flyable: true, introduced: '1915-12-01', retired: '1917-06-01',
     description: 'The most numerous German two-seater of 1916: a sturdy reconnaissance and artillery machine with the observer behind the pilot, where his Parabellum commands the rear. Later machines added a fixed gun for the pilot.',
     geometry: geom({ layout: 'biplane', span: 11.69, lowerSpan: 11.0, length: 8.0, chord: 1.75, gap: 1.8, stagger: 0.3, height: 3.07, dihedralDeg: 2, crew: 2, tailShape: 'rounded', fuselageShape: 'round', fuselageWidth: 0.95, wheelTrack: 2.0 }),
     performance: perf({ massLoaded: 1353, massEmpty: 851, wingArea: 36.91, enginePowerHp: 150, engineType: 'inline', engineName: 'Benz Bz.III', maxSpeedKmh: 140, maxSpeedAltM: 0, ceilingM: 3350, climbTo3000mMin: 35, enduranceHours: 4, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.8, fuelCapacityL: 160 }),
@@ -217,7 +217,7 @@ const SPECS: AircraftSpec[] = [
   // Bombers (docs/bombers.md; figures and sources in docs/models.md "Bomber specifications").
   {
     id: 'aeg_giv', name: 'AEG G.IV', shortName: 'G.IV', manufacturer: 'Allgemeine Elektricitäts-Gesellschaft', nation: 'germany', alsoUsedBy: [],
-    role: 'bomber', flyable: false, introduced: '1916-12-01', retired: '1918-11-11',
+    role: 'bomber', flyable: true, introduced: '1916-12-01', retired: '1918-11-11',
     description: 'A compact twin-engined Grossflugzeug of welded steel tube, flown by the Bogohls by day and later by night. Two Mercedes tractor engines sit between the wings; the commander aims the bombs from the nose and a gunner guards the tail.',
     geometry: geom({ layout: 'biplane', span: 18.4, lowerSpan: 17.6, length: 9.7, chord: 1.9, lowerChord: 1.85, gap: 2.1, stagger: 0.15, height: 3.9, dihedralDeg: 2, crew: 3, tailShape: 'squared', fuselageWidth: 1.05, wheelTrack: 4.2, nacelleOffsetX: 2.1,
       nacelle: { centerY: 0.21208361593267033, centerZ: -0.4295, length: 2.6, radius: 0.42, pusher: false },
@@ -233,7 +233,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'gotha_gv', name: 'Gotha G.V', shortName: 'G.V', manufacturer: 'Gothaer Waggonfabrik', nation: 'germany', alsoUsedBy: [],
-    role: 'bomber', flyable: false, introduced: '1917-08-01', retired: '1918-11-11',
+    role: 'bomber', flyable: true, introduced: '1917-08-01', retired: '1918-11-11',
     description: 'The bomber that raided London by day and night. Two pusher Mercedes behind the wings leave the nose gunner a clear field ahead; the rear gunner works a dorsal gun and the "Gotha tunnel", a gun firing down and aft through the floor at fighters hiding under the tail.',
     geometry: geom({ layout: 'biplane', span: 23.7, lowerSpan: 22.9, length: 12.36, chord: 2.0, lowerChord: 1.9, gap: 2.4, stagger: 0, height: 4.3, dihedralDeg: 1.5, crew: 3, tailShape: 'squared', fuselageWidth: 1.1, wheelTrack: 4.8, nacelleOffsetX: 2.4,
       nacelle: { centerY: 0.2553462117660487, centerZ: 0.215, length: 3.0, radius: 0.46, pusher: true },
@@ -345,7 +345,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 're8', name: 'Royal Aircraft Factory R.E.8', shortName: 'R.E.8', manufacturer: 'Royal Aircraft Factory', nation: 'britain', alsoUsedBy: [],
-    role: 'two-seater', flyable: false, introduced: '1916-11-01', retired: '1918-11-11',
+    role: 'two-seater', flyable: true, introduced: '1916-11-01', retired: '1918-11-11',
     description: 'The "Harry Tate": the standard British artillery-spotting and reconnaissance two-seater. Stable, slow and a frequent customer for German scouts.',
     geometry: geom({ layout: 'biplane', span: 12.98, lowerSpan: 10.8, length: 8.5, chord: 1.7, gap: 1.8, stagger: 0.3, height: 3.47, crew: 2, tailShape: 'squared', fuselageWidth: 0.95, wheelTrack: 2.1 }),
     performance: perf({ massLoaded: 1301, massEmpty: 717, wingArea: 35.07, enginePowerHp: 150, engineType: 'inline', engineName: 'RAF 4a', maxSpeedKmh: 164, maxSpeedAltM: 0, ceilingM: 4115, climbTo3000mMin: 22, enduranceHours: 4.25, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.8, fuelCapacityL: 200 }),
@@ -353,7 +353,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'dh4', name: 'Airco D.H.4', shortName: 'D.H.4', manufacturer: 'Airco', nation: 'britain', alsoUsedBy: ['usa'],
-    role: 'bomber', flyable: false, introduced: '1917-03-01', retired: '1918-11-11',
+    role: 'bomber', flyable: true, introduced: '1917-03-01', retired: '1918-11-11',
     description: 'A fast day bomber, able to outrun many German scouts with its Rolls-Royce Eagle. The fuel tank between pilot and observer earned it a grim nickname.',
     geometry: geom({ layout: 'biplane', span: 12.92, lowerSpan: 12.92, length: 9.35, chord: 1.7, gap: 1.75, stagger: 0.3, height: 3.35, crew: 2, tailShape: 'squared', fuselageWidth: 0.95, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1575, massEmpty: 1083, wingArea: 40.32, enginePowerHp: 375, engineType: 'inline', engineName: 'Rolls-Royce Eagle VIII', maxSpeedKmh: 230, maxSpeedAltM: 1000, ceilingM: 6700, climbTo3000mMin: 11, enduranceHours: 3.75, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.85, fuelCapacityL: 300 }),
@@ -364,7 +364,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'be2c', name: 'Royal Aircraft Factory B.E.2c', shortName: 'B.E.2c', manufacturer: 'Royal Aircraft Factory', nation: 'britain', alsoUsedBy: [],
-    role: 'two-seater', flyable: false, introduced: '1915-04-01', retired: '1917-06-01',
+    role: 'two-seater', flyable: true, introduced: '1915-04-01', retired: '1917-06-01',
     description: 'The "Quirk": built to be inherently stable for reconnaissance, it was easy meat for the Fokker monoplanes. The observer sits in front, under the upper wing, hemmed in by struts, wires and the propeller.',
     geometry: geom({ layout: 'biplane', span: 11.28, lowerSpan: 10.7, length: 8.31, chord: 1.68, gap: 1.9, stagger: 0.6, height: 3.39, dihedralDeg: 3.5, crew: 2, tailShape: 'rounded', fuselageWidth: 0.85, wheelTrack: 1.9 }),
     performance: perf({ massLoaded: 972, massEmpty: 623, wingArea: 34.8, enginePowerHp: 90, engineType: 'inline', engineName: 'RAF 1a', maxSpeedKmh: 116, maxSpeedAltM: 1000, ceilingM: 3400, climbTo3000mMin: 40, enduranceHours: 3.25, rollRate: 0.35, pitchRate: 0.45, structuralStrength: 0.7, fuelCapacityL: 145 }),
@@ -386,7 +386,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'fe2b', name: 'Royal Aircraft Factory F.E.2b', shortName: 'F.E.2b', manufacturer: 'Royal Aircraft Factory', nation: 'britain', alsoUsedBy: [],
-    role: 'two-seater', flyable: false, introduced: '1916-01-01', retired: '1917-08-01',
+    role: 'two-seater', flyable: true, introduced: '1916-01-01', retired: '1917-08-01',
     description: 'A big pusher fighter-reconnaissance machine. The observer stands in the open nose with a Lewis gun and a clear field of fire forward; behind him the pilot, and behind them both the Beardmore engine. Formations of them fought back hard in circles.',
     geometry: geom({ layout: 'biplane', pusher: true, span: 14.55, lowerSpan: 14.55, length: 9.83, chord: 1.68, gap: 1.83, stagger: 0, height: 3.85, dihedralDeg: 3, crew: 2, tailShape: 'rounded', fuselageWidth: 0.9, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1378, massEmpty: 935, wingArea: 45.9, enginePowerHp: 160, engineType: 'inline', engineName: 'Beardmore 160 hp', maxSpeedKmh: 147, maxSpeedAltM: 0, ceilingM: 3350, climbTo3000mMin: 38, enduranceHours: 2.5, rollRate: 0.35, pitchRate: 0.45, structuralStrength: 0.8, fuelCapacityL: 180 }),
@@ -402,7 +402,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'farman_f40', name: 'Farman F.40', shortName: 'F.40', manufacturer: 'Farman', nation: 'france', alsoUsedBy: [],
-    role: 'two-seater', flyable: false, introduced: '1915-09-01', retired: '1917-03-01',
+    role: 'two-seater', flyable: true, introduced: '1915-09-01', retired: '1917-03-01',
     description: 'The "Horace", mainstay of French reconnaissance and artillery observation into 1916. A pusher with a wide upper wing and its tail carried on booms; the observer rides in the nose with a Lewis gun.',
     geometry: geom({ layout: 'biplane', pusher: true, span: 17.6, lowerSpan: 12.5, length: 9.25, chord: 2.0, gap: 2.0, stagger: 0, height: 3.9, dihedralDeg: 1, crew: 2, tailShape: 'squared', fuselageWidth: 0.85, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1120, massEmpty: 750, wingArea: 52, enginePowerHp: 130, engineType: 'inline', engineName: 'Renault 8C', maxSpeedKmh: 135, maxSpeedAltM: 0, ceilingM: 4000, climbTo3000mMin: 42, enduranceHours: 2.3, rollRate: 0.3, pitchRate: 0.4, structuralStrength: 0.7, fuelCapacityL: 140 }),
@@ -412,7 +412,7 @@ const SPECS: AircraftSpec[] = [
   // Bombers (docs/bombers.md; figures and sources in docs/models.md "Bomber specifications").
   {
     id: 'voisin_iii', name: 'Voisin III', shortName: 'Voisin', manufacturer: 'Voisin', nation: 'france', alsoUsedBy: ['britain'],
-    role: 'bomber', flyable: false, introduced: '1915-07-01', retired: '1916-09-01',
+    role: 'bomber', flyable: true, introduced: '1915-07-01', retired: '1916-09-01',
     description: 'The steel-framed pusher of the first French bombardment groups, and the first aeroplane to shoot down another. The pilot sits in the nose; the observer stands behind him to fire a Hotchkiss over his head and to drop finned artillery shells by hand.',
     geometry: geom({ layout: 'biplane', pusher: true, span: 14.74, lowerSpan: 13.8, length: 9.5, chord: 1.8, gap: 1.85, stagger: 0, height: 2.95, dihedralDeg: 0, crew: 2, tailShape: 'squared', fuselageWidth: 0.85, wheelTrack: 1.9 }),
     performance: perf({ massLoaded: 1350, massEmpty: 950, wingArea: 49.7, enginePowerHp: 130, engineType: 'inline', engineName: 'Salmson M.9', maxSpeedKmh: 105, maxSpeedAltM: 0, ceilingM: 3500, climbTo3000mMin: 45, enduranceHours: 4.5, rollRate: 0.3, pitchRate: 0.4, structuralStrength: 0.85, fuelCapacityL: 170 }),
@@ -432,7 +432,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'breguet_14b2', name: 'Breguet 14 B2', shortName: 'Br.14', manufacturer: 'Breguet', nation: 'france', alsoUsedBy: ['usa'],
-    role: 'bomber', flyable: false, introduced: '1917-08-01', retired: '1918-11-11',
+    role: 'bomber', flyable: true, introduced: '1917-08-01', retired: '1918-11-11',
     description: 'The duralumin-framed day bomber that equipped the French bombardment groups of 1918. Fast and very strong, with thirty-two small bombs on racks under the lower wings and twin Lewis guns on the observer\'s ring.',
     geometry: geom({ layout: 'biplane', span: 14.36, lowerSpan: 13.66, length: 8.87, chord: 1.8, lowerChord: 1.75, gap: 1.75, stagger: 0.25, height: 3.33, dihedralDeg: 1.5, crew: 2, tailShape: 'rounded', fuselageWidth: 0.95, wheelTrack: 2.0 }),
     performance: perf({ massLoaded: 1769, massEmpty: 1017, wingArea: 50.2, enginePowerHp: 300, engineType: 'inline', engineName: 'Renault 12Fcx', maxSpeedKmh: 175, maxSpeedAltM: 2000, ceilingM: 5550, climbTo3000mMin: 18, enduranceHours: 2.75, rollRate: 0.5, pitchRate: 0.55, structuralStrength: 0.95, fuelCapacityL: 260 }),
@@ -447,7 +447,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'dh9', name: 'Airco D.H.9', shortName: 'D.H.9', manufacturer: 'Airco', nation: 'britain', alsoUsedBy: ['usa'],
-    role: 'bomber', flyable: false, introduced: '1918-03-01', retired: '1918-11-11',
+    role: 'bomber', flyable: true, introduced: '1918-03-01', retired: '1918-11-11',
     description: 'Meant to replace the D.H.4, and slower than it: the Siddeley Puma never gave its rated power. The pilot and observer sit close together, and the observer has twin Lewis guns. Crews of the Independent Force paid dearly for its lack of speed.',
     geometry: geom({ layout: 'biplane', span: 12.92, lowerSpan: 12.92, length: 9.27, chord: 1.7, gap: 1.75, stagger: 0.3, height: 3.44, crew: 2, tailShape: 'squared', fuselageWidth: 0.95, wheelTrack: 2.2 }),
     performance: perf({ massLoaded: 1719, massEmpty: 1070, wingArea: 40.3, enginePowerHp: 230, engineType: 'inline', engineName: 'Siddeley Puma', maxSpeedKmh: 182, maxSpeedAltM: 3000, ceilingM: 4700, climbTo3000mMin: 18.5, enduranceHours: 4.5, rollRate: 0.45, pitchRate: 0.5, structuralStrength: 0.85, fuelCapacityL: 340 }),
@@ -461,7 +461,7 @@ const SPECS: AircraftSpec[] = [
   },
   {
     id: 'handley_page_o400', name: 'Handley Page O/400', shortName: 'O/400', manufacturer: 'Handley Page', nation: 'britain', alsoUsedBy: ['usa'],
-    role: 'bomber', flyable: false, introduced: '1918-04-01', retired: '1918-11-11',
+    role: 'bomber', flyable: true, introduced: '1918-04-01', retired: '1918-11-11',
     description: 'The great night bomber of the Independent Force, 100 feet across its folding wings. Two Rolls-Royce Eagles in nacelles between the wings; sixteen 112 lb bombs stand in cells inside the fuselage. Gunners in the nose, on the back and at a hatch in the floor.',
     geometry: geom({ layout: 'biplane', span: 30.48, lowerSpan: 21.3, length: 19.16, chord: 3.05, lowerChord: 3.05, gap: 3.05, stagger: 0, height: 6.7, dihedralDeg: 2.5, crew: 4, tailShape: 'squared', fuselageWidth: 1.3, wheelTrack: 6.6, nacelleOffsetX: 3.3,
       nacelle: { centerY: 0.49108111159808987, centerZ: -0.627, length: 3.6, radius: 0.52, pusher: false },

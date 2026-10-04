@@ -74,12 +74,14 @@ squadron gives you. Hold on to your pilot: death and capture end a career.
 - **Quick Mission.** Pick your aircraft, the enemy, numbers, skill, altitude, start
   position, time of day and cloud. You can also face a named ace such as Richthofen or
   Fonck.
-- **27 aircraft.**
-  - Flyable: 19 types, from the Fokker E.III, D.H.2 and Nieuport 11 to the Fokker D.VII,
+- **33 aircraft, all available to the player in Quick Mission.**
+  - Fighters from the Fokker E.III, D.H.2 and Nieuport 11 to the Fokker D.VII,
     SPAD XIII, S.E.5a, Camel and Bristol Fighter.
-  - AI only: 8 two-seaters. Early in the war there are the B.E.2c, the F.E.2b and Farman
-    F.40 pushers and the Albatros C.III. Later come the Rumpler, Halberstadt, R.E.8 and
-    D.H.4.
+  - Reconnaissance two-seaters: B.E.2c, F.E.2b, Farman F.40, Albatros C.III,
+    Rumpler C.IV, Halberstadt CL.II and R.E.8.
+  - Bombers: D.H.4, D.H.9, Breguet 14 B2, Voisin III, AEG G.IV, Gotha G.V and O/400.
+    Choose **Bombing raid** to carry their bomb load. Choose a crew seat before flight,
+    or switch seats with C/V and return to the pilot with F.
   - Each type is tuned to its historical top speed and climb rate.
 - **Flight and combat.**
   - Rotary-engine torque, so the Camel snaps into right turns.

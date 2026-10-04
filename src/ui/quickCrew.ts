@@ -11,15 +11,15 @@ import { QUICK_DEFAULTS } from '../data/quickDefaults';
 
 const sideOf = (s: AircraftSpec) => (s.nation === 'germany' ? 'central' : 'allied');
 
-/** The player's aircraft for a mission type: a raid needs a type that carries bombs, anything else a flyable type. */
+/** Player access is required for every mission; raids additionally require a bomb load. */
 export function quickPlayerAircraft(type: QuickMissionOptions['type']): AircraftSpec[] {
-  return AIRCRAFT_LIST.filter((s) => (type === 'bombing' ? !!s.bombs?.length : s.flyable));
+  return AIRCRAFT_LIST.filter((s) => s.flyable && (type !== 'bombing' || !!s.bombs?.length));
 }
 
 /**
- * Options made consistent: an aircraft the mission type offers (a raid switches to a bomber,
- * of the player's side if there is one; leaving a raid in an AI-only bomber goes back to the
- * default fighter), and no seat the aircraft lacks.
+ * Options made consistent: preserve an offered aircraft and its valid seat across mission
+ * changes. Otherwise choose a bomb carrier of the player's nation/side for a raid, or the
+ * default fighter for other missions; remove any seat the replacement aircraft lacks.
  */
 export function sanitizeQuickOptions(o: QuickMissionOptions): QuickMissionOptions {
   const out = { ...o };

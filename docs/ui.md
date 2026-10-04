@@ -108,10 +108,12 @@ Quick Mission takes 12 Tabs from the aircraft list to "To the briefing"
   single-seater. `buildQuickMission` puts the player at that station.
 - **Bombing raid** is in the mission list, with an "Escort fighters" count (0–4). It builds
   through `buildQuickMission` (`type: 'bombing'`, docs/campaign.md). The aircraft list follows
-  the mission type (`quickPlayerAircraft`, `src/ui/quickCrew.ts`): a raid offers the
-  bomb-carrying types, including AI-only ones (the D.H.4), and switches to one; any other type
-  offers the flyable types and falls back from an AI-only bomber to the default fighter.
-  `sanitizeQuickOptions` applies the same rule to saved options.
+  the mission type (`quickPlayerAircraft`, `src/ui/quickCrew.ts`): every type requires
+  player availability, and raids additionally require a bomb load. All 33 shipped aircraft
+  are player-accessible; the seven bomb carriers are offered for raids. Switching mission
+  type keeps the chosen aircraft and valid seat when still offered. Otherwise a raid picks
+  a suitable bomb carrier, or another mission falls back to the default fighter.
+  `sanitizeQuickOptions` applies the same rule to saved options and clears missing seats.
 
 The Options key list and the Flying Manual pick up the Crew key group from
 `src/ui/bindings.ts`; the Manual also has an "At a gun or the bombsight" table (which
