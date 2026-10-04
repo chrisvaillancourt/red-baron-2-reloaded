@@ -16,7 +16,7 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `activeFlight.ts` | Registry of the flight in progress; `abortActiveFlight(err, { silent })`. |
 | `flightSession.ts` | `createFlightLauncher(modules, audio)` → `FlightLauncher.fly`. The loop; drives the HUD cards (pause, end flight, orders, map). |
 | `simCore.ts` | `SimCore`: the headless flight — world, combat, AI controllers, mission director, the fixed step, landing detection, wingman orders. Shared by `FlightSession` and the autoplayer. |
-| `heightCache.ts` | Tiled bilinear cache (32 m cells, 1 km tiles, LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
+| `heightCache.ts` | Tiled bilinear cache (32 m cells, 1024 m tiles, 600-tile LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
 | `autoplay.ts` | Autoplayer: `runAutoplay(mission)` flies a mission headlessly with the player's aircraft on an AI controller; `headlessModules`. |
 | `flightRecorder.ts` | `FlightRecorder`: the flight report's statistics (`MissionResult.telemetry`): hits taken, loss cause, combat time, each enemy's first pass, gunnery (`aimStats.ts`), time at each crew station, time compression, fps. See "Flight report". |
 | `aimStats.ts` | `AimTracker`: the player's gunnery by mount, aim error with the trigger held, firing range and time to the first shot (flight recorder and autoplayer). |
@@ -31,6 +31,14 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `bombsight.ts` | The bombsight's drift, each target's release radius (from the sim's blast), the release solution. The impact is the sim's `predictBombImpact`. |
 | `testing/crewMissions.ts` | Fixtures: a Bristol fight at a chosen seat, a D.H.4 bomb run (until track D's raid builder). |
 | `stubs/` | `sim`/`campaign` stand-ins used by unit tests (no stub is bound in the game any more). |
+
+The height cache refreshes recency on sampling and prefetch. Linked entries avoid
+allocation or Map reinsertion on hits; consecutive samples in the newest tile skip
+the Map lookup. Evicted entries and sample arrays are recycled through one detached
+spare (600 cached tiles plus one spare in ordinary use). A miss publishes only after
+sampling finishes, so callback failures cannot corrupt completed tiles. Nested
+sampling may temporarily need extra buffers. Switching tiles on every hit pays for
+recency updates; the newest-tile fast path favours clustered flight queries.
 
 ## Loop
 
