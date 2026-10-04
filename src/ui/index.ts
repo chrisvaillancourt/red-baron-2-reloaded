@@ -7,6 +7,8 @@
 import './styles/ui.css';
 import type { GameServices } from '../core/interfaces';
 import type { GameSettings, MissionDefinition, MissionResult } from '../core/types';
+import type { DefenseOptions, DefenseResult } from '../core/defense';
+import { abortActiveDefense } from '../game/activeDefense';
 import { wasErrorReported } from '../core/flightErrors';
 import type { ConfirmOptions, Router, Screen, ScreenFactory, ScreenId, ScreenParams, UiContext } from './context';
 import { h } from './dom';
@@ -18,6 +20,7 @@ import { hqScreen } from './screens/hq';
 import { briefingScreen } from './screens/briefing';
 import { debriefScreen } from './screens/debrief';
 import { quickScreen } from './screens/quick';
+import { defenseBriefingScreen, defenseReportScreen, gunnerGuideScreen } from './screens/defense';
 import { optionsScreen } from './screens/options';
 import { controlsScreen, creditsScreen } from './screens/docs';
 import { acesScreen } from './screens/aces';
@@ -56,6 +59,9 @@ const SCREENS: Record<ScreenId, ScreenFactory> = {
   briefing: briefingScreen,
   debrief: debriefScreen,
   quick: quickScreen,
+  'defense-briefing': defenseBriefingScreen,
+  'defense-report': defenseReportScreen,
+  'gunner-guide': gunnerGuideScreen,
   options: optionsScreen,
   controls: controlsScreen,
   credits: creditsScreen,
@@ -63,7 +69,7 @@ const SCREENS: Record<ScreenId, ScreenFactory> = {
 };
 
 export interface UiOptions {
-  /** Element that receives the flight container (default: document.body). */
+  /** Element that receives a flight or defense container (default: document.body). */
   flightHost?: HTMLElement;
   /** First screen (default 'title'). */
   initialScreen?: ScreenId;
@@ -86,7 +92,10 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
   const stack: { id: ScreenId; params: ScreenParams }[] = [];
   let screen: Screen | null = null;
   let currentId: ScreenId = opts.initialScreen ?? 'title';
-  let flying = false;
+  let session: 'flight' | 'defense' | null = null;
+  let defenseHost: HTMLElement | null = null;
+  let disposed = false;
+  let visible = true;
   const modals: HTMLElement[] = [];
 
   const nav = createNav({
@@ -103,6 +112,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
   });
 
   function mount(id: ScreenId, params: ScreenParams): void {
+    if (disposed) return;
     const prev = screen;
     if (prev) {
       prev.dispose?.();
@@ -119,9 +129,11 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       toast('Something went wrong opening that screen.');
     }
     layer.append(screen.el);
-    if (screen.music) services.audio.playMusic(screen.music);
+    if (!session && screen.music) services.audio.playMusic(screen.music);
     screen.onShow?.();
-    requestAnimationFrame(() => nav.focusFirst(screen?.el));
+    requestAnimationFrame(() => {
+      if (!disposed && !session && visible) nav.focusFirst(screen?.el);
+    });
   }
 
   const router: Router = {
@@ -129,20 +141,24 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       return currentId;
     },
     push(id, params = {}) {
+      if (disposed) return;
       stack.push({ id, params });
       mount(id, params);
     },
     replace(id, params = {}) {
+      if (disposed) return;
       stack.pop();
       stack.push({ id, params });
       mount(id, params);
     },
     reset(id, params = {}) {
+      if (disposed) return;
       stack.length = 0;
       stack.push({ id, params });
       mount(id, params);
     },
     back() {
+      if (disposed) return;
       if (stack.length <= 1) return;
       stack.pop();
       const top = stack[stack.length - 1];
@@ -190,8 +206,8 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
   }
 
   async function fly(mission: MissionDefinition): Promise<MissionResult | null> {
-    if (flying) return null;
-    flying = true;
+    if (disposed || session) return null;
+    session = 'flight';
     const host = h('div', { class: 'rb-flight-host' });
     (opts.flightHost ?? document.body).append(host);
     layer.hidden = true;
@@ -207,9 +223,52 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       return null;
     } finally {
       host.remove();
-      layer.hidden = false;
-      nav.setActive(true);
-      flying = false;
+      session = null;
+      if (!disposed) {
+        layer.hidden = !visible;
+        nav.setActive(visible);
+      }
+    }
+  }
+
+  async function defend(options: DefenseOptions): Promise<DefenseResult | null> {
+    if (disposed || session) return null;
+    const launcher = services.defense;
+    if (!launcher) {
+      toast('Airfield Defense is not available in this flight-only tool.');
+      return null;
+    }
+    session = 'defense';
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const host = h('div', { class: 'rb-flight-host rb-defense-host', dataset: { session: 'airfield-defense' } });
+    defenseHost = host;
+    try {
+      (opts.flightHost ?? document.body).append(host);
+      layer.hidden = true;
+      nav.setActive(false);
+      services.audio.playMusic('flight');
+      const result = await launcher.defend({ ...options }, services.getSettings(), host);
+      return disposed ? null : result;
+    } catch (err) {
+      if (!disposed) {
+        console.error('[ui] defense failed', err);
+        if (!wasErrorReported(err)) toast('The defense was interrupted. You can try again from this screen.');
+      }
+      return null;
+    } finally {
+      host.remove();
+      defenseHost = null;
+      session = null;
+      if (!disposed) {
+        layer.hidden = !visible;
+        nav.setActive(visible);
+        services.audio.playMusic(screen?.music ?? 'menu');
+        requestAnimationFrame(() => {
+          if (disposed || session || !visible) return;
+          if (previousFocus?.isConnected && screen?.el.contains(previousFocus)) previousFocus.focus();
+          else nav.focusFirst(screen?.el);
+        });
+      }
     }
   }
 
@@ -227,6 +286,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     confirm,
     toast,
     fly,
+    defend,
   };
 
   // UI sounds + audio unlock on first gesture.
@@ -235,7 +295,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     if (unlocked) return;
     unlocked = true;
     void services.audio.resume().then(() => {
-      if (screen?.music) services.audio.playMusic(screen.music);
+      if (!disposed && !session && screen?.music) services.audio.playMusic(screen.music);
     });
   };
   const onPointer = () => unlock();
@@ -265,14 +325,24 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     show: (id, params) => router.push(id, params),
     back: () => router.back(),
     setVisible(v) {
-      layer.hidden = !v;
-      nav.setActive(v && !flying);
+      if (disposed) return;
+      visible = v;
+      layer.hidden = !v || !!session;
+      nav.setActive(v && !session);
     },
     dispose() {
-      screen?.dispose?.();
-      nav.dispose();
-      unsubPad();
-      layer.remove();
+      if (disposed) return;
+      disposed = true;
+      try {
+        if (session === 'defense') abortActiveDefense(new Error('Defense menu disposed'));
+      } finally {
+        defenseHost?.remove();
+        screen?.dispose?.();
+        nav.dispose();
+        unsubPad();
+        window.removeEventListener('keydown', unlock);
+        layer.remove();
+      }
     },
   };
   const unsubPad = onPadChange((name, connected) => {

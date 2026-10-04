@@ -272,6 +272,55 @@ possible for all common controls, not merely provide basic stick input.
 - Coordinate with Q-12 at the input-command seam; serialize changes to shared
   input/session files rather than implementing two competing control systems.
 
+## Q-14 — Production Airfield Defense
+
+User approved a separate optional battery action alongside Career and Quick
+Mission. Implementation is verified on `feat/airfield-defense`, based on
+`4dc8ec8` plus the headless-QA prerequisite. This is a task-branch handoff,
+not a merged or deployed release.
+
+### Delivered behavior
+
+- Title → defense briefing / Gunner’s Guide / Options → first-person battery →
+  five raids with untimed resupply → Won/Lost/Aborted report → exact replay,
+  fresh attack or main menu.
+- Vickers MG, direct-hit cannon and ranged timed flak; physical shells,
+  falling-bomb interception and battery-only aerial credit. Veteran increases
+  pressure without inflating health; lead hints never steer or change combat.
+- HQ income, depot reload efficiency and hospital recovery; repairs, destroyed
+  asset rebuilding and power/cooling/reload upgrades. Upgrades reset each run.
+- Production Bertangles terrain, four existing aircraft types, a procedural
+  Zeppelin, aircraft damage/wrecks, ordnance/effects and real WebAudio.
+- Shared graphics/audio/mouse/fire/pause preferences, but separate battery ammo
+  and heat. Mouse/keyboard controls; touch flight intent is intentionally unused.
+- No pilot/career mutation, flight report, fake player aircraft or unfinished
+  flight-combat dependency. Shared core changes are new defense contracts plus
+  optional `GameServices.defense`.
+
+### Verification and handoff
+
+The executable model smoke won both difficulties; 13 model regressions pass.
+The physical-input Chrome/Metal browser smoke won all five Regular raids with
+all three guns, four resupplies, 29 credited kills and one bomb intercepted;
+all three assets finished intact. A separate idle run lost with no kills or
+interceptions. Reports recorded 3m 43s and 4m 49s combat time respectively.
+Replay, fresh choices, pause/chords, real audio buffers and legacy void-returning
+pointer lock were exercised; inspected gun/report screenshots cover desktop and
+430×900 viewports. Browser error captures were empty.
+
+Final owning-workspace checks: `pnpm typecheck`; `pnpm test` (690 Vitest passed,
+30 gated skips, 20 Node tooling passed); `pnpm build`;
+`E2E_PORT=5371 pnpm exec playwright test` (33 passed, one gated soak skipped).
+The browser regressions include career-save isolation, cross-mode ownership and
+shared fire/pause bindings colliding with station-selection keys.
+
+Screenshots/JSON remain in ignored `tools/dev/scratch/airfield-defense/`.
+Throwaway smoke drivers are removed, QA browsers are closed and port 5370 is
+stopped. Workspaces/worker evidence are retained without cleanup authorization.
+No unresolved implementation dependency. Next release gate: human gun-view,
+aiming and difficulty approval, then independent integration review and normal
+release checks; no publication has been performed.
+
 ## Cycle two: decisions and evidence
 
 Base `87b798e`; integration branch `feat/backlog-cycle-two`. Initial dispatch:

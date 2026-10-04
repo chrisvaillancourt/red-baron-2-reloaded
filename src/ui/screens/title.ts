@@ -16,20 +16,24 @@ export const titleScreen: ScreenFactory = (ctx) => {
   const pilots = ctx.services.campaign.listPilots();
   const active = pilots.filter((p) => p.status === 'active' || p.status === 'hospital');
   const [quote, who] = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+  const defenseAvailable = !!ctx.services.defense;
+  const ordinals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+  let ordinal = 0;
 
-  const item = (ord: string, label: string, sub: string, onClick: () => void, auto = false) =>
-    h('button', { class: 'plaque', onClick, 'data-autofocus': auto || undefined }, h('span', { class: 'ord' }, ord), label, h('span', { class: 'sub' }, sub));
+  const item = (label: string, sub: string, onClick: () => void, auto = false) =>
+    h('button', { class: 'plaque', onClick, 'data-autofocus': auto || undefined }, h('span', { class: 'ord' }, ordinals[ordinal++]), label, h('span', { class: 'sub' }, sub));
 
   const menu = h(
     'nav',
     { class: 'title-menu', 'aria-label': 'Main menu' },
     h('div', { class: 'menu-head' }, '— Order of Battle —'),
-    item('I', 'Career', active.length ? `${active.length} pilot${active.length > 1 ? 's' : ''} on file` : 'Enlist', () => ctx.router.push('roster'), true),
-    item('II', 'Quick Mission', 'Instant action', () => ctx.router.push('quick')),
-    item('III', 'Hall of Fame', 'Aces of the war', () => ctx.router.push('aces')),
-    item('IV', 'Options', 'Realism · controls', () => ctx.router.push('options')),
-    item('V', 'Flying Manual', 'Keys & tactics', () => ctx.router.push('controls')),
-    item('VI', 'Credits', '', () => ctx.router.push('credits')),
+    item('Career', active.length ? `${active.length} pilot${active.length > 1 ? 's' : ''} on file` : 'Enlist', () => ctx.router.push('roster'), true),
+    item('Quick Mission', 'Instant action', () => ctx.router.push('quick')),
+    defenseAvailable && item('Airfield Defense', 'Man the guns. Hold the line.', () => ctx.router.push('defense-briefing')),
+    item('Hall of Fame', 'Aces of the war', () => ctx.router.push('aces')),
+    item('Options', 'Realism · controls', () => ctx.router.push('options')),
+    item('Flying Manual', 'Keys & tactics', () => ctx.router.push('controls')),
+    item('Credits', '', () => ctx.router.push('credits')),
   );
   const quoteEl = h('blockquote', { class: 'title-quote' }, `“${quote}”`, h('cite', null, `— ${who}`));
 

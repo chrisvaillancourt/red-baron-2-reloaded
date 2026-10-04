@@ -1249,3 +1249,42 @@ server was stopped; its screenshot remains in ignored
 **Consequences.** No new dependencies, services, runtime game behavior or shared
 core contracts. The QA browser is closed after the smoke check. The retained
 task branch is a handoff; other checkouts adopt the policy when it is integrated.
+
+## D-XXX — Keep Airfield Defense independent of pilot sorties
+**Context.** Flight combat, victory claims and `MissionResult` are aircraft-owned.
+The approved first-person battery action needs its own ordnance ownership and
+outcome, not an invented player aircraft or a career mission.
+
+**Decision.** Reimplement the validated gameplay as an optional main-menu action,
+not a merge or copy of the throwaway prototype. `src/core/defense.ts` defines the
+battery session/model/report; the only addition to existing shared core contracts
+is optional `GameServices.defense`. A lazy session composes pure authored raid
+combat with production Bertangles terrain, enemy aircraft GLBs, effects and audio.
+Three aligned guns, five raids including a Zeppelin, falling-bomb interception,
+asset-linked repair/rebuild/upgrades, Regular/Veteran and exact seeded replay are
+complete. Lead assistance is visual only. Veteran increases coordinated pressure,
+not enemy health or the requisition ceiling.
+
+The historical field/date host an arcade exercise, not a reenactment claim.
+Battery shells and enemy bombs have distinct owners; only battery destruction or
+interception earns aerial credit. Defense never writes a pilot, career result or
+flight report. Both launcher directions reject competing sessions; pause,
+ownership loss and teardown release held input and resources. Graphics, sound,
+mouse preferences and fire/pause bindings are shared; battery ammunition/heat are
+not disabled by flight-realism settings. Controls are mouse/keyboard, not touch.
+
+**Evidence.** The integrated model completed both difficulties. A real headless
+Chrome/Metal browser run used mouse/keyboard firing through all five Regular
+raids: 29 aerial kills, one intercepted bomb, all assets standing, 3m 43s combat
+time. Idle defense lost after three completed raids with zero aerial credit.
+Replay, fresh seed, resupply and unchanged career saves were exercised. Desktop
+and 430×900 screenshots cover all guns in normal/focused views and reports.
+The real audio context ran and emitted nonzero gun buffers; void-returning
+pointer lock also captured successfully. Final typecheck, 690 Vitest tests
+(30 gated skips), 20 Node tooling tests, production build and 33 browser tests
+(one gated soak skipped) passed.
+
+**Consequences.** No new dependencies or flight-physics/AI/career policy changes.
+The complete implementation is handed off on `feat/airfield-defense`; human feel
+approval precedes integration/publication. No merge, push or deployment is claimed.
+

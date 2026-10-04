@@ -39,12 +39,41 @@ per frame:
 events (EventBus) fan out to renderer.handleEvent, audio.handleEvent, hud, missionDirector.
 ```
 
+## Airfield Defense session (src/game/defenseSession.ts)
+
+`createLazyDefenseLauncher` loads a separate battery session on demand. Its fixed
+60 Hz ticks feed `src/sim/airfieldDefense.ts`, which slices motion at 120 Hz for
+chronological swept contacts. `src/data/airfieldDefense.ts` owns authored raids and
+battery balance; it does not change flight performance or campaign data.
+
+`src/render/airfieldDefense.ts` adapts local battery metres onto the historical
+Bertangles terrain, production aircraft GLBs/liveries, effects and audio query.
+The query has no player aircraft. Aircraft entities mirror authored enemy poses;
+they are not a second flight simulation. The airship and camera-space guns are
+procedural meshes. Muzzle geometry, physical projectile origin/direction, centered
+sight, normal/focused FOV and resize share one presentation contract.
+
+Battery events stay local. Only battery-owned aerial kills and bomb interceptions
+earn credit; enemy blasts affect defended assets only. Every scheduled group,
+threat, bomb and player shell must settle before resupply or victory. Loss and
+abandonment terminate immediately. `DefenseResult` is a copied terminal snapshot,
+never a `MissionResult`, pilot claim or flight report.
+
+The menu shares settings and navigation conventions, not career state. Input,
+pointer capture, rendering, audio and the dev-only diagnostic hook are released on
+exit/restart. Both launcher directions reject overlapping flight/defense sessions.
+
+
 ## Contracts
 
 * `src/core/types.ts` — data types (AircraftSpec, entities, MissionDefinition, MissionResult, GameEvent, settings).
 * `src/core/interfaces.ts` — module interfaces (SimModule, CombatSystem, AIController, WorldRenderer,
   AircraftVisual, AudioEngine, CampaignService, FlightLauncher, GameServices).
 * `src/core/campaignTypes.ts` — career data (CareerPilot, SquadronInfo, DebriefReport, QuickMissionOptions).
+* `src/core/defense.ts` — independent battery options, state, owned events, commands,
+  terminal results and `DefenseLauncher`; `GameServices.defense` is optional.
+* `src/render/defensePresentation.ts` — renderer-owned first-person aim/presentation
+  seam, kept out of pure simulation contracts.
 
 ### Crew stations and bombs (D-086, docs/bombers.md)
 
