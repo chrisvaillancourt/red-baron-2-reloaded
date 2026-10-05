@@ -16,7 +16,8 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `activeFlight.ts` | Registry of the flight in progress; `abortActiveFlight(err, { silent })`. |
 | `flightSession.ts` | `createFlightLauncher(modules, audio)` → `FlightLauncher.fly`. The loop; drives the HUD cards (pause, end flight, orders, map). |
 | `activeDefense.ts` | Independent battery registry and abort path; no flight/career ownership. |
-| `defenseSession.ts` | `createDefenseLauncher(audio)` → `DefenseLauncher.defend`: fixed-step battery combat, mouse/keyboard input, HUD, pause/resupply and terminal teardown. |
+| `defenseSession.ts` | `createDefenseLauncher(audio)` → `DefenseLauncher.defend`: fixed-step battery combat, contextual mouse/keyboard/Xbox input, HUD, pause/resupply and terminal teardown. |
+| `defenseGamepad.ts` | Stable standard-pad ownership, reused command frame, shaped aim and neutral-gated combat transitions. |
 | `simCore.ts` | `SimCore`: the headless flight — world, combat, AI controllers, mission director, the fixed step, landing detection, wingman orders. Shared by `FlightSession` and the autoplayer. |
 | `heightCache.ts` | Tiled bilinear cache (32 m cells, 1024 m tiles, 600-tile LRU) over `terrainHeightAt`; every ground query in a flight goes through it. |
 | `autoplay.ts` | Autoplayer: `runAutoplay(mission)` flies a mission headlessly with the player's aircraft on an AI controller; `headlessModules`. |
@@ -70,12 +71,40 @@ model. Repair can rebuild a destroyed asset while another survives. Next raid
 refills magazines and clears heat/reload. Veteran changes coordination and counts,
 not health or the requisition ceiling; lead assistance changes no combat state.
 
-Pause, blur, hidden page and capture loss clear held fire/focus/keys. Escape/shared
-pause bindings still pause while the fuze slider has focus. Resume needs an explicit
-capture gesture or keyboard-mode choice. Session cancellation also terminates
-renderer workers and streaming during blocked model loading. WebGL loss interrupts
-the action rather than continuing invisibly. Terminal teardown removes RAF, observers,
-input listeners, GPU resources, audio and `window.__rb2Defense` (development only).
+Pause, blur, hidden page, capture loss and active-controller loss clear held
+fire/focus/keys. The disconnect event also catches same-slot reconnects between
+frames. Escape/shared pause bindings remain pause-only, including repeated keys
+or a focused fuze slider; Backspace does not resume. Resume needs an explicit
+capture gesture or keyboard/controller-mode choice.
+Session cancellation also terminates renderer workers and streaming during blocked
+model loading. WebGL loss interrupts the action rather than continuing invisibly.
+Terminal teardown removes both navigation/game RAFs, observers, input listeners,
+GPU resources, audio and `window.__rb2Defense` (development only).
+
+`DefenseGamepad` reuses `applyDeadzone`/`expo` from flight input, honors Gamepad
+enablement and pitch inversion, and reuses one mutable output frame. Gameplay pins
+the first standard-mapped pad until disconnect; replacement pauses rather than
+silently transferring held fire. Left stick aims at a fixed angular rate, LT
+reduces it and focuses, RT fires, LB/RB cycle stations, X reloads, right-stick click ranges, and
+D-pad up/down adjusts fuze. Menu is a fresh pause/resume edge even while combat
+controls await neutral. Station/lifecycle changes require released buttons and
+centered aim axes before combat input is armed again.
+
+The battery owns a scoped `createNav` only while pause/resupply is visible; the
+parent menu remains inactive until report handback. D-pad/left stick moves focus,
+A activates once per press, and B closes raid pause without capture or abandonment.
+Before scene readiness any standard pad can cancel loading; afterward only the
+gameplay owner navigates the battery overlay. Existing parent-menu mappings remain
+unchanged. Navigation resets across scope/activation/controller transitions and
+observes neutral input before accepting buttons. A poll stops if activation changes
+its owner, including a resupply panel rebuilt inside the same overlay element:
+held A or an A/B chord cannot buy twice, advance a raid and resume its new overlay.
+
+Foreground error cards own navigation and focus restoration above menus and the
+battery. The battery pauses behind a card; Menu/B and resume buttons cannot restart
+combat until the card is dismissed. Focus restoration accepts only controls within
+the current owner, and navigation gives programmatic focus the existing visible
+ring even after mouse use. No new settings or shared core contracts are introduced.
 
 
 ## Loop

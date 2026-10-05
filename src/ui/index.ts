@@ -25,6 +25,7 @@ import { optionsScreen } from './screens/options';
 import { controlsScreen, creditsScreen } from './screens/docs';
 import { acesScreen } from './screens/aces';
 import { onPadChange } from './gamepad';
+import { getErrorOverlay } from '../game/errorOverlay';
 
 export { createHud } from './hud/hud';
 export type {
@@ -99,8 +100,9 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
   const modals: HTMLElement[] = [];
 
   const nav = createNav({
-    scope: () => modals[modals.length - 1] ?? screen?.el ?? null,
+    scope: () => getErrorOverlay() ?? modals[modals.length - 1] ?? screen?.el ?? null,
     onBack: () => {
+      if (getErrorOverlay()) return;
       if (modals.length) {
         (modals[modals.length - 1].querySelector('[data-cancel]') as HTMLElement | null)?.click();
         return;
@@ -108,7 +110,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       if (screen?.onBack?.()) return;
       router.back();
     },
-    onTab: (dir) => screen?.onTab?.(dir),
+    onTab: (dir) => { if (!getErrorOverlay()) screen?.onTab?.(dir); },
   });
 
   function mount(id: ScreenId, params: ScreenParams): void {
@@ -132,7 +134,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     if (!session && screen.music) services.audio.playMusic(screen.music);
     screen.onShow?.();
     requestAnimationFrame(() => {
-      if (!disposed && !session && visible) nav.focusFirst(screen?.el);
+      if (!disposed && !session && visible) nav.focusFirst();
     });
   }
 
@@ -179,7 +181,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       const close = (v: boolean) => {
         backdrop.remove();
         modals.splice(modals.indexOf(backdrop), 1);
-        prevFocus?.focus?.();
+        nav.focusFirst(prevFocus);
         resolve(v);
       };
       const backdrop = h(
@@ -201,7 +203,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
       );
       modals.push(backdrop);
       layer.append(backdrop);
-      requestAnimationFrame(() => nav.focusFirst(backdrop));
+      requestAnimationFrame(() => nav.focusFirst());
     });
   }
 
@@ -265,8 +267,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
         services.audio.playMusic(screen?.music ?? 'menu');
         requestAnimationFrame(() => {
           if (disposed || session || !visible) return;
-          if (previousFocus?.isConnected && screen?.el.contains(previousFocus)) previousFocus.focus();
-          else nav.focusFirst(screen?.el);
+          nav.focusFirst(previousFocus);
         });
       }
     }

@@ -132,14 +132,24 @@ squadron gives you. Hold on to your pilot: death and capture end a career.
 The full list of flight keys, with the gamepad mapping, is in the in-game **Flying
 Manual**. Flight actions can be rebound under **Options → Keys**.
 
-**Airfield Defense** requires a mouse or keyboard. Mouse / arrows aim; left mouse /
-the shared fire binding fires; right mouse (held) focuses. **1 / 2 / 3** change guns,
-**R** reloads, wheel adjusts the flak fuze and **F** ranges the tracked threat.
-**Esc** pauses and releases capture; choose **Return to the guns** or **Use keyboard
-controls** to resume. The briefing's **Gunner’s Guide** explains lead, fuze range,
-asset benefits and resupply. Graphics, audio, mouse sensitivity/inversion and shared
-fire/pause bindings use ordinary Options; battery ammunition and heat remain active
-even when flight realism enables unlimited ammunition.
+**Airfield Defense** supports mouse, keyboard and a standard-mapped Xbox controller
+(not touch). Mouse / arrows aim; left mouse / the shared fire binding fires; right
+mouse focuses. **1 / 2 / 3** change guns, **R** reloads, wheel adjusts the flak fuze
+and **F** ranges the tracked threat. **Esc** pauses and releases capture.
+
+On Xbox: **left stick** aims, **RT** fires, **LT** focuses/fine-aims, **LB / RB**
+cycle guns, **X** reloads, **right-stick click (R3)** ranges and **D-pad up / down** adjusts fuze.
+**Menu** pauses/returns; **D-pad / left stick** navigates menus and resupply,
+**A** selects and **B** closes pause without abandoning. Choose **Use controller**
+to resume without mouse capture. Release controls after station/pause/controller
+handoffs; disconnecting the active controller pauses combat. Gamepad enablement,
+deadzone and pitch inversion use ordinary Options.
+Briefing choices, the guide, pause, resupply and report/replay are pad-navigable;
+typing a custom seed or adjusting Options sliders still needs keyboard/mouse.
+
+The briefing's **Gunner’s Guide** explains lead, fuze range, asset benefits and
+resupply. Graphics, audio and shared mouse/fire/pause bindings use Options;
+battery ammunition and heat remain active even with unlimited flight ammunition.
 
 ## How it's built
 
