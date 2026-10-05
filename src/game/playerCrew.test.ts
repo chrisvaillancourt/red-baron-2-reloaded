@@ -6,7 +6,7 @@ import { getAircraft } from '../data/aircraft';
 import { crewStations } from '../data/crew';
 import { headlessModules } from './autoplay';
 import { CameraRig } from './cameras';
-import type { InputFrame } from './input';
+import { readGamepad, type InputFrame } from './input';
 import { PlayerCrew } from './playerCrew';
 import { SimCore, SIM_HZ } from './simCore';
 import { bristolFight, dh4BombRun } from './testing/crewMissions';
@@ -58,6 +58,35 @@ describe('PlayerCrew seat switching', () => {
     expect(t.input.stationMode).toBe(false);
     expect(t.rig.station).toBeNull();
     expect(t.synced).toEqual([t.player]); // the input takes over where the AI left the controls
+  });
+
+  it.each([['LB', 4], ['RB', 5]] as const)('keeps pilot control after a fresh crew B+%s press', (_bumper, buttonIndex) => {
+    const t = setup(bristolFight('observer'));
+    t.crew.start();
+    step(t.core, t.crew, 60);
+    const left = { ...t.player.controls };
+    const pad = {
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 17 }, (_, i) => ({
+        pressed: i === 1 || i === buttonIndex,
+        value: i === 1 || i === buttonIndex ? 1 : 0,
+      })),
+    };
+    const mapped = readGamepad(pad, [], DEFAULT_SETTINGS.controls, 1 / 60, { stationMode: t.input.stationMode });
+    for (const command of mapped.commands) t.crew.command(command, 0);
+
+    expect(t.core.playerStation).toBe('pilot');
+    expect(t.crew.atGun).toBe(false);
+    expect(t.input.stationMode).toBe(false);
+    expect(t.rig.mode).toBe('cockpit');
+    expect(t.rig.station).toBeNull();
+    expect(t.player.stationInputs).toBeUndefined();
+    expect(t.synced).toEqual([t.player]);
+    const stale = frame({ controls: { ...left, throttle: 0.1 } });
+    t.crew.pilotControls(stale, t.player.controls);
+    expect(t.player.controls).toEqual(left);
+    t.crew.pilotControls(stale, t.player.controls);
+    expect(t.player.controls.throttle).toBe(0.1);
   });
 
   it('keeps an external view when the seat changes', () => {
