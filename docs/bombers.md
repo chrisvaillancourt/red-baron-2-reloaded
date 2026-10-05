@@ -6,6 +6,185 @@ merged as `f5e0a1c` and delivered D-103 player access: all 33 aircraft in ordina
 Quick Missions, seven bomb carriers in raids. The original scope/wave plan below
 is historical context, not an active schedule; current work is in STATUS.
 
+## Q-08 pacing measurement contract
+
+This is a **measurement-only** cohort. `tools/dev/scenarios/bomber-pacing.mjs`
+uses the existing native differential loader and real simulation; it does not change
+aircraft cards, coefficients, AI speed caps, tactics, mission placement or test tolerances.
+The revisioned measurement below belongs to its explicitly frozen authored tree;
+integration/runtime/publication receipts remain distinct in BACKLOG and STATUS.
+
+### Bounded matrix and explicit selection
+
+Bomb carriers are discovered from `AIRCRAFT_LIST` and their stores, not a copied roster,
+mass table or bomb-count table. At the implementation base these are the seven shipped
+carriers. Select `{"suite":"all"}`, one of `transit`, `reference`, `quick`, `interceptor`,
+a nonempty array of those suites, or a nonempty `cases` array of exact case IDs.
+Missing/empty, unknown and duplicate selections fail rather than succeeding without
+observations. `suite` and `cases` are mutually exclusive; other input keys fail.
+
+| Suite | Cases | Method |
+|---|---|---|
+| `transit` | Every carrier × full-load/no-bombs × solo/triple × seeds 1/2/3 | Eastbound at 2500 m ASL toward a distant fly waypoint; 240 s cap, separate first 60 s transient and final 180 s steady windows. |
+| `reference` | Every carrier × card-altitude/same-altitude | Full bomb load; existing performance-test full-throttle autopilot method, standard flight model, torque off and auto-rudder on; 150 s with final 15 s steady window. Card altitude is clamped to at least 300 m; same-altitude is 2500 m. Initial speed is 0.95 of card speed. |
+| `quick` | Every carrier × solo/triple, fixed seed 7000 | Actual production Quick bombing build, veteran AI player/leader, regular wingmen and two regular defenders, no escort, requested 2500 m and clear midday. Real terrain, wind, AA, mission date, raid altitude clamp, delayed spawns and director remain unchanged. End on mission completion or 1500 s cap. |
+| `interceptor` | Loaded D.H.4 triple, seed 1, ahead/astern | Controlled transit plus a regular Central D.VII 2500 m ahead or astern, 400 m lateral and 100 m above. Both start eastbound: these are parallel ahead/astern starts, not head-on starts. Real default controller steering/tactics and guns remain enabled. 240 s cap, 60 s warmup. |
+
+Controlled transit/interceptor cases use standard realism with engine torque, flat
+50 m ground, no wind/turbulence/weather/AA, initial speed 0.8 of card speed, and
+explicit controller seeds derived from case seed and entity ID. They are diagnostic
+starts, not historical service-date/career eligibility evidence. Reference cases use
+the performance test's different realism and are labeled separately.
+
+`SimWorld.addAircraft` does **not** load bombs. Controlled cases load the selected
+stores first, then recreate the trimmed state with `createFlightState` and
+`effectiveMass`, matching production's initialization order. No-bombs removes only
+the bomb payload from full loaded mass: it is not the aircraft's empty weight.
+Production Quick bombing uses `SimCore` and `headlessModules`, including the existing
+AI-controller options adapter and real loading/retrim path. Initial/final bomb counts
+and effective mass are recorded independently of the requested load.
+
+### Observations and censoring
+
+Every selected case returns a plain JSON-compatible observation with its setup,
+aircraft card references, actual date/flight size, initial/final scalar state and actual
+aircraft skill, scheduled flight starts/routes/delays/member skills, actual spawn snapshots,
+releases/explosions, event counts, per-shooter fire counts, per-shooter/target hit counts and outcomes.
+Vector values are copied immediately into numeric arrays. Nonfinite or undefined
+results fail; empty accumulators have `count: 0`, `seconds: 0` and null mean/min/max.
+There are no NaN placeholders and no dropped unsuccessful cases.
+
+Speed, horizontal speed, altitude error and throttle are sampled every 120 Hz
+physics step, with time-weighted mean/min/max and explicit counts/seconds. Stall,
+AI-autopilot recovery, throttle saturation and phase dwell are durations. Only live
+aircraft contribute flight samples; reduced denominators are reported, not averaged
+as successful flight. `lost` uses production `missionDirector.isLost`, also counting
+unfinalized destroyed/pilot-killed aircraft: safe landings and disengagement stop
+sampling but are not losses. Reference steady speed is available in
+m/s; multiply by 3.6 for the card's km/h. The 0.8 solo-cruise and 0.72 formation-cap
+fields are **nominal policy references**, not an observed final steering request.
+
+Wingman error uses the existing `slotPosition` geometry and the leader's horizontal
+**velocity**, including its low-speed fallback, not attitude heading. Along/cross
+and vertical errors are signed target-minus-aircraft components; 3D error is their
+norm. Original-vic metrics cease at the first member loss or return/landing phase,
+with a censor time: surviving inferred slots or a replacement leader are not silently
+compared with the original slots. Startup join-up remains measured. These summaries
+do not establish a new formation-error threshold.
+
+Contact means geometric range at or below 3000 m, separately from AI target selection,
+first fire and first hit. Range crossings (3000/1800/700/250 m), minimum range and
+pair-time-weighted radial closure include only live bomber/enemy pairs; they do not
+mean visibility or a firing solution. Closure is zero at exactly zero range.
+Absent contact/release times remain null with explicit censor flags. Fixed controlled
+caps are the intended observation horizon, not a failure verdict; production cap
+censoring is distinct from director completion. Events are copied at emission in
+production and after each physics step in the controlled harness.
+
+Completed Quick sorties serialize `missionResult` from the real director's
+`buildResult()`: mission identity/success, player outcome/fate, end/abort flags,
+flight time and objective identities/completion. Safe player return is independent
+of bombing objective success. A capped flight has **no final mission result**:
+`objectiveObservation` labels its live progress as censored, retaining objective
+definitions, completed/failed identities, station-time/engagement progress and
+ground-target mission/entity identities, health and destruction dispositions.
+The same objective/target context accompanies completed results. A director end
+on the last allowed step is genuine completion, not time-cap censoring.
+
+`node --test tools/dev/bomber-pacing.test.mjs` is an isolated terminal-lifecycle
+regression using the native loader and a real production `SimCore` subclass.
+After real physics steps its fixture explicitly injects `landed-friendly`,
+`disengaged` or `shot-down` world state and lets the production director end the
+sortie. It checks loss classification and bombing failure despite safe return;
+this injected fixture is **not** proof of naturally flown landings or bombing runs.
+
+Actual Quick **intercept** missions are recon/unloaded; they are intentionally not
+part of this loaded bombing cohort and must never be relabeled as loaded evidence.
+Likewise, the unchanged historical `interceptors.realsim.test.ts` D.H.4 fixtures do
+not load bombs. Keep historical, controlled and production cohorts separate.
+
+### Integration-owner execution and interpretation
+
+Run from the fixed owning checkout, with dependencies unchanged and an explicitly
+increased timeout; retain the complete differential JSON in task-owned ignored scratch:
+
+```sh
+node tools/dev/differential-probe.mjs --baseline . --candidate . \
+  --scenario tools/dev/scenarios/bomber-pacing.mjs \
+  --input '{"suite":"all"}' --timeout-ms 3600000
+pnpm exec vitest run src/ai/bombers.realsim.test.ts src/ai/interceptors.realsim.test.ts
+```
+
+A focused diagnostic selection is, for example,
+`{"cases":["transit/dh4/loaded/3/1","reference/dh4/card-altitude","quick/dh4/3","interceptor/dh4/loaded/astern"]}`.
+The runner records complete observations, input, scenario hash, both revision/dirty
+fingerprints, worker exits and distinct process identities. Equal same-root results
+prove reproducibility for these cases, **not** gameplay quality or improved balance.
+The owner also runs existing differential-runner tests and full project gates before
+integration, and adds actual numbers with exact revision/command/evidence provenance.
+
+Interpret 2500 m AI pacing against the same-altitude loaded power reference before
+consulting the separately measured card-altitude reference. A cruise observation is
+not a replacement for the existing historical speed tolerance. Never infer a desired
+catch rate from a bomber being faster than a particular scout. Human difficulty,
+visual formation feel, tuning, historical career eligibility and night-bomber policy
+remain separate owner decisions; no Q-08 measurement closes those decisions.
+
+### Measured authored cohort — 2026-10-05 UTC
+
+Base `a91f9b478b964491d1b86f1e493a7969eaab1068`; final staged tree
+`9a6d8047dde1b7378829da52cf0574431a959a74`, scenario SHA-256
+`fa10f4feb165b51c613779addfb458745c3ea2964c74bd82ef1f010da4ca077c`.
+The all-suite command above selected all **114 cases**, with identical complete
+observations in distinct processes **83579/87132**. Every case observation also
+matched the corrected pre-allocation-hoist report exactly. Standards and Spec
+round three were clean; nine focused Node consumer/runner tests passed.
+Retained full JSON: `rb2r-workflowz-bomber/tools/dev/scratch/workflowz-q08/pacing-final-report.json`
+(4,213,931 bytes); original and corrected pre-hoist reports remain separate.
+This proves authored-tree repeatability, not current integrated-tree equivalence.
+
+Controlled **loaded, regular-AI triple**, seeds 1/2/3, calm 2500 m eastbound
+transit, 240 s duration, prescribed 60 s startup exclusion. Leader means pool
+accepted aircraft-time; slot means pool both original wingmen's accepted
+aircraft-time across the three seeds. Maxima are sampled maxima across that cohort,
+not percentiles. No losses or stalled samples occurred in these transit rows.
+
+| Aircraft | Leader true airspeed, km/h | Wing slot 3D mean, m | Sampled slot max, m |
+|---|---:|---:|---:|
+| AEG G.IV | 138.105 | 105.699 | 145.519 |
+| Gotha G.V | 124.787 | 0.462 | 0.872 |
+| D.H.4 | 165.611 | 4.768 | 10.206 |
+| Voisin III | 96.995 | 240.718 | 418.050 |
+| Breguet 14 B2 | 126.007 | 15.740 | 26.893 |
+| D.H.9 | 131.016 | 12.676 | 22.870 |
+| Handley Page O/400 | 118.492 | 1.390 | 3.087 |
+
+The 0.72 fraction caps **requested steering speed**, not actual airspeed. Its
+eligibility depends on a live same-flight formation wingman within 800 m.
+PI throttle and minimum-speed protection still operate. This sampler does not
+record command/cap/floor-active exposure, so it cannot assign causal shares to
+excess speed; zero stalled samples do not prove safeguards were inactive.
+Voisin and AEG slot errors warrant a separately authorized pacing investigation,
+not an automatic airframe or safety retune.
+
+The 14 production Quick cases instead use an actual **veteran player/leader**,
+regular wingmen/enemies, no escort and seed 7000. Thirteen ended naturally;
+O/400 solo reached the 1500 s cap with a live player and null final result.
+Completed mission success and player survival differ: several successful bombing
+objectives ended with a lost player. These single-seed sorties establish neither
+population catch rates nor human difficulty. Ahead/astern D.H.4 interception is
+parallel-heading geometry, not a head-on or all-bomber catch-rate study.
+Integrated tree `d2a1788a1865bd83d4ee9d3ffc8fb7c5dfe32ba6` (local main
+collision merge `d9008294…` plus staged first-wave changes) also repeated all
+114 cases exactly, processes **96580/7161**, using the same scenario hash.
+Comparison with the authored report found one changed case, `quick/voisin_iii/3`:
+final state, metrics, events and encounter observations differ; termination,
+elapsed time and final mission outcome do not. Every other complete case,
+including the controlled table above, matched exactly. This is not global
+pre/post-collision equivalence. Separate integrated JSON is retained at
+`tools/dev/scratch/workflowz-wave-one/pacing-integrated-report.json`.
+
+
 ## Player-access cutover (2026-10-04 UTC)
 
 Base: `f814e2a`, the authorized PR #4 squash merge. GitHub Pages build/deploy succeeded
