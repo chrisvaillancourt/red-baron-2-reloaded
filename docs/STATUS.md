@@ -1,6 +1,6 @@
 # Agent orientation and current scheduling ledger
 
-Snapshot checked **UTC 2026-10-05T04:21:12Z**, using the active parent's fresh
+Snapshot checked **UTC 2026-10-05T05:35:44Z**, using the active parent's fresh
 main/deployment/workspace receipts and worker handoffs. This is the only live dispatch queue.
 [BACKLOG](BACKLOG.md) holds contracts/evidence; [DEFERRED-TODOS](DEFERRED-TODOS.md)
 holds genuine blockers/untriggered ideas; [IMPLEMENTATION-NOTES](IMPLEMENTATION-NOTES.md)
@@ -13,11 +13,11 @@ proposal, not another session's confirmed ledger.
 ## Release anchor
 
 - Latest verified published `origin/main`:
-  `a91f9b478b964491d1b86f1e493a7969eaab1068`. [Main Actions 37259730427](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37259730427)
-  completed successfully; deployed `prodcheck` passed with inspected menu/flight
-  PNGs and empty errors/failed requests. Parent local main now contains collision
-  merge `d9008294cc251da75dbd3eee478d7e6a22aef82a` plus owned first-wave changes;
-  integrated gates and publication are pending.
+  `185143100c6dac6f2c7d120cb9ec0180cda32af7`. [Main Actions 37266530088](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37266530088)
+  built/deployed successfully; deployed `prodcheck` passed with inspected menu/flight
+  PNGs, all four workers/two aircraft models and empty errors/failed requests.
+  Author-tool wave: 700 Vitest/21 Node/typecheck/build; 44 browser cases/one gated
+  soak skip. F-49/F-55 source and module docs are published; no performance retune.
 - Prior gameplay release `9c40f8ee5b1c2aee9a7038428d63daac18a74a6c` retains its
   [PR #14 receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/14#issuecomment-5986900031)
   and scope-specific evidence below. Reconcile remote main again before later dispatch.
@@ -25,7 +25,7 @@ proposal, not another session's confirmed ledger.
   click (R3/button 11) ranging, RT fire, LT focus, LB/RB stations, X reload, D-pad
   fuze, Menu pause/return, scoped A/B navigation. No-touch battery; custom seeds
   and Options sliders still use keyboard/mouse. Broader flight-controller work is open.
-- Final gameplay-release evidence: typecheck/build; **696 Vitest + 20 Node tests**
+- Prior flight/battery-release evidence: typecheck/build; **696 Vitest + 20 Node tests**
   passed (30 gated skips); **44 full browser cases** passed (one gated soak skipped).
   [PR validation](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37253074881)
   built without publication; [main deployment](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37253757536)
@@ -96,52 +96,56 @@ Documentation owner: `docs/workflowz-ledger`; parent owns integration/final rece
 | Q-02 | Isolated browser automation — released | Integration lead | Shared native launch/fixtures, D-112; follow HARNESSES and GPU isolation. |
 | Q-03 | Frozen gameplay baseline — evidence collected | Integration lead | BACKLOG's revisioned cohorts; historical measurements, not current-main/human calibration. |
 | Q-04 | Tailhold/defence/raid A/B tools — released | Tools lead | [PR #11](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/11); use existing adapters, not duplicate tooling. |
-| Q-05 | Integrated locally; complete CPU/browser/bundle smoke green; publication pending | Parent integration owner | Signed branch `9aa8c3d` merged locally as `d9008294cc251da75dbd3eee478d7e6a22aef82a`. Frozen d2a1788: CPU 699 Vitest/21 Node/build; 44 browser cases/one skip; three complete collision approaches repeated exactly; production-bundle smoke passed. Corrected-doc tree 53e7c818 also passed full CPU. Final integration review/publication pending; original staged merge protected. [Dated receipts](BACKLOG.md#workflowz-first-integrated-wave--2026-10-05-utc), D-115. |
-| Q-06 | Ordinary flight-mate mutual support — waiting on Q-05 publication | AI lead | Compare both pursuers, meaningful threat, collision cases and mirror fairness after collision release. |
+| Q-05 | Release-verified | Parent integration owner | Signed transfer `9aa8c3d`, merge `d9008294`, published in first wave `e8095da`. [PR #10](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10) closed as superseded, not old-head ancestry merged. Final integration round-three clean; CPU 699 Vitest/21 Node/build; 44 browser cases/one skip; whole collision approaches repeat exactly with zero collisions. Main deployment and live flight smoke passed. Original staged merge protected; [dated receipts](BACKLOG.md#workflowz-first-integrated-wave--2026-10-05-utc), D-115. |
+| Q-06 | Ordinary flight-mate mutual support — implementation active | Parent + `rb2r-workflowz-mutual-support` | Exact base `1851431` after Q-05 release. Narrow bounded relief intent, one-helper election and physical intercept; parent owns two-pursuer/ordinary-flight threat, complete collision and five-mirror frozen comparisons. No new balance claim or generic threat-score bonus. |
 | Q-07 | Human-like pursuer calibration — evidence blocked | Calibration lead + user | Collect meaningful comparable rated default dogfights with aim-bearing reports and held-out evaluation; battery raids and mixed/provenance-unknown cohorts are not substitutes. |
-| Q-08 | Final measurement reviewed and locally integrated; publication pending | Parent + `rb2r-workflowz-bomber` | Authored tree `9a6d8047dde1b7378829da52cf0574431a959a74`: all 114 cases equal in 83579/87132, pre-hoist observations unchanged; nine focused Node tests; both round-three reviews clean. Integrated d2a1788: all 114 equal in 96580/7161; one changed authored-versus-integrated Quick Voisin triple, not global equivalence. Controlled table unchanged. [Provenance/limits](bombers.md#measured-authored-cohort--2026-10-05-utc). Full wave CPU/browser/bundle smoke passed; correction review/publication pending, no tuning. |
+| Q-08 | Measurement release-verified; tuning still evidence/owner-gated | Parent + `rb2r-workflowz-bomber` | Authored tree `9a6d8047dde1b7378829da52cf0574431a959a74`: all 114 equal in 83579/87132; integrated d2a1788: all 114 equal in 96580/7161, with one authored-versus-integrated Quick Voisin triple difference, not global equivalence. Controlled table unchanged. [Provenance/limits](bombers.md#measured-authored-cohort--2026-10-05-utc). Both final reviews/full wave gates/main deployment/live smoke passed; published `adf1d37` in `e8095da`, no tuning. |
 | Q-09 | Damage/career/raid policies — owner decision required | User + integration owner | Separate damage default, bullet-sponge feel, day-bomber eligibility and raid-enemy policy; [durable blockers](DEFERRED-TODOS.md#blocked-task-contracts). No implicit policy change. |
 | Q-10 | CI runner migration — deferred | CI lead | Pinned Ubuntu 24.04, D-077; target 2027-01-31, isolated workflow_dispatch validation before cutover. |
 | Q-11 | LICENSE — owner decision required | User | Explicit license selection; telemetry and release authorization do not select a license. |
 | Q-12 | Touch browser path published; physical acceptance blocked | Mobile lead + user | BACKLOG Q-12 contract; real recent iPhone/Safari, repeated sorties/save/rotation/backgrounding and sustained performance. |
-| Q-13 | Input prerequisite committed; dependent session/menu coverage pending | Parent + `rb2r-workflowz-controller`; user for physical acceptance | Signed `bbfdcd0b693595865cc9488530dfb442c0f2be5d`, reviewed tree `0502f56b95d9cae7f299c97db642cd96c7d5bb59`: four files/64 targeted tests; full typecheck/707 Vitest/30 skips/20 Node/build green; both round-two reviews clean. Not integrated/published. [Revisioned receipts](BACKLOG.md#q13a-input-prerequisite--revisioned-receipts). |
+| Q-13 | Input committed; HUD/navigation reviewed and composed for session binding | Parent + separate HUD/navigation/session/prompts workspaces; user for hardware | Input prerequisite `bbfdcd0b693595865cc9488530dfb442c0f2be5d`: full CPU green, both round-two reviews clean. HUD `2edd91e` clean round one; navigation `ae82dbb` clean round two and all 16 actual navigation/battery/options cases passed. Both composed into parent session tree; B session ownership/teardown/epoch binding and E player prompts active. Not integrated into main or published. [Revisioned receipts](BACKLOG.md#q13a-input-prerequisite--revisioned-receipts). |
 | Q-14 | Production Airfield Defense — release-verified | Integration lead | Battery [PR #13](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/13), controller PR #14 receipt above; no unfinished battery dependency. |
 | Q-15 | Claude routing/workspace trial — deferred | Next Claude project session + user | Review BACKLOG Q-15 before configuration/routing changes. Context-discovery probes do not enable that trial. |
 
 ## Next dispatch
 
-1. Complete the first wave's final documentation-correction review, commit/push
-   the green phase, then verify deployment/live smoke. Source gates are complete.
-2. After Q-05 release verification, assign Q-06's bounded mutual-support comparison.
-3. Continue Q-13 HUD/navigation/session/prompts from the exact committed input
-   prerequisite. Do not publish an incomplete controller feature.
-4. Q-08 source reviews are clean; its authored observation is not retagged as an
-   integrated observation. Formation/pacing tuning remains owner-blocked.
+1. Finish Q-13 session/prompts from the exact committed input prerequisite and
+   reviewed HUD/navigation counterparts; run integrated software gates. Do not
+   publish an incomplete controller feature or imply physical hardware acceptance.
+2. Q-06's separate ordinary-flight support implementation and F-44's exact-commit
+   verification utility are active; gate their authored scopes independently.
+3. Refill ready utility debt only after review/integration backpressure clears.
+4. Q-08 authored observations are not retagged as integrated observations.
+   Formation/pacing tuning remains owner-blocked.
 
 Refill eligible independent author/tool debt through the parent's bounded pull loop,
 at most three active implementation/evidence tracks plus parent. Two pending
 reviews/integrations pause new implementation dispatch. F-49's author diagnostic
-is reviewed with focused consumer/native-equivalence proof; integration pending.
-F-55's bench QA is running; its review corrections await a frozen QA completion.
-No gates or commits are delegated.
-F-51's reviewed logging change is integrated locally, not published.
+is reviewed, locally integrated, and has focused consumer/native-equivalence proof.
+F-55's corrected authored tree `5bd5baac` passed actual WebAudio QA; both independent
+round-two reviews are clean. Its actual destination output is measured after the
+unchanged limiter, not the former pre-limiter headroom tap. Locally integrated;
+full tooling-wave regression gates/publication remain pending. No gates or commits
+are delegated. F-51/F-72/F-74 are release-verified in first wave `e8095da`.
 Active/reachable F-25/F-44/F-53/F-56/F-57/F-58/F-67/F-75 remain eligible subject
-to exact scoped contracts. F-72/F-74 are integrated locally; publication pending.
+to exact scoped contracts.
 Genuine conditions live in DEFERRED-TODOS, not another ready queue.
 
 ## Protected workspaces and processes
 
-Parent preserved the original **29 registered trees** and created **seven workflowz
-owned trees** at exact base `a91f9b478b964491d1b86f1e493a7969eaab1068` (36 total
-registered by the supplied parent inventory). No removal authorized. Current source/
-docs proposals live in assigned trees; retained collision staging/inbox untouched.
+Parent preserved the original **29 registered trees** and created **13 workflowz
+owned trees** (42 registered at 2026-10-05T05:35:44Z). Seven use exact base
+`a91f9b478b964491d1b86f1e493a7969eaab1068`; HUD/navigation/session/prompts use input
+prerequisite `bbfdcd0b693595865cc9488530dfb442c0f2be5d`; mutual-support/checkcommits
+use published `1851431`. No removal authorized.
 Recheck ownership, dirty/staged/ignored work, unpushed commits and processes before
 cleanup. Old per-tree refs below are retained inventory, not freshly verified source
 cleanliness for every tree.
 
 | Workspace | Branch / revision / owner | Preservation reason |
 |---|---|---|
-| `red-baron-2-reloaded` | Parent integration owner on local `main` at `d9008294cc251da75dbd3eee478d7e6a22aef82a`, published origin/main `a91f9b4` | Frozen integrated tree `d2a1788a1865bd83d4ee9d3ffc8fb7c5dfe32ba6` passed full CPU and 44 browser cases/one gated skip; current documentation correction and publication pending. Human inbox/scratch preserved. |
+| `red-baron-2-reloaded` | Parent integration owner, local/published `main` `185143100c6dac6f2c7d120cb9ec0180cda32af7` | First-wave and author-tool full gates, deployments and inspected live flight smokes passed. Only owned receipt edits remain; unfinished controller/AI/tools are isolated elsewhere. Human inbox/scratch preserved. |
 | OS-temp `rb2r-ab-aA0DOQ` | Detached `d52b64a`; prior A/B | Un-audited provenance/output; preserve. |
 | OS-temp `rb2r-ab-dyK0Zu` | Detached `87b798e`; prior A/B | Same retention rule. |
 | `rb2r-agent-handoff` | `docs/agent-handoff-freshness`, original base `9c40f8e`; prior docs owner | Published handoff/protocol and orientation evidence; preserved, not current documentation worker. |
@@ -170,13 +174,19 @@ cleanliness for every tree.
 | `rb2r-visual-atmosphere` | `feat/cockpit-quality-refinement` / `538b6f5`; prior render owner | PR #8 matched visual/model evidence. |
 | `rb2r-xbox-menu-baseline` | Detached `1a7ea7e`; prior release owner | Sequential fresh-Menu baseline, test edits restored/source clean; 5399 exited. |
 | `rb2r-xbox-release` | `integrate/xbox-release` / `3a5d34e`; prior release owner | Final PR #14 source, receipt, local/live PNGs/JSON; 5396 preview stopped. |
-| `rb2r-workflowz-collision` | `fix/workflowz-collision`, signed `9aa8c3d`, base `a91f9b4`; collision worker + parent | Refreshed source merged locally; current phase/evidence in Q-05 above. Original occupied collision tree is separate and untouched. |
+| `rb2r-workflowz-collision` | `fix/workflowz-collision`, signed `9aa8c3d`, base `a91f9b4`; collision worker + parent | Source published in first wave `e8095da`; Q-05 receipt above. Original occupied collision tree is separate and untouched. |
 | `rb2r-workflowz-controller` | `feat/workflowz-flight-controller`, signed `bbfdcd0b693595865cc9488530dfb442c0f2be5d`, base `a91f9b4`; input worker + parent | Input prerequisite full CPU green, both round-two reviews clean; broader software/hardware pending. Historical native proof retains its own revisions. |
 | `rb2r-workflowz-bomber` | `tools/workflowz-bomber-pacing`, final authored tree `9a6d8047dde1b7378829da52cf0574431a959a74`, base `a91f9b4`; measurement worker + parent | Final 114-case authored repetition and complete pre-hoist comparison equal; round-three reviews clean. Integrated tree d2a1788 repeats all 114 exactly in its own processes but differs from authored observations in one Quick case; retained distinct reports, no global equivalence claim. |
-| `rb2r-workflowz-ledger` | `docs/workflowz-ledger`, reviewed tree `c253109e772c502383a3eddeeb066f66c389014d`, base `a91f9b4`; intake worker + parent | Both round-two reviews clean; retained proposal integrated locally, parent final receipts/publication pending. |
-| `rb2r-workflowz-calibration` | `tools/workflowz-calibration`, reviewed authored tree `6d3015dc964bdf706b403c06828ebd0a290b95f8`, base `a91f9b4`; author-diagnostics worker + parent | Both round-one reviews clean; five targeted tests and native diagnostic/complete coefficient equality probes passed. Integration/full gates/publication pending; no performance retune. |
-| `rb2r-workflowz-model-log` | `tools/workflowz-model-log`, authored tree `1ce07668905f2e085bc4cefacd8ecc55aa776711`, base `a91f9b4`; model-log worker + parent | Actual Blender no-export four-model provenance logs passed; round-one reviews clean, integrated locally with full wave CPU/browser gates green; not published. No GLB geometry change. |
-| `rb2r-workflowz-ground-audio` | `tools/workflowz-ground-audio`, authored tree `9d3f664932a8239b74db0b5af27924b273ade508`, base `a91f9b4`; audio-bench worker + parent | Native WebAudio QA running. Review round one requests authoritative store-mass lookup and preserved flight listener orientation; correction waits for QA completion. Not integrated or published. |
+| `rb2r-workflowz-ledger` | `docs/workflowz-ledger`, reviewed tree `c253109e772c502383a3eddeeb066f66c389014d`, base `a91f9b4`; intake worker + parent | Both round-two reviews clean; proposal integrated/published with parent reconciled receipts in `e8095da`; original worker proposal retained. |
+| `rb2r-workflowz-calibration` | `tools/workflowz-calibration`, reviewed authored tree `6d3015dc964bdf706b403c06828ebd0a290b95f8`, base `a91f9b4`; author-diagnostics worker + parent | Both round-one reviews clean; five targeted/native diagnostic and all derived coefficient equality probes passed. Published `b0c76fe` in author-tool wave `1851431`, full CPU/browser/deployment/live smoke passed. No retune. |
+| `rb2r-workflowz-model-log` | `tools/workflowz-model-log`, authored tree `1ce07668905f2e085bc4cefacd8ecc55aa776711`, base `a91f9b4`; model-log worker + parent | Real Blender four-model no-export provenance proof, clean reviews, full integrated gates; published `817696f` in first wave `e8095da`. No GLB geometry change. |
+| `rb2r-workflowz-ground-audio` | `tools/workflowz-ground-audio`, corrected reviewed tree `5bd5baac83f31e1d4126d4a584a11c66281b4b3a`, base `a91f9b4`; bench worker + parent | Actual WebAudio QA and physical-impact probe passed, both round-two reviews clean. Published `1851431`, full regression/deployment/live gates passed. Saved bench PNGs and distinct pre-/post-limiter probe retained; service stopped. |
+| `rb2r-workflowz-controller-hud` | `feat/workflowz-controller-hud`, frozen `2edd91e57416eb78252a92df28838b7672872cb3`, base `bbfdcd0b`; Q-13C worker + parent | Both round-one reviews clean; composed into separate session workspace. Standalone authored scope, not full Q-13 software proof/publication. |
+| `rb2r-workflowz-controller-nav` | `fix/workflowz-controller-nav`, frozen `ae82dbb7ffda1064cd7d3a53e430457c56eeeef1`, base `bbfdcd0b`; Q-13D worker + parent | Both round-two reviews clean; actual 16 navigation/battery/options cases passed after retaining partial-redraw focus and baseline loading first-A acquisition. Composed into session workspace; main publication pending. |
+| `rb2r-workflowz-controller-session` | `feat/workflowz-controller-session`, base `bbfdcd0b`; parent Q-13B owner | Reviewed C/D source composed; input ownership/modal/error/epoch/teardown integration active, no standalone feature publication. |
+| `rb2r-workflowz-controller-prompts` | `feat/workflowz-controller-prompts`, base `bbfdcd0b`; Q-13E worker | Owned manual/tutorial/briefing/contextual flight prompts; parent binds helper after review. |
+| `rb2r-workflowz-mutual-support` | `feat/workflowz-mutual-support`, base `1851431`; Q-06 worker | Owned ordinary-flight relief/physical-intercept candidate and real-sim fixtures; parent owns baseline/updated proof. |
+| `rb2r-workflowz-checkcommits` | `feat/workflowz-checkcommits`, base `1851431`; F-44 worker | Owned exact-commit verification/lifecycle utility, prerequisite for F-75; parent owns real installs/gates and caller-preservation proof. |
 
 Observed listeners **5390/5392** are preserved user playtests; **5365** is the
 preserved prototype. No removal or stopping authorized. Existing release QA services

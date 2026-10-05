@@ -917,3 +917,70 @@ The original collision worktree's 24 staged files/MERGE_HEAD and all retained
 workspaces, user playtests and inbox remain protected. PR #10's original corrected
 head is not merged ancestry here; its current-main source transfer is explicit.
 
+### First-wave publication receipt — 2026-10-05T04:47:55Z
+
+Integration round two corrected a stale Q-08 pending-source-repetition claim.
+Frozen `0c7aa76fe144d5eb03c6d24b59e2ccac82e376ca` passed both final independent
+Standards/Spec round-three reviews. Corrected source/documentation tree
+`53e7c818…` had already repeated the complete CPU gate; the final change only
+reconciled STATUS's integrated Q-08 receipt. Source/browser/bundle evidence above
+remains attached to its actual frozen revisions, not retagged as new execution.
+
+Main publication: collision merge `d9008294`, model-log `817696f`, bomber-measurement
+`adf1d37`, intake/handoff docs `e8095dafa1325d2f0f38a22d992512c47cfd52c4`.
+[Actions 37264426037](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37264426037)
+built/deployed successfully. Actual deployed `prodcheck` passed: four workers,
+two GLBs, 1,022/1,024 nonblack sampled pixels, no failed requests/errors.
+Menu/flight screenshots were inspected and retained as `live-menu.png` and
+`live-flight.png` in the parent wave scratch directory.
+
+[PR #10](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10)
+closed as **superseded**, with the exact transfer/deployment receipt; original
+branch ancestry was not claimed merged. Q-05/Q-08/F-51/F-72/F-74 are now
+release-verified for their stated scope. All original workspaces remain preserved.
+
+## Workflowz author-tool acceptance — 2026-10-05 UTC
+
+Parent integrated the separately owned/reviewed candidates into first-wave main
+`e8095da`, then published the green author-tool wave as `b0c76fe` and `1851431`.
+
+- **F-49**, authored tree `6d3015dc964bdf706b403c06828ebd0a290b95f8`, base
+  `a91f9b4`: both independent round-one reviews clean. Five focused coefficient
+  tests passed. Native processes 29878/29987 repeated the actual diagnostic:
+  shipped 45-minute Voisin accepted; same-ID synthetic 52-minute pair reports
+  10.09% ceiling error at saturated 0.55 power lapse. Complete derived coefficients
+  for all 33 shipped types and same-ID mass/cache variants equal the base; no
+  calibration cache, runtime warning/throw, tolerances or tuning change.
+- **F-55**, corrected tree `5bd5baac83f31e1d4126d4a584a11c66281b4b3a`, base
+  `a91f9b4`: both independent round-two reviews clean. Round one found copied bomb
+  mass and changed flight lookAt; corrected to authoritative store lookup and
+  original player-relative orientation. First real QA proved whistle separation
+  but exposed a new clipping assertion measuring pre-limiter headroom (1.016).
+  A minimized destination-node probe measured pre 1.698094/post 0.913943, no
+  nonfinite values. `debugOutputTap()` now measures the existing actual limiter
+  output; LSP migrated all consumers, no alias or gain/limiter change.
+- Corrected **actual WebAudio QA passed**: flight whistle output zero at 1,453 m;
+  ground whistle peak 0.078442/RMS 0.009377 at 80 m; baseline/before/reset/cancel
+  zero. Ground burst peak 0.244639 versus flight 0.027930; all finite/unclipped.
+  Existing live-control sweep, eight effect/engine and five music offline rows
+  passed; errors empty. Actual flight/ground bench PNGs inspected.
+- Separate real `stepBomb`/`groundCrossing` full-fall probe: exactly one actual
+  `bomb-exploded`, authoritative 16 kg explosive charge, ground point at 50 m,
+  bomb cleared, carrier/player unchanged at 1,500 m; output peak 0.587744,
+  zero nonfinite/clipping, silent baseline. Release/whistle delivery was muted
+  only in this probe to isolate the physical impact's real audio consumer.
+  The regular QA above proves the normal release/queue path. Impact PNG retained.
+
+Frozen integration gate tree `592fc1d9f00952febd458ec3635228efdcc02852`: `pnpm check`
+passed typecheck/build, **700 Vitest** (30 gated skips) and **21 Node tests**.
+Actual strict-port 5404 full browser suite: **44 passed**, one gated soak skipped,
+5.7 minutes. Source commits `b0c76fe`/`185143100c6dac6f2c7d120cb9ec0180cda32af7`
+were pushed to main. [Deployment 37266530088](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37266530088)
+succeeded. Deployed `prodcheck` passed: all four workers/two aircraft models,
+1,018/1,024 nonblack sampled pixels, empty console errors/failed requests.
+Actual menu/flight PNGs inspected and retained separately from first-wave images.
+These are author-tool/source-regression receipts, not a new AI balance study.
+
+Parent native-audio service port 5403 stopped after completion. Authored frozen
+trees and scratch results remain protected; source and module docs are
+release-verified, with this consolidated transition receipt following separately.
