@@ -13,6 +13,11 @@ zsh tools/blender/contact_sheet.sh                                      # previe
 zsh tools/blender/render_art.sh [samples] [title aerodrome desk debrief] # public/art/*.jpg (Cycles, Metal)
 ```
 
+For crew-placement diagnostics without rewriting public GLBs, run the JSON exporter
+above, then build with `--only bristol_f2b,be2c,fe2b,gotha_gv --no-export`.
+This builds the existing geometry and prints station layouts; omit `--preview` to
+avoid generating preview images as well.
+
 * `tools/blender/aircraft_gen.py` — the parametric generator (one `Aircraft` class, driven by
   `AircraftGeometry` + a few per-type detail tables at the top of the file: tip shapes, spinners,
   radiators, axle wings, bay counts, the Camel hump, the Bristol's low-slung lower wing...).
@@ -27,12 +32,24 @@ zsh tools/blender/render_art.sh [samples] [title aerodrome desk debrief] # publi
   (Scarff ring and post, fuselage opening), a **pillar** (a tube over the coaming, or the
   Voisin's tripod) or a **ventral** hatch (the Gotha tunnel, the O/400 floor hatch). Guns
   closer than 0.3 m share one pivot (twin Lewis). The older two-seaters keep their first
-  flexible gun on the cockpit-relative ring (`gunY`, 1.05 m behind the pilot); every flexible
-  gun of the twins and the Voisin, and every later gun elsewhere (the F.E.2b's pillar Lewis,
-  the D.H.9's and Breguet's second Lewis), goes where `GunMount.position` says. The build log
-  prints `station <id>.<station>: <kind> at body z …, gun y …, fuselage top … bottom …` for
-  those, to tune positions against the modelled fuselage (keep a ring gun about 0.32 m over
-  the fuselage top, where a standing gunner's hands are).
+  flexible gun on the cockpit-relative ring (`gunY`): 1.05 m behind the pilot, or
+  1.1 m ahead for a front observer. This preserves the established cockpit/opening layout
+  rather than moving the first ring to the ballistic `GunMount.position`; those data mounts
+  and the legacy visual cockpit therefore need not coincide. Every flexible gun of the
+  twins and the Voisin, and every later gun elsewhere (the F.E.2b's pillar Lewis,
+  the D.H.9's and Breguet's second Lewis), uses data-driven placement. A data-driven ring
+  takes its longitudinal/lateral position from the mounts but its height from the fuselage
+  top; its gun height still comes from `GunMount.position`.
+  The build log prints every flexible station, including legacy one-gun two-seaters,
+  with `placement data-driven` or `placement cockpit-derived` and each actual laid-out
+  pivot's `ring centre body x … y … z … m` (or `mount pivot` for pillars/ventral mounts).
+  It also prints gun height and fuselage top/bottom as body Y in metres. Body X is right,
+  Y is up and −Z is forward; the conversion from Blender is `(x, z, -y)`.
+  **`gunY` is a Blender longitudinal coordinate, not body height**:
+  +Blender Y = −body Z, while Blender Z = body Y. Use the logged ring centre rather than
+  assuming a data gun position is the visual ring position when tuning mounts against the
+  fuselage (a ring gun sits about 0.32 m over its ring centre).
+  This diagnostic does not move geometry, nodes or transforms or require regenerated GLBs.
   Floor-hatch stations explicitly carry `posture: 'prone'`; the exporter supplies it to the
   generator and hitboxes instead of inferring body posture from an eye height or station ID.
 * **Twins** (`engineCount` 2): `build_nacelles()` reads `geometry.nacelle` (body-frame Y/Z

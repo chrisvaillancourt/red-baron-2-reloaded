@@ -1667,10 +1667,15 @@ class Aircraft:
             else:
                 eye = (px, py - 0.35, pivots[0]['gun_z'] + 0.45)
             self.flex.append({'id': sid, 'kind': kind, 'pivots': pivots, 'eye': eye, 'crew': grp['crew'], 'y': y})
-            if data:
-                # For tuning GunMount.position against the modelled fuselage (build log).
-                print(f"  station {self.id}.{sid}: {kind} at body z {-y:.2f}, gun y {pivots[0]['gun_z']:.2f}, "
-                      f"fuselage top {self.fuselage_top(y):.2f} bottom {self.fuselage_bot(y):.2f}")
+            # Log actual laid-out mounts, including legacy cockpit-derived rings, in metres.
+            provenance = 'data-driven' if data else 'cockpit-derived'
+            location = 'ring centre' if kind == 'ring' else 'mount pivot'
+            for k, pv in enumerate(pivots, 1):
+                bx, by, bz = pv['pos']  # Blender -> body: (x, z, -y).
+                print(f"  station {self.id}.{sid}: {kind} pivot {k}, placement {provenance}, "
+                      f"{location} body x {bx:.2f} y {bz:.2f} z {-by:.2f} m, "
+                      f"gun body y {pv['gun_z']:.2f} m, "
+                      f"fuselage body y top {self.fuselage_top(by):.2f} bottom {self.fuselage_bot(by):.2f} m")
         if self.id in REAR_SEAT_OBSERVER:
             self.ring_holes.append(self.gunY)  # the observer's cockpit behind the pilot
 
