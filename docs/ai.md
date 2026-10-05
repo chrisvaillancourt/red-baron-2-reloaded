@@ -101,6 +101,11 @@ their leader is doing).
    (not at 55 m) with a committed 0.8 s escape: away from the closest-approach
    point, or up the lift line when dead ahead (DECISIONS.md "Collision avoidance:
    early committed head-on break").
+   Q-05's narrow correction reflects only a positive closest-approach component
+   along the current lift line during extension with `0 < tcpa < BREAK_LEAD_S`,
+   retaining lateral separation rather than replacing the escape with lift alone.
+   Dead-ahead coordinated splitting, avoidance weights, engagement, defence and
+   longer-range conflicts are unchanged; the lift vector uses dedicated scratch.
 3. **Mission** (`navigation.ts`). Waypoints (`fly`, `patrol`, `rendezvous`,
    `attack-balloon`, `attack-ground`, `bomb` (see "Bombers"), `land`), vic formation keeping, escort
    station 300 m above and behind the escorted flight, balloon and strafing
@@ -468,6 +473,11 @@ tailhold/defence pursuers cannot produce a comparison.
 - `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
   at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
   the flak gun at the waypoint.
+- `quickCollision.realsim.test.ts` (CI): three retained Q-05 whole-approach cases
+  use `testing/quickCollisionScenarios.ts`, real quick-mission construction and
+  autoplay with the AI pilot pinned. They assert no collision events, contact,
+  gunfire and clean spawns, rather than incidental timing/state strings. Restoring
+  only public flight states with fresh controllers did not reproduce the failures.
 - `aimDither.realsim.test.ts` and `instructorMargin.realsim.test.ts` (CI): E.III and
   Camel settle on a mouse-aim point without wing-rocking; the instructor presets order
   their stall margins relaxed > standard > authentic and relaxed never stalls a Camel or
@@ -475,6 +485,27 @@ tailhold/defence pursuers cannot produce a comparison.
 - The point-mass tests (`scenarios`, `furball`, `robustness`, `autopilot`) use
   `controlLaw: 'generic'` and cover mission logic cheaply; combat outcomes and
   landing are tested on the real sim only.
+
+### Q-05 corrected collision candidate: historical evidence, current gates pending
+
+The transferred correction and whole-approach regression come from PR #10 head
+`92d3dba6504cf3cd1f0db1b7cf0281b0467c6411`, not its superseded lift-only candidate.
+The [corrected frozen comparison receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978434564)
+compared `87b798e` with `92d3dba`: default player-down was 29.2% → 25.0%
+(48 flights per side), with all five mirror cohorts within noise. The quick survey
+(360 missions per side) gave killed/captured 35.0% → 36.4%, collision events per
+100 missions 5.6 → 5.3 (both within noise), and player collision events 8 → 4.
+The earlier 4.2% default player-down result belongs to the superseded candidate.
+These are historical interval-overlap comparisons, not equivalence or global
+safety claims and not a current-main balance baseline.
+
+The [historical integrated receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978462638)
+records gates against `4dc8ec8` and three collision-free reproduced cases with
+388/521/312 gun-fire events. That protected staged integration is not publication.
+This transfer onto current task base `a91f9b4` still awaits current targeted
+collision/no-dodging furball tests, full typecheck/test/build gates, production-
+simulation collision smoke and the full browser gate under the integration owner.
+No current gate or deployment result is claimed here.
 
 ## Historical tuning measurements (real sim, standard realism, torque on)
 
