@@ -2,7 +2,7 @@
 # Playwright e2e stays local: it needs a real GPU (Metal) and the installed Chrome.
 # Actions are pinned by commit SHA (tag in the comment); bump both together.
 # The runner image is pinned too (DECISIONS D-077). Moving to ubuntu-26.04 is an open task
-# in docs/STATUS.md ("Next up"): try it on a branch with workflow_dispatch first.
+# in docs/STATUS.md (Q-10): try it on a branch with workflow_dispatch first.
 name: Deploy to GitHub Pages
 
 on:

@@ -1,5 +1,14 @@
 # Playtest reports
 
+## Evidence scope
+
+Current release evidence is in [STATUS](STATUS.md) and the
+[PR #14 publication/live receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/14#issuecomment-5986900031).
+The wave reports below are historical scripted/autoplay evidence; preserve their
+original findings/verdicts, but do not use them as the active release queue.
+Broader Xbox coverage and physical iPhone/Safari acceptance remain open. Browser
+and synthetic Gamepad success does not certify a complete hardware matrix.
+
 ## Human playtests
 
 The earlier sessions in this file were scripted or autoplayed. For human sessions, every
@@ -42,7 +51,7 @@ What a report holds:
 
 The only personal field is a career pilot's name.
 
-## Wave 7 release check
+## Historical wave-7 release check
 
 The real app was played in headless Chrome, through the real menus and controls:
 - **Resolutions:** 1280×720 and 1920×1080, on the Metal GPU.
@@ -122,13 +131,12 @@ were the GPU's `ReadPixels` stall messages, caused by the screenshot tool.
 
 ---
 
-# Playtest report — wave 5 (fresh eyes)
+# Historical wave-5 scripted playtest (fresh-eyes role)
 
-A new player who loved *Red Baron II* in 1997 played the real app, not mocks, in
-headless Chrome (Metal GPU) at 1280×720. Input went through the real paths:
-clicks and keys, and mouse-aim flying through synthetic `mousemove` deltas on
-the flight canvas, which is what the input layer reads. `window.__rb2` was used
-only to read state and to steer the scripted pilot toward targets.
+This historical fresh-eyes role exercised the real app, not mocks, in headless
+Chrome (Metal GPU) at 1280×720. Input used real clicks/keys and synthetic
+`mousemove` deltas on the flight canvas. `window.__rb2` read state and steered
+the scripted pilot toward targets; this is not a physical human calibration cohort.
 
 Sessions played:
 - **Cold start:** title → Quick Mission → briefing → Flying School →

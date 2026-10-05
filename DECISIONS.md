@@ -746,7 +746,7 @@ when its text has changed, so repeated `get()` calls stay cheap.
 
 ## D-077 — Pin the CI runner to ubuntu-24.04 (lead, deploy; amends D-072)
 **Context.** D-072 deployed on `ubuntu-latest` and planned to pin only if the move to Ubuntu 26 on 2026-10-19 broke the build. Every push to `main` is a release, so a runner-image change would first show up as a failed or bad deploy.
-**Decision.** Both jobs in `.github/workflows/deploy.yml` run on `ubuntu-24.04`. Upgrading is a planned task, not a side effect: docs/STATUS.md "Next up" carries it, with a target of 2027-01-31 and the steps (branch, `workflow_dispatch`, prodcheck).
+**Decision.** Both jobs in `.github/workflows/deploy.yml` run on `ubuntu-24.04`. Upgrading is a planned task, not a side effect: `docs/STATUS.md` Q-10 tracks it, with a target of 2027-01-31 and isolated branch/`workflow_dispatch`/production checks before cutover.
 **Consequences.** The 2026-10-19 image change can't reach deploys. The pin stays until the upgrade task moves it; update this entry when it does.
 
 ## D-078 — Quick Mission default: 2 veteran Fokker D.VIIs (lead, wave 9; supersedes D-076)
@@ -1339,8 +1339,8 @@ difference does not establish a performance improvement.
 
 **Consequences.** No runtime/core/dependency or Claude configuration changes.
 The improvement is predictable ownership and a reproducible feedback loop,
-not a substitute for complete release or human balance proof. Handoff remains
-on `perf/direct-playwright-qa`, not merged/deployed.
+not a substitute for complete release or human balance proof. The original
+`perf/direct-playwright-qa` handoff was unmerged; PR #13 subsequently published it.
 
 Numbers D-109–D-112 assigned by the integration owner during the authorized
 Airfield Defense/tooling release. The user approved the battery playtest feel;
@@ -1386,4 +1386,25 @@ flight/combat/crew mapping and hardware-acceptance work.
 
 Number D-113 assigned by the integration owner during the authorized Xbox
 release. The user approved the revised left-stick/R3 layout after playtest.
+
+## D-114 — Reconcile receipts before agent dispatch
+**Context.** Q-05's corrected proof lived in newer PR receipts while its updated
+ledger remained in a staged, signing-blocked worktree. Published notes retained
+the old blocker; historical STATUS sections also read as current directions.
+Fresh sessions could therefore redispatch completed design work.
+
+**Decision.** Keep one compact scheduling ledger in `docs/STATUS.md`, with a
+checked UTC snapshot, exact revision/scope, owner/workspace, receipt and next action.
+The always-loaded project entrypoint directs planning/continuation through its
+receipt freshness gate. Newer applicable proof must be reconciled before dispatch.
+State changes update the ledger/evidence together; a commit/push blocker publishes
+a shared PR/issue receipt and notifies the integration owner. Archived STATUS and
+revisioned module measurements remain evidence, never alternate live queues.
+
+**Consequences.** No automatic GitHub synchronizer or unattended scheduler is
+introduced. Agents must inspect the linked current evidence and protected work;
+tool-limited plans name the check still needed. Source/policy/hardware decisions
+remain unchanged. Fresh-session orientation is the verification surface.
+
+Number D-114 assigned by the integration owner for the documentation handoff.
 

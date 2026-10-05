@@ -32,7 +32,7 @@ into a menu half (bound at boot) and a flight half (a lazily loaded chunk).
 | `crewSeat.ts` | Crew-seat logic (pure): seat cycling, the starting seat, the AI pilot's route pickup, a flexible gun's aim clamped to its station's fire arcs, the arcs' outer edge, `StationInputs` from aim and buttons. See "Crew stations". |
 | `playerCrew.ts` | `PlayerCrew`: the player's seat in flight. Seat keys, gunner aim, bombsight and release, camera and input mode, the HUD's seat, sight and bomb fields. |
 | `bombsight.ts` | The bombsight's drift, each target's release radius (from the sim's blast), the release solution. The impact is the sim's `predictBombImpact`. |
-| `testing/crewMissions.ts` | Fixtures: a Bristol fight at a chosen seat, a D.H.4 bomb run (until track D's raid builder). |
+| `testing/crewMissions.ts` | Isolated fixtures for a Bristol fight at a chosen seat and a D.H.4 bomb run; production raids use the campaign builder. |
 | `stubs/` | `sim`/`campaign` stand-ins used by unit tests (no stub is bound in the game any more). |
 
 The height cache refreshes recency on sampling and prefetch. Linked entries avoid
@@ -121,25 +121,29 @@ ring even after mouse use. No new settings or shared core contracts are introduc
 
 ```
 per rAF frame (dt clamped to 0.1 s):
-  input.enabled = !hud.menuOpen          (HUD cards own the keyboard)
-  input.update -> edge commands (views, seats, time, wingmen, pause...)
-  PlayerCrew.pilotControls -> player.controls (pilot's seat only; not on the hand-back frame)
-  at a crew station: the gun's aim and buttons instead (PlayerCrew.applyInput)
+  if contextLost: hold simulation, await restore/timeout; return before tick
+  updateTouch; input.enabled = !inputCaptured
+  input.update -> handle edge commands (views, seats, time, wingmen, pause...)
+  held = flightHeld (pause, touch capture, touch map/background)
+  if valid player, !held, and station unchanged during command handling:
+      PlayerCrew.pilotControls -> player.controls at the pilot's seat
+      PlayerCrew.applyInput -> gun aim/buttons at a crew station
   threats.update (hits, silent damage, enemy rounds within 40 m)
-  if time compression > 1 and compressionBlock(): drop to x1 (see Time compression)
-  accumulator += dt * timeScale; while accumulator >= 1/120:   (SimCore.step)
-      PlayerCrew.beforeStep: stationInputs (or the pilot's bomb release) for this step
+  if time compression > 1 and compressionBlock(): drop to x1
+  if !held: accumulator += dt * timeScale; while accumulator >= 1/120:
+      PlayerCrew.beforeStep: stationInputs / pilot bomb release
       world.time += h; spawn due flights
       every 4th step (30 Hz): ai.update(ac, world, 4h) for AI aircraft
-      sim.stepFlight(ac, env, realism, h)   (skip wrecks on the ground)
-      landing detection (was airborne, on ground, < 2 m/s) -> landed-friendly/enemy
-      combat.update(world, h)
-      director.update(h)
-      player lost or mission over at a station: back to the pilot's seat, AI pilot released
-  visuals.update, camera rig, renderer.update/render, audio.updateFlight
-  hud.update(buildHudView(...)), hud.setGEffect, map overlay redraw at 5 Hz when open
+      sim.stepFlight(ac, env, realism, h); landing detection
+      combat.update(world, h); director.update(h)
+      player lost / mission over at a station -> release AI pilot, return to pilot
+  visuals/camera/render/audio and HUD/map update (held poses do not advance)
   director.ended -> build MissionResult, teardown, resolve
 ```
+
+`inputCaptured` covers HUD cards, touch capture, context loss and touch map/hidden
+page. It blocks input intent; `flightHeld` separately gates control application
+and fixed-step advancement, so a silent hold can still accept safe commands.
 
 Events go through one `EventBus` per session; `onAny` fans out to
 `renderer.handleEvent`, `audio.handleEvent`, and HUD messages (radio,
@@ -382,8 +386,8 @@ and the end-flight rules allow it. It reports the `MissionResult` plus: first
 contact time (enemy within 3 km), initial enemy range, first shot, player
 kills, losses, balloons/ground targets destroyed, spawns below 30 m AGL,
 balloons/targets on the wrong side of the front, aces present/downed, and an
-event histogram. Headless it runs ~200x real time (the height cache is what
-makes that possible: the analytic terrain costs ~20 us a call).
+event histogram. Historical D-043 observations put headless runs at ~200× real time,
+with analytic terrain calls around 20 µs. These are not current-main/hardware guarantees.
 
 - `playerLossCause` (`LossCauseTracker`, `lossCause.ts`) classifies what took the player out:
   - `collision-<wingman|friendly|enemy|balloon>`;
@@ -507,9 +511,10 @@ loops; all of it must go when the flight ends.
   20) flies consecutive quick and career flights in one page and asserts,
   after every flight: 0 live WebGL contexts, 0 workers, no extra rAF loop,
   no live audio source with music off, and bounded DOM/listener/heap growth.
-  Before the sweep, each flight left its context alive (6 flights → 6
-  contexts); after it, heap levels at ~26 MB and DOM nodes at ~1,200 over
-  20 flights.
+  Historical D-055 leak-sweep evidence: each flight previously left its context
+  alive (6 flights → 6 contexts); the sampled 20-flight sweep levelled near 26 MB
+  heap and 1,200 DOM nodes. PR #14 skipped the gated soak; current heap acceptance
+  requires an explicit new soak run, not those old figures.
 - **Hunting a leak**: with a dev server running,
   `node tools/playtest/retainers.mjs <port> diff 2 3` lists the object
   groups that grow per flight, and
@@ -554,9 +559,10 @@ the missing GLB.
 
 ### Bundles and the production build
 
-- Boot bundle (menus): ~580 kB (180 kB gzip). The flight half
-  (`flightModules.ts`: three's WebGL renderer, sim, AI, render) is a separate
-  ~670 kB chunk, prefetched when the browser is idle after the menus mount
+- Historical D-056 sizes: boot/menu bundle ~580 kB (180 kB gzip), lazy flight
+  chunk ~670 kB. The current split also has an independent defense loader and
+  shared chunks; use build output for actual sizes. The flight half is prefetched
+  when the browser is idle after menus mount
   and awaited by the first `launcher.fly()`. Workers are their own chunks.
   Dev harness pages (`dev/*.html`) are not part of the build.
 - `base: './'` makes the build hostable from any path. `assetUrl()` returns

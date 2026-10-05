@@ -94,5 +94,5 @@ drum roll + fanfare). 1.2 s crossfades. Music goes through a convolution hall re
 ## Known gaps
 
 * Only the listener's own aircraft gets wind/wire/buffet loops; other aircraft are engine-only.
-* No per-gun stereo placement for the player's guns (events don't carry the mount index).
+* No mount-specific stereo placement for the player's guns: `gun-fired` carries `mountIndex`, but audio does not use it and applies random cockpit pan.
 * `radio` events are silent (text only, as in RB2).

@@ -68,8 +68,9 @@ title ─┬─ roster ─┬─ create-pilot ─→ hq
 Gunner’s Guide/Options retain the draft. Realism's unlimited flight ammunition
 does not disable battery mechanics. Shared settings supply graphics/audio,
 mouse sensitivity/inversion, and fire/pause bindings; gun/aim/reload/fuze keys
-are battery-specific. This mode requires a keyboard or mouse, not touch flight
-intent.
+are battery-specific. This mode supports mouse, keyboard or a standard-mapped
+controller, not touch flight intent. Custom seed entry and Options sliders still
+need keyboard/mouse; see Navigation for the controller-only coverage boundary.
 
 The historical field/date host an authored arcade exercise, not a reenactment
 claim. Briefing and guide explain five raids, the three guns, bomb interception,

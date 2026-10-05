@@ -110,3 +110,8 @@ authorize a child to edit another workspace or publish changes.
 - Claude context-loading probes must enable the project source (for example,
   `--setting-sources project`). Safe mode and an empty settings-source selection suppress
   project instructions; use a project-enabled session for discovery checks.
+- Orientation probes must not inline the expected queue or blocker into their prompt.
+  Verify the entrypoint/STATUS pointer loads, then exercise a read-only plan against
+  the current ledger and linked receipts. A model echo of supplied answers is not proof.
+  Capture limitations when remote receipts cannot be refreshed; keep writes, tests,
+  browser access and unrelated worker routing disabled for the probe.

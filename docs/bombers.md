@@ -1,8 +1,10 @@
 # Bombers and gunner seats
 
 The wave-1 implementation (D-086–D-099) and simulation-readiness pass (D-101–D-102)
-are merged. PR #5 delivers player access (D-103), with integration authorized after review.
-The original scope and wave plan below remain historical context.
+are merged. [PR #5](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/5)
+merged as `f5e0a1c` and delivered D-103 player access: all 33 aircraft in ordinary
+Quick Missions, seven bomb carriers in raids. The original scope/wave plan below
+is historical context, not an active schedule; current work is in STATUS.
 
 ## Player-access cutover (2026-10-04 UTC)
 

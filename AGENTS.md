@@ -1,7 +1,8 @@
 # Red Baron II: Reloaded — agent instructions
 
-Modern browser rebuild of Dynamix's Red Baron II (1997). Read `DECISIONS.md` and
-`docs/ARCHITECTURE.md` before working.
+Modern browser rebuild of Dynamix's Red Baron II (1997). **Orient before planning
+or continuing work:** follow `docs/STATUS.md` → "Receipt freshness gate", then read
+`docs/ARCHITECTURE.md` and the relevant `DECISIONS.md` entries.
 
 Shared project policy lives here. `CLAUDE.md` contains only an import of this file.
 
@@ -67,6 +68,8 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
 - Modify only your workspace and branch. Handoff includes the branch/commit or retained
   patch location, changed scope, verification, and unresolved dependencies. Cross-harness
   messaging and task state are not shared; the brief and handoff are the contract.
+- Task-state changes follow `docs/STATUS.md` → "State transitions and blocked handoffs";
+  a signing/push blocker needs a shared receipt, not only notes staged in one worktree.
 - The parent session owns integrating retained isolated-agent changes into its task branch,
   resolving conflicts, verifying the integrated result, and committing before reporting it
   complete. A child's report alone is not proof that its changes reached the parent.
