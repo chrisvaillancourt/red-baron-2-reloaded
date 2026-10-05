@@ -43,8 +43,9 @@ there is no unattended scheduler running between sessions.
    duplicate/stale-item closure; track reopened defects and queue age, not agent count.
 
 After the approved Xbox battery release, the next eligible tracks are Q-05's
-narrow collision correction, Q-13's flight/crew/menu controller audit and Q-08's
-bomber pacing measurements. Q-05 remains the release-safety priority; Q-13 can run
+already-corrected collision release, Q-13's flight/crew/menu controller audit and
+Q-08's bomber pacing measurements. Finish Q-05's retained integration before
+creating another safety design; Q-13 can run
 independently without pursuer changes. Q-06 mutual support waits for collision
 safety; Q-07 fitting waits for comparable, provenance-confirmed human evidence.
 Physical iPhone acceptance and owner gameplay/LICENSE decisions do not block the
@@ -371,11 +372,22 @@ main deployment. The integration PR's receipt records actual main SHA, Actions
 runs and inspected deployed flight/battery evidence; no publication is inferred
 from a local commit or a synthetic controller probe.
 
-Next work: narrow Q-05/PR #10 to avoid its measured fairness shift before release;
+Next work: refresh and release Q-05/PR #10's already-corrected retained integration;
 audit Q-13's common flight/crew/camera/menu controller coverage in parallel; measure
 Q-08 bomber speed/formation pacing before deciding behavior. Q-06 waits on collision
 safety, Q-07 on meaningful comparable human flights, Q-12 on physical iPhone
 acceptance. LICENSE and Q-09 gameplay/career policies remain explicit user choices.
+
+Q-05 reconciliation: the [updated comparison receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978434564)
+states that `92d3dba` removed the prior balance blocker: default player-down
+29.2% → 25.0% at 48 flights/side; five mirror cohorts and 360-flight quick outcomes
+within noise. The [later handoff](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978462638)
+records an integrated 4dc8ec8 verification followed by a local signing failure,
+not a remaining collision-design blocker. Read-only inspection during this release
+confirmed 24 staged files and `MERGE_HEAD=4dc8ec8` in the preserved collision tree.
+Do not discard or blindly commit that older staged merge: refresh current-main
+integration and decision numbering in an owned workspace, then rerun release gates.
+No collision code or retained staged work was changed by the Xbox release.
 
 
 ## Q-14 — Production Airfield Defense

@@ -15,7 +15,7 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-02 | Isolated, consistent browser automation | Released / lead | 23 browser tests and live production smoke passed |
 | Q-03 | Current gameplay evidence | Complete / integration lead | Frozen-SHA fairness/quick/career/raid surveys and report replays recorded in BACKLOG |
 | Q-04 | Tailhold/defence/raid A/B coverage | Released / lead | PR #11 merged as 4fb2224; deploy run 37189540415 and inspected live flight smoke passed |
-| Q-05 | Attack-extension collision reproduction | Release blocked / PR #10 | Three reproduced cases fixed, but final default-fairness player-down 29.2% → 4.2% differs; narrow the correction before publication |
+| Q-05 | Attack-extension collision reproduction | Correction verified / retained integration pending, PR #10 | 92d3dba removed the earlier large balance shift: default player-down 29.2% → 25.0% at 48 flights/side; mirrors and quick outcomes within noise. The old 4dc8ec8 merge remains staged in the collision workspace; refresh it against current main, commit, validate CI and publish. Latest PR receipts supersede the obsolete 4.2% blocker. |
 | Q-06 | Mutual support for ordinary flight-mates | Blocked on Q-03/Q-05 / AI tactics | Both pursuers, meaningful threat, collision and mirror-fairness gates |
 | Q-07 | Human-like pursuer calibration | Blocked on comparable human evidence / calibration | Only 58 rounds/two hits in aim-bearing default flights; require provenance-confirmed cohort and meaningful held-out evaluation before changing fit |
 | Q-08 | Bomber pacing/interception policy | Ready for measurement / lead | Measure speed/slot error before choosing policy; preserve aircraft performance |
