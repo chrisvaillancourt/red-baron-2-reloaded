@@ -175,7 +175,7 @@ zsh tools/blender/render_art.sh
 
 | Command | What it does |
 |---|---|
-| `pnpm test` | unit tests (Vitest): sim, AI, campaign, world, UI logic |
+| `pnpm test` | Vitest logic/regression tests, followed by Node tooling regressions |
 | `pnpm typecheck` | TypeScript check |
 | `pnpm e2e` | Playwright browser tests (uses installed Chrome and the GPU; set `E2E_SWIFTSHADER=1` on machines without a GPU) |
 | `pnpm e2e:soak` | Long-session leak test: 20 consecutive flights in one page (`E2E_SOAK_FLIGHTS` to change) |

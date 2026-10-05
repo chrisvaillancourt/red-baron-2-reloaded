@@ -85,9 +85,9 @@ cached results as immutable: create a new spec object when changing geometry or 
   Spring compression at rest is about 7 cm; zero penetration is not the contact model.
   `bomberReadiness.test.ts` checks shipped GLB wheel/skid points and mesh clearance, loaded
   ground stops and loaded takeoff. Other aircraft retain their existing support derivation.
-* Cost: ~0.7 µs per aircraft step on an M3 Max.
+* Historical cost recorded at `c87e00c`: ~0.7 µs per aircraft step on an M3 Max; not a current benchmark.
 
-### Achieved performance (6-DOF, `performance.test.ts`, torque off)
+### Historical achieved performance (`c87e00c`, 6-DOF, torque off)
 
 | Aircraft | Vmax km/h (hist) | Climb 3000 m min (hist) |
 |---|---|---|
@@ -115,7 +115,7 @@ cached results as immutable: create a new spec object when changing geometry or 
 | R.E.8 | 163 (164) | 21.3 (22) |
 | Airco D.H.4 | 230 (230) | 10.9 (11) |
 
-Every type still climbs > 1 m/s at 80% of its historical ceiling and < 0.3 m/s at 112%.
+In that historical sampled roster, every type climbed > 1 m/s at 80% of its historical ceiling and < 0.3 m/s at 112%. Current specs/tests, not this table, define current acceptance.
 
 ## Combat
 

@@ -1,13 +1,13 @@
-# Backlog execution record
+# Task contracts and execution evidence
 
-Current integration owner: parent omp session, branch `integrate/xbox-release`.
-Current release base: `1ef1893ef3ca253114b2e0688ca3aedf02e8f33a` (published battery PR #13).
-Initial cycle base was `07dfaa462a098df633e512a86406b9d7c416fc73`.
-Workspace cleanup remains unauthorized.
+Current scheduling, release anchor, ownership and receipt freshness live only in
+[STATUS.md](STATUS.md). This file holds contracts, operating policy and revisioned
+evidence—not another live queue. The original cycle base was
+`07dfaa462a098df633e512a86406b9d7c416fc73`; dated measurements below keep their own refs.
 
 ## Operating decisions
 
-- STATUS is the authoritative scheduling ledger. This file records execution methods and evidence, not a second queue.
+- Follow STATUS's receipt freshness gate before dispatch. Newer applicable PR/handoff evidence must be reconciled into that ledger; this file does not override it.
 - Three active implementation/evidence tracks maximum; refill on completion or external blocking. Clear review/integration congestion before starting more code.
 - Use isolated workspaces and exact base SHAs. One owner for each shared production file; freeze pursuer/damage policy during tactics comparisons. One exclusive GPU verification slot.
 - Ready work requires observable acceptance and satisfied prerequisites. Blocked work names its unblock condition; deferred work names a trigger or date.
@@ -21,8 +21,8 @@ The first execution was a bounded three-track batch, not a continuously refilled
 queue. The operating policy below makes subsequent active sessions a pull loop;
 there is no unattended scheduler running between sessions.
 
-1. On a worker result, blocker, review result or new report: update STATUS, resolve
-   changed dependencies, and choose the highest-impact eligible task.
+1. On a worker result, blocker, review result or new report: apply STATUS's freshness
+   and state-transition protocol, reconcile dependencies, then choose eligible work.
 2. Keep at most three workers plus one integration lead active. A completed worker
    hands off its patch/commit and evidence, then its slot takes the next independent
    ready slice without waiting for the other tracks.
@@ -42,14 +42,8 @@ there is no unattended scheduler running between sessions.
 8. Close tasks against their acceptance evidence. Record bug fixes separately from
    duplicate/stale-item closure; track reopened defects and queue age, not agent count.
 
-After the approved Xbox battery release, the next eligible tracks are Q-05's
-already-corrected collision release, Q-13's flight/crew/menu controller audit and
-Q-08's bomber pacing measurements. Finish Q-05's retained integration before
-creating another safety design; Q-13 can run
-independently without pursuer changes. Q-06 mutual support waits for collision
-safety; Q-07 fitting waits for comparable, provenance-confirmed human evidence.
-Physical iPhone acceptance and owner gameplay/LICENSE decisions do not block the
-independent code/evidence tracks. No new implementation was dispatched by this release.
+Choose the current eligible tracks and blockers from [STATUS.md](STATUS.md#next-dispatch).
+The dated contracts/evidence below explain acceptance and provenance, not an alternate queue.
 
 The user selected **Verified merges and deployments** for autonomous work while away:
 publish completed PRs after independent review, relevant regression/runtime checks and
@@ -348,11 +342,11 @@ suite rerun or physical-device compatibility claim for this mapping-only change.
 
 ### Xbox release integration
 
-The user approved `1a7ea7e` for publication, including initial controller feature
-`5315da8`, against published main `1ef1893`. Release owner works in the isolated
+The user approved `1a7ea7e` for publication, including controller feature `5315da8`,
+against then-published main `1ef1893`. Integration ran in the isolated
 `rb2r-xbox-release` tree on `integrate/xbox-release`; user playtest trees and ports
-5390/5392 remain untouched. D-113 is assigned here, with no new core contracts,
-dependencies, settings or broader flight/gameplay changes.
+5390/5392 were preserved. D-113 was assigned by the integration owner. No new core
+contracts, dependencies, settings or broader flight/gameplay changes were introduced.
 
 Standards review found no blockers. Spec review exposed two input-handoff defects:
 same-slot disconnect/reconnect could transfer held overlay activation, and A/Menu
@@ -377,17 +371,42 @@ The handler preserves any valid existing owner without consuming its commands.
 Final bounded Spec rereview found no remaining blockers; six adapter tests and all
 15 targeted browser cases passed. Superseded/failed full runs are not release gates.
 
-Publication is conditional on independent Standards/Spec reviews, frozen CPU/build
-gates, the complete fresh-server browser suite, green PR validation and a successful
-main deployment. The integration PR's receipt records actual main SHA, Actions
-runs and inspected deployed flight/battery evidence; no publication is inferred
-from a local commit or a synthetic controller probe.
+Published gameplay main is `9c40f8ee5b1c2aee9a7038428d63daac18a74a6c`, with the
+[PR #14 publication/live receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/14#issuecomment-5986900031)
+as primary evidence. Final source gates: typecheck/build; 696 Vitest tests (30 gated
+skips), 20 Node tooling tests; 44 full browser cases (one gated soak skipped).
+[PR validation 37253074881](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37253074881)
+passed without deploying; [main run 37253757536](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37253757536)
+built and deployed. Local/deployed flight and battery smoke passed; actual
+Chrome 154 / Metal M3 Max PNGs were inspected at 1280×720/DPR1, error logs empty.
+Temporary release services/drivers stopped or were removed; retained evidence and
+user-owned playtests were preserved. Refer to STATUS for the current next action.
 
-Next work: refresh and release Q-05/PR #10's already-corrected retained integration;
-audit Q-13's common flight/crew/camera/menu controller coverage in parallel; measure
-Q-08 bomber speed/formation pacing before deciding behavior. Q-06 waits on collision
-safety, Q-07 on meaningful comparable human flights, Q-12 on physical iPhone
-acceptance. LICENSE and Q-09 gameplay/career policies remain explicit user choices.
+### Agent-handoff reconciliation (2026-10-05 UTC)
+
+Documentation audit separated active scheduling from historical state: STATUS is
+the compact ledger and receipt gate; STATUS-ARCHIVE preserves the old snapshot.
+BACKLOG keeps contracts/evidence, module docs keep behavioral interfaces and
+revisioned observations, and the shared entrypoint requires freshness reconciliation.
+The Q-05 fix is already reviewed at `92d3dba`; its retained old-main staged merge
+is protected pending new integration, not a new collision-design assignment.
+
+Fresh ephemeral omp and native project-enabled Claude sessions loaded the shared
+orientation pointer without the expected answer in their prompts. Read-only plans
+selected Q-05 integration, identified the superseded blocker, and preserved staged
+work/user services. Restricted probes explicitly left remote/Git/process checks
+unperformed; they did not claim dispatch or verified current head. This is
+instruction/continuation proof, not automatic GitHub synchronization. UTC was made
+explicit after local-calendar-date confusion; actual UTC was checked by command.
+
+PR #10's stale description was reconciled on 2026-10-05 UTC with its corrected
+receipt and protected integration handoff. Remote head remained `92d3dba`, PR open;
+no collision code or staged work changed. D-114 records the prevention protocol.
+
+The docs-tree frozen `pnpm check` passed typecheck, 696 Vitest tests (30 gated
+skips), 20 Node tool tests and production build. The relative Markdown probe
+checked 34 links across 22 files with no broken targets/fragments. No gameplay
+GPU/browser gate was rerun for this docs-only handoff.
 
 Q-05 reconciliation: the [updated comparison receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978434564)
 states that `92d3dba` removed the prior balance blocker: default player-down

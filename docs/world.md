@@ -95,7 +95,10 @@ The target is a period reconnaissance photograph, not a map (DECISIONS "Trenches
 * No-man's-land is a ragged-edged, mottled brown-grey tint over the crater shading, so the pocking stays visible.
 * Woods: canopy tone varies at stand (~200 m), clump (~15 m) and crown (~5 m) scales, each fading to its mean when sub-pixel, over lighter seasonal palettes. Thresholded patches (chalk splashes, Flanders wet ground) use `tblob`, rotated noise octaves, so they are ragged rather than lattice-aligned squares.
 
-## Performance (M3 Max, 1280×720, high, headless Chrome, steady state)
+## Historical performance (`370b6cb`, wave-6 era; M3 Max/1280×720/high/headless Chrome)
+
+Recorded scenery/furball samples below predate later atmosphere and cockpit work.
+Preserve their cohorts; they are not current-main or cross-hardware guarantees.
 
 ~2–3 ms/frame uncapped for typical views (arras 800 m, Somme battlefield 150 m, aerodrome 250 m), 250–450 draw calls, 0.8–1.5 M triangles. Streaming (tree cells, town tiles) is time-sliced; first seconds after a teleport show brief hitches while a city tile builds (~10 ms).
 
@@ -107,7 +110,7 @@ The target is a period reconnaissance photograph, not a map (DECISIONS "Trenches
 | high | 3.0–4.0 | 4.3–5.2 | ~23 |
 | ultra | 3.4–4.6 | 4.4–6.4 | ~40 |
 
-*Uncapped maxima are GPU-queue pacing stalls (renderer CPU was 2 ms on those frames, with no new shader programs). With vsync (how players run), all three presets hold 16.7 ms with zero frames over 25 ms.
+*Uncapped maxima:* in those sampled runs these were GPU-queue pacing stalls (renderer CPU was 2 ms, with no new shader programs). With vsync, the sampled presets held 16.7 ms with no frames over 25 ms; this is historical evidence, not a present performance promise.
 
 The wave-6 front-line shader measured +0.16 ms p50 on 'high' in big16 (A/B, 3.64 against 3.48 ms mean of five samples) and +0.0–0.3 ms in the `frontShots` views.
 

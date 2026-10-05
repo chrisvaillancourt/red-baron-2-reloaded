@@ -476,10 +476,12 @@ tailhold/defence pursuers cannot produce a comparison.
   `controlLaw: 'generic'` and cover mission logic cheaply; combat outcomes and
   landing are tested on the real sim only.
 
-## Tuning results (real sim, standard realism, torque on)
+## Historical tuning measurements (real sim, standard realism, torque on)
 
-Route + 60–90 s patrol, all 23 types, regular: no crashes, ≤ 0.2 s stalled, min
-AGL > 950 m. Take-off → patrol → RTB → landing, leader + wingman, 10 types:
+The following sampled the then-shipped 23-type roster, not today's 33-aircraft
+inventory or a current-main baseline. Route + 60–90 s patrol, regular: no crashes,
+≤ 0.2 s stalled, min AGL > 950 m.
+Take-off → patrol → RTB → landing, leader + wingman, 10 types:
 20/20 landed at home (lift-off 12–28 s). Low-level 4v4 over hills, 16 types mixed
 skill, 30 min simulated: 0 uncredited ground impacts.
 
@@ -912,8 +914,10 @@ round 2 → round 3:
   - player collisions 3 → 8. Four of the eight are one D.VII-v-SPAD dogfight, which
     repeats identically in reps 3, 4, 16 and 19 (the only mission of 360 that repeats), so 3
     → 5 distinct.
-  - The Camel-v-Dr.I ones are both aircraft in the attack extension, the pre-existing
-    weakness below. Watch this in the next wave.
+  - The Camel-v-Dr.I extension collisions were a historical weakness that became
+    Q-05. [PR #10's newer receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978462638)
+    records the corrected candidate and retained integration. Use STATUS's
+    freshness gate/current next action rather than redispatching that old design.
 - **Career (3 seed sets):**
   - killed or captured 22.6 → 20.9%
   - collisions 5.7 → 7.4 per 100 missions
@@ -980,10 +984,11 @@ fires like a mouse-aim player. The parameters are `HUMAN_PILOT`:
 
 ### Known weaknesses
 
-- **The D.V can't threaten a Camel.** This is why the default quick dogfight changed in
-  wave 9 (D-078): it is now against 2 veteran D.VIIs, 28% player down over 96 runs. See
-  "Wave 9: default quick fight" below. Against 2 regular D.Vs the player went down 4% of
-  the time (24 runs), and no AI tactic moved it. The D.V can't out-turn a Camel (44 against 31 kg/m²), can't out-dive it
+- **The D.V couldn't threaten a Camel in the historical comparison.** This drove
+  D-078's default change to two veteran D.VIIs; its 96-run wave-9 sample gave 28%
+  player down, not a current-main baseline. See "Wave 9: default quick fight" above.
+  Against two regular D.Vs the historical player-down rate was 4% over 24 runs;
+  no AI tactic moved that matchup. The D.V can't out-turn a Camel (44 against 31 kg/m²), can't out-dive it
   (`AI_SOAK=energy`: 74 against 80 m/s, a low `vne` from structural strength 0.55) and
   can't out-zoom it (net −221 against −247 m after a dive and zoom). Boom-and-zoom made
   every matchup worse (DECISIONS "Boom-and-zoom measured and rejected"). Making the D.V

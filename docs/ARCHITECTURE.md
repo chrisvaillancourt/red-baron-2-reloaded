@@ -20,7 +20,7 @@ src/
   game/        App bootstrap + screen router wiring, FlightSession (the in-flight loop composing
                sim/ai/render/audio/ui), input (keyboard/mouse/gamepad), cameras (cockpit, chase,
                padlock, fly-by, target), mission director (objectives, end conditions).
-tools/blender/ Headless Blender pipeline generating public/models/*.glb and public/art/*.png.
+tools/blender/ Headless Blender pipeline generating public/models/*.glb and public/art/*.jpg.
 tests/e2e/     Playwright smoke tests.
 ```
 

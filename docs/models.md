@@ -50,11 +50,13 @@ zsh tools/blender/render_art.sh [samples] [title aerodrome desk debrief] # publi
   (`bombDimensions()` in `src/data/aircraft.ts`, the table the falling bombs use too). The
   O/400 carries its sixteen 112 lb bombs inside (`INTERNAL_BOMBS`), so it has no bomb nodes.
 * `tools/blender/build_models.py` — builds and exports every type to `public/models/<id>.glb`
-  (33 types, 9.0 MB total) and optionally renders EEVEE previews. `--stats` also prints the
-  largest parts by triangle count. Budget: single-seaters 4.9–6.7k triangles (195–255 KB),
-  two-seaters 6.9–7.7k (260–305 KB), the Voisin, D.H.9 and Breguet 7.5–9.3k, and the twins
-  10.3–10.8k (≈420–460 KB): about 1.45× a Bristol F.2b (7.3k), for two nacelles, two propellers,
-  paired wheels, three gun positions and a bomb load.
+  and optionally renders EEVEE previews. `--stats` prints the largest parts by
+  triangle count. The current ceiling is 12,000 triangles per model; later cockpit
+  evidence in this file records regenerated counts.
+  Historical bomber-wave inventory at `ba65d43`: 33 types, 9.0 MB total;
+  single-seaters 4.9–6.7k triangles (195–255 KB), two-seaters 6.9–7.7k (260–305 KB),
+  Voisin/D.H.9/Breguet 7.5–9.3k, twins 10.3–10.8k (≈420–460 KB), about 1.45× the
+  then-7.3k Bristol. Preserve those figures as a dated snapshot, not today's sizes.
 * `tools/blender/art.py` — Cycles key-art scenes; reuses the generator and paints liveries with
   a NumPy port of the runtime painter.
 * `dev/hangar.html` — in-engine inspection (any type × livery, turntable, cockpit view, RPM,
