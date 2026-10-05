@@ -67,7 +67,7 @@ class BatterySession implements DefenseDebug {
   private reject!: (error: unknown) => void;
   private readonly events = new AbortController();
   private observer: ResizeObserver | null = null;
-  private readonly canvas = h('canvas', { class: 'defense-canvas', tabIndex: 0, 'aria-label': 'Airfield defense gun station. Mouse or right stick turns gun, left button or RT fires, right button or LT focuses.' }) as HTMLCanvasElement;
+  private readonly canvas = h('canvas', { class: 'defense-canvas', tabIndex: 0, 'aria-label': 'Airfield defense gun station. Mouse or left stick turns gun, left button or RT fires, right button or LT focuses.' }) as HTMLCanvasElement;
   private readonly headline = h('strong');
   private readonly score = h('span');
   private readonly targetInfo = h('span', { class: 'defense-target-info' });
@@ -109,12 +109,12 @@ class BatterySession implements DefenseDebug {
     });
     this.fuzeInput = h('input', { type: 'range', min: DEFENSE_FUZE.minimum, max: DEFENSE_FUZE.maximum, step: DEFENSE_FUZE.step, value: this.state.fuzeRange, 'aria-label': 'Flak airburst distance', onInput: (event: Event) => this.simulation.setFuzeRange(Number((event.target as HTMLInputElement).value)) });
     const reload = h('button', { type: 'button', class: 'btn light small', onClick: () => this.simulation.reload() }, 'Reload · R / X');
-    const range = h('button', { type: 'button', class: 'btn light small', onClick: () => this.rangeTarget() }, 'Range target · F / Y');
+    const range = h('button', { type: 'button', class: 'btn light small', onClick: () => this.rangeTarget() }, 'Range target · F / R3');
     this.root = h('div', { class: 'rb-ui defense-session' }, this.canvas, header, assets,
       h('div', { class: 'defense-reticle', 'aria-hidden': 'true' }), this.leadMarker, this.targetMarker, this.hitMarker,
       h('div', { class: 'defense-bottom' }, this.targetInfo, h('label', { class: 'defense-fuze' }, 'Flak fuze ', this.fuzeLabel, this.fuzeInput, range, reload), stations,
         h('small', null, 'Mouse / Arrows: aim · Left / fire binding: fire · Right: focus · 1 / 2 / 3: station · R: reload · Wheel / F: fuze · Esc: pause'),
-        h('small', null, 'Xbox: right stick aim · RT fire · LT focus · LB / RB stations · X reload · Y range · D-pad ↑ / ↓ fuze · Menu pause / return · A select · B close pause')),
+        h('small', null, 'Xbox: left stick aim · RT fire · LT focus · LB / RB stations · X reload · R3 range · D-pad ↑ / ↓ fuze · Menu pause / return · A select · B close pause')),
       this.overlay);
     this.commandNav = createNav({
       scope: () => getErrorOverlay() ?? (this.overlay.hidden ? null : this.overlay),
@@ -299,7 +299,7 @@ class BatterySession implements DefenseDebug {
     this.overlay.replaceChildren(h('div', { class: 'paper defense-command' }, h('div', { class: 'kicker' }, 'BATTERY COMMAND'), h('h1', null, preparing ? 'Preparing the airfield' : 'Man the guns'), h('p', null, message),
       h('p', null, 'Mouse turns the gun and view together. Left button fires; right button focuses. Arrows turn the gun in keyboard mode; your fire binding shoots.'),
       h('p', { class: 'muted' }, 'Changing stations: 1 / 2 / 3. Reload: R. Timed flak: wheel / F. Escape pauses and releases the mouse.'),
-      h('p', { class: 'muted' }, 'Xbox: right stick aims, RT fires, LT focuses, LB / RB change guns, X reloads, Y ranges, D-pad up / down adjusts fuze. Menu pauses / returns. A selects; B closes pause. Release controls after handoffs.'),
+      h('p', { class: 'muted' }, 'Xbox: left stick aims, RT fires, LT focuses, LB / RB change guns, X reloads, clicking the right stick ranges, D-pad up / down adjusts fuze. Menu pauses / returns. A selects; B closes pause. Release controls after handoffs.'),
       h('div', { class: 'actions' }, resume, keyboard, this.controllerResume, leave)));
     this.commandNav.setActive(false);
     this.commandNav.setActive(true);

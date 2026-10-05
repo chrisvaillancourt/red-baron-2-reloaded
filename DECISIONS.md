@@ -1353,8 +1353,10 @@ action, then requested Xbox support. Flight already owns deadzone/expo shaping
 and persistent controller preferences; battery pause/resupply relinquishes the
 parent menu's input ownership.
 
-**Decision.** Use standard Xbox layout with right-stick aim, RT fire, LT fine
-aim/focus, LB/RB station edges, X reload, Y range, D-pad fuze and Menu pause/return.
+**Decision.** Use a battery-specific Xbox layout with left-stick aim, RT fire, LT
+fine aim/focus, LB/RB station edges, X reload, right-stick click (R3) range,
+D-pad fuze and Menu pause/return. Left-stick aim and R3 ranging replace the
+initial right-stick/Y mapping at the user's playtest request.
 Reuse existing enablement/deadzone/inversion without a new sensitivity option.
 Keep one stable gameplay controller until loss; pause on replacement. Require
 neutral combat input after ownership transitions, but preserve fresh Menu edges

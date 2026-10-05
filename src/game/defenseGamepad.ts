@@ -57,17 +57,17 @@ export class DefenseGamepad {
     // A fresh Menu press always works, including while fire awaits neutral.
     this.frame.pause = !!(edges & (1 << 9));
     if (!this.armed) {
-      if (!held && Math.abs(pad.axes[2] ?? 0) <= controls.gamepadDeadzone && Math.abs(pad.axes[3] ?? 0) <= controls.gamepadDeadzone) this.armed = true;
+      if (!held && Math.abs(pad.axes[0] ?? 0) <= controls.gamepadDeadzone && Math.abs(pad.axes[1] ?? 0) <= controls.gamepadDeadzone) this.armed = true;
       return this.frame;
     }
     this.frame.fire = !!(held & (1 << 7));
     this.frame.focus = !!(held & (1 << 6));
     const rate = 1.8 * dt * (this.frame.focus ? 0.35 : 1);
-    this.frame.yaw = -expo(applyDeadzone(pad.axes[2] ?? 0, controls.gamepadDeadzone)) * rate;
-    this.frame.pitch = -expo(applyDeadzone(pad.axes[3] ?? 0, controls.gamepadDeadzone)) * rate * (controls.invertPitch ? -1 : 1);
+    this.frame.yaw = -expo(applyDeadzone(pad.axes[0] ?? 0, controls.gamepadDeadzone)) * rate;
+    this.frame.pitch = -expo(applyDeadzone(pad.axes[1] ?? 0, controls.gamepadDeadzone)) * rate * (controls.invertPitch ? -1 : 1);
     this.frame.station = Number(!!(edges & (1 << 5))) - Number(!!(edges & (1 << 4)));
     this.frame.reload = !!(edges & (1 << 2));
-    this.frame.range = !!(edges & (1 << 3));
+    this.frame.range = !!(edges & (1 << 11));
     this.frame.fuze = (Number(!!(held & (1 << 12))) - Number(!!(held & (1 << 13)))) * DEFENSE_FUZE.step * 8 * dt;
     return this.frame;
   }

@@ -278,8 +278,8 @@ Published battery release is the prerequisite, not completion of the broader
 flight-controller audit above. Follow-up starts at published `1ef1893` on
 `feat/defense-xbox-controls`, with no new settings or core contract changes.
 
-- Right stick aim; RT fire; LT focus/fine aim; LB/RB station cycle; X reload;
-  Y tracked range; D-pad up/down fuze; Menu pause/return; A selection; B close pause.
+- Left stick aim; RT fire; LT focus/fine aim; LB/RB station cycle; X reload;
+  right-stick click (R3) tracked range; D-pad up/down fuze; Menu pause/return; A selection; B close pause.
 - Existing deadzone/expo shaping, Gamepad enablement and pitch inversion apply.
   Pin the first standard pad; disconnect/replacement pauses. Release controls after
   station/lifecycle changes before combat re-arms.
@@ -321,6 +321,26 @@ flight-controller audit above. Follow-up starts at published `1ef1893` on
   keyboard/options, touch, crew, campaign and flight flows. Native QA browsers
   closed and the isolated regression server exited; only the handed-over 5390
   playtest server remains. Xbox follow-up is not merged or deployed.
+
+**Playtest layout adjustment:** `fix/defense-xbox-layout`, based on Xbox follow-up
+`5315da8`, moves aim to the left stick and target ranging to right-stick click
+(R3, standard button 11). Y no longer ranges; right-stick motion no longer aims.
+Combat re-arming observes the left stick's deadzone. Other commands and menu
+navigation are unchanged; prompts, guide and documentation reflect the new layout.
+The existing command regression failed on the previous mapping and passed after
+the cutover; an ownership regression covers held left-stick/R3 handoffs.
+The original playtest on 5390 stays untouched; revised layout playtest uses 5392.
+Native Chrome 154 / ANGLE Metal M3 Max smoke exercised left/up aim, inert right-stick
+motion, R3 ranging a real tracked aircraft, held-R3 edge behavior, inert Y, RT fire,
+pause clock and terminal teardown. Inspected 1280×720 battery/pause PNGs at DPR 1;
+console/page error logs empty. Temporary smoke driver removed; evidence remains
+under owning `tools/dev/scratch/defense-xbox-layout/evidence/`. Hardware ergonomics
+remain a human acceptance check, not a claim from the synthetic API probe.
+Revised-layout gates passed: frozen `pnpm check` (typecheck, 695 Vitest tests,
+30 gated skips, 20 Node tooling tests and build) and all 12 battery/controller
+browser regressions on fresh port 5393. Native browsers and the regression server
+closed; port 5392 remains intentionally handed over for playtest. No full browser
+suite rerun or physical-device compatibility claim for this mapping-only change.
 
 
 ## Q-14 — Production Airfield Defense

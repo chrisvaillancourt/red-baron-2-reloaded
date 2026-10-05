@@ -84,8 +84,8 @@ GPU resources, audio and `window.__rb2Defense` (development only).
 `DefenseGamepad` reuses `applyDeadzone`/`expo` from flight input, honors Gamepad
 enablement and pitch inversion, and reuses one mutable output frame. Gameplay pins
 the first standard-mapped pad until disconnect; replacement pauses rather than
-silently transferring held fire. Right stick aims at a fixed angular rate, LT
-reduces it and focuses, RT fires, LB/RB cycle stations, X reloads, Y ranges, and
+silently transferring held fire. Left stick aims at a fixed angular rate, LT
+reduces it and focuses, RT fires, LB/RB cycle stations, X reloads, right-stick click ranges, and
 D-pad up/down adjusts fuze. Menu is a fresh pause/resume edge even while combat
 controls await neutral. Station/lifecycle changes require released buttons and
 centered aim axes before combat input is armed again.

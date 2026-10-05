@@ -162,9 +162,9 @@ export const gunnerGuideScreen: ScreenFactory = (ctx) => {
     ['Mouse wheel', 'Adjust the timed-flak fuze range.'],
     ['F', 'Set the flak range to the tracked target. Update it as the target approaches or turns.'],
     [pauseKeys, 'Pause. Use Return to the guns to recapture the mouse; use Abandon defense to end an aborted action.'],
-    ['Right stick / LT', 'Aim the gun; hold LT for fine aim and a focused sight. Gamepad deadzone and pitch inversion follow Options.'],
+    ['Left stick / LT', 'Aim the gun; hold LT for fine aim and a focused sight. Gamepad deadzone and pitch inversion follow Options.'],
     ['RT / LB / RB', 'Hold RT to fire; tap LB / RB to cycle stations. Release controls after changing stations.'],
-    ['X / Y / D-pad ↑ ↓', 'Reload / range the tracked target / adjust timed-flak fuze range.'],
+    ['X / Right-stick click / D-pad ↑ ↓', 'Reload / range the tracked target / adjust timed-flak fuze range.'],
     ['Menu / A / B', 'Pause or return / select the focused menu action / close pause. Use D-pad or left stick to navigate menus and resupply.'],
   ];
   const paper = h('article', { class: 'doc-paper paper defense-guide', tabIndex: 0, 'data-autofocus': '' },

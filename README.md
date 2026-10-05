@@ -137,8 +137,8 @@ Manual**. Flight actions can be rebound under **Options → Keys**.
 mouse focuses. **1 / 2 / 3** change guns, **R** reloads, wheel adjusts the flak fuze
 and **F** ranges the tracked threat. **Esc** pauses and releases capture.
 
-On Xbox: **right stick** aims, **RT** fires, **LT** focuses/fine-aims, **LB / RB**
-cycle guns, **X** reloads, **Y** ranges and **D-pad up / down** adjusts fuze.
+On Xbox: **left stick** aims, **RT** fires, **LT** focuses/fine-aims, **LB / RB**
+cycle guns, **X** reloads, **right-stick click (R3)** ranges and **D-pad up / down** adjusts fuze.
 **Menu** pauses/returns; **D-pad / left stick** navigates menus and resupply,
 **A** selects and **B** closes pause without abandoning. Choose **Use controller**
 to resume without mouse capture. Release controls after station/pause/controller

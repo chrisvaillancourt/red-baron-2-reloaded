@@ -596,3 +596,17 @@ and handed to the user for local controller playtest, with reports isolated unde
 `defense-xbox-dev`; the user may stop it when playtest ends. Automation uses fresh
 strict port 5391 and one GPU worker, never the human's 5173.
 
+### Xbox layout adjustment inventory (2026-10-04 UTC)
+
+Fresh inventory observed 26 registered worktrees: the previous 25 plus
+`rb2r-defense-xbox-layout` on `fix/defense-xbox-layout`, owned by this parent and
+based on Xbox follow-up `5315da8`. Preserve the revised controls and scoped evidence
+pending physical playtest/integration. Existing workspaces and user-owned port
+5390 were untouched; no cleanup, merge or publication was performed.
+
+The revised layout uses port 5392, service `defense-xbox-layout-dev`, with reports
+under `tools/dev/scratch/defense-xbox-layout/flight-reports`; it is intentionally
+handed to the user for continued playtest. Automation uses fresh strict port 5393
+with the user's exclusive GPU slot. Both playtest servers remain available, but
+5390 is the original right-stick/Y layout and 5392 is left-stick/R3.
+
