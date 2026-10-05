@@ -1347,7 +1347,7 @@ Airfield Defense/tooling release. The user approved the battery playtest feel;
 controller support follows separately. Earlier task-handoff evidence remains
 historical, not a claim about this integration's verification.
 
-## D-XXX — Give the ground battery contextual Xbox controls
+## D-113 — Give the ground battery contextual Xbox controls
 **Context.** The user approved and published the mouse/keyboard Airfield Defense
 action, then requested Xbox support. Flight already owns deadzone/expo shaping
 and persistent controller preferences; battery pause/resupply relinquishes the
@@ -1379,4 +1379,7 @@ Xbox gameplay remains separate from mouse capture. First-pad selection is
 conservative; physical-controller compatibility and comfortable stick tuning
 still require human playtest. This battery follow-up does not close Q-13's broader
 flight/combat/crew mapping and hardware-acceptance work.
+
+Number D-113 assigned by the integration owner during the authorized Xbox
+release. The user approved the revised left-stick/R3 layout after playtest.
 

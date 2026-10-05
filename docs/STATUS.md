@@ -1,10 +1,10 @@
 # Project status — release candidate, handoff 2026-10-04 UTC
 
-## Rolling queue — current execution base `87b798e`
+## Rolling queue — Xbox release base `1ef1893`
 
 This table supersedes historical scheduling instructions below. Execution contracts,
 decisions, evidence and debt dispositions: [Backlog execution record](BACKLOG.md).
-Owner: parent omp integration session, `feat/backlog-cycle-two`. User authorized
+Owner: parent omp integration session, `integrate/xbox-release`. User authorized
 verified merges and deployments while away: independent review, relevant checks,
 green CI, then live verification before the next publication. No workspace cleanup
 or unresolved LICENSE/gameplay-policy decisions are authorized.
@@ -23,8 +23,8 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-10 | CI runner migration | Deferred / CI | Safe branch validation first; target 2027-01-31 |
 | Q-11 | LICENSE | Blocked on owner choice | Explicit license selection |
 | Q-12 | Playable on a high-end modern iPhone | Browser implementation verified / physical-device acceptance blocked | Touch-only raid/debrief, multipointer and hybrid keyboard/controller flows pass; 29 full browser tests pass; physical iPhone Safari lifecycle, saves and sustained performance remain required |
-| Q-13 | Xbox controller support for common controls | Battery implementation verified / broader mapping audit still ready | Airfield Defense controls and safe input handoffs implemented on a separate follow-up branch; physical Xbox acceptance and flight/combat/crew/camera audit remain required; see BACKLOG |
-| Q-14 | Production Airfield Defense | Released / integration lead | PR #13 merged as 1ef1893; deploy run 37243290029 passed; inspected live flight and battery smoke passed. Xbox follow-up remains separate from this published release. |
+| Q-13 | Xbox controller support for common controls | Battery playtest-approved / broader flight mapping audit ready | Left-stick aim and R3 ranging approved by the user; release receipt follows the Xbox integration PR. Flight/combat/crew/camera audit and formal hardware lifecycle coverage remain open; see BACKLOG and D-113. |
+| Q-14 | Production Airfield Defense | Released / integration lead | PR #13 merged as 1ef1893; deploy run 37243290029 and inspected live flight/battery smoke passed. Xbox controls are the approved D-113 follow-up; its publication status is recorded in the integration PR/Actions receipt. |
 | Q-15 | Explicit Claude worker workspace and bounded trial | Deferred / next Claude project session | Review/resume with the owner next time Claude is used here; scope and acceptance in BACKLOG; no Claude changes authorized or implemented now |
 
 States distinguish implementation from integration and deployment. Deferred visual/gameplay
@@ -609,4 +609,19 @@ under `tools/dev/scratch/defense-xbox-layout/flight-reports`; it is intentionall
 handed to the user for continued playtest. Automation uses fresh strict port 5393
 with the user's exclusive GPU slot. Both playtest servers remain available, but
 5390 is the original right-stick/Y layout and 5392 is left-stick/R3.
+
+### Xbox release inventory (2026-10-04 UTC)
+
+Fresh inventory observed 27 registered worktrees: the previous 26 plus
+`rb2r-xbox-release` on `integrate/xbox-release`, owned by this integration session,
+based on published main `1ef1893` and containing approved Xbox head `1a7ea7e`.
+Retain this tree for the integration/CI/live receipt and ignored release evidence.
+The user-owned 5390/5392 playtest services and their original workspaces remain
+untouched. Other workspaces, branches and harness evidence remain preserved;
+cleanup authorization and owner-specific dirty/ignored/process audits are absent.
+
+Release automation owns strict port 5395 for the full browser suite and temporary
+preview port 5396 for the production smoke, with task-scoped output under
+`tools/dev/scratch/xbox-release/`. Temporary release services must stop before
+handoff; the existing user playtest services remain under their handed-over ownership.
 

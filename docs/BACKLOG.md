@@ -1,7 +1,7 @@
 # Backlog execution record
 
-Current integration owner: parent omp session, branch `feat/backlog-cycle-two`.
-Current base: `87b798eb0710dc7dc59d519c12634190ebdd63a0` (released PR #9).
+Current integration owner: parent omp session, branch `integrate/xbox-release`.
+Current release base: `1ef1893ef3ca253114b2e0688ca3aedf02e8f33a` (published battery PR #13).
 Initial cycle base was `07dfaa462a098df633e512a86406b9d7c416fc73`.
 Workspace cleanup remains unauthorized.
 
@@ -42,11 +42,13 @@ there is no unattended scheduler running between sessions.
 8. Close tasks against their acceptance evidence. Record bug fixes separately from
    duplicate/stale-item closure; track reopened defects and queue age, not agent count.
 
-Next dispatch: Q-05 collision-case extraction/fix, Q-04 demanded survey adapters,
-and Q-12 iPhone compatibility/touch-design investigation. Q-07 calibration can take
-the first compatible free slot; freeze its parameters during tactical comparisons.
-Q-06 mutual support waits for the collision safety scenarios. Mobile acceptance
-requires a physical device, but code/layout investigation does not.
+After the approved Xbox battery release, the next eligible tracks are Q-05's
+narrow collision correction, Q-13's flight/crew/menu controller audit and Q-08's
+bomber pacing measurements. Q-05 remains the release-safety priority; Q-13 can run
+independently without pursuer changes. Q-06 mutual support waits for collision
+safety; Q-07 fitting waits for comparable, provenance-confirmed human evidence.
+Physical iPhone acceptance and owner gameplay/LICENSE decisions do not block the
+independent code/evidence tracks. No new implementation was dispatched by this release.
 
 The user selected **Verified merges and deployments** for autonomous work while away:
 publish completed PRs after independent review, relevant regression/runtime checks and
@@ -320,7 +322,8 @@ flight-controller audit above. Follow-up starts at published `1ef1893` on
   skipped. Includes all battery/controller regressions, existing error recovery,
   keyboard/options, touch, crew, campaign and flight flows. Native QA browsers
   closed and the isolated regression server exited; only the handed-over 5390
-  playtest server remains. Xbox follow-up is not merged or deployed.
+  playtest server remains. That initial Xbox handoff was not merged or deployed;
+  the user subsequently approved publication of the revised layout.
 
 **Playtest layout adjustment:** `fix/defense-xbox-layout`, based on Xbox follow-up
 `5315da8`, moves aim to the left stick and target ranging to right-stick click
@@ -341,6 +344,26 @@ Revised-layout gates passed: frozen `pnpm check` (typecheck, 695 Vitest tests,
 browser regressions on fresh port 5393. Native browsers and the regression server
 closed; port 5392 remains intentionally handed over for playtest. No full browser
 suite rerun or physical-device compatibility claim for this mapping-only change.
+
+### Xbox release integration
+
+The user approved `1a7ea7e` for publication, including initial controller feature
+`5315da8`, against published main `1ef1893`. Release owner works in the isolated
+`rb2r-xbox-release` tree on `integrate/xbox-release`; user playtest trees and ports
+5390/5392 remain untouched. D-113 is assigned here, with no new core contracts,
+dependencies, settings or broader flight/gameplay changes.
+
+Publication is conditional on independent Standards/Spec reviews, frozen CPU/build
+gates, the complete fresh-server browser suite, green PR validation and a successful
+main deployment. The integration PR's receipt records actual main SHA, Actions
+runs and inspected deployed flight/battery evidence; no publication is inferred
+from a local commit or a synthetic controller probe.
+
+Next work: narrow Q-05/PR #10 to avoid its measured fairness shift before release;
+audit Q-13's common flight/crew/camera/menu controller coverage in parallel; measure
+Q-08 bomber speed/formation pacing before deciding behavior. Q-06 waits on collision
+safety, Q-07 on meaningful comparable human flights, Q-12 on physical iPhone
+acceptance. LICENSE and Q-09 gameplay/career policies remain explicit user choices.
 
 
 ## Q-14 — Production Airfield Defense
