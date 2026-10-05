@@ -297,8 +297,9 @@
   outline: none;
 }
 .rb-ui :focus-visible,
-.rb-ui .nav-focus {
-  outline: 3px solid var(--focus);
+.rb-ui .nav-focus,
+.nav-focus {
+  outline: 3px solid var(--focus, #f2c75c);
   outline-offset: 3px;
   box-shadow: 0 0 0 6px rgba(242, 199, 92, 0.25);
 }

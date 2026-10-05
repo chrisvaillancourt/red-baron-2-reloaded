@@ -272,12 +272,63 @@ possible for all common controls, not merely provide basic stick input.
 - Coordinate with Q-12 at the input-command seam; serialize changes to shared
   input/session files rather than implementing two competing control systems.
 
+### Airfield Defense Xbox follow-up — 2026-10-04
+
+Published battery release is the prerequisite, not completion of the broader
+flight-controller audit above. Follow-up starts at published `1ef1893` on
+`feat/defense-xbox-controls`, with no new settings or core contract changes.
+
+- Right stick aim; RT fire; LT focus/fine aim; LB/RB station cycle; X reload;
+  Y tracked range; D-pad up/down fuze; Menu pause/return; A selection; B close pause.
+- Existing deadzone/expo shaping, Gamepad enablement and pitch inversion apply.
+  Pin the first standard pad; disconnect/replacement pauses. Release controls after
+  station/lifecycle changes before combat re-arms.
+- Battery-scoped pause/resupply navigation remains separate from parent menus.
+  Neutral/ownership gating protects loading, purchases, next-raid overlays, report
+  handback and replay from held activation or same-frame chords.
+- Deterministic adapter tests and real browser ownership regressions cover analog
+  triggers, edge commands, inversion, station/fire handoff, pause clock,
+  replacement, held launch and report/replay handback.
+- Direct native Headless Chrome 154 / ANGLE Metal Apple M3 Max smoke exercised
+  aiming, focus (70° → 38.5°), fire, reload, fuze/range, guide scrolling, pause/B,
+  resupply purchase/navigation, next raid, report and teardown; error logs empty.
+  Inspected 1280×720 guide/battery/pause/resupply screenshots. Resupply in this
+  ad-hoc probe used explicit scenario setup, not a claimed natural five-raid run.
+- OS HID inventory observed an Xbox Wireless Controller over Bluetooth Low Energy
+  (vendor 0x45e / product 0xb22). Physical button compatibility/ergonomics has not
+  been exercised; API-stub evidence is not hardware acceptance. Q-13 stays open.
+- Review-driven corrections cover same-slot disconnect events, pause-only repeated
+  Escape/Backspace, held A during blocked loading, foreground error-card ownership
+  and guarded resume. Mouse-to-controller focus had no visible ring; the browser
+  regression failed before the existing navigation ring was applied.
+- Controller navigation covers the battery guide, difficulty/lead choices,
+  pause/resupply, purchases, report and replay. Numeric custom seeds and Options
+  sliders still use keyboard/mouse; broader controller-only menu coverage belongs
+  to the open Q-13 audit, not a hardware-acceptance claim.
+- Final native smoke fired all three stations and inspected controller-battery,
+  hybrid pause and foreground-error screenshots at 1280×720 CSS/backing pixels,
+  DPR 1. A mouse-started controller focus changed from invisible to the existing
+  gold ring; foreground error pause froze the clock and blocked Menu resume.
+  Chrome 154 / ANGLE Metal Apple M3 Max, no console/page errors. Temporary smoke
+  drivers removed; PNGs/JSON remain in owning ignored scratch. Port 5390 is
+  intentionally handed to the user for physical Xbox playtest.
+- Frozen `pnpm check` passed after the final focus correction: typecheck,
+  694 Vitest tests (30 gated skips), 20 Node tooling regressions and production
+  build. Error cards retain their independent DOM root; the shared navigation
+  ring works above the menu without changing menu-root selectors.
+- Final fresh-server `E2E_PORT=5391 pnpm e2e`: 41 passed, one gated soak
+  skipped. Includes all battery/controller regressions, existing error recovery,
+  keyboard/options, touch, crew, campaign and flight flows. Native QA browsers
+  closed and the isolated regression server exited; only the handed-over 5390
+  playtest server remains. Xbox follow-up is not merged or deployed.
+
+
 ## Q-14 — Production Airfield Defense
 
 User approved a separate optional battery action alongside Career and Quick
-Mission. Implementation is verified on `feat/airfield-defense`, based on
-`4dc8ec8` plus the headless-QA prerequisite. This is a task-branch handoff,
-not a merged or deployed release.
+Mission. Initial implementation was verified on `feat/airfield-defense`, based on
+`4dc8ec8` plus the headless-QA prerequisite. That initial handoff is historical:
+PR #13 has now published the integrated battery/tooling release as `1ef1893`.
 
 ### Delivered behavior
 
@@ -541,4 +592,14 @@ filtering. The CLI leaf-link probe overwrote an owned external sentinel before
 correction; fixed preflight exited 2 with the sentinel unchanged and no browser
 launch. All fixed artifact leaves are checked before launch and written with
 `O_NOFOLLOW`. No unrelated tool or Claude changes were made.
+
+Release integration `e3e6fa5` passed frozen `pnpm check` (690 Vitest tests,
+30 gated skips; 20 Node tool tests; typecheck/build), all 35 browser regressions
+(one gated soak skipped), native two-pass battery smoke and local production
+flight smoke. PR #13 validation run 37243051972 built without publication.
+Authorized merge produced main `1ef1893`; deployment run 37243290029 passed.
+Inspected deployed flight and battery screenshots, exercised all three guns,
+capture/pause/Aborted teardown and observed no network/console errors.
+The live playtest worktree at `0652782` was preserved; release QA services stopped.
+
 

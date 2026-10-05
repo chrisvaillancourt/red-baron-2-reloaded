@@ -23,8 +23,8 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-10 | CI runner migration | Deferred / CI | Safe branch validation first; target 2027-01-31 |
 | Q-11 | LICENSE | Blocked on owner choice | Explicit license selection |
 | Q-12 | Playable on a high-end modern iPhone | Browser implementation verified / physical-device acceptance blocked | Touch-only raid/debrief, multipointer and hybrid keyboard/controller flows pass; 29 full browser tests pass; physical iPhone Safari lifecycle, saves and sustained performance remain required |
-| Q-13 | Xbox controller support for common controls | Ready for mapping audit / game + UI | Comfortable flight/combat/crew/camera/menu operation, discoverable mappings, safe reconnect/cancellation and physical-controller verification; see BACKLOG |
-| Q-14 | Production Airfield Defense | Release approved / integration lead | User approved playtest feel; source feature and tooling are combined for independent review, full release gates and publication. Xbox battery controls follow separately. |
+| Q-13 | Xbox controller support for common controls | Battery implementation verified / broader mapping audit still ready | Airfield Defense controls and safe input handoffs implemented on a separate follow-up branch; physical Xbox acceptance and flight/combat/crew/camera audit remain required; see BACKLOG |
+| Q-14 | Production Airfield Defense | Released / integration lead | PR #13 merged as 1ef1893; deploy run 37243290029 passed; inspected live flight and battery smoke passed. Xbox follow-up remains separate from this published release. |
 | Q-15 | Explicit Claude worker workspace and bounded trial | Deferred / next Claude project session | Review/resume with the owner next time Claude is used here; scope and acceptance in BACKLOG; no Claude changes authorized or implemented now |
 
 States distinguish implementation from integration and deployment. Deferred visual/gameplay
@@ -578,4 +578,21 @@ pending integration/authorized cleanup. Main remains `87b798e`, playtest remains
 Owned dev/preview ports 5382/5384 and native browsers are stopped; the isolated
 full-suite port 5383 server exited with its successful run. No existing workspace
 was removed and no Claude workflow/configuration change was made.
+
+### Published battery and Xbox follow-up inventory (2026-10-04 UTC)
+
+Fresh inventory observed 25 registered worktrees: the previous 23 plus
+`rb2r-airfield-release` (`integrate/airfield-defense-release` at `e3e6fa5`) and
+`rb2r-defense-xbox` (`feat/defense-xbox-controls`, based on published `1ef1893`),
+both owned by this parent session. The release tree retains integration evidence;
+the Xbox tree retains the unmerged follow-up and ignored native screenshots/JSON
+for physical-controller playtest. Existing workspaces and harness workers remain
+preserved without cleanup authorization. Human main stays at `87b798e`; publication
+was performed through PR #13, without switching or updating the human checkout.
+
+Release QA services on 5387/5388 stopped. Xbox port 5390 is intentionally retained
+and handed to the user for local controller playtest, with reports isolated under
+`tools/dev/scratch/defense-xbox/flight-reports`. Its persistent service is
+`defense-xbox-dev`; the user may stop it when playtest ends. Automation uses fresh
+strict port 5391 and one GPU worker, never the human's 5173.
 
