@@ -85,11 +85,41 @@ drum roll + fanfare). 1.2 s crossfades. Music goes through a convolution hall re
 * `pnpm test` covers the pure synthesis (finite, non-silent, unclipped, deterministic,
   rotary rougher than inline, pulse counts), notation, score lengths, spatial math.
 * `dev/audio.html` is an interactive bench for every sound, a fly-by, six circling
-  aircraft, rpm/throttle/damage sliders and music cues.
-* Headless check: `pnpm exec vite --port 5291` then `node src/audio/dev/qa.mjs`. It clicks
-  through the bench, samples the live master bus, runs an OfflineAudioContext self-test,
-  and fails on console errors, NaNs, silence or clipping. Uses installed Google Chrome
-  (falls back to Playwright's Chromium).
+  aircraft, rpm/throttle/damage sliders and music cues. **Listener: flight** retains
+  the existing cockpit/chase poses. **Listener: ground** places only the camera at
+  2 m AGL (52 m in the mock world); it does not lower the Camel or other aircraft.
+  Ground bursts, bomb sticks and crashes use terrain coordinates in either preset.
+* **Falling bomb (D.H.4 → ground)** uses a separate D.H.4 at the original 1,500 m
+  flight altitude, loads its real 112 lb R.L. HE stores, and selects the next store
+  with `nextBombStore`. `predictBombImpact` places the impact 80 m horizontally
+  from the ground listener by translating the carrier horizontally, not vertically.
+  The fall uses the sim's `stepBomb` and `groundCrossing`; the release event feeds
+  the existing audio world query, whistle queue and master bus, and impact emits
+  the real store's burst. The default Camel still has no bomb racks: **bomb release
+  (own)** auditions its release clunk, not a fabricated Camel whistle. **Reset
+  falling bomb** and listener preset changes cancel the fall and pending queue.
+* Headless check: start an owned server with
+  `RB2R_REPORTS_DIR=tools/dev/scratch/workflowz-ground-audio/flight-reports pnpm dev --port 5291 --strictPort`,
+  then run `node src/audio/dev/qa.mjs http://localhost:5291`. It uses the shared
+  native `automationLaunchOptions` policy (headless installed Chrome by default)
+  and installs `disableGamepads` before navigation. Launch failure is an error,
+  never a silent fallback to a different browser.
+* QA samples `debugOutputTap()`, the actual destination input **after the existing
+  limiter**, with music muted and engine/wind consumers temporarily omitted at the
+  bench query seam. The earlier pre-limiter master tap measured headroom, not
+  delivered clipping; no limiter gains or audio tuning were changed. Both
+  presets release the same real store: the flight listener must remain silent
+  outside whistle range, while the ground listener must hear the queued whistle.
+  Burst emission is disabled only during this whistle-only proof to avoid masking;
+  the physical fall still runs. Evidence includes prediction, listener/carrier/player
+  positions, peak/RMS, nonfinite/clipping counts, silent baseline/pre-whistle/cleanup,
+  and a cancelled release observed through its complete due window. Ground-burst
+  controls are separately sampled in both presets. Consumer settings are restored.
+  The existing live-control sweep and OfflineAudioContext self-test remain.
+* QA saves `bench-flight.png` and `bench-ground.png` beneath the owning workspace's
+  `tools/dev/scratch/workflowz-ground-audio/`, then closes its audio context and
+  browser. Running this script and inspecting its screenshots are integration-owner
+  acceptance, not evidence supplied merely by authoring the script.
 
 ## Known gaps
 

@@ -6,22 +6,80 @@ import { AIRCRAFT_LIST, GUNS } from '../../data/aircraft';
 import { WebAudioEngine } from '../audioEngine';
 import { mockAircraft, mockWorld } from './mockWorld';
 import { runSelfTest } from './selftest';
+import { groundCrossing, loadBombs, nextBombStore, predictBombImpact, stepBomb } from '../../sim/bombs';
 
 const audio = new WebAudioEngine();
-const tap = audio.debugTap();
+const tap = audio.debugOutputTap();
 const camera = new PerspectiveCamera(70, 1, 0.1, 10000);
 
 let player = mockAircraft(1, 'sopwith_camel', 'allied');
 const flyby = mockAircraft(2, 'albatros_dv', 'central');
 flyby.controls.throttle = 1;
 const circlers = [3, 4, 5, 6, 7, 8].map((id, i) => mockAircraft(id, (['fokker_dri', 'albatros_diii', 'pfalz_diiia', 'fokker_dvii', 'halberstadt_clii', 'rumpler_civ'] as AircraftId[])[i], 'central'));
-const aircraft = [player, flyby, ...circlers];
+// A separate real store carrier keeps the default Camel and all flight presets intact.
+const bombCarrier = mockAircraft(9, 'dh4', 'allied');
+bombCarrier.state.engineRpm = 0;
+const aircraft = [player, flyby, ...circlers, bombCarrier];
 const world = mockWorld(aircraft);
 
 const params = {
   rpm: 1250, throttle: 0.8, airspeed: 50, vy: 0, damage: 0, blip: false, dead: false,
   stalled: false, onGround: false, fire: false, cockpit: true, flyby: false, circlers: false, enemyGuns: false,
 };
+type ListenerPreset = 'flight' | 'ground';
+let listenerPreset: ListenerPreset = 'flight';
+let isolated = false;
+let fallingBomb: { position: Vector3; velocity: Vector3; massKg: number; explosiveKg: number; burst: boolean } | null = null;
+const groundListener = new Vector3(0, world.groundHeightAt(0, 0) + 2, 0);
+const quietWorld = { ...world, aircraft: [] };
+const cockpitOffset = new Vector3(0, 0.8, 0);
+const chaseOffset = new Vector3(6, 4, 25);
+const bombPrevious = new Vector3();
+
+function setListenerPreset(preset: ListenerPreset): void {
+  listenerPreset = preset;
+  resetBomb();
+  updateListener();
+}
+
+function updateListener(): void {
+  if (listenerPreset === 'ground') {
+    camera.position.copy(groundListener);
+    camera.lookAt(camera.position.x, camera.position.y, camera.position.z - 100);
+  } else {
+    camera.position.copy(player.state.position).add(params.cockpit ? cockpitOffset : chaseOffset);
+    camera.lookAt(player.state.position.x, player.state.position.y, player.state.position.z - 100);
+  }
+  camera.updateMatrixWorld();
+}
+
+function resetBomb(): void {
+  fallingBomb = null;
+  audio.stopFlight(); // Clears the real pending whistle queue.
+}
+
+function releaseBomb(burst = true) {
+  resetBomb();
+  loadBombs(bombCarrier);
+  const storeIndex = nextBombStore(bombCarrier);
+  const store = bombCarrier.spec.bombs?.[storeIndex];
+  if (!store) throw new Error('Bench D.H.4 has no loaded bomb store');
+  bombCarrier.state.position.set(0, 1500, 0);
+  bombCarrier.state.velocity.set(0, 0, -50);
+  const initial = predictBombImpact(bombCarrier, world.env, storeIndex);
+  if (!initial) throw new Error('Bench bomb prediction did not reach ground');
+  // Translate only the separate carrier horizontally: impact 80 m from the ground listener.
+  bombCarrier.state.position.x += groundListener.x + 80 - initial.point.x;
+  bombCarrier.state.position.z += groundListener.z - initial.point.z;
+  const hit = predictBombImpact(bombCarrier, world.env, storeIndex);
+  if (!hit) throw new Error('Translated bench bomb prediction did not reach ground');
+  updateListener();
+  audio.updateFlight(camera, isolated || listenerPreset === 'ground' ? null : player, isolated ? quietWorld : world, 0, params.cockpit);
+  emit({ type: 'bomb-released', aircraftId: bombCarrier.id, storeIndex, position: bombCarrier.state.position.clone() });
+  bombCarrier.bombs![storeIndex]--;
+  fallingBomb = { position: bombCarrier.state.position.clone(), velocity: bombCarrier.state.velocity.clone(), massKg: store.massKg, explosiveKg: store.explosiveKg, burst };
+  return { carrier: bombCarrier.spec.id, storeIndex, massKg: store.massKg, point: hit.point.toArray(), time: hit.time, listener: camera.position.toArray(), distance: hit.point.distanceTo(camera.position) };
+}
 
 const $ = (id: string) => document.getElementById(id)!;
 const status = $('status');
@@ -99,6 +157,9 @@ check('player', 'on ground', 'onGround');
 check('player', 'on fire', 'fire');
 check('player', 'cockpit view', 'cockpit');
 
+button('player', 'listener: flight (cockpit/chase)', () => setListenerPreset('flight'));
+button('player', 'listener: ground (2 m AGL)', () => setListenerPreset('ground'));
+
 // --- Guns -------------------------------------------------------------------
 for (const g of ['vickers', 'spandau', 'lewis', 'parabellum', 'hotchkiss'] as GunType[]) {
   const b = button('guns', g, () => {});
@@ -145,21 +206,24 @@ button('own', 'collision', () => emit({ type: 'collision', aId: 1, bId: 2, posit
 
 // --- World ------------------------------------------------------------------
 const at = (dx: number, dy: number, dz: number) => P().add(new Vector3(dx, dy, dz));
+const groundAt = (x: number, z: number) => new Vector3(player.state.position.x + x, world.groundHeightAt(player.state.position.x + x, player.state.position.z + z), player.state.position.z + z);
 check('world', 'fly-by (Albatros, 60 m/s, 50 m)', 'flyby');
 check('world', 'six aircraft circling', 'circlers');
 button('world', 'flak 150 m', () => emit({ type: 'flak-burst', position: at(100, 60, -90) }));
 button('world', 'flak barrage', () => { for (let i = 0; i < 6; i++) setTimeout(() => emit({ type: 'flak-burst', position: at((Math.random() - 0.5) * 900, (Math.random() - 0.3) * 300, -200 - Math.random() * 700) }), i * 400); });
 button('world', 'explosion 400 m', () => emit({ type: 'explosion', position: at(-300, -250, -200), size: 2 }));
 button('world', 'balloon flames 600 m', () => emit({ type: 'balloon-destroyed', balloonId: 50, killerId: 1, position: at(400, -200, -400) }));
-button('world', 'crash 300 m', () => emit({ type: 'aircraft-destroyed', victimId: 99 + Math.floor(Math.random() * 1e6), killerId: 1, outcome: 'crashed', position: at(200, -1440, -200) }));
+button('world', 'crash 300 m', () => emit({ type: 'aircraft-destroyed', victimId: 99 + Math.floor(Math.random() * 1e6), killerId: 1, outcome: 'crashed', position: groundAt(200, -200) }));
 button('world', 'enemy bursts at 300 m', () => {
   for (let i = 0; i < 20; i++) setTimeout(() => emit({ type: 'gun-fired', shooterId: 2, gun: 'spandau', position: at(200, 50, -200) }), i * 130);
 });
 button('world', 'near misses', () => spawnBullets(8));
 button('world', 'bomb release (own)', () => emit({ type: 'bomb-released', aircraftId: 1, storeIndex: 0, position: P() }));
-button('world', 'bomb burst 300 m (23 kg)', () => emit({ type: 'bomb-exploded', shooterId: 1, position: at(200, -1450, -200), explosiveKg: 23, damagedTargetIds: [] }));
+button('world', 'falling bomb (D.H.4 → ground)', () => { releaseBomb(); });
+button('world', 'reset falling bomb', resetBomb);
+button('world', 'bomb burst 300 m (23 kg)', () => emit({ type: 'bomb-exploded', shooterId: 1, position: groundAt(200, -200), explosiveKg: 23, damagedTargetIds: [] }));
 button('world', 'stick of bombs 1 km', () => {
-  for (let i = 0; i < 6; i++) setTimeout(() => emit({ type: 'bomb-exploded', shooterId: 2, position: at(-700 + i * 40, -1450, -600), explosiveKg: i % 3 === 2 ? 1.5 : 23, damagedTargetIds: [] }), i * 350);
+  for (let i = 0; i < 6; i++) setTimeout(() => emit({ type: 'bomb-exploded', shooterId: 2, position: groundAt(-700 + i * 40, -600), explosiveKg: i % 3 === 2 ? 1.5 : 23, damagedTargetIds: [] }), i * 350);
 });
 button('world', 'offline self-test', async () => {
   status.textContent = 'rendering…';
@@ -203,10 +267,8 @@ function frame(now: number): void {
   player.damage.engineDead = params.dead;
   player.damage.onFire = params.fire;
 
-  // Camera: cockpit at the aircraft, or a chase position 25 m behind.
-  camera.position.copy(s.position).add(params.cockpit ? new Vector3(0, 0.8, 0) : new Vector3(6, 4, 25));
-  camera.lookAt(s.position.x, s.position.y, s.position.z - 100);
-  camera.updateMatrixWorld();
+  // Ground is a listener-only preset; aircraft remain at their original flight altitudes.
+  updateListener();
 
   // Fly-by: back-and-forth pass 50 m ahead.
   const span = 3000;
@@ -230,7 +292,26 @@ function frame(now: number): void {
   }
   while (bullets.length && bullets[0].age > 1.5) bullets.shift();
 
-  audio.updateFlight(camera, player, world, dt, params.cockpit);
+  if (fallingBomb) {
+    const b = fallingBomb;
+    let remaining = dt;
+    while (remaining > 0 && fallingBomb) {
+      const step = Math.min(remaining, 1 / 120);
+      const prev = bombPrevious.copy(b.position);
+      stepBomb(b.position, b.velocity, b.massKg, world.env, step);
+      remaining -= step;
+      const ground = world.groundHeightAt(b.position.x, b.position.z);
+      if (b.position.y <= ground) {
+        const f = groundCrossing(prev, b.position, world.groundHeightAt(prev.x, prev.z), ground);
+        const point = prev.clone().lerp(b.position, f);
+        point.y = world.groundHeightAt(point.x, point.z);
+        if (b.burst) emit({ type: 'bomb-exploded', shooterId: bombCarrier.id, position: point, explosiveKg: b.explosiveKg, damagedTargetIds: [] });
+        fallingBomb = null;
+      }
+    }
+  }
+
+  audio.updateFlight(camera, isolated || listenerPreset === 'ground' ? null : player, isolated ? quietWorld : world, dt, params.cockpit);
   audio.updateBullets(bullets);
 
   const buf = new Float32Array(tap.fftSize);
@@ -238,10 +319,10 @@ function frame(now: number): void {
   let peak = 0;
   for (const v of buf) peak = Math.max(peak, Math.abs(v));
   meter.style.width = `${Math.min(100, peak * 100)}%`;
-  if (!status.textContent?.startsWith('{')) status.textContent = `${audio.context.state} · music: ${audio.currentMusic} · peak ${peak.toFixed(2)}`;
+  if (!status.textContent?.startsWith('{')) status.textContent = `${audio.context.state} · listener: ${listenerPreset} · bomb: ${fallingBomb ? `${fallingBomb.position.y.toFixed(0)} m` : 'none'} · music: ${audio.currentMusic} · peak ${peak.toFixed(2)}`;
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
 // Exposed for Playwright QA.
-Object.assign(window, { __bench: { audio, tap, params, emit, spawnBullets }, __audioSelfTest: runSelfTest });
+Object.assign(window, { __bench: { audio, tap, params, emit, spawnBullets, setListenerPreset, releaseBomb, resetBomb, setIsolated: (value: boolean) => { isolated = value; resetBomb(); }, getPositions: () => ({ listener: camera.position.toArray(), player: player.state.position.toArray(), carrier: bombCarrier.state.position.toArray(), bomb: fallingBomb?.position.toArray() ?? null }) }, __audioSelfTest: runSelfTest });

@@ -80,6 +80,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
   readonly context: AudioContext;
   private readonly bank: SoundBank;
   private readonly master: GainNode;
+  private readonly output: AudioNode;
   private readonly musicBus: GainNode;
   private readonly fxBus: GainNode;
   private readonly uiBus: GainNode;
@@ -116,6 +117,7 @@ export class WebAudioEngine implements ReloadedAudioEngine {
     this.master = c.createGain();
     this.master.connect(limiter.input);
     limiter.output.connect(c.destination);
+    this.output = limiter.output;
 
     this.musicBus = c.createGain();
     this.fxBus = c.createGain();
@@ -466,11 +468,11 @@ export class WebAudioEngine implements ReloadedAudioEngine {
     this.listenerVel.set(0, 0, 0);
   }
 
-  /** Debug/QA: an analyser tapped off the master bus (post-volume, pre-limiter). */
-  debugTap(): AnalyserNode {
+  /** Debug/QA: an analyser at the actual destination input, after volume and limiting. */
+  debugOutputTap(): AnalyserNode {
     const a = this.context.createAnalyser();
     a.fftSize = 2048;
-    this.master.connect(a);
+    this.output.connect(a);
     return a;
   }
 
