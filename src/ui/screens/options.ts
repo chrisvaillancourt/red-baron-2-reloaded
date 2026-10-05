@@ -224,7 +224,7 @@ export const optionsScreen: ScreenFactory = (ctx) => {
         rangeInput({ min: 0.1, max: 3, step: 0.1, value: s().controls.mouseSensitivity, label: 'Mouse sensitivity', onInput: (v) => (set((g) => (g.controls.mouseSensitivity = v)), (sensVal.textContent = v.toFixed(1))) }),
         sensVal,
       ]),
-      optRow('Gamepad', 'Use a connected controller in flight.', toggle(s().controls.gamepadEnabled, (v) => set((g) => (g.controls.gamepadEnabled = v)), 'Gamepad')),
+      optRow('Gamepad', 'Use a connected controller in flight and Airfield Defense.', toggle(s().controls.gamepadEnabled, (v) => set((g) => (g.controls.gamepadEnabled = v)), 'Gamepad')),
       optRow('Stick dead zone', null, [
         rangeInput({ min: 0, max: 0.4, step: 0.01, value: s().controls.gamepadDeadzone, label: 'Dead zone', onInput: (v) => (set((g) => (g.controls.gamepadDeadzone = v)), (dzVal.textContent = `${Math.round(v * 100)}%`)) }),
         dzVal,

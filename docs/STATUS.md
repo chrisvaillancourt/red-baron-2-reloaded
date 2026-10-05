@@ -1,10 +1,10 @@
-# Project status — release candidate, handoff 2026-10-04 UTC
+# Project status — Xbox release handoff, 2026-10-05 UTC
 
-## Rolling queue — current execution base `87b798e`
+## Rolling queue — Xbox release base `1ef1893`
 
 This table supersedes historical scheduling instructions below. Execution contracts,
 decisions, evidence and debt dispositions: [Backlog execution record](BACKLOG.md).
-Owner: parent omp integration session, `feat/backlog-cycle-two`. User authorized
+Owner: parent omp integration session, `integrate/xbox-release`. User authorized
 verified merges and deployments while away: independent review, relevant checks,
 green CI, then live verification before the next publication. No workspace cleanup
 or unresolved LICENSE/gameplay-policy decisions are authorized.
@@ -15,7 +15,7 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-02 | Isolated, consistent browser automation | Released / lead | 23 browser tests and live production smoke passed |
 | Q-03 | Current gameplay evidence | Complete / integration lead | Frozen-SHA fairness/quick/career/raid surveys and report replays recorded in BACKLOG |
 | Q-04 | Tailhold/defence/raid A/B coverage | Released / lead | PR #11 merged as 4fb2224; deploy run 37189540415 and inspected live flight smoke passed |
-| Q-05 | Attack-extension collision reproduction | Release blocked / PR #10 | Three reproduced cases fixed, but final default-fairness player-down 29.2% → 4.2% differs; narrow the correction before publication |
+| Q-05 | Attack-extension collision reproduction | Correction verified / retained integration pending, PR #10 | 92d3dba removed the earlier large balance shift: default player-down 29.2% → 25.0% at 48 flights/side; mirrors and quick outcomes within noise. The old 4dc8ec8 merge remains staged in the collision workspace; refresh it against current main, commit, validate CI and publish. Latest PR receipts supersede the obsolete 4.2% blocker. |
 | Q-06 | Mutual support for ordinary flight-mates | Blocked on Q-03/Q-05 / AI tactics | Both pursuers, meaningful threat, collision and mirror-fairness gates |
 | Q-07 | Human-like pursuer calibration | Blocked on comparable human evidence / calibration | Only 58 rounds/two hits in aim-bearing default flights; require provenance-confirmed cohort and meaningful held-out evaluation before changing fit |
 | Q-08 | Bomber pacing/interception policy | Ready for measurement / lead | Measure speed/slot error before choosing policy; preserve aircraft performance |
@@ -23,8 +23,8 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-10 | CI runner migration | Deferred / CI | Safe branch validation first; target 2027-01-31 |
 | Q-11 | LICENSE | Blocked on owner choice | Explicit license selection |
 | Q-12 | Playable on a high-end modern iPhone | Browser implementation verified / physical-device acceptance blocked | Touch-only raid/debrief, multipointer and hybrid keyboard/controller flows pass; 29 full browser tests pass; physical iPhone Safari lifecycle, saves and sustained performance remain required |
-| Q-13 | Xbox controller support for common controls | Ready for mapping audit / game + UI | Comfortable flight/combat/crew/camera/menu operation, discoverable mappings, safe reconnect/cancellation and physical-controller verification; see BACKLOG |
-| Q-14 | Production Airfield Defense | Release approved / integration lead | User approved playtest feel; source feature and tooling are combined for independent review, full release gates and publication. Xbox battery controls follow separately. |
+| Q-13 | Xbox controller support for common controls | Battery via PR #14 / broader flight mapping audit ready | Playtest-approved left-stick aim and R3 ranging; [publication/verification receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/14). Flight/combat/crew/camera audit and formal hardware lifecycle coverage remain open; see BACKLOG and D-113. |
+| Q-14 | Production Airfield Defense | Released / integration lead | Battery PR #13/main 1ef1893 passed deployment and live checks. D-113 Xbox follow-up is [PR #14](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/14); its receipt records publication status and deployed evidence. |
 | Q-15 | Explicit Claude worker workspace and bounded trial | Deferred / next Claude project session | Review/resume with the owner next time Claude is used here; scope and acceptance in BACKLOG; no Claude changes authorized or implemented now |
 
 States distinguish implementation from integration and deployment. Deferred visual/gameplay
@@ -578,4 +578,54 @@ pending integration/authorized cleanup. Main remains `87b798e`, playtest remains
 Owned dev/preview ports 5382/5384 and native browsers are stopped; the isolated
 full-suite port 5383 server exited with its successful run. No existing workspace
 was removed and no Claude workflow/configuration change was made.
+
+### Published battery and Xbox follow-up inventory (2026-10-04 UTC)
+
+Fresh inventory observed 25 registered worktrees: the previous 23 plus
+`rb2r-airfield-release` (`integrate/airfield-defense-release` at `e3e6fa5`) and
+`rb2r-defense-xbox` (`feat/defense-xbox-controls`, based on published `1ef1893`),
+both owned by this parent session. The release tree retains integration evidence;
+the Xbox tree retains the unmerged follow-up and ignored native screenshots/JSON
+for physical-controller playtest. Existing workspaces and harness workers remain
+preserved without cleanup authorization. Human main stays at `87b798e`; publication
+was performed through PR #13, without switching or updating the human checkout.
+
+Release QA services on 5387/5388 stopped. Xbox port 5390 is intentionally retained
+and handed to the user for local controller playtest, with reports isolated under
+`tools/dev/scratch/defense-xbox/flight-reports`. Its persistent service is
+`defense-xbox-dev`; the user may stop it when playtest ends. Automation uses fresh
+strict port 5391 and one GPU worker, never the human's 5173.
+
+### Xbox layout adjustment inventory (2026-10-04 UTC)
+
+Fresh inventory observed 26 registered worktrees: the previous 25 plus
+`rb2r-defense-xbox-layout` on `fix/defense-xbox-layout`, owned by this parent and
+based on Xbox follow-up `5315da8`. Preserve the revised controls and scoped evidence
+pending physical playtest/integration. Existing workspaces and user-owned port
+5390 were untouched; no cleanup, merge or publication was performed.
+
+The revised layout uses port 5392, service `defense-xbox-layout-dev`, with reports
+under `tools/dev/scratch/defense-xbox-layout/flight-reports`; it is intentionally
+handed to the user for continued playtest. Automation uses fresh strict port 5393
+with the user's exclusive GPU slot. Both playtest servers remain available, but
+5390 is the original right-stick/Y layout and 5392 is left-stick/R3.
+
+### Xbox release inventory (2026-10-05 UTC)
+
+Fresh inventory observed 28 registered worktrees: the previous 26 plus
+`rb2r-xbox-release` on `integrate/xbox-release`, owned by this integration session,
+based on published main `1ef1893` and containing approved Xbox head `1a7ea7e`.
+Retain this tree for the integration/CI/live receipt and ignored release evidence.
+The user-owned 5390/5392 playtest services and their original workspaces remain
+untouched. Other workspaces, branches and harness evidence remain preserved;
+cleanup authorization and owner-specific dirty/ignored/process audits are absent.
+The additional `rb2r-xbox-menu-baseline` is detached at approved `1a7ea7e`, owned
+by this integration session for sequential fresh-Menu comparison. Its temporary
+test edits were restored, source is clean and its strict 5399 test server exited.
+Retain ignored comparison evidence until cleanup is authorized.
+
+Release automation owns strict port 5395 for the full browser suite and temporary
+preview port 5396 for the production smoke, with task-scoped output under
+`tools/dev/scratch/xbox-release/`. Temporary release services must stop before
+handoff; the existing user playtest services remain under their handed-over ownership.
 

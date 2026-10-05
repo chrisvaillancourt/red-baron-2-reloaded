@@ -1,7 +1,7 @@
 # Backlog execution record
 
-Current integration owner: parent omp session, branch `feat/backlog-cycle-two`.
-Current base: `87b798eb0710dc7dc59d519c12634190ebdd63a0` (released PR #9).
+Current integration owner: parent omp session, branch `integrate/xbox-release`.
+Current release base: `1ef1893ef3ca253114b2e0688ca3aedf02e8f33a` (published battery PR #13).
 Initial cycle base was `07dfaa462a098df633e512a86406b9d7c416fc73`.
 Workspace cleanup remains unauthorized.
 
@@ -42,11 +42,14 @@ there is no unattended scheduler running between sessions.
 8. Close tasks against their acceptance evidence. Record bug fixes separately from
    duplicate/stale-item closure; track reopened defects and queue age, not agent count.
 
-Next dispatch: Q-05 collision-case extraction/fix, Q-04 demanded survey adapters,
-and Q-12 iPhone compatibility/touch-design investigation. Q-07 calibration can take
-the first compatible free slot; freeze its parameters during tactical comparisons.
-Q-06 mutual support waits for the collision safety scenarios. Mobile acceptance
-requires a physical device, but code/layout investigation does not.
+After the approved Xbox battery release, the next eligible tracks are Q-05's
+already-corrected collision release, Q-13's flight/crew/menu controller audit and
+Q-08's bomber pacing measurements. Finish Q-05's retained integration before
+creating another safety design; Q-13 can run
+independently without pursuer changes. Q-06 mutual support waits for collision
+safety; Q-07 fitting waits for comparable, provenance-confirmed human evidence.
+Physical iPhone acceptance and owner gameplay/LICENSE decisions do not block the
+independent code/evidence tracks. No new implementation was dispatched by this release.
 
 The user selected **Verified merges and deployments** for autonomous work while away:
 publish completed PRs after independent review, relevant regression/runtime checks and
@@ -272,12 +275,138 @@ possible for all common controls, not merely provide basic stick input.
 - Coordinate with Q-12 at the input-command seam; serialize changes to shared
   input/session files rather than implementing two competing control systems.
 
+### Airfield Defense Xbox follow-up — 2026-10-04
+
+Published battery release is the prerequisite, not completion of the broader
+flight-controller audit above. Follow-up starts at published `1ef1893` on
+`feat/defense-xbox-controls`, with no new settings or core contract changes.
+
+- Left stick aim; RT fire; LT focus/fine aim; LB/RB station cycle; X reload;
+  right-stick click (R3) tracked range; D-pad up/down fuze; Menu pause/return; A selection; B close pause.
+- Existing deadzone/expo shaping, Gamepad enablement and pitch inversion apply.
+  Pin the first standard pad; disconnect/replacement pauses. Release controls after
+  station/lifecycle changes before combat re-arms.
+- Battery-scoped pause/resupply navigation remains separate from parent menus.
+  Neutral/ownership gating protects loading, purchases, next-raid overlays, report
+  handback and replay from held activation or same-frame chords.
+- Deterministic adapter tests and real browser ownership regressions cover analog
+  triggers, edge commands, inversion, station/fire handoff, pause clock,
+  replacement, held launch and report/replay handback.
+- Direct native Headless Chrome 154 / ANGLE Metal Apple M3 Max smoke exercised
+  aiming, focus (70° → 38.5°), fire, reload, fuze/range, guide scrolling, pause/B,
+  resupply purchase/navigation, next raid, report and teardown; error logs empty.
+  Inspected 1280×720 guide/battery/pause/resupply screenshots. Resupply in this
+  ad-hoc probe used explicit scenario setup, not a claimed natural five-raid run.
+- OS HID inventory observed an Xbox Wireless Controller over Bluetooth Low Energy
+  (vendor 0x45e / product 0xb22). Physical button compatibility/ergonomics has not
+  been exercised; API-stub evidence is not hardware acceptance. Q-13 stays open.
+- Review-driven corrections cover same-slot disconnect events, pause-only repeated
+  Escape/Backspace, held A during blocked loading, foreground error-card ownership
+  and guarded resume. Mouse-to-controller focus had no visible ring; the browser
+  regression failed before the existing navigation ring was applied.
+- Controller navigation covers the battery guide, difficulty/lead choices,
+  pause/resupply, purchases, report and replay. Numeric custom seeds and Options
+  sliders still use keyboard/mouse; broader controller-only menu coverage belongs
+  to the open Q-13 audit, not a hardware-acceptance claim.
+- Final native smoke fired all three stations and inspected controller-battery,
+  hybrid pause and foreground-error screenshots at 1280×720 CSS/backing pixels,
+  DPR 1. A mouse-started controller focus changed from invisible to the existing
+  gold ring; foreground error pause froze the clock and blocked Menu resume.
+  Chrome 154 / ANGLE Metal Apple M3 Max, no console/page errors. Temporary smoke
+  drivers removed; PNGs/JSON remain in owning ignored scratch. Port 5390 is
+  intentionally handed to the user for physical Xbox playtest.
+- Frozen `pnpm check` passed after the final focus correction: typecheck,
+  694 Vitest tests (30 gated skips), 20 Node tooling regressions and production
+  build. Error cards retain their independent DOM root; the shared navigation
+  ring works above the menu without changing menu-root selectors.
+- Final fresh-server `E2E_PORT=5391 pnpm e2e`: 41 passed, one gated soak
+  skipped. Includes all battery/controller regressions, existing error recovery,
+  keyboard/options, touch, crew, campaign and flight flows. Native QA browsers
+  closed and the isolated regression server exited; only the handed-over 5390
+  playtest server remains. That initial Xbox handoff was not merged or deployed;
+  the user subsequently approved publication of the revised layout.
+
+**Playtest layout adjustment:** `fix/defense-xbox-layout`, based on Xbox follow-up
+`5315da8`, moves aim to the left stick and target ranging to right-stick click
+(R3, standard button 11). Y no longer ranges; right-stick motion no longer aims.
+Combat re-arming observes the left stick's deadzone. Other commands and menu
+navigation are unchanged; prompts, guide and documentation reflect the new layout.
+The existing command regression failed on the previous mapping and passed after
+the cutover; an ownership regression covers held left-stick/R3 handoffs.
+The original playtest on 5390 stays untouched; revised layout playtest uses 5392.
+Native Chrome 154 / ANGLE Metal M3 Max smoke exercised left/up aim, inert right-stick
+motion, R3 ranging a real tracked aircraft, held-R3 edge behavior, inert Y, RT fire,
+pause clock and terminal teardown. Inspected 1280×720 battery/pause PNGs at DPR 1;
+console/page error logs empty. Temporary smoke driver removed; evidence remains
+under owning `tools/dev/scratch/defense-xbox-layout/evidence/`. Hardware ergonomics
+remain a human acceptance check, not a claim from the synthetic API probe.
+Revised-layout gates passed: frozen `pnpm check` (typecheck, 695 Vitest tests,
+30 gated skips, 20 Node tooling tests and build) and all 12 battery/controller
+browser regressions on fresh port 5393. Native browsers and the regression server
+closed; port 5392 remains intentionally handed over for playtest. No full browser
+suite rerun or physical-device compatibility claim for this mapping-only change.
+
+### Xbox release integration
+
+The user approved `1a7ea7e` for publication, including initial controller feature
+`5315da8`, against published main `1ef1893`. Release owner works in the isolated
+`rb2r-xbox-release` tree on `integrate/xbox-release`; user playtest trees and ports
+5390/5392 remain untouched. D-113 is assigned here, with no new core contracts,
+dependencies, settings or broader flight/gameplay changes.
+
+Standards review found no blockers. Spec review exposed two input-handoff defects:
+same-slot disconnect/reconnect could transfer held overlay activation, and A/Menu
+could advance then resume the next raid. Real browser regressions failed before
+correction (resupply purchase, pause resume and A/Menu resume); adapter Menu
+snapshot regression also failed. Navigation now invalidates per-pad activation
+on both connection events; the battery consumes each event's owned button snapshot
+even in resupply. All handoffs sample current buttons, and input clearing occurs
+before `showPause`'s same-message return. The initial forced-eviction correction
+passed targeted checks but a full run exposed a fresh-Menu timing regression:
+the first reacquisition sample could discard a press made after connection.
+
+The failed spec passed alone warm; a deterministic same-task disconnect/connect/
+fresh-Menu sequence then failed on the correction and passed sequentially on the
+approved `1a7ea7e` baseline. A held-at-connect A/Menu case also failed before the
+final event-snapshot correction. Retaining known identity while consuming event
+buttons now distinguishes held-at-connect input from a fresh-after-connect Menu,
+even before the next RAF with RT held. Baseline test edits were restored.
+A first-connection variant also failed before event-time adoption was added;
+late discovery now verifies held-A gating and focus using the actual connect event.
+The handler preserves any valid existing owner without consuming its commands.
+Final bounded Spec rereview found no remaining blockers; six adapter tests and all
+15 targeted browser cases passed. Superseded/failed full runs are not release gates.
+
+Publication is conditional on independent Standards/Spec reviews, frozen CPU/build
+gates, the complete fresh-server browser suite, green PR validation and a successful
+main deployment. The integration PR's receipt records actual main SHA, Actions
+runs and inspected deployed flight/battery evidence; no publication is inferred
+from a local commit or a synthetic controller probe.
+
+Next work: refresh and release Q-05/PR #10's already-corrected retained integration;
+audit Q-13's common flight/crew/camera/menu controller coverage in parallel; measure
+Q-08 bomber speed/formation pacing before deciding behavior. Q-06 waits on collision
+safety, Q-07 on meaningful comparable human flights, Q-12 on physical iPhone
+acceptance. LICENSE and Q-09 gameplay/career policies remain explicit user choices.
+
+Q-05 reconciliation: the [updated comparison receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978434564)
+states that `92d3dba` removed the prior balance blocker: default player-down
+29.2% → 25.0% at 48 flights/side; five mirror cohorts and 360-flight quick outcomes
+within noise. The [later handoff](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978462638)
+records an integrated 4dc8ec8 verification followed by a local signing failure,
+not a remaining collision-design blocker. Read-only inspection during this release
+confirmed 24 staged files and `MERGE_HEAD=4dc8ec8` in the preserved collision tree.
+Do not discard or blindly commit that older staged merge: refresh current-main
+integration and decision numbering in an owned workspace, then rerun release gates.
+No collision code or retained staged work was changed by the Xbox release.
+
+
 ## Q-14 — Production Airfield Defense
 
 User approved a separate optional battery action alongside Career and Quick
-Mission. Implementation is verified on `feat/airfield-defense`, based on
-`4dc8ec8` plus the headless-QA prerequisite. This is a task-branch handoff,
-not a merged or deployed release.
+Mission. Initial implementation was verified on `feat/airfield-defense`, based on
+`4dc8ec8` plus the headless-QA prerequisite. That initial handoff is historical:
+PR #13 has now published the integrated battery/tooling release as `1ef1893`.
 
 ### Delivered behavior
 
@@ -541,4 +670,14 @@ filtering. The CLI leaf-link probe overwrote an owned external sentinel before
 correction; fixed preflight exited 2 with the sentinel unchanged and no browser
 launch. All fixed artifact leaves are checked before launch and written with
 `O_NOFOLLOW`. No unrelated tool or Claude changes were made.
+
+Release integration `e3e6fa5` passed frozen `pnpm check` (690 Vitest tests,
+30 gated skips; 20 Node tool tests; typecheck/build), all 35 browser regressions
+(one gated soak skipped), native two-pass battery smoke and local production
+flight smoke. PR #13 validation run 37243051972 built without publication.
+Authorized merge produced main `1ef1893`; deployment run 37243290029 passed.
+Inspected deployed flight and battery screenshots, exercised all three guns,
+capture/pause/Aborted teardown and observed no network/console errors.
+The live playtest worktree at `0652782` was preserved; release QA services stopped.
+
 

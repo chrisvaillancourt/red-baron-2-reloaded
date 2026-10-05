@@ -1347,3 +1347,43 @@ Airfield Defense/tooling release. The user approved the battery playtest feel;
 controller support follows separately. Earlier task-handoff evidence remains
 historical, not a claim about this integration's verification.
 
+## D-113 — Give the ground battery contextual Xbox controls
+**Context.** The user approved and published the mouse/keyboard Airfield Defense
+action, then requested Xbox support. Flight already owns deadzone/expo shaping
+and persistent controller preferences; battery pause/resupply relinquishes the
+parent menu's input ownership.
+
+**Decision.** Use a battery-specific Xbox layout with left-stick aim, RT fire, LT
+fine aim/focus, LB/RB station edges, X reload, right-stick click (R3) range,
+D-pad fuze and Menu pause/return. Left-stick aim and R3 ranging replace the
+initial right-stick/Y mapping at the user's playtest request.
+Reuse existing enablement/deadzone/inversion without a new sensitivity option.
+Keep one stable gameplay controller until loss; pause on replacement. Require
+neutral combat input after ownership transitions, but preserve fresh Menu edges
+so pause is never blocked by a held trigger or uncentered aim. Use existing scoped
+navigation for A/B/D-pad/left-stick overlay operation, with neutral gating and a
+generation guard across callbacks that replace an overlay in the same element.
+Disconnect/connect events invalidate navigation and disarm battery commands even
+when a device returns in the same slot between RAF samples. Snapshot each event's
+held buttons without discarding a known identity, so fresh-after-connect Menu is
+not lost. Battery handoffs consume A/Menu before advancing into a new raid pause.
+Keep keyboard Escape/shared pause bindings pause-only, and controller activation
+edge-only. Route foreground error-card navigation and focus restoration through
+the current owner; freeze battery combat behind a card and guard all resume paths.
+Reuse the existing visible focus ring for mouse-to-controller handoffs.
+
+**Evidence.** Adapter regressions failed before command mapping and gated-Menu
+correction. The controller-entry browser regression failed before the Use
+controller path existed; launch/station/pause/replacement/report/replay transitions
+now pass. Actual Chrome/Metal screenshots and native synthetic-pad smoke cover
+aim/focus/fire/reload/ranging, guide scrolling and resupply/next-raid commands.
+
+**Consequences.** No dependencies, persistent options or core contract changes.
+Xbox gameplay remains separate from mouse capture. First-pad selection is
+conservative; physical-controller compatibility and comfortable stick tuning
+still require human playtest. This battery follow-up does not close Q-13's broader
+flight/combat/crew mapping and hardware-acceptance work.
+
+Number D-113 assigned by the integration owner during the authorized Xbox
+release. The user approved the revised left-stick/R3 layout after playtest.
+

@@ -9,6 +9,15 @@
  */
 
 let recoverHook: (() => void) | null = null;
+let activeError: HTMLElement | null = null;
+
+/** Error cards live outside the menu root, but still own navigation above it. */
+export function getErrorOverlay(): HTMLElement | null {
+  if (activeError && !activeError.isConnected) {
+    activeError = document.getElementById('rb-fatal') ?? document.getElementById('rb-flight-error');
+  }
+  return activeError;
+}
 
 /** The app registers how to get back to a usable main menu. */
 export function setRecoveryHandler(fn: (() => void) | null): void {
@@ -56,7 +65,10 @@ function card(id: string, title: string, body: string, err: unknown, buttons: { 
   pre.style.cssText = 'white-space:pre-wrap;font:12px ui-monospace,Menlo,monospace;max-height:30vh;overflow:auto;background:#e6dabd;padding:10px';
   d.append(s, pre);
   panel.append(h, p, d);
-  const close = () => root.remove();
+  const close = () => {
+    root.remove();
+    getErrorOverlay();
+  };
   for (const b of buttons) {
     const el = document.createElement('button');
     el.type = 'button';
@@ -67,6 +79,7 @@ function card(id: string, title: string, body: string, err: unknown, buttons: { 
   }
   root.append(panel);
   document.body.append(root);
+  activeError = root;
   (panel.querySelector('button') as HTMLButtonElement | null)?.focus();
   return root;
 }

@@ -152,3 +152,24 @@ test('abandoning blocked model loading terminates the in-progress renderer worke
     for (const finish of release) finish();
   }
 });
+
+test('keyboard Escape repeat and Backspace cannot resume the battery pause overlay', async ({ page }) => {
+  await bootApp(page);
+  await page.getByRole('button', { name: /Airfield Defense/ }).click();
+  await page.locator('[data-screen="defense-briefing"]:not(.leaving)').getByRole('button', { name: 'Man the guns', exact: true }).click();
+  await waitForDefenseReady(page);
+  await page.getByRole('button', { name: 'Use keyboard controls', exact: true }).click();
+  await page.keyboard.down('Escape');
+  await page.waitForFunction(() => window.__rb2Defense!.paused);
+  const clock = await page.evaluate(() => window.__rb2Defense!.state.time);
+  await page.keyboard.down('Escape'); // Playwright emits a repeated keydown.
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
+  await page.keyboard.up('Escape');
+  await page.keyboard.press('Backspace');
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
+  expect(await page.evaluate(() => window.__rb2Defense!.state.time)).toBe(clock);
+  await page.getByRole('button', { name: 'Abandon defense', exact: true }).click();
+  await expect(page.locator('[data-screen="defense-report"]:not(.leaving)')).toBeVisible();
+});

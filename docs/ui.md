@@ -134,6 +134,23 @@ and left/right step through a group in order even where it wraps onto two rows.
 Quick Mission takes 12 Tabs from the aircraft list to "To the briefing"
 (`tests/e2e/quick-keyboard.spec.ts`).
 
+Controller activation is edge-only; direction/tab holds still repeat. A new scope,
+activation generation or controller owner must observe neutral input before its
+buttons can act. `focusFirst(preferred)` accepts a restoration target only inside
+the current scope, never a caller-selected scope. Foreground error cards own focus
+above the obscured menu. Navigation uses the existing `.nav-focus` ring after
+programmatic focus, including mouse-to-controller handoffs, and clears it on focus
+loss, mouse input, deactivation and disposal.
+Disconnect and connect events forget that pad's activation state and invalidate
+the current poll generation even if the same index/id returns between RAF samples.
+
+Airfield Defense supplies contextual standard-pad ownership and enablement without
+changing legacy parent-menu mappings. Its keyboard Escape remains pause-only while
+controller B closes pause; B cannot skip resupply. The battery's guide, difficulty,
+lead choice, pause, purchases, next raid and report/replay work with the pad.
+Numeric custom seeds and Options sliders still require keyboard/mouse; this is not
+a claim of controller-only operation across every application screen.
+
 ### Quick Mission crew options
 
 - **Your seat**: for a multi-crew type (the Bristol F.2b, the D.H.4), a button per crew station
