@@ -107,12 +107,12 @@ it('a handoff consumes an already-held Menu but preserves the next fresh pause e
   const controller = pad();
   input.update([controller], controls, 1 / 60);
   controller.buttons[9].pressed = true; // Pressed after the adapter's last sample.
-  input.reset([controller]);
+  input.reset(controller);
   expect(input.update([controller], controls, 1 / 60).pause).toBe(false);
   controller.buttons[9].pressed = false;
   input.update([controller], controls, 1 / 60);
   controller.buttons[7].pressed = true;
-  input.reset([controller]);
+  input.reset(controller);
   controller.buttons[9].pressed = true;
   expect(input.update([controller], controls, 1 / 60).pause).toBe(true);
   expect(input.frame.fire).toBe(false);

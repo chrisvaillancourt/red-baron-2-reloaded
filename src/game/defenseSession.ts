@@ -181,8 +181,24 @@ class BatterySession implements DefenseDebug {
     listen('gamepaddisconnected', event => {
       if (!this.gamepad.owns(event.gamepad)) return;
       this.pause();
-      // A same-slot reconnect between RAF samples is still a new input owner.
-      this.gamepad.update(NO_PADS, this.settings.controls, 0);
+      this.gamepad.reset(event.gamepad);
+    });
+    listen('gamepadconnected', event => {
+      if (!this.gamepad.owns(event.gamepad)) {
+        const pads = this.readGamepads();
+        // A second controller cannot consume the current owner's fresh commands.
+        for (const pad of pads) {
+          if (pad?.connected && pad.mapping === 'standard' && this.gamepad.owns(pad)) return;
+        }
+        const state = this.gamepad.update(pads, this.settings.controls, 0);
+        if (state.lost && !this.paused) this.pause();
+        if (this.controllerResume) {
+          this.controllerResume.disabled = !state.connected;
+          if (state.connected && this.paused) this.commandNav.focusFirst(this.controllerResume);
+        }
+      }
+      if (this.gamepad.owns(event.gamepad)) this.gamepad.reset(event.gamepad);
+      else this.resetGamepad();
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); }, { signal });
     document.addEventListener('pointerlockchange', () => {
@@ -191,7 +207,7 @@ class BatterySession implements DefenseDebug {
         this.pointerCaptured = true;
         this.paused = false;
         this.commandNav.setActive(false);
-        this.gamepad.reset(this.readGamepads());
+        this.resetGamepad();
         this.lastOverlay = '';
         this.overlay.hidden = true;
         this.accumulator = 0;
@@ -237,7 +253,7 @@ class BatterySession implements DefenseDebug {
   private select(id: DefenseWeaponId): void {
     this.mouseFire = false;
     this.keys.clear();
-    this.gamepad.reset(this.readGamepads());
+    this.resetGamepad();
     this.simulation.selectWeapon(id);
     this.updateHud();
   }
@@ -258,7 +274,14 @@ class BatterySession implements DefenseDebug {
     this.focused = false;
     this.aim.fire = false;
     this.accumulator = 0;
-    this.gamepad.reset(this.readGamepads());
+    this.resetGamepad();
+  }
+
+  private resetGamepad(): void {
+    for (const pad of this.readGamepads()) {
+      if (pad && this.gamepad.owns(pad)) { this.gamepad.reset(pad); return; }
+    }
+    this.gamepad.reset();
   }
 
   private pause(): void {

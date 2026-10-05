@@ -1363,9 +1363,10 @@ neutral combat input after ownership transitions, but preserve fresh Menu edges
 so pause is never blocked by a held trigger or uncentered aim. Use existing scoped
 navigation for A/B/D-pad/left-stick overlay operation, with neutral gating and a
 generation guard across callbacks that replace an overlay in the same element.
-Disconnect events invalidate navigation and battery ownership even when a device
-reconnects in the same slot between RAF samples. Battery handoffs snapshot current
-held buttons so an A/Menu chord cannot advance a raid and immediately resume it.
+Disconnect/connect events invalidate navigation and disarm battery commands even
+when a device returns in the same slot between RAF samples. Snapshot each event's
+held buttons without discarding a known identity, so fresh-after-connect Menu is
+not lost. Battery handoffs consume A/Menu before advancing into a new raid pause.
 Keep keyboard Escape/shared pause bindings pause-only, and controller activation
 edge-only. Route foreground error-card navigation and focus restoration through
 the current owner; freeze battery combat behind a card and guard all resume paths.

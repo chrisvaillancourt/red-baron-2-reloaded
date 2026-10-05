@@ -359,12 +359,23 @@ same-slot disconnect/reconnect could transfer held overlay activation, and A/Men
 could advance then resume the next raid. Real browser regressions failed before
 correction (resupply purchase, pause resume and A/Menu resume); adapter Menu
 snapshot regression also failed. Navigation now invalidates per-pad activation
-on disconnect events, the battery relinquishes ownership even in resupply, and
-all battery handoffs snapshot the current owned button mask. Input clearing occurs
-before `showPause`'s same-message return. Fresh Menu still works after release.
-Bounded Spec rereview found no remaining blockers; six adapter tests and all 14
-battery/controller browser regressions passed after correction. The superseded
-pre-fix full browser run was stopped; it is not release evidence.
+on both connection events; the battery consumes each event's owned button snapshot
+even in resupply. All handoffs sample current buttons, and input clearing occurs
+before `showPause`'s same-message return. The initial forced-eviction correction
+passed targeted checks but a full run exposed a fresh-Menu timing regression:
+the first reacquisition sample could discard a press made after connection.
+
+The failed spec passed alone warm; a deterministic same-task disconnect/connect/
+fresh-Menu sequence then failed on the correction and passed sequentially on the
+approved `1a7ea7e` baseline. A held-at-connect A/Menu case also failed before the
+final event-snapshot correction. Retaining known identity while consuming event
+buttons now distinguishes held-at-connect input from a fresh-after-connect Menu,
+even before the next RAF with RT held. Baseline test edits were restored.
+A first-connection variant also failed before event-time adoption was added;
+late discovery now verifies held-A gating and focus using the actual connect event.
+The handler preserves any valid existing owner without consuming its commands.
+Final bounded Spec rereview found no remaining blockers; six adapter tests and all
+15 targeted browser cases passed. Superseded/failed full runs are not release gates.
 
 Publication is conditional on independent Standards/Spec reviews, frozen CPU/build
 gates, the complete fresh-server browser suite, green PR validation and a successful

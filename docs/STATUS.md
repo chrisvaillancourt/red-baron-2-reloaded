@@ -1,4 +1,4 @@
-# Project status — release candidate, handoff 2026-10-04 UTC
+# Project status — Xbox release handoff, 2026-10-05 UTC
 
 ## Rolling queue — Xbox release base `1ef1893`
 
@@ -23,8 +23,8 @@ or unresolved LICENSE/gameplay-policy decisions are authorized.
 | Q-10 | CI runner migration | Deferred / CI | Safe branch validation first; target 2027-01-31 |
 | Q-11 | LICENSE | Blocked on owner choice | Explicit license selection |
 | Q-12 | Playable on a high-end modern iPhone | Browser implementation verified / physical-device acceptance blocked | Touch-only raid/debrief, multipointer and hybrid keyboard/controller flows pass; 29 full browser tests pass; physical iPhone Safari lifecycle, saves and sustained performance remain required |
-| Q-13 | Xbox controller support for common controls | Battery playtest-approved / broader flight mapping audit ready | Left-stick aim and R3 ranging approved by the user; release receipt follows the Xbox integration PR. Flight/combat/crew/camera audit and formal hardware lifecycle coverage remain open; see BACKLOG and D-113. |
-| Q-14 | Production Airfield Defense | Released / integration lead | PR #13 merged as 1ef1893; deploy run 37243290029 and inspected live flight/battery smoke passed. Xbox controls are the approved D-113 follow-up; its publication status is recorded in the integration PR/Actions receipt. |
+| Q-13 | Xbox controller support for common controls | Battery via PR #14 / broader flight mapping audit ready | Playtest-approved left-stick aim and R3 ranging; [publication/verification receipt](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/14). Flight/combat/crew/camera audit and formal hardware lifecycle coverage remain open; see BACKLOG and D-113. |
+| Q-14 | Production Airfield Defense | Released / integration lead | Battery PR #13/main 1ef1893 passed deployment and live checks. D-113 Xbox follow-up is [PR #14](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/14); its receipt records publication status and deployed evidence. |
 | Q-15 | Explicit Claude worker workspace and bounded trial | Deferred / next Claude project session | Review/resume with the owner next time Claude is used here; scope and acceptance in BACKLOG; no Claude changes authorized or implemented now |
 
 States distinguish implementation from integration and deployment. Deferred visual/gameplay
@@ -610,15 +610,19 @@ handed to the user for continued playtest. Automation uses fresh strict port 539
 with the user's exclusive GPU slot. Both playtest servers remain available, but
 5390 is the original right-stick/Y layout and 5392 is left-stick/R3.
 
-### Xbox release inventory (2026-10-04 UTC)
+### Xbox release inventory (2026-10-05 UTC)
 
-Fresh inventory observed 27 registered worktrees: the previous 26 plus
+Fresh inventory observed 28 registered worktrees: the previous 26 plus
 `rb2r-xbox-release` on `integrate/xbox-release`, owned by this integration session,
 based on published main `1ef1893` and containing approved Xbox head `1a7ea7e`.
 Retain this tree for the integration/CI/live receipt and ignored release evidence.
 The user-owned 5390/5392 playtest services and their original workspaces remain
 untouched. Other workspaces, branches and harness evidence remain preserved;
 cleanup authorization and owner-specific dirty/ignored/process audits are absent.
+The additional `rb2r-xbox-menu-baseline` is detached at approved `1a7ea7e`, owned
+by this integration session for sequential fresh-Menu comparison. Its temporary
+test edits were restored, source is clean and its strict 5399 test server exited.
+Retain ignored comparison evidence until cleanup is authorized.
 
 Release automation owns strict port 5395 for the full browser suite and temporary
 preview port 5396 for the production smoke, with task-scoped output under

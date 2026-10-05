@@ -28,15 +28,11 @@ export class DefenseGamepad {
     this.frame.yaw = this.frame.pitch = this.frame.station = this.frame.fuze = 0;
   }
 
-  reset(pads?: readonly (DefensePad | null)[]): void {
+  reset(pad?: DefensePad): void {
     this.armed = false;
     this.clearFrame();
-    // Overlay callbacks can run before our RAF; consume their current buttons.
-    if (pads) {
-      for (const pad of pads) {
-        if (pad && this.owns(pad)) { this.previous = heldButtons(pad); break; }
-      }
-    }
+    // Overlay/connection callbacks can run before our RAF; consume their buttons.
+    if (pad && this.owns(pad)) this.previous = heldButtons(pad);
   }
 
   owns(pad: Pick<DefensePad, 'index' | 'id'>): boolean {

@@ -71,18 +71,25 @@ test('Xbox battery ownership survives launch, station changes, pause, reconnect 
     const capacity = await page.evaluate(() => window.__rb2Defense!.state.weapons.mg.capacity);
     await button(page, 7, 0.6);
     await expect.poll(() => page.evaluate(() => window.__rb2Defense!.state.weapons.mg.ammo)).toBeLessThan(capacity);
-    await page.evaluate(() => {
+    const disconnectedState = await page.evaluate(() => {
       const pad = navigator.getGamepads()[0]!;
       Object.assign(pad, { connected: false });
       const disconnected = new Event('gamepaddisconnected');
       Object.defineProperty(disconnected, 'gamepad', { value: pad });
       window.dispatchEvent(disconnected);
-      Object.assign(pad, { connected: true }); // Same index/id reconnects before the next RAF.
+      const state = { paused: window.__rb2Defense!.paused, ammo: window.__rb2Defense!.state.weapons.mg.ammo };
+      Object.assign(pad, { connected: true });
+      const connected = new Event('gamepadconnected');
+      Object.defineProperty(connected, 'gamepad', { value: pad });
+      window.dispatchEvent(connected);
+      // A fresh Menu press after connection, before either navigation/game RAF.
+      Object.assign(pad.buttons[9], { pressed: true, value: 1 });
+      return state;
     });
-    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
-    const disconnectedAmmo = await page.evaluate(() => window.__rb2Defense!.state.weapons.mg.ammo);
-    await tap(page, 9); // Menu still resumes, but held RT remains neutral-gated.
+    expect(disconnectedState.paused).toBe(true);
+    const disconnectedAmmo = disconnectedState.ammo;
     await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(false);
+    await button(page, 9, 0);
     await page.waitForTimeout(200);
     expect(await page.evaluate(() => window.__rb2Defense!.state.weapons.mg.ammo)).toBe(disconnectedAmmo);
     await button(page, 7, 0);
@@ -230,8 +237,14 @@ test('late controller discovery focuses pointerless resume and requires a fresh 
     await waitForDefenseReady(page);
     const resume = page.getByRole('button', { name: 'Use controller', exact: true });
     await expect(resume).toBeDisabled();
-    await page.evaluate(() => Object.assign(navigator.getGamepads()[0]!, { connected: true }));
-    await button(page, 0, 1);
+    await page.evaluate(() => {
+      const pad = navigator.getGamepads()[0]!;
+      Object.assign(pad, { connected: true });
+      Object.assign(pad.buttons[0], { pressed: true, value: 1 });
+      const connected = new Event('gamepadconnected');
+      Object.defineProperty(connected, 'gamepad', { value: pad });
+      window.dispatchEvent(connected);
+    });
     await page.waitForTimeout(500);
     await expect(resume).toBeFocused();
     await expect(resume).toHaveCSS('outline-style', 'solid'); // Mouse-started sessions still expose controller focus.
@@ -297,6 +310,20 @@ test('same-slot reconnect cannot transfer held A or Menu into an existing pause'
     await tap(page, 9);
     await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(false);
     await tap(page, 9);
+    await page.evaluate(() => {
+      const pad = navigator.getGamepads()[0]!;
+      for (const index of [0, 9]) Object.assign(pad.buttons[index], { pressed: true, value: 1 });
+      const connected = new Event('gamepadconnected');
+      Object.defineProperty(connected, 'gamepad', { value: pad });
+      window.dispatchEvent(connected);
+    });
+    await page.waitForTimeout(350);
+    expect(await page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
+    await button(page, 0, 0);
+    await button(page, 9, 0);
+    await tap(page, 9);
+    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(false);
+    await tap(page, 9);
     await page.getByRole('button', { name: 'Abandon defense', exact: true }).click();
   } finally {
     await context.close();
@@ -321,6 +348,39 @@ test('resupply A/Menu chord advances the raid but cannot resume its new overlay'
     await button(page, 9, 0);
     await tap(page, 9); // A fresh Menu edge still resumes after release.
     await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(false);
+    await tap(page, 9);
+    await page.getByRole('button', { name: 'Abandon defense', exact: true }).click();
+  } finally {
+    await context.close();
+  }
+});
+
+test('fresh Menu after initial connection works before the next RAF with held fire gated', async ({ browser, baseURL }) => {
+  const context = await controllerContext(browser, baseURL, false);
+  try {
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.getByRole('button', { name: /Airfield Defense/ }).click();
+    await page.locator('[data-screen="defense-briefing"]:not(.leaving)').getByRole('button', { name: 'Man the guns', exact: true }).click();
+    await waitForDefenseReady(page);
+    const capacity = await page.evaluate(() => window.__rb2Defense!.state.weapons.mg.capacity);
+    await page.evaluate(() => {
+      const pad = navigator.getGamepads()[0]!;
+      Object.assign(pad, { connected: true });
+      Object.assign(pad.buttons[7], { pressed: true, value: 1 });
+      const connected = new Event('gamepadconnected');
+      Object.defineProperty(connected, 'gamepad', { value: pad });
+      window.dispatchEvent(connected);
+      Object.assign(pad.buttons[9], { pressed: true, value: 1 });
+    });
+    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(false);
+    await button(page, 9, 0);
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__rb2Defense!.state.weapons.mg.ammo)).toBe(capacity);
+    await button(page, 7, 0);
+    await button(page, 7, 1);
+    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.state.weapons.mg.ammo)).toBeLessThan(capacity);
+    await button(page, 7, 0);
     await tap(page, 9);
     await page.getByRole('button', { name: 'Abandon defense', exact: true }).click();
   } finally {

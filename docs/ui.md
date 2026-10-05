@@ -141,8 +141,8 @@ the current scope, never a caller-selected scope. Foreground error cards own foc
 above the obscured menu. Navigation uses the existing `.nav-focus` ring after
 programmatic focus, including mouse-to-controller handoffs, and clears it on focus
 loss, mouse input, deactivation and disposal.
-Disconnect events forget that pad's activation state and invalidate the current
-poll generation even if the same index/id reconnects before the next RAF sample.
+Disconnect and connect events forget that pad's activation state and invalidate
+the current poll generation even if the same index/id returns between RAF samples.
 
 Airfield Defense supplies contextual standard-pad ownership and enablement without
 changing legacy parent-menu mappings. Its keyboard Escape remains pause-only while

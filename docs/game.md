@@ -89,10 +89,16 @@ reduces it and focuses, RT fires, LB/RB cycle stations, X reloads, right-stick c
 D-pad up/down adjusts fuze. Menu is a fresh pause/resume edge even while combat
 controls await neutral. Station/lifecycle changes require released buttons and
 centered aim axes before combat input is armed again.
-Battery handoffs snapshot the current owner's button mask in `reset(pads)`, not
+Battery handoffs snapshot the current owner's button mask in `reset(pad)`, not
 only the adapter's last RAF sample. An overlay's A callback therefore consumes
 a simultaneous Menu press before creating the next raid's pause, while a later
 released-and-repressed Menu still works during combat neutral gating.
+Connection events provide their own button snapshot. Keep the known controller
+identity through a same-slot reconnect: held-at-connect Menu is consumed, while a
+fresh Menu after that event is still detected before the next RAF.
+If no valid owner is present, a connection event adopts the first standard pad
+before the next RAF and updates scoped resume focus. An unrelated connection never
+samples or consumes a valid existing owner's fresh commands.
 
 The battery owns a scoped `createNav` only while pause/resupply is visible; the
 parent menu remains inactive until report handback. D-pad/left stick moves focus,

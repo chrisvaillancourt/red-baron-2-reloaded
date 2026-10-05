@@ -126,7 +126,7 @@ export function createNav(opts: NavOptions): Nav {
     pads.delete(index);
   }
 
-  function onDisconnect(event: GamepadEvent): void {
+  function onConnectionChange(event: GamepadEvent): void {
     forgetPad(event.gamepad.index);
     generation++;
   }
@@ -297,7 +297,8 @@ export function createNav(opts: NavOptions): Nav {
   window.addEventListener('focusout', onFocusOut);
   window.addEventListener('pointerdown', clearFocus);
   window.addEventListener('blur', clearFocus);
-  window.addEventListener('gamepaddisconnected', onDisconnect);
+  window.addEventListener('gamepaddisconnected', onConnectionChange);
+  window.addEventListener('gamepadconnected', onConnectionChange);
   raf = requestAnimationFrame(pollGamepads);
 
   return {
@@ -323,7 +324,8 @@ export function createNav(opts: NavOptions): Nav {
       window.removeEventListener('focusout', onFocusOut);
       window.removeEventListener('pointerdown', clearFocus);
       window.removeEventListener('blur', clearFocus);
-      window.removeEventListener('gamepaddisconnected', onDisconnect);
+      window.removeEventListener('gamepaddisconnected', onConnectionChange);
+      window.removeEventListener('gamepadconnected', onConnectionChange);
       cancelAnimationFrame(raf);
     },
   };
