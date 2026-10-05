@@ -89,6 +89,10 @@ reduces it and focuses, RT fires, LB/RB cycle stations, X reloads, right-stick c
 D-pad up/down adjusts fuze. Menu is a fresh pause/resume edge even while combat
 controls await neutral. Station/lifecycle changes require released buttons and
 centered aim axes before combat input is armed again.
+Battery handoffs snapshot the current owner's button mask in `reset(pads)`, not
+only the adapter's last RAF sample. An overlay's A callback therefore consumes
+a simultaneous Menu press before creating the next raid's pause, while a later
+released-and-repressed Menu still works during combat neutral gating.
 
 The battery owns a scoped `createNav` only while pause/resupply is visible; the
 parent menu remains inactive until report handback. D-pad/left stick moves focus,
@@ -98,7 +102,7 @@ gameplay owner navigates the battery overlay. Existing parent-menu mappings rema
 unchanged. Navigation resets across scope/activation/controller transitions and
 observes neutral input before accepting buttons. A poll stops if activation changes
 its owner, including a resupply panel rebuilt inside the same overlay element:
-held A or an A/B chord cannot buy twice, advance a raid and resume its new overlay.
+held A or an A/B or A/Menu chord cannot buy twice, advance a raid and resume its new overlay.
 
 Foreground error cards own navigation and focus restoration above menus and the
 battery. The battery pauses behind a card; Menu/B and resume buttons cannot restart

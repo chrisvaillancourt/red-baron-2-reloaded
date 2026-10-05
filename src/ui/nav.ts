@@ -126,6 +126,11 @@ export function createNav(opts: NavOptions): Nav {
     pads.delete(index);
   }
 
+  function onDisconnect(event: GamepadEvent): void {
+    forgetPad(event.gamepad.index);
+    generation++;
+  }
+
   function move(dir: Dir): void {
     const scope = opts.scope();
     if (!scope) return;
@@ -292,6 +297,7 @@ export function createNav(opts: NavOptions): Nav {
   window.addEventListener('focusout', onFocusOut);
   window.addEventListener('pointerdown', clearFocus);
   window.addEventListener('blur', clearFocus);
+  window.addEventListener('gamepaddisconnected', onDisconnect);
   raf = requestAnimationFrame(pollGamepads);
 
   return {
@@ -317,6 +323,7 @@ export function createNav(opts: NavOptions): Nav {
       window.removeEventListener('focusout', onFocusOut);
       window.removeEventListener('pointerdown', clearFocus);
       window.removeEventListener('blur', clearFocus);
+      window.removeEventListener('gamepaddisconnected', onDisconnect);
       cancelAnimationFrame(raf);
     },
   };

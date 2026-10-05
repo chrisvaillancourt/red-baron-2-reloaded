@@ -5,6 +5,14 @@ import type { PadLike } from './input';
 
 export type DefensePad = PadLike & { index: number; id: string; connected: boolean; mapping: string };
 
+function heldButtons(pad: PadLike): number {
+  let held = 0;
+  for (let i = 0; i < pad.buttons.length && i < 32; i++) {
+    if (pad.buttons[i].pressed || pad.buttons[i].value > 0.4) held |= 1 << i;
+  }
+  return held;
+}
+
 /** One standard-mapping controller owns the battery until it disconnects.
  * Reuses its frame; held controls must return to neutral after ownership changes.
  */
@@ -20,9 +28,15 @@ export class DefenseGamepad {
     this.frame.yaw = this.frame.pitch = this.frame.station = this.frame.fuze = 0;
   }
 
-  reset(): void {
+  reset(pads?: readonly (DefensePad | null)[]): void {
     this.armed = false;
     this.clearFrame();
+    // Overlay callbacks can run before our RAF; consume their current buttons.
+    if (pads) {
+      for (const pad of pads) {
+        if (pad && this.owns(pad)) { this.previous = heldButtons(pad); break; }
+      }
+    }
   }
 
   owns(pad: Pick<DefensePad, 'index' | 'id'>): boolean {
@@ -48,10 +62,7 @@ export class DefenseGamepad {
       this.id = pad?.id ?? '';
     }
     if (!pad) return this.frame;
-    let held = 0;
-    for (let i = 0; i < pad.buttons.length && i < 32; i++) {
-      if (pad.buttons[i].pressed || pad.buttons[i].value > 0.4) held |= 1 << i;
-    }
+    const held = heldButtons(pad);
     const edges = changed ? 0 : held & ~this.previous;
     this.previous = held;
     // A fresh Menu press always works, including while fire awaits neutral.

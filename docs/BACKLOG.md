@@ -353,6 +353,18 @@ The user approved `1a7ea7e` for publication, including initial controller featur
 5390/5392 remain untouched. D-113 is assigned here, with no new core contracts,
 dependencies, settings or broader flight/gameplay changes.
 
+Standards review found no blockers. Spec review exposed two input-handoff defects:
+same-slot disconnect/reconnect could transfer held overlay activation, and A/Menu
+could advance then resume the next raid. Real browser regressions failed before
+correction (resupply purchase, pause resume and A/Menu resume); adapter Menu
+snapshot regression also failed. Navigation now invalidates per-pad activation
+on disconnect events, the battery relinquishes ownership even in resupply, and
+all battery handoffs snapshot the current owned button mask. Input clearing occurs
+before `showPause`'s same-message return. Fresh Menu still works after release.
+Bounded Spec rereview found no remaining blockers; six adapter tests and all 14
+battery/controller browser regressions passed after correction. The superseded
+pre-fix full browser run was stopped; it is not release evidence.
+
 Publication is conditional on independent Standards/Spec reviews, frozen CPU/build
 gates, the complete fresh-server browser suite, green PR validation and a successful
 main deployment. The integration PR's receipt records actual main SHA, Actions

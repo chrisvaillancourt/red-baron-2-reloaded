@@ -19,6 +19,35 @@ async function controllerContext(browser: Browser, baseURL: string | undefined, 
   return context;
 }
 
+async function reachResupply(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Airfield Defense/ }).click();
+  await page.locator('[data-screen="defense-briefing"]:not(.leaving)').getByRole('button', { name: 'Man the guns', exact: true }).click();
+  await waitForDefenseReady(page);
+  await page.getByRole('button', { name: 'Use controller', exact: true }).click();
+  // Consume scheduled groups, then let the actual model open resupply.
+  await page.evaluate(() => { Object.assign(window.__rb2Defense!.state, { raidTime: 1e6 }); });
+  await page.waitForFunction(() => window.__rb2Defense!.state.threats.length > 0);
+  await page.evaluate(() => {
+    const state = window.__rb2Defense!.state;
+    for (const objects of [state.threats, state.bombs, state.projectiles]) Object.assign(objects, { length: 0 });
+  });
+  await expect(page.getByRole('heading', { name: 'Raid 1 survived', exact: true })).toBeVisible();
+  await page.waitForTimeout(100);
+}
+
+async function reconnectHolding(page: Page, buttons: number[]): Promise<void> {
+  await page.evaluate(buttons => {
+    const pad = navigator.getGamepads()[0]!;
+    Object.assign(pad, { connected: false });
+    for (const index of buttons) Object.assign(pad.buttons[index], { pressed: true, value: 1 });
+    const disconnected = new Event('gamepaddisconnected');
+    Object.defineProperty(disconnected, 'gamepad', { value: pad });
+    window.dispatchEvent(disconnected);
+    Object.assign(pad, { connected: true }); // The sampled identity never changes.
+  }, buttons);
+}
+
 test('Xbox battery ownership survives launch, station changes, pause, reconnect and report handback', async ({ browser, baseURL }) => {
   const context = await controllerContext(browser, baseURL);
   try {
@@ -105,23 +134,15 @@ test('resupply purchases and A/B handoff chords cannot activate the next overlay
   const context = await controllerContext(browser, baseURL);
   try {
     const page = await context.newPage();
-    await page.goto('/');
-    await page.getByRole('button', { name: /Airfield Defense/ }).click();
-    await page.locator('[data-screen="defense-briefing"]:not(.leaving)').getByRole('button', { name: 'Man the guns', exact: true }).click();
-    await waitForDefenseReady(page);
-    await page.getByRole('button', { name: 'Use controller', exact: true }).click();
-    // Scenario setup: consume the scheduled groups, then let the real fixed-step
-    // model settle the cleared raid and open resupply (no UI transition mock).
-    await page.evaluate(() => { Object.assign(window.__rb2Defense!.state, { raidTime: 1e6 }); });
-    await page.waitForFunction(() => window.__rb2Defense!.state.threats.length > 0);
-    await page.evaluate(() => {
-      const state = window.__rb2Defense!.state;
-      for (const objects of [state.threats, state.bombs, state.projectiles]) Object.assign(objects, { length: 0 });
-    });
-    await expect(page.getByRole('heading', { name: 'Raid 1 survived', exact: true })).toBeVisible();
-    await page.waitForTimeout(100); // New overlay observes released controls.
+    await reachResupply(page);
     await page.getByRole('button', { name: /Gun power · level 0/ }).focus();
     const clock = await page.evaluate(() => window.__rb2Defense!.state.time);
+    await reconnectHolding(page, [0]);
+    await page.waitForTimeout(350);
+    expect(await page.evaluate(() => window.__rb2Defense!.state.upgrades.power)).toBe(0);
+    expect(await page.evaluate(() => window.__rb2Defense!.state.phase)).toBe('resupply');
+    expect(await page.evaluate(() => window.__rb2Defense!.state.time)).toBe(clock);
+    await button(page, 0, 0);
     await button(page, 0, 1);
     await page.waitForTimeout(650);
     expect(await page.evaluate(() => window.__rb2Defense!.state.upgrades.power)).toBe(1);
@@ -242,6 +263,66 @@ test('late controller discovery focuses pointerless resume and requires a fresh 
     expect(await page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
     await page.getByRole('button', { name: 'Abandon defense', exact: true }).click();
     await expect(page.locator('[data-screen="defense-report"]:not(.leaving)')).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
+test('same-slot reconnect cannot transfer held A or Menu into an existing pause', async ({ browser, baseURL }) => {
+  const context = await controllerContext(browser, baseURL);
+  try {
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.getByRole('button', { name: /Airfield Defense/ }).click();
+    await page.locator('[data-screen="defense-briefing"]:not(.leaving)').getByRole('button', { name: 'Man the guns', exact: true }).click();
+    await waitForDefenseReady(page);
+    await page.getByRole('button', { name: 'Use controller', exact: true }).click();
+    await tap(page, 9);
+    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
+    const clock = await page.evaluate(() => window.__rb2Defense!.state.time);
+    await page.getByRole('button', { name: 'Use controller', exact: true }).focus();
+    await reconnectHolding(page, [0]);
+    await page.waitForTimeout(350);
+    expect(await page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
+    expect(await page.evaluate(() => window.__rb2Defense!.state.time)).toBe(clock);
+    await button(page, 0, 0);
+    await tap(page, 0);
+    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(false);
+    await tap(page, 9);
+    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
+    await reconnectHolding(page, [9]);
+    await page.waitForTimeout(350);
+    expect(await page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
+    await button(page, 9, 0);
+    await tap(page, 9);
+    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(false);
+    await tap(page, 9);
+    await page.getByRole('button', { name: 'Abandon defense', exact: true }).click();
+  } finally {
+    await context.close();
+  }
+});
+
+test('resupply A/Menu chord advances the raid but cannot resume its new overlay', async ({ browser, baseURL }) => {
+  const context = await controllerContext(browser, baseURL);
+  try {
+    const page = await context.newPage();
+    await reachResupply(page);
+    const clock = await page.evaluate(() => window.__rb2Defense!.state.time);
+    await page.getByRole('button', { name: 'Next raid', exact: true }).focus();
+    await page.evaluate(() => {
+      for (const index of [0, 9]) Object.assign(navigator.getGamepads()[0]!.buttons[index], { pressed: true, value: 1 });
+    });
+    await page.waitForTimeout(650);
+    expect(await page.evaluate(() => window.__rb2Defense!.state.raid)).toBe(2);
+    expect(await page.evaluate(() => window.__rb2Defense!.paused)).toBe(true);
+    expect(await page.evaluate(() => window.__rb2Defense!.state.time)).toBe(clock);
+    await button(page, 0, 0);
+    await button(page, 9, 0);
+    await tap(page, 9); // A fresh Menu edge still resumes after release.
+    await expect.poll(() => page.evaluate(() => window.__rb2Defense!.paused)).toBe(false);
+    await tap(page, 9);
+    await page.getByRole('button', { name: 'Abandon defense', exact: true }).click();
   } finally {
     await context.close();
   }

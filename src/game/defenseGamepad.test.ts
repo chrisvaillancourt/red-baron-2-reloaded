@@ -102,6 +102,22 @@ it('Menu can pause while fire is waiting for neutral, without toggling again whi
   expect(input.frame.fire).toBe(false);
 });
 
+it('a handoff consumes an already-held Menu but preserves the next fresh pause edge', () => {
+  const input = new DefenseGamepad();
+  const controller = pad();
+  input.update([controller], controls, 1 / 60);
+  controller.buttons[9].pressed = true; // Pressed after the adapter's last sample.
+  input.reset([controller]);
+  expect(input.update([controller], controls, 1 / 60).pause).toBe(false);
+  controller.buttons[9].pressed = false;
+  input.update([controller], controls, 1 / 60);
+  controller.buttons[7].pressed = true;
+  input.reset([controller]);
+  controller.buttons[9].pressed = true;
+  expect(input.update([controller], controls, 1 / 60).pause).toBe(true);
+  expect(input.frame.fire).toBe(false);
+});
+
 it('disabled or nonstandard controllers cannot own combat, and re-enabling requires released fire', () => {
   const input = new DefenseGamepad();
   const unsupported = pad();

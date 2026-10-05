@@ -178,7 +178,12 @@ class BatterySession implements DefenseDebug {
     });
     listen('keyup', (event) => this.keys.delete(event.code));
     listen('blur', () => this.pause());
-    listen('gamepaddisconnected', event => { if (this.gamepad.owns(event.gamepad)) this.pause(); });
+    listen('gamepaddisconnected', event => {
+      if (!this.gamepad.owns(event.gamepad)) return;
+      this.pause();
+      // A same-slot reconnect between RAF samples is still a new input owner.
+      this.gamepad.update(NO_PADS, this.settings.controls, 0);
+    });
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); }, { signal });
     document.addEventListener('pointerlockchange', () => {
       const captured = document.pointerLockElement === this.canvas;
@@ -186,7 +191,7 @@ class BatterySession implements DefenseDebug {
         this.pointerCaptured = true;
         this.paused = false;
         this.commandNav.setActive(false);
-        this.gamepad.reset();
+        this.gamepad.reset(this.readGamepads());
         this.lastOverlay = '';
         this.overlay.hidden = true;
         this.accumulator = 0;
@@ -232,7 +237,7 @@ class BatterySession implements DefenseDebug {
   private select(id: DefenseWeaponId): void {
     this.mouseFire = false;
     this.keys.clear();
-    this.gamepad.reset();
+    this.gamepad.reset(this.readGamepads());
     this.simulation.selectWeapon(id);
     this.updateHud();
   }
@@ -253,13 +258,12 @@ class BatterySession implements DefenseDebug {
     this.focused = false;
     this.aim.fire = false;
     this.accumulator = 0;
-    this.gamepad.reset();
+    this.gamepad.reset(this.readGamepads());
   }
 
   private pause(): void {
     if (this.disposed || this.state.phase !== 'raid') return;
     this.paused = true;
-    this.clearInput();
     this.releaseMouse();
     this.audio.stopFlight();
     this.showPause('Cease fire. The raid is paused.');
@@ -281,7 +285,6 @@ class BatterySession implements DefenseDebug {
       void this.canvas.requestPointerLock?.()?.catch?.(() => {
         if (!this.disposed) {
           this.paused = true;
-          this.clearInput();
           this.showPause('Mouse capture failed. Click Return to the guns to retry, or use keyboard controls.');
         }
       });
@@ -289,6 +292,7 @@ class BatterySession implements DefenseDebug {
   }
 
   private showPause(message: string, preparing = false): void {
+    this.clearInput();
     this.overlay.hidden = false;
     if (this.lastOverlay === message) return;
     this.lastOverlay = message;
