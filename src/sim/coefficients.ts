@@ -15,6 +15,10 @@ import type { AircraftSpec, AircraftId } from '../core/types';
 import { G, airDensityAt, RHO0 } from './atmosphere';
 
 const DEG = Math.PI / 180;
+const PROP_DESIGN_RATIO_MIN = 0.6;
+const PROP_DESIGN_RATIO_MAX = 1.8;
+const LAPSE_N_MIN = 0.55;
+const LAPSE_N_MAX = 2.6;
 
 export interface GearGeometry {
   /** Main wheel contact points: body-frame y (below CG, negative) and z (ahead of CG, negative). */
@@ -260,6 +264,39 @@ export function getCoefficients(spec: AircraftSpec): FlightCoefficients {
   return co;
 }
 
+/**
+ * Author-only historical-figure validation, used by coefficients.test.ts.
+ * Not called by derivation or gameplay: altered-mass fixtures still derive/cache normally.
+ */
+export function calibrationProblems(spec: AircraftSpec): string[] {
+  const co = getCoefficients(spec);
+  const p = spec.performance;
+  const speed = maxLevelSpeed(co, p.maxSpeedAltM) * 3.6;
+  const speedDeviation = speed / p.maxSpeedKmh - 1;
+  const climbDeviation = co.predicted.timeTo3000Min / p.climbTo3000mMin - 1;
+  const ceilingDeviation = co.predicted.ceilingM / p.ceilingM - 1;
+  const failed: string[] = [];
+  if (Math.abs(speedDeviation) > 0.03) failed.push('speed');
+  if (Math.abs(climbDeviation) > 0.1) failed.push('climb');
+  if (Math.abs(ceilingDeviation) > 0.1) failed.push('ceiling');
+  if (failed.length === 0) return [];
+
+  // The 28 bisections leave a saturated result just inside its bound.
+  const boundStatus = (value: number, min: number, max: number): string =>
+    Math.abs(value - min) < 1e-8 ? 'lower bound saturated' :
+      Math.abs(value - max) < 1e-8 ? 'upper bound saturated' : 'not saturated';
+  const ratio = co.propDesignV / co.vMax;
+  return [
+    `${spec.id}: calibration outside tolerance (${failed.join(', ')}). ` +
+    `speed requested ${p.maxSpeedKmh.toFixed(2)} km/h, achieved ${speed.toFixed(2)} km/h at ${p.maxSpeedAltM} m (${(speedDeviation * 100).toFixed(2)}% deviation, tolerance ±3%); ` +
+    `climb requested ${p.climbTo3000mMin.toFixed(2)} min, achieved ${co.predicted.timeTo3000Min.toFixed(2)} min to 3000 m (${(climbDeviation * 100).toFixed(2)}% deviation, tolerance ±10%); ` +
+    `ceiling requested ${p.ceilingM.toFixed(2)} m, achieved ${co.predicted.ceilingM.toFixed(2)} m (${(ceilingDeviation * 100).toFixed(2)}% deviation, tolerance ±10%). ` +
+    `propDesignV/vMax ${ratio.toFixed(6)} in [${PROP_DESIGN_RATIO_MIN}, ${PROP_DESIGN_RATIO_MAX}] (${boundStatus(ratio, PROP_DESIGN_RATIO_MIN, PROP_DESIGN_RATIO_MAX)}); ` +
+    `lapseN ${co.lapseN.toFixed(6)} in [${LAPSE_N_MIN}, ${LAPSE_N_MAX}] (${boundStatus(co.lapseN, LAPSE_N_MIN, LAPSE_N_MAX)}). ` +
+    'Climb and ceiling are coupled while cd0 pins speed. Check physically consistent source figures and loaded mass; do not widen test tolerances.',
+  ];
+}
+
 export function deriveCoefficients(spec: AircraftSpec): FlightCoefficients {
   const p = spec.performance;
   const g = spec.geometry;
@@ -419,8 +456,8 @@ function calibrate(co: FlightCoefficients, spec: AircraftSpec): void {
   let n = 1.0;
   for (let iter = 0; iter < 8; iter++) {
     // Climb time decreases as design speed decreases (more low-speed thrust).
-    let lo = vMax * 0.6;
-    let hi = vMax * 1.8;
+    let lo = vMax * PROP_DESIGN_RATIO_MIN;
+    let hi = vMax * PROP_DESIGN_RATIO_MAX;
     for (let i = 0; i < 28; i++) {
       const mid = (lo + hi) / 2;
       apply(mid, n);
@@ -429,8 +466,8 @@ function calibrate(co: FlightCoefficients, spec: AircraftSpec): void {
     }
     vd = (lo + hi) / 2;
     // Ceiling decreases as the lapse exponent increases.
-    let nlo = 0.55;
-    let nhi = 2.6;
+    let nlo = LAPSE_N_MIN;
+    let nhi = LAPSE_N_MAX;
     for (let i = 0; i < 28; i++) {
       const mid = (nlo + nhi) / 2;
       apply(vd, mid);

@@ -32,6 +32,25 @@ cached results as immutable: create a new spec object when changing geometry or 
   `cd0` pins max level speed at `maxSpeedAltM`; propeller design speed sets time to
   3000 m; the lapse exponent sets the service ceiling (0.5 m/s RoC). The 6-DOF model
   shares the formulas, so flown performance matches (table below).
+  Climb and ceiling are **coupled**, not independent knobs: each propeller or lapse
+  adjustment also re-solves `cd0` to keep speed pinned. The solver uses eight alternating
+  passes, with `propDesignV / vMax` bounded to `[0.6, 1.8]` and `lapseN` to `[0.55, 2.6]`;
+  not every requested speed/climb/ceiling triple is feasible within those bounds.
+  In particular, the original Voisin III **52 min** climb estimate cannot satisfy its
+  ceiling together with that climb; the lapse exponent saturates at its **0.55** lower
+  bound. The shipped **45 min** estimate is documented in D-093.
+
+  The author-validation seam is the all-aircraft historical-figures test in
+  `coefficients.test.ts`. It calls `calibrationProblems(spec)` directly from
+  `coefficients.ts`: an empty list means acceptance, otherwise the failure details
+  include requested/achieved speed, climb and ceiling, signed percentage deviations,
+  tolerances and both propeller/lapse bounds with saturation status. Acceptance remains
+  **±3% speed / ±10% climb / ±10% ceiling**. Check engine rating, loaded mass, bomb load,
+  measurement altitude and physically consistent source figures (or clearly marked
+  estimates); correct the source/spec mismatch rather than widening test tolerances.
+  A saturated bound is a feasibility clue, not by itself a failed acceptance test.
+  This diagnostic is author-only: `getCoefficients` still derives and caches by spec
+  identity without validation failures or gameplay warnings, including mass-variant fixtures.
 * **Moments** (acceleration form, per unit dynamic pressure): the stick commands an angle
   of attack about a hands-off trim (level at ~75% Vmax, 1000 m) — natural speed stability
   and phugoid; roll authority/damping from `rollRate`; weathercock, dihedral, adverse yaw,
