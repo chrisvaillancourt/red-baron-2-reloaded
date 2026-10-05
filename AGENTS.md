@@ -62,6 +62,8 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
   server ports and scratch/output locations. If no integration owner is named, finish on
   your task branch without merging or pushing `main`. Only that owner integrates or pushes
   `main`, within the user's authorization: every push to `main` deploys the public site.
+- A request to merge `main` into a task branch names the exact target commit and integration
+  owner. Report the reached SHA; advance beyond that target only on a new explicit request.
 - Prefer worktrees outside the checkout for manually managed sessions. Claude-managed
   worktrees may remain under `.claude/worktrees/`. Check the actual loaded context in nested
   workspaces for conflicting ancestor rules; do not assume all harnesses use the same layout.

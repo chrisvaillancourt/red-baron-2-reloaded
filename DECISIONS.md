@@ -1408,3 +1408,32 @@ remain unchanged. Fresh-session orientation is the verification surface.
 
 Number D-114 assigned by the integration owner for the documentation handoff.
 
+## D-115 — Reflect only collision escape that fights attack extension
+**Context.** The original Q-05 avoidance removed every positive lift-axis
+closest-approach component during extension, erasing useful lateral separation.
+The corrected PR #10 head `92d3dba` already had the narrow reflection and
+whole-approach reproductions; its old-main staged merge remained protected.
+
+**Decision.** Transfer that correction onto the current integration base:
+only during extension and `0 < tcpa < BREAK_LEAD_S`, reflect the positive
+lift component of predicted closest approach. Preserve lateral separation,
+dead-ahead splitting, radii, weights and all other flight phases. Reuse one
+controller-owned lift scratch vector; do not introduce another avoidance policy.
+`bombRun.stage`, not the freshly reset steering phase, identifies a just-ended
+bomb run (F-74 comment only).
+
+**Evidence.** Independent Standards and Spec reviews were clean. Three complete
+production-module approaches repeated exactly with zero collision events.
+The refreshed branch passed the complete CPU gate and safe non-publishing CI.
+The 48-repetition default/mirror fairness comparison was within noise, including
+default mortality 29.2% to 25%; that is neither equivalence nor a balance-band
+acceptance claim. Detailed immutable revisions, cohorts and limitations remain
+in `docs/BACKLOG.md`; integration/browser/publication receipts are separate.
+
+**Consequences.** No airframe, damage, pursuer-calibration or core-contract
+change. Ordinary mutual-support work waits for this release. Retain the original
+occupied worktree and staged merge; transferring its corrected source does not
+make the old PR head an ancestor of this release.
+
+Number D-115 assigned by the integration owner during workflowz integration.
+

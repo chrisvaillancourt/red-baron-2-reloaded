@@ -5,6 +5,10 @@ Current scheduling, release anchor, ownership and receipt freshness live only in
 evidence—not another live queue. The original cycle base was
 `07dfaa462a098df633e512a86406b9d7c416fc73`; dated measurements below keep their own refs.
 
+Durable external blockers and untriggered historical ideas live in
+[DEFERRED-TODOS](DEFERRED-TODOS.md); compact orchestration/pending designs live in
+[IMPLEMENTATION-NOTES](IMPLEMENTATION-NOTES.md). Neither is a second ready queue.
+
 ## Operating decisions
 
 - Follow STATUS's receipt freshness gate before dispatch. Newer applicable PR/handoff evidence must be reconciled into that ledger; this file does not override it.
@@ -173,14 +177,158 @@ sets produce one cohort at n=1, not a doubled sample. Frozen-ref CLI smoke passe
 Final typecheck, 663 Vitest tests (30 gated skips) and 20 Node tool tests passed.
 Usage, defaults and interpretation are in `docs/ai.md` → A/B measurement.
 
+### Q-05 — Corrected collision integration contract
+
+Current owned transfer: 2026-10-05 UTC, exact task base
+`a91f9b478b964491d1b86f1e493a7969eaab1068`, `rb2r-workflowz-collision` /
+`fix/workflowz-collision`, parent omp integration owner. This is a clean narrow
+transfer of PR10 corrected head `92d3dba6504cf3cd1f0db1b7cf0281b0467c6411`,
+not a merge of old survey/mobile history and not a new avoidance design.
+Owned source/docs: `src/ai/controller.ts`, `src/ai/quickCollision.realsim.test.ts`,
+`src/ai/testing/quickCollisionScenarios.ts`, `docs/ai.md`.
+
+- Dedicated collision-lift scratch. Only extension with
+  `tcpa > 0 && tcpa < BREAK_LEAD_S` reflects positive `cpa.dot(lift)`;
+  preserve lateral escape, dead-ahead coordinated split and weighting.
+  Engagement, defence, longer-range conflicts, pursuer/tactics/policy unchanged.
+- Keep the exact whole-runtime approaches, not restored two-aircraft flight states
+  with fresh controllers. All three retain contact/gunfire/clean spawns and zero
+  collision events; existing no-dodging furballs stay clean against their existing
+  acceptance. F-74 adds only the `bombRun.stage`, not phase, reset invariant comment.
+- Parent runs targeted regression, current fairness/default+mirror and full
+  integrated typecheck/tests/build, production-simulation smoke and full browser
+  acceptance. Only then commit/review current head/CI/publish/deploy/live-verify.
+  No auth/signing/settings/dependency/core-contract change or cleanup.
+
+Commands for parent: `pnpm exec vitest run src/ai/quickCollision.realsim.test.ts
+src/ai/collision.realsim.test.ts`; `pnpm check`; exclusive owned-port
+`E2E_PORT=<port> pnpm e2e`. Production-module simulation smoke uses the retained
+helper; actual production build/live/browser evidence remains separately required.
+
+Historical evidence: [corrected comparison](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978434564)
+on frozen `87b798e` → `92d3dba`: default player-down 29.2% → 25.0%
+(48 flights/side), all five mirrors within noise; quick 360/side killed/captured
+35.0% → 36.4%, collisions/100 5.6 → 5.3 (both within noise), player collision
+events 8 → 4. The 4.2% result is the superseded lift-only candidate, not the current
+blocker. Interval overlap is not equivalence or global safety.
+The [later historical handoff](https://github.com/chrisvaillancourt/red-baron-2-reloaded/pull/10#issuecomment-5978462638)
+verified an old-main `4dc8ec8` integration, then recorded local signing failure.
+The original **24 staged files / MERGE_HEAD `4dc8ec8`** remain protected, PR10
+open at remote `92d3dba`. Do not discard/blindly commit that merge or reuse its
+decision number. Historical signing is not today's auth state.
+
+Historical parent receipt at 2026-10-05T03:50:09Z: focused two-file/four-test gate
+passed; actual production-module Vite SSR all three cases collision-free with
+contact and 388/521/312 gunfire, exact same-root repeat in PIDs 48282/48290,
+staged-diff SHA256 `37c78ac906a0f106612b865dcfdd468d287177cad7f9c554590fb2c61af50581`.
+Standards + Spec round-one reviews clean at exact candidate tree
+`864304f0dd0107a3e9f074284fbd88ed445ce41c`, base `a91f9b4`.
+Parent receipt refreshed 2026-10-05T04:05:49Z: frozen `pnpm check` green
+(typecheck, 699 Vitest, 30 gated skips, 20 Node, production build). Fairness
+48/default + all five mirrors completed: every comparison within noise, including
+default 29.2% → 25% and SPAD 22.9% → 10.4%. This is not equivalence,
+bandpass acceptance or global balance proof. Authorized signed commit `9aa8c3d`
+succeeded with existing settings and was pushed to `fix/workflowz-collision`,
+not main. Current-head safe `workflow_dispatch`
+[validation 37261618034](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/37261618034)
+passed validation (build/typecheck/tests/build); Pages artifact and deploy skipped
+as required. Current full browser/live acceptance and main publication remain pending.
+PR10 has no old-head checks: **never manually dispatch its old unsafe `92d3dba`
+branch**. Original 24-file staged merge remains protected; no auth/config changes.
+
+### Q-08 — Bomber pacing and interception: measurement only
+
+Contract added 2026-10-05 UTC at exact base
+`a91f9b478b964491d1b86f1e493a7969eaab1068`; authored scenario/docs in
+`rb2r-workflowz-bomber` / `tools/workflowz-bomber-pacing`, parent integration owner.
+Owned implementation: `tools/dev/scenarios/bomber-pacing.mjs`, `docs/bombers.md`.
+Use existing native Vite SSR runner/harness/production SimCore seams; no new loader,
+dependency, temporary source test, specs, calibrator bounds, AI speed/tactics,
+mission placement, damage policy or performance-tolerance changes.
+
+The bounded authored matrix, not every exploratory scout proposal, is acceptance:
+- Dynamic spec/bomb-store discovery covers all seven current bomb carriers.
+  Transit: loaded/no-bombs × solo/triple × seeds 1/2/3, 2500 m eastbound, 240 s,
+  initial 60 s separate. No-bombs subtracts payload, not all loaded fuel/crew mass.
+  Select load before effective-mass flight-state retrim.
+- Loaded performance references: card altitude clamped to ≥300 m and same 2500 m,
+  existing full-throttle autopilot method, 150 s/final 15 s. Card speed, traits,
+  nominal 0.72 formation cap/0.8 cruise and actual airspeed are distinct.
+- Actual production Quick bombing: all carriers, solo/triple, seed 7000, two
+  regular defenders/no escort, cap 1500 s or director end. Record requested and
+  actual flight/loading/date/weather/spawns/releases/outcomes, not only options.
+- Loaded D.H.4 triple diagnostic interceptor: regular Central D.VII, seed 1,
+  parallel ahead/astern at 2500 m, +100 m altitude/+400 m lateral, defaults intact.
+  Historical interceptor fixtures and ordinary Quick intercept are unloaded;
+  do not relabel their recon behavior as loaded pacing.
+
+Observable acceptance:
+1. Same frozen checkout/scenario/input gives exactly equal observations in distinct
+   workers with full runner fingerprints. Equality proves repeatability, not tuning.
+2. Every selected case has explicit actual sample/event counts/durations, load/mass
+   metadata, speed/altitude/throttle/stall/recovery/phase observations and applicable
+   slot/closure/contact/fire/hit/release/explosion/outcome records. No empty selection,
+   NaN means, lost cases or silently discarded absent windows.
+3. Slot frame uses leader horizontal velocity/native vic slots; original-leader
+   metrics cease on member loss or RTB/landing, with explicit censoring rather than
+   averaging against wrecks. Null contact/release plus cap/reason is truthful.
+4. Existing bomber/interceptor regressions retain acceptance. Separate controlled,
+   production and historical cohorts, exact command/revision and limitations.
+   CPU results do not establish human difficulty, visual/hardware acceptance,
+   day/night career eligibility or an automatic scout catch-rate target.
+
+Parent command after authored scenario integration:
+`node tools/dev/differential-probe.mjs --baseline . --candidate .
+--scenario tools/dev/scenarios/bomber-pacing.mjs --input '{"suite":"all"}'
+--timeout-ms 3600000`; preserve complete JSON in owned ignored scratch, freeze
+tracked Git/source/scenario/dependencies throughout.
+Focused regressions: `pnpm exec vitest run src/ai/bombers.realsim.test.ts
+src/ai/interceptors.realsim.test.ts`; runner regression and `pnpm check` at integration.
+Historical preliminary parent measurement, refreshed 2026-10-05T04:04:11Z:
+existing two-file/ten-test regressions passed and **114 cases** completed
+(84 transit / 14 reference / 14 production Quick / 2 D.H.4 interceptor), all seven
+dynamically discovered carriers. The original candidate tree was reported with
+prefix `613715…` (full tree ID is not supplied in this receipt); this is not the
+corrected baseline. Same-root observations exactly equal in PIDs 48923/49813.
+Scenario SHA256 `88be73c671ac9c223bb8517b443265fcfdbcbe52e0650855df5ebbe80d50fe4b`;
+staged diff SHA256 `4cbc1411dabc2d6f322de6f8f58ebc8f8de239c8b150de7e077b238127a75bab`.
+Complete 3.8 MB JSON retained in bomber workspace
+`tools/dev/scratch/workflowz-q08/pacing-report.json`. Independent round-one review
+found static-loss, terminal outcome and skill-metadata issues: the first run is
+**superseded preliminary history, not an approved baseline**.
+
+Corrected candidate tree `0b3997ab55b2c6682707ef6fa15099fe992d143e`, same full
+task base above: the new Node consumer regression passed one test with three
+explicit terminal fixture outcomes; completed-mission objective failure is separate
+from safe return, and actual skill metadata is corrected. Parent receipt at
+2026-10-05T04:05:49Z: all corrected 114 cases same-root equal in distinct workers
+63931/64862, exact tree `0b3997ab55b2c6682707ef6fa15099fe992d143e`;
+scenario SHA256 `bb7ff41d2cb7e4c7e09ddb3f8022262ade58ee551fcf39ac1dd974483ff60bb9`.
+Complete 4.2 MB JSON retained in the bomber workspace at
+`tools/dev/scratch/workflowz-q08/pacing-corrected-report.json`.
+Independent Standards + Spec round-two reviews both clean. Parent is considering
+a three-literal-hoist allocation advisory; if applied, this receipt stays bound to
+the tested pre-hoist tree and requires a distinct revision-specific handoff.
+Do not transfer original or corrected measurement proof to another revision.
+No tuning, performance/human acceptance or publication is claimed. Method/details
+belong in [bombers](bombers.md); behavior waits for
+[Q-08-TUNING](DEFERRED-TODOS.md#blocked-task-contracts).
+
+F-108 reader framing issue: parent preserved raw chunks and removed only known
+pagination footer framing before successfully parsing the retained JSON; reported
+upstream. No game-source workaround or weakened evidence integrity guard.
+
 ## Debt dispositions
 
-- F-7 debrief order is already documented (`docs/ui.md`); do not implement a second navigation convention.
+- F-7 debrief order is already documented (`docs/ui.md`); no second navigation convention. Residual page hook trigger is in DEFERRED-TODOS.
 - F-23 pursuer exists; remaining work is cohort-aware calibration, not another pursuer.
 - F-43/F-64 are one staging utility request. Defer until staging needs recur; prefer separate logical edits/commits now.
 - Q-04 implements the demanded tailhold/defence/raid A/B adapters; direct surveys remain available.
 - CI runner migration remains scheduled for 2027-01-31; establish safe validation before any rehearsal.
 - LICENSE, damage default and historical career eligibility remain explicit owner decisions. Telemetry is not permission to change gameplay policy.
+- Durable conditions are in [DEFERRED-TODOS](DEFERRED-TODOS.md), not a new ready queue. Active/reachable F-25/F-44/F-49/F-51/F-53/F-55/F-56/F-57/F-58/F-67/F-72/F-74/F-75 are not deferred merely because unimplemented.
+- F-26/F-28/F-65 source-proven delivered by Q-04; F-90 help exercised. F-63 instruction fix is done, but two-file comparison joins active F-56.
+- F-72 parent exact-target-SHA instruction and F-74 collision comment are authored proposals pending integration/gates, not publication. Historical F-95 signing is superseded by current authorized signed `9aa8c3d` with existing settings; no bypass.
 
 ## Q-12 — High-end modern iPhone playability
 
@@ -268,6 +416,39 @@ possible for all common controls, not merely provide basic stick input.
   cannot establish ergonomics or physical-device compatibility.
 - Coordinate with Q-12 at the input-command seam; serialize changes to shared
   input/session files rather than implementing two competing control systems.
+
+### Q13A input prerequisite — revisioned receipts
+
+Parent receipts refreshed 2026-10-05T04:04:11Z; workspace
+`rb2r-workflowz-controller`, branch `feat/workflowz-flight-controller`, parent omp
+integration owner. Every candidate below uses full base
+`a91f9b478b964491d1b86f1e493a7969eaab1068`.
+
+- **Original tested tree `965a5881fb194f44b4c4a6c52921ce92b573a6ba`:**
+  `pnpm exec vitest run src/game/gamepad.test.ts src/game/input.test.ts src/game/flightGamepad.test.ts`
+  passed three files / 44 tests; `pnpm typecheck` passed. Independent round-one
+  Standards review was clean; Spec P2 found B + bumper immediately returned to
+  observer. This result is scoped to the original tree, not a corrected revision.
+- **Correction tree `a867f7cd593a64530f8dfa32aa0efb3f586af1b8`:** native handback
+  smoke passed, but the four-file gate had two failures / 62 passes because detach
+  retained a stale previous-command field. The same native crew-return command
+  failed on the original `965a5881…` tree (both cases observer), then passed on
+  this pre-teardown-cleanup `a867f7cd…` tree (both pilot). That comparative native
+  proof belongs to these two trees; do not silently retag it to the current tree.
+- **Current tree `0502f56b95d9cae7f299c97db642cd96c7d5bb59`:** parent one-line
+  mechanical stale-field cleanup; `pnpm exec vitest run src/game/playerCrew.test.ts src/game/flightGamepad.test.ts src/game/gamepad.test.ts src/game/input.test.ts`
+  passed four files / 64 tests; `pnpm typecheck` passed. Parent update at
+  2026-10-05T04:21:12Z: independent Standards + Spec round-two both clean;
+  complete `pnpm check` passed: typecheck, 707 Vitest tests (30 gated skips),
+  20 Node tests and production bundling. Signed prerequisite commit
+  `bbfdcd0b693595865cc9488530dfb442c0f2be5d`; not integrated or published.
+  The earlier failing gate remains history, not current proof.
+
+These receipts cover the input/crew-return prerequisite only. Full Q-13 session,
+HUD, common-menu/navigation, software end-to-end and physical-controller acceptance
+are **not done**. Continue bounded dependent contracts only after parent acceptance;
+physical lifecycle/ergonomics remains [separate](DEFERRED-TODOS.md#blocked-task-contracts).
+
 
 ### Airfield Defense Xbox follow-up — 2026-10-04
 
@@ -699,4 +880,40 @@ Inspected deployed flight and battery screenshots, exercised all three guns,
 capture/pause/Aborted teardown and observed no network/console errors.
 The live playtest worktree at `0652782` was preserved; release QA services stopped.
 
+
+## Workflowz first integrated wave — 2026-10-05 UTC
+
+Integration owner: parent omp. Initial base
+`a91f9b478b964491d1b86f1e493a7969eaab1068`; collision branch signed `9aa8c3d`
+merged locally as `d9008294cc251da75dbd3eee478d7e6a22aef82a`.
+Frozen staged integration tree `d2a1788a1865bd83d4ee9d3ffc8fb7c5dfe32ba6`
+contains Q-05/F-74, Q-08 measurement, F-51 logging, F-72 guidance and the
+reviewed intake ledger/new durable notes. No physical, license or policy changes.
+
+- `pnpm check`: typecheck, **699 Vitest tests** (30 gated skips), **21 Node
+  tests**, production bundling passed.
+- `E2E_PORT=5401 pnpm e2e`: **44 passed**, one gated soak skipped, fresh strict
+  server/one Chrome worker. Injected failures and missing models are intentional
+  robustness tests. Actual crew/bombsight PNGs inspected and retained in
+  `tools/dev/scratch/workflowz-wave-one/`.
+- Production-module collision scenario repeated all three actual approaches
+  exactly in processes **96537/97165**: no collisions/bad spawns, contact present,
+  gunfire 388/521/312. This is native Vite SSR production-module proof, not a
+  hardware or global collision-safety claim.
+- Seven-document probe checked **140 relative Markdown paths/anchors**.
+- Final Q-08 authored tree `9a6d8047dde1b7378829da52cf0574431a959a74` passed
+  independent Standards/Spec round three. All 114 final cases were equal in
+  83579/87132 and exactly matched corrected pre-hoist observations. Integrated
+  d2a1788 repeated all 114 in 96580/7161; only `quick/voisin_iii/3` differs from
+  authored observations (final state/metrics/events/encounter, not terminal
+  outcome/time). Complete reports and the loaded triple table stay explicitly
+  revisioned in [bombers](bombers.md#measured-authored-cohort--2026-10-05-utc).
+- Integration review round one found contradictory current inventory rows:
+  old parent HEAD, controller-running, pre-hoist bomber and F-51-not-integrated
+  wording survived newer queue receipts. Parent reconciled every named row;
+  follow-up review/full CPU acceptance and main publication remain pending.
+
+The original collision worktree's 24 staged files/MERGE_HEAD and all retained
+workspaces, user playtests and inbox remain protected. PR #10's original corrected
+head is not merged ancestry here; its current-main source transfer is explicit.
 
