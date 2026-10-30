@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "skills": {
+    "code-review": {
+      "source": "Genomenon/agent-skills",
+      "ref": "606a0e0231e3813dcf27908cd0f76ac484b3a74d",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/code-review/SKILL.md",
+      "computedHash": "7224cbd57cf2758ae7610ba5683122c7f120fe00e5a28ced61a56d7d2d660384"
+    },
+    "codebase-design": {
+      "source": "Genomenon/agent-skills",
+      "ref": "606a0e0231e3813dcf27908cd0f76ac484b3a74d",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/codebase-design/SKILL.md",
+      "computedHash": "d8393d40a1867001d2d95e56c9170c782dda1bf26647dae33102f4eca2499ba5"
+    },
+    "diagnosing-bugs": {
+      "source": "Genomenon/agent-skills",
+      "ref": "606a0e0231e3813dcf27908cd0f76ac484b3a74d",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/diagnosing-bugs/SKILL.md",
+      "computedHash": "d437f6a8be84c5d7a11c789de65d6e472f2a8771a59310e337ffab5252066161"
+    },
+    "research": {
+      "source": "Genomenon/agent-skills",
+      "ref": "606a0e0231e3813dcf27908cd0f76ac484b3a74d",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/research/SKILL.md",
+      "computedHash": "601c88e981c9ad49ff9a302dd98344444b712af64f3a07584cce330da3a3b90c"
+    },
+    "tdd": {
+      "source": "Genomenon/agent-skills",
+      "ref": "606a0e0231e3813dcf27908cd0f76ac484b3a74d",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/tdd/SKILL.md",
+      "computedHash": "d3dc7501e862a9b6c8eb7a0c90f43db4c8eb23c7b16646dc143562633b178dab"
+    },
+    "writing-for-agents": {
+      "source": "Genomenon/agent-skills",
+      "ref": "606a0e0231e3813dcf27908cd0f76ac484b3a74d",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/writing-for-agents/SKILL.md",
+      "computedHash": "95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+    }
+  }
+}
