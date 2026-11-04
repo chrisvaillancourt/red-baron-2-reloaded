@@ -226,7 +226,16 @@ export class TownLayer {
       }
     }
     this.pendingCount = wanted.reduce((n, t) => n + (t.built ? 0 : 1), 0);
-    for (const t of this.tiles.values()) {
+    // Release tiles left behind. Wanted tiles have centres within R + TILE/2 of
+    // the camera on each axis; the extra margin stops edge tiles thrashing.
+    const keep = R + TILE * 2;
+    for (const [key, t] of this.tiles) {
+      if (Math.max(Math.abs(t.cx - cam.x), Math.abs(t.cz - cam.z)) > keep) {
+        // A late worker result finds no tile and is dropped (see onTile).
+        this.clearTile(t);
+        this.tiles.delete(key);
+        continue;
+      }
       const d = Math.max(0, Math.hypot(t.cx - cam.x, t.cz - cam.z) - TILE * 0.71);
       t.group.visible = t.built && d < R;
     }
