@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
-import type { GameEvent } from '../core/types';
+import type { AircraftEntity, BalloonEntity, GameEvent } from '../core/types';
 import { setGunnerTarget } from './combat';
 import { SIM_FLAGS } from './flags';
 import { SIM_DT, orientationFrom } from './flightModel';
-import { aimAt, count, scenario } from './testing/scenario';
+import { getHitModel } from './hitboxes';
+import { aimAt, count, scenario, type Scenario } from './testing/scenario';
 
 describe('guns', () => {
   it('fires at the synchronised rate and spends ammunition', () => {
@@ -293,5 +294,198 @@ describe('early-war two-seater observers', () => {
     alb.add(2, 'airco_dh2', 0, 180, 1040, 0);
     alb.step(3, undefined, 'kinematic');
     expect(alb.events.filter((e) => e.type === 'gun-fired' && e.shooterId === 1 && e.gun === 'parabellum').length).toBeGreaterThan(5);
+  });
+});
+
+// Stateful paths that decide kills, credit and outcomes. Every aircraft is controller 'none'
+// and steps 'kinematic' or frozen, so the flight model can't overwrite the fields a test sets
+// (sideslip, height above ground). Fire is random: those tests aggregate over seeds and
+// compare counts rather than pin a figure.
+describe('fire, collisions, flak fragments and ground fire', () => {
+  const SEED_BASE = 1;
+  const SEEDS = Array.from({ length: 24 }, (_, i) => SEED_BASE + i);
+  const zoneSum = (ac: AircraftEntity) => Object.values(ac.damage.zones).reduce((a, b) => a + b, 0);
+  type Burst = { time: number; position: Vector3; firingSide: 'allied' | 'central'; lethalRadius: number };
+  const pushBurst = (s: Scenario, b: Burst) => (s.combat.pendingFlak as Burst[]).push(b);
+
+  /** A burning Camel with attacker 7 on record; `keepBurning` relights it every step. */
+  const burning = (seed: number, opts: { slip?: number; keepBurning?: boolean } = {}) => {
+    const s = scenario({ seed });
+    const ac = s.add(1, 'sopwith_camel', 0, 0, 1000);
+    ac.controller = 'none';
+    s.combat.damageAircraft(ac, 'leftWing', 0.01, 7, 0);
+    ac.damage.onFire = true;
+    let destroyedAt: number | null = null;
+    let wentOut = false;
+    s.step(
+      25,
+      () => {
+        ac.state.sideslip = opts.slip ?? 0;
+        if (!ac.damage.onFire && !ac.damage.destroyed) wentOut = true;
+        if (opts.keepBurning && !ac.damage.destroyed) ac.damage.onFire = true;
+        if (destroyedAt === null && ac.damage.destroyed) destroyedAt = s.world.time;
+      },
+      false,
+    );
+    return { s, ac, destroyedAt: destroyedAt as number | null, wentOut };
+  };
+
+  it('a fire that keeps burning kills the pilot after the burn limit and credits the last attacker', () => {
+    for (const seed of SEEDS) {
+      const { s, ac, destroyedAt } = burning(seed, { keepBurning: true });
+      expect(ac.damage.destroyed, `seed ${seed}`).toBe(true);
+      expect(ac.outcome).toBe('shot-down');
+      expect(ac.damage.pilotKilled).toBe(true);
+      // The burn limit is at least 8 s.
+      expect(destroyedAt).toBeGreaterThan(8);
+      const kills = s.events.filter((e) => e.type === 'aircraft-destroyed');
+      expect(kills).toHaveLength(1);
+      expect(kills[0].type === 'aircraft-destroyed' && kills[0].killerId).toBe(7);
+    }
+  });
+
+  it('an unattended fire either burns the aircraft down or blows out, and sideslip blows it out more often', () => {
+    const blownOut = (slip: number) => {
+      let out = 0;
+      let killed = 0;
+      for (const seed of SEEDS) {
+        const r = burning(seed, { slip });
+        if (r.ac.damage.destroyed) {
+          killed++;
+          expect(r.ac.outcome).toBe('shot-down');
+          expect(r.destroyedAt).toBeGreaterThan(8);
+        } else {
+          expect(r.ac.damage.onFire, `seed ${seed} slip ${slip}`).toBe(false);
+          out++;
+        }
+      }
+      return { out, killed };
+    };
+    const straight = blownOut(0);
+    expect(straight.killed).toBeGreaterThan(0);
+    expect(straight.out).toBeGreaterThan(0);
+    const slipping = blownOut(0.3);
+    expect(slipping.out).toBeGreaterThan(straight.out);
+  });
+
+  it('an invulnerable player burns without being destroyed', () => {
+    for (const seed of SEEDS.slice(0, 6)) {
+      const s = scenario({ seed, realism: { invulnerable: true } });
+      const ac = s.add(1, 'sopwith_camel', 0, 0, 1000);
+      ac.controller = 'player';
+      ac.damage.onFire = true;
+      s.step(40, () => (ac.damage.onFire = true), false);
+      expect(count(s.events, 'aircraft-destroyed'), `seed ${seed}`).toBe(0);
+      expect(ac.damage.destroyed).toBe(false);
+    }
+  });
+
+  it('a slow scrape damages a wing and nudges the pair apart, reporting at most once a second', () => {
+    const s = scenario();
+    const a = s.add(1, 'sopwith_camel', 0, 0, 1000);
+    const b = s.add(2, 'albatros_dv', 1, 0, 1000, 0, 'germany');
+    for (const ac of [a, b]) ac.controller = 'none';
+    b.state.velocity.copy(a.state.velocity).add(new Vector3(0, 0, 5)); // 5 m/s apart
+    s.step(4, undefined, 'kinematic');
+    const n = count(s.events, 'collision');
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect(n).toBeLessThanOrEqual(2);
+    for (const ac of [a, b]) {
+      expect(ac.damage.destroyed).toBe(false);
+      expect(ac.damage.zones.leftWing + ac.damage.zones.rightWing).toBeGreaterThan(0);
+    }
+    const r = getHitModel(a.spec).collisionRadius + getHitModel(b.spec).collisionRadius;
+    expect(a.state.position.distanceTo(b.state.position)).toBeGreaterThan(r);
+  });
+
+  it('a slow scrape between two aircraft flying together separates them', () => {
+    // Same velocity: only the nudge can part them.
+    const s = scenario();
+    const a = s.add(1, 'sopwith_camel', 0, 0, 1000);
+    const b = s.add(2, 'albatros_dv', 1, 0, 1000, 0, 'germany');
+    for (const ac of [a, b]) ac.controller = 'none';
+    b.state.velocity.copy(a.state.velocity);
+    s.step(5, undefined, 'kinematic');
+    expect(count(s.events, 'collision')).toBeLessThanOrEqual(2);
+    const r = getHitModel(a.spec).collisionRadius + getHitModel(b.spec).collisionRadius;
+    expect(a.state.position.distanceTo(b.state.position)).toBeGreaterThan(r);
+  });
+
+  it('two wrecks falling together do not collide', () => {
+    const s = scenario();
+    const a = s.add(1, 'sopwith_camel', 0, 0, 1000);
+    const b = s.add(2, 'albatros_dv', 1, 0, 1000, 0, 'germany');
+    for (const ac of [a, b]) {
+      ac.controller = 'none';
+      ac.damage.destroyed = true;
+    }
+    s.step(2, undefined, false);
+    expect(count(s.events, 'collision')).toBe(0);
+  });
+
+  it('flying into a balloon destroys the aircraft and fires the balloon', () => {
+    const s = scenario();
+    const ac = s.add(1, 'sopwith_camel', 0, 0, 1000);
+    ac.controller = 'none';
+    const bl: BalloonEntity = {
+      id: 50,
+      kind: 'balloon',
+      side: 'central',
+      position: ac.state.position.clone(),
+      anchor: new Vector3(0, 50, 0),
+      health: 1,
+      burning: false,
+      destroyed: false,
+      observerBailed: false,
+    };
+    s.balloons.push(bl);
+    s.step(0.5, undefined, false);
+    expect(ac.outcome).toBe('collided');
+    expect(bl.burning).toBe(true);
+    const hits = s.events.filter((e) => e.type === 'collision');
+    expect(hits).toHaveLength(1);
+    expect(hits[0].type === 'collision' && hits[0].bId).toBe(50);
+  });
+
+  it('a flak burst damages enemy aircraft inside its lethal radius only', () => {
+    const s = scenario({ realism: { midairCollisions: false } }); // the friendly shares the burst point
+    const target = s.add(1, 'sopwith_camel', 0, 0, 1000);
+    const friendly = s.add(2, 'albatros_dv', 0, 0, 1000, 0, 'germany');
+    const far = s.add(3, 'sopwith_pup', 100, 0, 1000);
+    for (const ac of [target, friendly, far]) ac.controller = 'none';
+    pushBurst(s, { time: 0, position: target.state.position.clone(), firingSide: 'central', lethalRadius: 30 });
+    s.step(SIM_DT, undefined, false);
+    expect(count(s.events, 'flak-burst')).toBe(1);
+    expect(zoneSum(target)).toBeGreaterThan(0);
+    expect(zoneSum(friendly)).toBe(0);
+    expect(zoneSum(far)).toBe(0);
+  });
+
+  it('ground fire hits aircraft low over enemy ground, not high or over friendly ground', () => {
+    let low = 0;
+    let high = 0;
+    let friendly = 0;
+    for (const seed of SEEDS.slice(0, 6)) {
+      const s = scenario({ seed, groundFire: true, sideOfFront: (x) => (x > 0 ? 'central' : 'allied') });
+      const a = s.add(1, 'sopwith_camel', 1000, 0, 1000);
+      const b = s.add(2, 'sopwith_camel', 1000, 500, 1000);
+      const c = s.add(3, 'sopwith_camel', -1000, 0, 1000);
+      for (const ac of [a, b, c]) ac.controller = 'none';
+      s.step(
+        60,
+        () => {
+          a.state.heightAboveGround = 30;
+          b.state.heightAboveGround = 300;
+          c.state.heightAboveGround = 30;
+        },
+        false,
+      );
+      low += zoneSum(a);
+      high += zoneSum(b);
+      friendly += zoneSum(c);
+    }
+    expect(low).toBeGreaterThan(0);
+    expect(high).toBe(0);
+    expect(friendly).toBe(0);
   });
 });
