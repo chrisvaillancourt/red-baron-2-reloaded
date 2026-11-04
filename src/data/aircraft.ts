@@ -517,11 +517,9 @@ export function getAircraft(id: AircraftId): AircraftSpec {
   return s;
 }
 
-/** Aircraft in front-line service on `date` for `side`. */
-export function aircraftInService(date: string, side?: 'central' | 'allied'): AircraftSpec[] {
-  return SPECS.filter(
-    (s) => s.introduced <= date && date <= s.retired && (!side || (side === 'central') === (s.nation === 'germany')),
-  );
+/** Whether a type is in front-line service on `date` (ISO; both ends of its service window included). */
+export function inServiceOn(s: AircraftSpec, date: string): boolean {
+  return s.introduced <= date && date <= s.retired;
 }
 
 /** Whether two types were ever in front-line service at the same time (their service windows overlap). */

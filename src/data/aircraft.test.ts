@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT, AIRCRAFT_LIST, PUSHER_NOSE_ARCS, REAR_RING_ARCS } from './aircraft';
+import { AIRCRAFT, AIRCRAFT_LIST, inServiceOn, PUSHER_NOSE_ARCS, REAR_RING_ARCS } from './aircraft';
 import { crewStations, NOSE_GUNNER_ARCS, REAR_OBSERVER_ARCS, stationEye } from './crew';
 
 const BOMBERS = ['gotha_gv', 'aeg_giv', 'handley_page_o400', 'breguet_14b2', 'dh9', 'voisin_iii', 'dh4'] as const;
@@ -69,5 +69,18 @@ describe('aircraft roster', () => {
 
   it('arms the Voisin III with a strip-fed Hotchkiss', () => {
     expect(AIRCRAFT.voisin_iii.guns.map((g) => [g.type, g.rounds])).toEqual([['hotchkiss', 25]]);
+  });
+});
+
+describe('inServiceOn', () => {
+  const dayOff = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
+  it('includes both ends of the service window and nothing outside it', () => {
+    for (const s of AIRCRAFT_LIST) {
+      expect(inServiceOn(s, s.introduced), `${s.id} introduced`).toBe(true);
+      expect(inServiceOn(s, s.retired), `${s.id} retired`).toBe(true);
+      expect(inServiceOn(s, dayOff(s.introduced, -1)), `${s.id} day before`).toBe(false);
+      expect(inServiceOn(s, dayOff(s.retired, 1)), `${s.id} day after`).toBe(false);
+    }
   });
 });

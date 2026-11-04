@@ -4,6 +4,7 @@
  */
 import { CanvasTexture, MeshStandardMaterial, SRGBColorSpace } from 'three';
 import type { AircraftEntity, Nation } from '../../core/types';
+import { imperialNation } from '../../data/nations';
 
 export type GaugeKind = 'Gauge_RPM' | 'Gauge_Alt' | 'Gauge_Speed' | 'Gauge_Compass' | 'Gauge_Fuel';
 export const GAUGE_KINDS: GaugeKind[] = ['Gauge_RPM', 'Gauge_Alt', 'Gauge_Speed', 'Gauge_Compass', 'Gauge_Fuel'];
@@ -14,10 +15,6 @@ export interface GaugeSet {
   materials: Record<GaugeKind, MeshStandardMaterial>;
   draw(ac: AircraftEntity): void;
   dispose(): void;
-}
-
-export function imperialFor(nation: Nation): boolean {
-  return nation === 'britain' || nation === 'usa';
 }
 
 /** Heading in degrees (0 = north, clockwise) from a body->world quaternion. */
@@ -141,7 +138,7 @@ function compass(ctx: CanvasRenderingContext2D, heading: number) {
 }
 
 export function createGaugeSet(nation: Nation, rotary: boolean, fuelCapacityL: number): GaugeSet {
-  const imperial = imperialFor(nation);
+  const imperial = imperialNation(nation);
   const canvases = {} as Record<GaugeKind, HTMLCanvasElement>;
   const textures = {} as Record<GaugeKind, CanvasTexture>;
   const materials = {} as Record<GaugeKind, MeshStandardMaterial>;

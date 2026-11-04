@@ -2,14 +2,14 @@
 import type { SquadronInfo } from '../core/campaignTypes';
 import type { AircraftId, AircraftRole, Nation, Side } from '../core/types';
 import { NATION_SIDE } from '../core/types';
-import { AIRCRAFT, AIRCRAFT_LIST } from '../data/aircraft';
+import { AIRCRAFT, AIRCRAFT_LIST, inServiceOn } from '../data/aircraft';
 import { getAerodrome, type AerodromeWorld } from '../data/aerodromes';
 import { SQUADRONS, SQUADRON_SUCCESSORS } from '../data/squadrons';
 import { daysBetween } from './dates';
 
 export function inService(id: AircraftId, date: string): boolean {
   const s = AIRCRAFT[id];
-  return !!s && s.introduced <= date && date <= s.retired;
+  return !!s && inServiceOn(s, date);
 }
 
 export function squadronActiveOn(sq: SquadronInfo, date: string): boolean {
@@ -97,10 +97,16 @@ export const AI_FIGHTER_TWO_SEATERS: ReadonlySet<AircraftId> = new Set<AircraftI
 export function aircraftPool(side: Side, role: AircraftRole | 'recon', date: string): AircraftId[] {
   const roles: AircraftRole[] = role === 'recon' ? ['two-seater'] : role === 'bomber' ? ['bomber', 'two-seater'] : [role];
   const ofSide = AIRCRAFT_LIST.filter((a) => NATION_SIDE[a.nation] === side && roles.includes(a.role) && (role === 'fighter' || !AI_FIGHTER_TWO_SEATERS.has(a.id)));
-  const live = ofSide.filter((a) => a.introduced <= date && date <= a.retired);
+  const live = ofSide.filter((a) => inServiceOn(a, date));
   if (live.length) return live.map((a) => a.id);
   const earliest = ofSide.slice().sort((a, b) => (a.introduced < b.introduced ? -1 : 1));
   return earliest.length ? [earliest[0].id] : [];
+}
+
+/** Whether `n` flies type `id`: its own nation's, or one it also used (e.g. the Nieuport 11 for Britain). */
+export function fliesType(id: AircraftId, n: Nation): boolean {
+  const s = AIRCRAFT[id];
+  return s.nation === n || s.alsoUsedBy.includes(n);
 }
 
 /** A nation plausibly flying `id` for `side` (e.g. SPAD XIII -> France). */
