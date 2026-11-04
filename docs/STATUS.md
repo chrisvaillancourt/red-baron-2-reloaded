@@ -26,7 +26,6 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 - Q-07 pursuer calibration: needs rated human dogfight reports.
 - Q-09 damage/career/raid policy decisions ([DEFERRED-TODOS](DEFERRED-TODOS.md#blocked-task-contracts)).
-- Q-11 license choice.
 - Q-12 touch: physical iPhone/Safari acceptance.
 - Q-13 controller: physical Xbox acceptance (USB and Bluetooth, Chrome and Safari).
 - Q-10 CI runner migration: target 2027-01-31.

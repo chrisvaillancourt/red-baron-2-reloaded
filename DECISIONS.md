@@ -1602,3 +1602,18 @@ and rerun the same soaks, one at a time:
 `--env AUTOPLAY_PILOT=human`), `--soak fairness --set default,mirror --reps 48`,
 `--soak career --seeds 0,1000,2000`, `--soak quick --reps 24`, and
 `AI_SOAK=mutualsupport` for the mechanism.
+
+## D-122 — MIT license
+
+The repo was public with no license, so nobody could reuse anything (Q-11). On 2026-11-04 the
+owner delegated the choice for this hobby project. MIT: short, permissive, widely
+understood, and compatible with the dependencies (three.js is MIT).
+
+- Everything the repo ships is the project's own work: TypeScript code, Blender-scripted
+  models (`public/models/`) and key art (`public/art/`), sounds synthesized at runtime
+  (D-009), hand-entered geography, and docs. Aircraft figures cite public facts (e.g.
+  Wikipedia dimensions), not copied text or data files.
+- The license covers that work only. It grants no rights in the *Red Baron* name or in
+  Dynamix or Sierra's games; the title stays a non-commercial tribute (D-008).
+- Copyright holder: Chris Vaillancourt, 2026. `package.json` stays `private: true`, so
+  nothing is published to npm.

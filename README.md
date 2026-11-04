@@ -215,4 +215,10 @@ Captured in real missions (HUD hidden) at the Ultra preset.
 | ![An Albatros D.V above the cumulus](docs/screenshots/game-above-clouds.png) | ![An Albatros falls in flames](docs/screenshots/game-burning.png) |
 | ![An S.E.5a on the field at Vert Galand at dusk](docs/screenshots/game-aerodrome-dusk.png) | |
 
+## License
+
+[MIT](LICENSE) for this project's own code, rendered art, models, synthesized sound and
+documentation, all made for this project (D-122). The license grants no rights in the
+*Red Baron* name or in Dynamix or Sierra's games; the title is a tribute (D-008).
+
 *To the airmen of all nations, 1914–1918.*
