@@ -4,10 +4,23 @@
  */
 import { h } from './dom';
 
+let chosen: { index: number; id: string } | null = null;
+
 /** A connected standard gamepad, if any. */
 export function connectedPad(): Gamepad | null {
   try {
-    return [...(globalThis.navigator?.getGamepads?.() ?? [])].find((p): p is Gamepad => !!p && p.connected) ?? null;
+    const pads = globalThis.navigator?.getGamepads?.() ?? [];
+    if (chosen) {
+      const pad = pads[chosen.index];
+      if (pad?.connected && pad.mapping === 'standard' && pad.id === chosen.id) return pad;
+      chosen = null;
+    }
+    for (const pad of pads) {
+      if (!pad?.connected || pad.mapping !== 'standard') continue;
+      chosen = { index: pad.index, id: pad.id };
+      return pad;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -39,8 +52,16 @@ export function padGlyph(label: string): HTMLElement {
  */
 export function onPadChange(onChange: (name: string, connected: boolean) => void): () => void {
   if (typeof window === 'undefined') return () => {};
-  const on = (e: Event) => onChange(padName((e as GamepadEvent).gamepad?.id ?? ''), true);
-  const off = (e: Event) => onChange(padName((e as GamepadEvent).gamepad?.id ?? ''), false);
+  const on = (e: Event) => {
+    const pad = (e as GamepadEvent).gamepad;
+    if (pad?.mapping === 'standard') onChange(padName(pad.id), true);
+  };
+  const off = (e: Event) => {
+    const pad = (e as GamepadEvent).gamepad;
+    if (pad?.mapping !== 'standard') return;
+    if (chosen?.index === pad.index && chosen.id === pad.id) chosen = null;
+    onChange(padName(pad.id), false);
+  };
   window.addEventListener('gamepadconnected', on);
   window.addEventListener('gamepaddisconnected', off);
   return () => {
