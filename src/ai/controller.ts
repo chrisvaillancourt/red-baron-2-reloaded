@@ -135,6 +135,11 @@ const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort compl
 
 /** Seconds of closure at which an attacker breaks off a head-on or overtaking pass. */
 const BREAK_LEAD_S = 1.8;
+/**
+ * Lift-axis acceleration (m/s^2) an extending pilot counts on when pulling across a
+ * conflict, roll-in lag included. Fitted on two-Camel extension grids (docs/ai.md).
+ */
+const CROSS_PULL_ACCEL = 12;
 /** Seconds of full-g break away from the merge before the extension. */
 const BREAK_S = 0.8;
 /** A bomber formation's leader flies at this fraction of his top speed (a lone machine cruises at 0.8). */
@@ -1876,11 +1881,14 @@ export class AIPilot implements AIController {
       if (dcpa < 1) cpa.copy(lift).multiplyScalar(-splitSide(self, o));
       // During a late extension escape, avoid a roll through the opposite lift
       // direction. Reflect only that component, retaining lateral separation.
-      // Two extending AIs that each see the other on their lift side would both pull
-      // across into the same point, so only one of the pair (splitSide) crosses.
+      // Two extending AIs that each see the other on their lift side choose together.
+      // Both pulling across must cover 2*towardLift with two pulls; both escaping away
+      // keeps it. One pulling and one escaping is never better than both of those, so
+      // both pull only when one pull (0.5*a*t^2) would cover the offset.
       else if (this.phase === 'extend' && tcpa > 0 && tcpa < BREAK_LEAD_S) {
         const towardLift = cpa.dot(lift);
-        if (towardLift > 0 && !(splitSide(self, o) < 0 && this.otherCrossesToo(o, cpa))) cpa.addScaledVector(lift, -2 * towardLift);
+        const pairEscapesAway = towardLift > 0.5 * CROSS_PULL_ACCEL * tcpa * tcpa && this.otherCrossesToo(o, cpa);
+        if (towardLift > 0 && !pairEscapesAway) cpa.addScaledVector(lift, -2 * towardLift);
       }
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
@@ -1911,8 +1919,9 @@ export class AIPilot implements AIController {
   }
 
   /**
-   * Would `o`'s own extension escape also reflect toward us? True when it is an AI in
-   * `extend` and our closest approach, seen from its side (`-cpa`), lies on its lift side.
+   * Is `o` in the same choice as us? True when it is an AI in `extend` and our closest
+   * approach, seen from its side (`-cpa`), lies on its lift side. It reads o's current
+   * phase, so a pair whose phases change on the same AI tick can disagree for one tick.
    */
   private otherCrossesToo(o: AircraftEntity, cpa: Vector3): boolean {
     if (REGISTRY.get(o)?.phase !== 'extend') return false;

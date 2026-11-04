@@ -3,13 +3,13 @@ import { Quaternion, Vector3 } from 'three';
 import { createAIController } from './controller';
 import { TestWorld, makeAircraft, TEST_REALISM } from './testing/testWorld';
 
-// Two AIs closing head-on 150 m apart (about 1.5 s to closest approach), B inverted 20 m
-// above A, so each has the other on its own lift side. Returns each steer direction's
+// Two AIs closing head-on 150 m apart (about 1.5 s to closest approach), B inverted `above`
+// metres above A, so each has the other on its own lift side. Returns each steer direction's
 // component along that aircraft's own lift axis: positive means it pulls toward its lift.
-function liftComponents(bExtends: boolean, ids: [number, number] = [9001, 9002]) {
+function liftComponents(bExtends: boolean, ids: [number, number] = [9001, 9002], above = 20) {
   const world = new TestWorld();
   const a = makeAircraft({ id: ids[0], side: 'allied', x: 0, z: 0, alt: 1000, heading: 0, speed: 50 });
-  const b = makeAircraft({ id: ids[1], side: 'central', x: 10, z: -150, alt: 1020, heading: Math.PI, speed: 50 });
+  const b = makeAircraft({ id: ids[1], side: 'central', x: 10, z: -150, alt: 1000 + above, heading: Math.PI, speed: 50 });
   const forwardB = new Vector3(0, 0, -1).applyQuaternion(b.state.orientation);
   b.state.orientation.premultiply(new Quaternion().setFromAxisAngle(forwardB, Math.PI));
   world.aircraft.push(a, b);
@@ -28,19 +28,27 @@ function liftComponents(bExtends: boolean, ids: [number, number] = [9001, 9002])
 }
 
 describe('collision escape while both aircraft extend (D-115)', () => {
-  it('lets exactly one of two extending AIs pull across toward the other', () => {
+  // Never one pulling across while the other escapes away: the crosser chases the other.
+  it('has both of two extending AIs escape away when one pull cannot cover the offset', () => {
     const r = liftComponents(true);
-    expect(r.a).toBeGreaterThan(0);
+    expect(r.a).toBeLessThan(0);
     expect(r.b).toBeLessThan(0);
+  });
+
+  it('has both pull across when the offset is small', () => {
+    const r = liftComponents(true, [9001, 9002], 4);
+    expect(r.a).toBeGreaterThan(0);
+    expect(r.b).toBeGreaterThan(0);
   });
 
   it('keeps the reflection for a lone extender', () => {
     expect(liftComponents(false).a).toBeGreaterThan(0);
   });
 
-  it('chooses the crosser by id, not by list order', () => {
-    const r = liftComponents(true, [9012, 9011]);
-    expect(r.a).toBeLessThan(0);
-    expect(r.b).toBeGreaterThan(0);
+  it('makes the same choice whatever the ids or list order', () => {
+    for (const above of [4, 20]) {
+      const r = liftComponents(true, [9012, 9011], above);
+      expect(Math.sign(r.a)).toBe(Math.sign(r.b));
+    }
   });
 });

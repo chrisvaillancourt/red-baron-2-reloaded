@@ -1438,7 +1438,7 @@ make the old PR head an ancestor of this release.
 Number D-115 assigned by the integration owner during workflowz integration.
 
 
-## D-XXX — Only one of two extending AIs pulls across (Node 26 move)
+## D-XXX — Two extending AIs choose their escape together (Node 26 move)
 **Context.** On Node 24/26 the quick-collision case "an AI opponent extending past
 the player aircraft" (seed 1495) reported `ai-enemy 116deg extend_#5/extend_#3 t=276`;
 Node 22 passed. The first divergence is in setup: `Math.pow(0.9774423043553705,
@@ -1449,14 +1449,26 @@ other traced `Math` function differed on equal inputs. The gap grows chaotically
 (1 m by 237 s, 100 m by 251 s), so Node 26 flies a different encounter, not the
 same near miss. In it, AIs 3 and 5 both enter `extend` 1.4 s out with a 31 m
 predicted miss, each with the other on its own lift side. Both applied the D-115
-reflection and pulled toward each other; the predicted miss fell to 2 m.
-**Decision.** In the D-115 branch, an AI skips the reflection when the other
-aircraft is an AI in `extend` that would reflect toward it too and `splitSide`
-says it is the one that yields. The other still crosses. No new policy, radius or
-weight; other phases unchanged. No deterministic-math layer: the sim is only
-promised to be deterministic within one runtime (D-083 replays a mission, not
-inputs), and browsers already differ (V8 versions, JavaScriptCore, SpiderMonkey).
-**Consequences.** The three quick-collision cases pass on Node 22 and 26; the
-seed-1495 pair now clears at about 10 m. Any soak or realsim with two AIs
+reflection and pulled toward each other; the predicted miss fell to 2 m. A first
+fix elected one crosser by `splitSide`; review found a knife-edge two-Camel pass
+(12 m offset, about 1.1 s out) that it rammed and the parent cleared: the yielding
+aircraft escaped the same way the crosser pulled, so the crosser chased it.
+**Decision.** Along the lift axis each of the pair either pulls across or escapes
+away; one of each is never better than both pulling or both escaping. When the
+other aircraft is an AI in `extend` with us on its lift side, both pull across only
+while the lift-axis offset is under `0.5 * CROSS_PULL_ACCEL * tcpa^2`, otherwise
+neither reflects. `CROSS_PULL_ACCEL = 12` m/s^2 was fitted on two-Camel knife-edge
+grids: 750 hard cases (roll -1.2 to -1.95 rad, offsets 2-30 m, 55-100 m half
+range) collide 28 times with the parent rule, 25 with the election, 20 with both
+always escaping, 8 at 12 m/s^2 (6 m/s^2: 20, 20 m/s^2: 20); a 495-case mixed grid
+gives 9 / 6 / 6 / 6. The lone-extender D-115 reflection is unchanged. No
+deterministic-math layer: the sim is only promised to be deterministic within one
+runtime (D-083 replays a mission, not inputs), and browsers already differ (V8
+versions, JavaScriptCore, SpiderMonkey).
+**Consequences.** The three quick-collision cases and the review encounter
+(`extendCollision.realsim.test.ts`) pass on Node 22 and 26. That encounter passes
+within about 1 m of contact under every rule tried (0.1 m under this one), so its test asserts no
+collision, not a margin. Each AI reads the other's live phase, so a pair can
+disagree for one AI tick when a phase changes. Any soak or realsim with two AIs
 extending into each other inside 1.8 s shifts after that event (quick, career,
-fairness, quickdiag, gundiag, autoplay soaks); unit and realsim tests pass.
+fairness, quickdiag, gundiag, autoplay soaks).
