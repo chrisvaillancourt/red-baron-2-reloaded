@@ -10,3 +10,4 @@ tools/blender/out/
 __pycache__/
 playtests/inbox/
 tools/dev/scratch/
+.vitest/

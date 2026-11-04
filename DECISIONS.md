@@ -1546,3 +1546,27 @@ already integrates, and it reaches GPT review lanes through omp rather than the 
   dispatches editing agents, including omp delegating to Claude through `claude_task`
   (`docs/OMP.md`).
 - Reopen as a new item, not Q-15, if omp becomes the driver again.
+
+## D-120 — DOM unit tests run in Vitest browser mode
+
+Vitest ran only in Node, so focus, Tab order and HUD/menu navigation bugs could be reproduced
+only in Playwright e2e specs (FRICTION F-6, F-119; both Q-13 map blockers). happy-dom and
+jsdom were rejected after a scratch proof on 2026-11-04: neither does layout, and
+`src/ui/nav.ts` decides what is focusable from `getBoundingClientRect()`, so nav tests would
+mock every rect. happy-dom also let `focus()` land on hidden and non-focusable elements and
+has had four critical advisories since 2024.
+
+- `vite.config.ts` has two Vitest projects: `unit` (Node, as before) and `ui-dom`
+  (`src/ui/**/*.dom.test.ts`) in headless installed Chrome through
+  `@vitest/browser-playwright`, honouring `PW_CHANNEL` like the e2e config. CI uses the
+  ubuntu-24.04 runner's preinstalled Chrome; no browser download.
+- New dev dependencies, exact pins: `@vitest/browser-playwright` 5.0.5 and `playwright`
+  1.63.0 (its peer; must match `@playwright/test`). Vitest moved 5.0.1 → 5.0.5, which fixes
+  GHSA-p458-7748-mcp3 (`server.fs.deny` bypass that exposes `.env` in browser mode with
+  projects) and the mocker advisories GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp.
+- Supply-chain check (Opus, 2026-11-04): no install scripts, no malware advisories, Socket
+  Firewall passed; the owner kept the global 3-day pnpm cooldown, so `ws` 8.22.1,
+  `tinybench` 6.2.3 and `magic-string` 1.4.5 (3–8 days old) entered the lockfile; same
+  publishers as their previous versions, no advisories.
+- `ui-dom` is not GPU work for the AGENTS.md scheduling rule: it renders plain DOM.
+- `FlightSession` still has no unit seam; DOM tests cover `src/ui` only.
