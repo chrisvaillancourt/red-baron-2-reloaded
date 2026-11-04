@@ -119,7 +119,7 @@ describe('flight standard controller ownership and disarming', () => {
     expect(frame().commands).toEqual(['releaseBomb']);
   });
 
-  it('rebases holds on actual context changes, not repeated setters, and requires real neutral', () => {
+  it('a bombsight change rebases only X; seat changes still disarm; repeated setters are no-ops', () => {
     const p = pad();
     const { input, frame } = setup([p]);
     frame();
@@ -128,13 +128,26 @@ describe('flight standard controller ownership and disarming', () => {
     input.bombsightMode = true;
     button(p, 7, true);
     p.axes[0] = 1;
-    expect(frame()).toMatchObject({ controls: { fireGuns: false, releaseBomb: false, roll: 0 }, commands: [] });
+    // X held across the change does nothing; RT and the stick carry over.
+    const f = frame();
+    expect(f.controls).toMatchObject({ fireGuns: true, releaseBomb: false });
+    expect(f.controls.roll).toBeGreaterThan(0.5);
+    expect(f.commands).toEqual([]);
+    expect(frame().controls.releaseBomb).toBe(false);
     p.axes[0] = 0;
     button(p, 2, false);
     button(p, 7, false);
     frame();
     button(p, 2, true);
     input.bombsightMode = true;
+    expect(frame()).toMatchObject({ controls: { releaseBomb: true }, commands: ['releaseBomb'] });
+    input.bombsightMode = false;
+    expect(frame()).toMatchObject({ controls: { releaseBomb: false }, commands: [] });
+    input.bombsightMode = true;
+    expect(frame()).toMatchObject({ controls: { releaseBomb: false }, commands: [] });
+    button(p, 2, false);
+    frame();
+    button(p, 2, true);
     expect(frame()).toMatchObject({ controls: { releaseBomb: true }, commands: ['releaseBomb'] });
     input.stationMode = true;
     expect(frame().controls.releaseBomb).toBe(false);

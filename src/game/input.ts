@@ -379,6 +379,9 @@ export function snapLookFrom(actions: ReadonlySet<string>): { yaw: number; pitch
   return { yaw, pitch };
 }
 
+/** Standard-mapping X: target cycle, or bomb release in bombsight view. */
+const PAD_X = 2;
+
 export class InputManager {
   private held = new Set<string>();
   private pressedQueue: string[] = [];
@@ -432,13 +435,18 @@ export class InputManager {
     this.cancelTransientInput();
   }
 
-  /** Camera context is independent of whether the player occupies a gunner seat. */
+  /**
+   * Camera context is independent of whether the player occupies a gunner seat. It only
+   * changes what X means, so a change disturbs nothing else: an X held across it waits for
+   * release (no bomb, no target cycle), while keys, mouse, aim, sticks and triggers carry on.
+   */
   private _bombsightMode = false;
+  private xLatched = false;
   get bombsightMode(): boolean { return this._bombsightMode; }
   set bombsightMode(value: boolean) {
     if (this._bombsightMode === value) return;
     this._bombsightMode = value;
-    this.cancelTransientInput();
+    if (this.padFrame.pressed[PAD_X]) this.xLatched = true;
   }
 
   get gamepadOwner(): Readonly<{ index: number; id: string }> | null { return this._gamepadOwner; }
@@ -608,6 +616,7 @@ export class InputManager {
     this.touch.stickX = this.touch.stickY = this.touch.rudder = this.touch.lookX = this.touch.lookY = 0;
     this.touch.fire = this.touch.blip = false;
     this.padArmed = false;
+    this.xLatched = false;
     const pad = this.getGamepad();
     if (pad) this.snapshotPad(pad);
     this.aim = null;
@@ -638,6 +647,11 @@ export class InputManager {
     if (!pad) return null;
     // The mapper reads each history slot before overwriting it, so reuse its pressed storage.
     const frame = readGamepad(pad, this.padFrame.pressed, cs, dt, this, this.padFrame);
+    if (this.xLatched) {
+      // Held across a bombsight change: the history already blocks its edge.
+      if (frame.pressed[PAD_X]) frame.releaseBomb = false;
+      else this.xLatched = false;
+    }
     if (!this.padArmed) {
       let neutral = true;
       for (const held of frame.pressed) if (held) neutral = false;
