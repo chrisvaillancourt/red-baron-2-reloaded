@@ -108,8 +108,8 @@ test('CLI scenario exceptions exit with failure and retain useful diagnostics', 
   assert.match(report.candidate.error, /scenario exploded/);
 });
 
-test('real leaf and full world graphs are equal with identical lazy setup', async () => {
-  for (const name of ['geo-equivalence', 'world-equivalence']) {
+test('real leaf, full world and generated-mission graphs are equal with identical lazy setup', async () => {
+  for (const name of ['geo-equivalence', 'world-equivalence', 'mission-equivalence']) {
     const report = await compareRoots({
       baseline: root, candidate: root,
       scenario: fileURLToPath(new URL(`./scenarios/${name}.mjs`, import.meta.url)),
@@ -119,6 +119,13 @@ test('real leaf and full world graphs are equal with identical lazy setup', asyn
     if (name === 'world-equivalence') {
       assert.ok(report.baseline.result.setup.cold.every((ready) => !ready));
       assert.ok(report.baseline.result.setup.warm.every(Boolean));
+    }
+    if (name === 'mission-equivalence') {
+      const { career, quick } = report.baseline.result;
+      assert.deepEqual([...career, ...quick].filter((m) => m.error), []);
+      assert.ok(new Set(career.map((m) => m.type)).size >= 8, 'every career mission type is generated');
+      assert.deepEqual([...new Set(quick.map((m) => m.type))].sort(),
+        ['balloon-attack', 'bombing', 'dogfight', 'escort', 'ground-attack', 'intercept']);
     }
   }
 });
