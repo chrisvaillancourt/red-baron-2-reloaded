@@ -217,6 +217,8 @@ export interface PadFrame {
   fire: boolean;
   blip: boolean;
   clearJam: boolean;
+  /** Held X in bombsight context; the sim consumes its rising edge. */
+  releaseBomb: boolean;
   throttleDelta: number;
   commands: EdgeAction[];
   /** Button states to pass back as `prev` next frame (edge detection). */
@@ -231,34 +233,54 @@ export interface PadFrame {
  * Start = pause, D-pad left/right = time compression off/on. Keep the
  * Flying School card (src/ui/flyingSchool.ts) in step with this table.
  */
-export function readGamepad(pad: PadLike, prev: readonly boolean[], cs: ControlSettings, dt: number): PadFrame {
+export function readGamepad(
+  pad: PadLike, prev: readonly boolean[], cs: ControlSettings, dt: number,
+  context: { stationMode?: boolean; bombsightMode?: boolean; mapMode?: boolean } = {},
+  out: PadFrame = createPadFrame(),
+): PadFrame {
   const dz = cs.gamepadDeadzone;
-  const b = (i: number) => !!pad.buttons[i]?.pressed;
-  const edge = (i: number) => b(i) && !prev[i];
-  const lx = applyDeadzone(pad.axes[2] ?? 0, dz);
-  const ly = applyDeadzone(pad.axes[3] ?? 0, dz);
-  const commands: EdgeAction[] = [];
-  if (edge(2)) commands.push('nextTarget');
-  if (edge(3)) commands.push('viewPadlock');
-  if (edge(11)) commands.push('padlockNearest');
-  if (edge(1)) commands.push('viewChase');
-  if (edge(10)) commands.push('viewCockpit');
-  if (edge(8)) commands.push('map');
-  if (edge(9)) commands.push('pause');
-  if (edge(14)) commands.push('timeNormal');
-  if (edge(15)) commands.push('timeCompress');
+  let edges = 0;
+  for (let i = 0; i < pad.buttons.length; i++) {
+    const held = pad.buttons[i].pressed || pad.buttons[i].value > 0.4;
+    if (i < 32 && held && !prev[i]) edges |= 1 << i;
+    out.pressed[i] = held;
+  }
+  out.pressed.length = pad.buttons.length;
+  const pressed = out.pressed;
+  const commands = out.commands;
+  commands.length = 0;
+  if (edges & (1 << 2)) commands.push(context.bombsightMode ? 'releaseBomb' : 'nextTarget');
+  if (edges & (1 << 3)) commands.push('viewPadlock');
+  if (edges & (1 << 11)) commands.push('padlockNearest');
+  // Over a map that does not capture flight input, B closes it and does nothing else.
+  if (edges & (1 << 1)) commands.push(context.mapMode ? 'map' : context.stationMode ? 'stationPilot' : 'viewChase');
+  // A fresh crew B returns control to the pilot, overriding this frame's seat cycling.
+  if (context.stationMode && !(edges & (1 << 1))) {
+    if (edges & (1 << 4)) commands.push('stationPrev');
+    if (edges & (1 << 5)) commands.push('stationNext');
+  }
+  if (edges & (1 << 10)) commands.push('viewCockpit');
+  if (edges & (1 << 8)) commands.push('map');
+  if (edges & (1 << 9)) commands.push('pause');
+  if (edges & (1 << 14)) commands.push('timeNormal');
+  if (edges & (1 << 15)) commands.push('timeCompress');
+  out.roll = expo(applyDeadzone(pad.axes[0] ?? 0, dz));
+  out.pitch = expo(applyDeadzone(pad.axes[1] ?? 0, dz)) * (cs.invertPitch ? -1 : 1);
+  out.yaw = context.stationMode ? 0 : Number(!!pressed[5]) - Number(!!pressed[4]);
+  out.lookYaw = -applyDeadzone(pad.axes[2] ?? 0, dz) * 2.5 * dt;
+  out.lookPitch = -applyDeadzone(pad.axes[3] ?? 0, dz) * 2.0 * dt;
+  out.fire = !!pressed[7];
+  out.blip = !!pressed[6];
+  out.releaseBomb = !!context.bombsightMode && !!pressed[2];
+  out.clearJam = !!(edges & 1);
+  out.throttleDelta = (Number(!!pressed[12]) - Number(!!pressed[13])) * THROTTLE_RATE * dt;
+  return out;
+}
+
+function createPadFrame(): PadFrame {
   return {
-    roll: expo(applyDeadzone(pad.axes[0] ?? 0, dz)),
-    pitch: expo(applyDeadzone(pad.axes[1] ?? 0, dz)) * (cs.invertPitch ? -1 : 1),
-    yaw: (b(5) ? 1 : 0) - (b(4) ? 1 : 0),
-    lookYaw: -lx * 2.5 * dt,
-    lookPitch: -ly * 2.0 * dt,
-    fire: b(7) || (pad.buttons[7]?.value ?? 0) > 0.4,
-    blip: b(6) || (pad.buttons[6]?.value ?? 0) > 0.4,
-    clearJam: edge(0),
-    throttleDelta: ((b(12) ? 1 : 0) - (b(13) ? 1 : 0)) * THROTTLE_RATE * dt,
-    commands,
-    pressed: pad.buttons.map((x) => x.pressed),
+    roll: 0, pitch: 0, yaw: 0, lookYaw: 0, lookPitch: 0, fire: false, blip: false,
+    releaseBomb: false, clearJam: false, throttleDelta: 0, commands: [], pressed: [],
   };
 }
 
@@ -358,6 +380,9 @@ export function snapLookFrom(actions: ReadonlySet<string>): { yaw: number; pitch
   return { yaw, pitch };
 }
 
+/** Standard-mapping X: target cycle, or bomb release in bombsight view. */
+const PAD_X = 2;
+
 export class InputManager {
   private held = new Set<string>();
   private pressedQueue: string[] = [];
@@ -372,9 +397,11 @@ export class InputManager {
   private keyRoll = 0;
   private keyYaw = 0;
   private throttle = 0.85;
-  private prevPadButtons: boolean[] = [];
-  /** After cancellation, adopt the first observed pad state without synthesizing fresh edges. */
-  private rebasePadEdges = false;
+  private readonly padFrame = createPadFrame();
+  private _gamepadOwner: Readonly<{ index: number; id: string }> | null = null;
+  private padArmed = false;
+  private padLoss = false;
+  private lastGamepadEnabled: boolean | null = null;
   private aim: Vector3 | null = null;
   private aimState = createMouseAimState();
   private detachFns: (() => void)[] = [];
@@ -409,15 +436,86 @@ export class InputManager {
     this.cancelTransientInput();
   }
 
+  /**
+   * Camera context is independent of whether the player occupies a gunner seat. It only
+   * changes what X means, so a change disturbs nothing else: an X held across it waits for
+   * release (no bomb, no target cycle), while keys, mouse, aim, sticks and triggers carry on.
+   */
+  private _bombsightMode = false;
+  private xLatched = false;
+  get bombsightMode(): boolean { return this._bombsightMode; }
+  set bombsightMode(value: boolean) {
+    if (this._bombsightMode === value) return;
+    this._bombsightMode = value;
+    if (this.padFrame.pressed[PAD_X]) this.xLatched = true;
+  }
+
+  private _padUsed = false;
+  /** The owning pad has produced input since it armed (held launch controls don't count). */
+  get padUsed(): boolean { return this._padUsed; }
+
+  /** The map is open without capturing flight input: B closes it (readGamepad context). */
+  mapMode = false;
+
+  get gamepadOwner(): Readonly<{ index: number; id: string }> | null { return this._gamepadOwner; }
+
+  /** Current pinned standard pad, for a session-scoped menu (never another pad). */
+  getGamepad(): Gamepad | null {
+    if (!this._gamepadOwner || typeof navigator === 'undefined' || !navigator.getGamepads) return null;
+    for (const pad of navigator.getGamepads()) {
+      if (pad?.connected && pad.mapping === 'standard' &&
+          pad.index === this._gamepadOwner.index && pad.id === this._gamepadOwner.id) return pad;
+    }
+    return null;
+  }
+
+  /** Input reports loss; flight pause policy belongs to the session. */
+  consumeGamepadLoss(): boolean {
+    const lost = this.padLoss;
+    this.padLoss = false;
+    return lost;
+  }
+
+  private snapshotPad(pad: PadLike): void {
+    const pressed = this.padFrame.pressed;
+    pressed.length = pad.buttons.length;
+    for (let i = 0; i < pad.buttons.length; i++) {
+      pressed[i] = pad.buttons[i].pressed || pad.buttons[i].value > 0.4;
+    }
+  }
+
+  private adoptPad(pad: Gamepad): void {
+    this._gamepadOwner = Object.freeze({ index: pad.index, id: pad.id });
+    this.padArmed = false;
+    this.snapshotPad(pad);
+  }
+
+  private losePad(): void {
+    if (this._gamepadOwner) this.padLoss = true;
+    this._gamepadOwner = null;
+    this._padUsed = false;
+    this.padArmed = false;
+    this.padFrame.pressed.length = 0;
+  }
+
   constructor(
     private readonly element: HTMLElement,
     private readonly getControls: () => ControlSettings,
     /** Live world + realism for the model-aware mouse-aim instructor (legacy law without them). */
     private readonly getWorld: () => WorldQuery | null = () => null,
     private readonly getLevel: () => FlightModelLevel = () => 'standard',
-  ) {}
+    /**
+     * The standard pad that owned menu navigation at launch. The flight inherits it as
+     * owner (instead of the first standard pad) and disarms it: controls held through the
+     * launch stay neutral until released.
+     */
+    initialPad: Gamepad | null = null,
+  ) {
+    if (initialPad?.connected && initialPad.mapping === 'standard') this.adoptPad(initialPad);
+  }
 
   attach(): void {
+    if (this.detachFns.length) return;
     const onKeyDown = (e: KeyboardEvent) => {
       // Cancellation is not a physical key-up: repeats cannot revive discarded holds.
       if (!this.enabled || (e.repeat && !this.held.has(e.code))) return;
@@ -427,6 +525,20 @@ export class InputManager {
     };
     const onKeyUp = (e: KeyboardEvent) => this.held.delete(e.code);
     const onBlur = () => this.cancelTransientInput();
+    const onHidden = () => { if (document.hidden) this.cancelTransientInput(); };
+    const onPadConnected = (e: GamepadEvent) => {
+      const pad = e.gamepad;
+      if (!this.getControls().gamepadEnabled || pad.mapping !== 'standard' || !pad.connected) return;
+      if (!this._gamepadOwner) this.adoptPad(pad);
+      else if (pad.index === this._gamepadOwner.index && pad.id === this._gamepadOwner.id) {
+        this.padArmed = false;
+        this.snapshotPad(pad);
+      }
+    };
+    const onPadDisconnected = (e: GamepadEvent) => {
+      const owner = this._gamepadOwner;
+      if (owner && e.gamepad.index === owner.index && e.gamepad.id === owner.id) this.losePad();
+    };
     const onMouseMove = (e: MouseEvent) => {
       if (!this.enabled || this.touchActive) return;
       this.mouseDX += e.movementX;
@@ -453,6 +565,9 @@ export class InputManager {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('gamepadconnected', onPadConnected);
+    window.addEventListener('gamepaddisconnected', onPadDisconnected);
     this.element.addEventListener('mousemove', onMouseMove);
     this.element.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mouseup', onMouseUp);
@@ -462,6 +577,9 @@ export class InputManager {
       () => window.removeEventListener('keydown', onKeyDown),
       () => window.removeEventListener('keyup', onKeyUp),
       () => window.removeEventListener('blur', onBlur),
+      () => document.removeEventListener('visibilitychange', onHidden),
+      () => window.removeEventListener('gamepadconnected', onPadConnected),
+      () => window.removeEventListener('gamepaddisconnected', onPadDisconnected),
       () => this.element.removeEventListener('mousemove', onMouseMove),
       () => this.element.removeEventListener('mousedown', onMouseDown),
       () => window.removeEventListener('mouseup', onMouseUp),
@@ -474,6 +592,10 @@ export class InputManager {
     this.cancelTransientInput();
     this.detachFns.forEach((f) => f());
     this.detachFns = [];
+    this._gamepadOwner = null;
+    this._padUsed = false;
+    this.padArmed = false;
+    this.padFrame.pressed.length = 0;
     if (typeof document !== 'undefined' && document.pointerLockElement === this.element) document.exitPointerLock?.();
   }
 
@@ -503,8 +625,10 @@ export class InputManager {
     this.stickX = this.stickY = this.keyPitch = this.keyRoll = this.keyYaw = 0;
     this.touch.stickX = this.touch.stickY = this.touch.rudder = this.touch.lookX = this.touch.lookY = 0;
     this.touch.fire = this.touch.blip = false;
-    this.prevPadButtons = [];
-    this.rebasePadEdges = true;
+    this.padArmed = false;
+    this.xLatched = false;
+    const pad = this.getGamepad();
+    if (pad) this.snapshotPad(pad);
     this.aim = null;
     this.aimState.prevPitchErr = this.aimState.prevRollErr = this.aimState.prevYawErr = 0;
     this.aimState.pilot = null;
@@ -512,16 +636,50 @@ export class InputManager {
   }
 
   private pollGamepad(cs: ControlSettings, dt: number): PadFrame | null {
-    if (!cs.gamepadEnabled || typeof navigator === 'undefined' || !navigator.getGamepads) return null;
-    const pad = [...navigator.getGamepads()].find((p) => p && p.connected);
-    if (!pad) {
-      this.prevPadButtons = [];
-      return null;
+    if (this.lastGamepadEnabled !== null && this.lastGamepadEnabled !== cs.gamepadEnabled) {
+      this.padArmed = false;
+      const current = this.getGamepad();
+      if (current) this.snapshotPad(current);
     }
-    const prev = this.rebasePadEdges ? pad.buttons.map((b) => b.pressed) : this.prevPadButtons;
-    const frame = readGamepad(pad, prev, cs, dt);
-    this.prevPadButtons = frame.pressed;
-    this.rebasePadEdges = false;
+    this.lastGamepadEnabled = cs.gamepadEnabled;
+    if (!cs.gamepadEnabled || typeof navigator === 'undefined' || !navigator.getGamepads) return null;
+    let pad = this.getGamepad();
+    if (!pad && this._gamepadOwner) this.losePad();
+    if (!pad) {
+      for (const candidate of navigator.getGamepads()) {
+        if (candidate?.connected && candidate.mapping === 'standard') {
+          pad = candidate;
+          this.adoptPad(pad);
+          break;
+        }
+      }
+    }
+    if (!pad) return null;
+    // The mapper reads each history slot before overwriting it, so reuse its pressed storage.
+    const frame = readGamepad(pad, this.padFrame.pressed, cs, dt, this, this.padFrame);
+    if (this.xLatched) {
+      // Held across a bombsight change: the history already blocks its edge.
+      if (frame.pressed[PAD_X]) frame.releaseBomb = false;
+      else this.xLatched = false;
+    }
+    if (this.padArmed && !this._padUsed) {
+      for (const held of frame.pressed) if (held) this._padUsed = true;
+      for (let i = 0; i < 4; i++) if (Math.abs(pad.axes[i] ?? 0) > cs.gamepadDeadzone) this._padUsed = true;
+    }
+    if (!this.padArmed) {
+      let neutral = true;
+      for (const held of frame.pressed) if (held) neutral = false;
+      for (let i = 0; i < 4; i++) if (Math.abs(pad.axes[i] ?? 0) > cs.gamepadDeadzone) neutral = false;
+      if (neutral && this.enabled) this.padArmed = true;
+      frame.roll = frame.pitch = frame.yaw = frame.lookYaw = frame.lookPitch = frame.throttleDelta = 0;
+      frame.fire = frame.blip = frame.clearJam = frame.releaseBomb = false;
+      // Menu and map-close remain available on a genuinely new press during disarm.
+      let count = 0;
+      for (const command of frame.commands) {
+        if (command === 'pause' || command === 'map') frame.commands[count++] = command;
+      }
+      frame.commands.length = count;
+    }
     return frame;
   }
 
@@ -724,7 +882,7 @@ export class InputManager {
         fireGuns: fire,
         clearJam,
         // Held, not an edge (lead decision): the sim drops one bomb per rising edge.
-        releaseBomb: actions.has('releaseBomb'),
+        releaseBomb: actions.has('releaseBomb') || !!g?.releaseBomb,
       },
       commands,
       snapLook,

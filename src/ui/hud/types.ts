@@ -7,6 +7,7 @@
  * viewport. Screen-space angles are radians, 0 = up, clockwise positive.
  */
 import type { GameSettings, Nation } from '../../core/types';
+import type { EdgeAction } from '../../game/input';
 import type { MapView } from '../map/mapRenderer';
 
 export type HudCameraView = 'cockpit' | 'chase' | 'padlock' | 'flyby' | 'target' | 'gunner' | 'bombsight';
@@ -242,10 +243,26 @@ export interface EndFlightPromptOptions {
   onCancel(): void;
 }
 
+/** Live session ownership; action dispatch owns resume and any subsequent confirmation. */
+export interface HudControllerOptions {
+  gamepadAllowed(pad: Gamepad): boolean;
+  onAction(action: EdgeAction): void;
+  foregroundOverlay(): HTMLElement | null;
+  /**
+   * True when an open map holds the flight (touch-capable flights). Otherwise the pilot
+   * flies on under it, so HUD navigation leaves it alone and the flight input closes it.
+   */
+  mapCapturesInput(): boolean;
+}
+
 export interface Hud {
   readonly element: HTMLElement;
-  /** True while pause / end-flight / wingman menus capture input. */
+  /** True while a HUD card captures input; the desktop map is not a simulation hold. */
   readonly menuOpen: boolean;
+  readonly menuKind: 'pause' | 'actions' | 'end-flight' | 'abandon' | null;
+  setControllerOptions(options: HudControllerOptions | null): void;
+  /** Foreground first, then safe card cancellation, then map close. */
+  handleMenuBack(): boolean;
   update(view: HudView): void;
   showMessage(text: string, opts?: HudMessageOptions): void;
   /** Toggle the wingman orders card; the game handles the order keys. */

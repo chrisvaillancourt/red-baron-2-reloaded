@@ -8,6 +8,8 @@ import { screenShell, stamp, withHints } from '../components';
 import { MISSION_TYPE_LABEL, SKILL_LABEL, TIME_LABEL, weatherSummary, windFrom } from '../labels';
 import { rankDisplay } from '../catalog';
 import { maybeShowFlyingSchool } from '../flyingSchool';
+import { connectedPad } from '../gamepad';
+import { controllerFlightHint } from '../../game/flightPrompts';
 
 export const briefingScreen: ScreenFactory<'briefing'> = (ctx, params) => {
   const mission = params.mission;
@@ -15,6 +17,8 @@ export const briefingScreen: ScreenFactory<'briefing'> = (ctx, params) => {
   const campaign = ctx.services.campaign;
   const player = mission.flights.find((f) => f.role === 'player-flight') ?? mission.flights[0];
   const units = resolveUnits(ctx.settings().units, player?.nation ?? 'britain');
+  const pad = connectedPad();
+  const controllerEnabled = ctx.settings().controls.gamepadEnabled && !!pad && pad.mapping === 'standard';
 
   const shell = screenShell({
     id: 'briefing',
@@ -124,7 +128,18 @@ export const briefingScreen: ScreenFactory<'briefing'> = (ctx, params) => {
     ),
   );
 
-  shell.content.append(h('div', { class: 'briefing' }, mapFrame, paper), h('div', { class: 'brief-foot' }, h('span', { class: 'typed', style: 'color:rgba(235,224,198,.7);font-size:.8em' }, 'Study the map. Once aloft, press M for the map and N to end the flight when safe.'), takeOff));
+  shell.content.append(
+    h('div', { class: 'briefing' }, mapFrame, paper),
+    h(
+      'div',
+      { class: 'brief-foot' },
+      h('span', { class: 'typed', style: 'color:rgba(235,224,198,.7);font-size:.8em' }, 'Study the map. Once aloft, press M for the map and N to end the flight when safe.'),
+      controllerEnabled
+        ? h('span', { class: 'typed', style: 'color:rgba(235,224,198,.7);font-size:.8em' }, 'Enabled standard controller: A takes off; B goes back. In flight: ', controllerFlightHint(false, false))
+        : null,
+      takeOff,
+    ),
+  );
   withHints(shell);
 
   return {

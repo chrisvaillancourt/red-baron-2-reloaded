@@ -1,28 +1,11 @@
-import type { EdgeAction } from '../game/input';
 import type { TouchControls, TouchControlSink, TouchControlView, TouchInputState } from '../game/touchInput';
 import { h } from './dom';
+import { ACTION_GROUPS } from './flightActions';
 import './touchControls.css';
 
 type Gesture = 'stick' | 'look' | 'rudderLeft' | 'rudderRight' | 'fire' | 'blip';
 interface Owner { element: HTMLElement; gesture: Gesture; x: number; y: number }
 
-const ACTION_GROUPS: { label: string; actions: [EdgeAction, string][] }[] = [
-  { label: 'Views & targets', actions: [
-    ['viewCockpit', 'Cockpit view'], ['viewChase', 'Chase view'], ['viewPadlock', 'Padlock view'],
-    ['viewTarget', 'Target view'], ['viewFlyby', 'Fly-by view'], ['nextTarget', 'Next target'], ['padlockNearest', 'Nearest enemy'],
-  ] },
-  { label: 'Navigation & time', actions: [['map', 'Map'], ['timeNormal', 'Normal time'], ['timeCompress', 'Compress time']] },
-  { label: 'Crew & weapons', actions: [
-    ['stationNext', 'Next crew station'], ['stationPrev', 'Previous crew station'], ['stationPilot', 'Pilot station'],
-    ['viewBombsight', 'Bombsight'], ['releaseBomb', 'Release bomb'], ['clearJam', 'Clear gun jam'],
-  ] },
-  { label: 'Engine', actions: [['throttleFull', 'Full throttle'], ['throttleCut', 'Cut throttle']] },
-  { label: 'Wingmen', actions: [
-    ['wingmenAttack', 'Attack my target'], ['wingmenEngage', 'Engage enemies'], ['wingmenFormUp', 'Form up'],
-    ['wingmenCover', 'Cover me'], ['wingmenHome', 'Return home'],
-  ] },
-  { label: 'Flight', actions: [['toggleHud', 'Show / hide HUD'], ['endFlight', 'End flight']] },
-];
 
 /** Gesture ownership lives here; normalized rates and commands cross the game seam. */
 export function createTouchControls(container: HTMLElement, sink: TouchControlSink): TouchControls {

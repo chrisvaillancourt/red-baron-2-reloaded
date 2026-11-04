@@ -3,6 +3,7 @@ import { artBackground, h } from '../dom';
 import { ACTION_GROUPS, ACTIONS, codeLabel } from '../bindings';
 import { screenShell, withHints } from '../components';
 import { showFlyingSchool } from '../flyingSchool';
+import { PAD_PROMPTS } from '../../game/flightPrompts';
 
 /** The first key bound to an action, as the Manual prints it. */
 const keyOf = (b: Record<string, string[]>, action: string) => (b[action]?.[0] ? codeLabel(b[action][0]) : 'unbound');
@@ -29,18 +30,22 @@ const tactics = (key: (action: string) => string): [string, string][] => [
 
 export const controlsScreen: ScreenFactory = (ctx) => {
   const shell = screenShell({ id: 'controls', title: 'Flying Manual', kicker: 'Controls & tactics', background: BG, onBack: () => ctx.router.back() });
-  const b = ctx.settings().controls.keyBindings;
+  const s = ctx.settings();
+  const b = s.controls.keyBindings;
   const touch = window.matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0;
   const touchActionLabels: Record<string, string> = {
     clearJam: 'Menu → Clear gun jam', viewPadlock: 'Menu → Padlock view', lookBack: 'Look pad',
     endFlight: 'Menu → End flight', stationNext: 'Menu → Next crew station', stationPilot: 'Menu → Pilot station',
     viewBombsight: 'Menu → Bombsight', releaseBomb: 'Menu → Release bomb',
   };
+  const padHeading = s.controls.gamepadEnabled
+    ? 'Enabled standard-mapped controller controls (when a recognized standard controller is connected)'
+    : 'Standard-mapped controller controls (enable Gamepad in Options to use these when a recognized standard controller is connected)';
   const paper = h(
     'article',
     { class: 'doc-paper paper' },
     h('h2', null, 'Notes for pilots'),
-    h('p', { class: 'typed muted' }, 'Current key assignments. Change them under Options → Keys. ', h('button', { class: 'btn small', onClick: () => void showFlyingSchool(ctx) }, 'Flying School primer')),
+    h('p', { class: 'typed muted' }, 'Current key assignments. Change them under Options → Keys. Text entry, names, custom seeds and key capture use the keyboard. Native selects and ranges can be adjusted with a controller when its standard-mapped controls are enabled. ', h('button', { class: 'btn small', onClick: () => void showFlyingSchool(ctx) }, 'Flying School primer')),
     ctx.services.defense && h('p', { class: 'typed muted' }, 'Serving the airfield battery? ', h('button', { class: 'btn small', dataset: { action: 'gunner-guide' }, onClick: () => ctx.router.push('gunner-guide') }, "Gunner’s Guide")),
     h('h3', null, 'Touch controls'),
     h('p', { class: 'typed muted' }, 'Touch controls appear for a coarse pointer or touch-capable screen; no phone model is assumed. Use Touch controls / Hide touch controls to choose. The Menu button stays available when the decorative HUD is hidden.'),
@@ -50,7 +55,7 @@ export const controlsScreen: ScreenFactory = (ctx) => {
       ['Look', 'Hold away from the centre to look around; release to stop turning your head.'],
       ['Fire / Blip', 'Hold Fire for a burst; hold Blip to cut rotary ignition.'],
       ['Throttle slider', 'Set engine power; the displayed percentage follows the flight state.'],
-      ['Menu', 'Pauses the flight while the action sheet is open. Scroll for views, targets, map, time, crew, bombs, gun jams, wingmen, HUD and end flight.'],
+      ['Menu', 'Opens the flight action sheet. Choose an action or return to flight; pause and action cards own input while open.'],
       ['Return to flight', 'Closes the action sheet without a command, or returns from a pause, map or crew dialog.'],
     ].map(([label, description]) => h('div', { class: 'k' }, h('span', null, description), h('strong', null, label)))),
     h('p', { class: 'typed muted' }, 'At a gun or bombsight your AI pilot flies. Use Menu → Pilot station to take the controls back. Opening a dialog, changing stations, rotating the screen or leaving the app releases held touch gestures; lift your fingers before starting again. Menus and the action sheet scroll normally.'),
@@ -77,29 +82,16 @@ export const controlsScreen: ScreenFactory = (ctx) => {
         ['Wheel', 'Throttle'],
       ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
     ),
-    h('h3', null, 'Gamepad'),
+    h('h3', null, padHeading),
     h(
       'div',
       { class: 'key-grid' },
-      ...[
-        ['Left stick', 'Pitch & roll'],
-        ['Right stick', 'Look around'],
-        ['LB / RB', 'Left / right rudder'],
-        ['RT', 'Fire guns'],
-        ['LT', 'Blip switch'],
-        ['D-pad ↑ / ↓', 'Throttle up / down'],
-        ['D-pad ← / →', 'Normal time / compress'],
-        ['A', 'Hammer jammed gun'],
-        ['X', 'Cycle target'],
-        ['Y', 'Padlock view'],
-        ['R3', 'Padlock nearest enemy'],
-        ['B', 'Chase view'],
-        ['L3', 'Cockpit view'],
-        ['View / Back', 'Map'],
-        ['Menu / Start', 'Pause'],
-      ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
+      // Built from the prompt table that flightPrompts.test.ts checks against readGamepad.
+      ...PAD_PROMPTS.map((p) => [p.glyph, p.doc]).map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
     ),
-    // Mirrors InputManager.stationMode in src/game/input.ts; keep the two in step.
+    h('p', { class: 'typed muted' }, 'In the gunner’s seat, LB / RB change crew station and B returns to the pilot; LS aims, RT fires, and A clears a jam. In bombsight view, X is not target selection: hold X to release a bomb. These are standard-mapped controls, not a promise that every aircraft or sortie carries bombs or has a gunner.'),
+    h('p', { class: 'typed muted' }, 'Menu pauses the flight. On the pause card, B resumes and Flight actions lists the other commands; on that card B returns to pause, and choosing an action resumes the flight with it. B cancels a confirmation. View / Back opens and closes the map, and B also closes it.'),
+    h('p', { class: 'typed muted' }, 'Controls outside this list are on the pause card’s Flight actions. Text fields, names, custom seeds and key-binding capture use the keyboard; controller navigation can adjust native selects and ranges. Keyboard bindings remain the assignments shown above; controller labels do not imply pad remapping.'),
     h('h3', null, 'At a gun or the bombsight'),
     h('p', { class: 'typed muted' }, 'Your pilot flies while you work a gun or the bombsight; the throttle and flight keys are his.'),
     h(
@@ -112,7 +104,7 @@ export const controlsScreen: ScreenFactory = (ctx) => {
         [`${keyOf(b, 'clearJam')} / A`, 'Hammer a jam (drums change by themselves)'],
         ['Right button (hold) and drag', 'Look away from the gun, until it swings'],
         [keyOf(b, 'viewCockpit'), 'Look back along the gun'],
-        [keyOf(b, 'releaseBomb'), 'Release a bomb (bomb aimer)'],
+        [`${keyOf(b, 'releaseBomb')} / hold X in bombsight view`, 'Release a bomb from the bombsight; X is not a pilot target command in this view'],
       ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
     ),
     h('h3', null, 'Tactics'),

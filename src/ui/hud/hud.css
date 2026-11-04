@@ -761,7 +761,8 @@
   color: #a8262c;
 }
 .hud-card button:hover,
-.hud-card button:focus-visible {
+.hud-card button:focus-visible,
+.hud-card button.nav-focus {
   outline: 3px solid #f2c75c;
   outline-offset: 2px;
 }
@@ -772,6 +773,17 @@
 }
 .hud-card .warn {
   color: #a8262c;
+}
+.hud-action-group {
+  margin-bottom: 1.2em;
+}
+.hud-action-group h3 {
+  margin: 0 0 0.5em;
+  font-family: var(--font-display);
+}
+.hud-actions button {
+  text-align: left;
+  scroll-margin-block: 1em;
 }
 .hud-orders {
   position: absolute;
@@ -828,6 +840,23 @@
   bottom: -1.6em;
   font-size: 0.75em;
   color: var(--hud-dim);
+}
+.hud-map .map-close {
+  position: absolute;
+  top: 1em;
+  right: 1em;
+  pointer-events: auto;
+  padding: 0.5em 0.8em;
+  border: 2px solid #2a2118;
+  background: #f1e7cf;
+  color: #2a2118;
+  font: inherit;
+  cursor: pointer;
+}
+.hud-map .map-close:focus-visible,
+.hud-map .map-close.nav-focus {
+  outline: 3px solid #f2c75c;
+  outline-offset: 2px;
 }
 
 /* Mouse-aim instructor markers */

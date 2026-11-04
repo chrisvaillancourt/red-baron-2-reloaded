@@ -16,7 +16,9 @@ import { compass, dial, type Gauge } from './gauges';
 import { declutter, visibleThreats } from './declutter';
 import { onPadChange } from '../gamepad';
 import { createCrewOverlay } from './crewOverlay';
-import type { EndFlightPromptOptions, Hud, HudDamage, HudGun, HudMessageOptions, HudScreenPoint, HudView, PauseCallbacks } from './types';
+import { createNav } from '../nav';
+import { ACTION_GROUPS } from '../flightActions';
+import type { EndFlightPromptOptions, Hud, HudControllerOptions, HudDamage, HudGun, HudMessageOptions, HudScreenPoint, HudView, PauseCallbacks } from './types';
 
 const K_TAPE = 0.3; // em per degree on the heading tape
 
@@ -261,35 +263,106 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   let mapHost: HTMLElement | null = null;
   let mapCanvas: HTMLCanvasElement | null = null;
 
-  // While a card is open the HUD owns the keyboard (capture phase, so the
-  // game's own key handlers never see Escape/Enter/arrows meant for the menu).
-  let cardKeys: ((e: KeyboardEvent) => void) | null = null;
-  function openCard(card: HTMLElement, onEscape: () => void): void {
-    closeCard();
-    backdrop = h('div', { class: 'hud-menu-backdrop' }, card);
-    cardKeys = (e: KeyboardEvent) => {
-      const btns = [...card.querySelectorAll<HTMLButtonElement>('button')];
-      const i = btns.indexOf(document.activeElement as HTMLButtonElement);
-      if (e.key === 'Escape') onEscape();
-      else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') btns[(i + 1) % btns.length]?.focus();
-      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') btns[(i - 1 + btns.length) % btns.length]?.focus();
-      else if (e.key === 'Enter' || e.key === ' ') (i >= 0 ? btns[i] : btns.find((b) => b.classList.contains('primary')) ?? btns[0])?.click();
-      else if (e.key !== 'Tab') {
-        e.stopPropagation();
-        return;
-      } else return;
+  let controllerOptions: HudControllerOptions | null = null;
+  let activeCard: HTMLElement | null = null;
+  let menuKind: Hud['menuKind'] = null;
+  let cardBack: (() => void) | null = null;
+  let mapHint: HTMLElement | null = null;
+  const nav = createNav({
+    scope: () => controllerOptions?.foregroundOverlay() ?? activeCard ?? (controllerOptions?.mapCapturesInput() ? mapHost : null),
+    onBack: () => { handleMenuBack(); },
+    onTab: () => {},
+    gamepadEnabled: () => settings.controls.gamepadEnabled && controllerOptions !== null,
+    gamepadAllowed: (pad) => controllerOptions?.gamepadAllowed(pad) ?? false,
+    keyboardBack: false,
+  });
+
+  function handleMenuBack(): boolean {
+    if (controllerOptions?.foregroundOverlay()) return true;
+    if (cardBack) {
+      cardBack();
+      return true;
+    }
+    if (mapHost && controllerOptions) {
+      controllerOptions.onAction('map');
+      return true;
+    }
+    return false;
+  }
+
+  // Navigation owns arrows and native activation. Keep flight bindings out of cards;
+  // a foreground error card always receives input instead of this underlying owner.
+  function onCardKey(e: KeyboardEvent): void {
+    if (!activeCard || controllerOptions?.foregroundOverlay()) return;
+    if (e.key === 'Escape') {
+      handleMenuBack();
       e.preventDefault();
-      e.stopPropagation();
-    };
-    window.addEventListener('keydown', cardKeys, true);
+      e.stopImmediatePropagation();
+    } else if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Tab', '[', ']', 'PageUp', 'PageDown'].includes(e.key)) {
+      e.stopImmediatePropagation();
+    }
+  }
+  window.addEventListener('keydown', onCardKey, true);
+
+  function openCard(card: HTMLElement, kind: NonNullable<Hud['menuKind']>, onBack: () => void, preferred?: HTMLElement): void {
+    closeCard();
+    activeCard = card;
+    menuKind = kind;
+    cardBack = onBack;
+    backdrop = h('div', { class: 'hud-menu-backdrop' }, card);
     root.append(backdrop);
-    card.querySelector<HTMLButtonElement>('button.primary, button')?.focus();
+    nav.focusFirst(preferred);
   }
   function closeCard(): void {
-    if (cardKeys) window.removeEventListener('keydown', cardKeys, true);
-    cardKeys = null;
     backdrop?.remove();
     backdrop = null;
+    activeCard = null;
+    menuKind = null;
+    cardBack = null;
+  }
+
+  function updateMapHint(): void {
+    if (!mapHint) return;
+    let controller = false;
+    if (settings.controls.gamepadEnabled && controllerOptions) {
+      try {
+        const pads = navigator.getGamepads?.() ?? [];
+        for (const pad of pads) {
+          if (pad?.connected && pad.mapping === 'standard' && controllerOptions.gamepadAllowed(pad)) {
+            controller = true;
+            break;
+          }
+        }
+      } catch { /* Keyboard close remains available without the Gamepad API. */ }
+    }
+    // A map the pilot flies under keeps Close map out of pad and keyboard focus (mouse only).
+    const close = mapHost?.querySelector<HTMLButtonElement>('.map-close');
+    if (close) close.tabIndex = controllerOptions?.mapCapturesInput() ? 0 : -1;
+    const key = codeLabel(settings.controls.keyBindings.map?.[0] ?? 'KeyM');
+    setText(mapHint, `${key}${controller ? ' / View / B' : ''} — close map`);
+  }
+
+  function showActions(cb: PauseCallbacks): void {
+    const options = controllerOptions;
+    if (!options || options.foregroundOverlay()) return;
+    const back = h('button', { onClick: () => hud.showPauseMenu(cb) }, 'Back to pause');
+    const groups = ACTION_GROUPS.map((group) => h('section', { class: 'hud-action-group' },
+      h('h3', null, group.label),
+      h('div', { class: 'menu' }, ...group.actions.map(([action, label]) =>
+        h('button', {
+          dataset: { flightAction: action },
+          onClick: () => {
+            const owner = controllerOptions;
+            if (!owner || owner.foregroundOverlay()) return;
+            closeCard();
+            owner.onAction(action);
+          },
+        }, label)))));
+    const card = h('div', { class: 'hud-card hud-actions', role: 'dialog', 'aria-label': 'Flight actions' },
+      h('h2', null, 'Flight actions'),
+      h('p', null, 'Flight paused. Choose a command to return to flight.'),
+      ...groups, h('div', { class: 'row' }, back));
+    openCard(card, 'actions', () => hud.showPauseMenu(cb));
   }
 
   // ------------------------------------------------------ messages
@@ -313,9 +386,22 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
     get menuOpen() {
       return !!backdrop;
     },
+    get menuKind() {
+      return menuKind;
+    },
+    setControllerOptions(options) {
+      controllerOptions = options;
+      const mapClose = mapHost?.querySelector<HTMLButtonElement>('.map-close');
+      if (mapClose) mapClose.hidden = !options;
+      nav.setActive(false);
+      nav.setActive(true);
+      updateMapHint();
+    },
+    handleMenuBack,
 
     update(v: HudView) {
       unitsFor(v);
+      updateMapHint();
       const sg = v.sunGlare;
       toggleClass(sunGlare, 'hidden', !sg);
       if (sg) {
@@ -498,6 +584,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
           'div',
           { class: 'menu' },
           h('button', { class: 'primary', onClick: () => (closeCard(), cb.onResume()) }, 'Resume flight'),
+          controllerOptions ? h('button', { onClick: () => showActions(cb) }, 'Flight actions') : null,
           cb.onRestart ? h('button', { onClick: () => (closeCard(), cb.onRestart!()) }, 'Restart mission') : null,
           h('button', { onClick: () => (closeCard(), cb.onEndFlight()) }, 'End flight'),
           h('button', { class: 'danger', onClick: () => confirmAbandon() }, 'Abandon mission'),
@@ -522,9 +609,9 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
             h('button', { class: 'danger', onClick: () => (closeCard(), cb.onQuit()) }, 'Abandon'),
           ),
         );
-        openCard(confirm, () => (closeCard(), cb.onResume()));
+        openCard(confirm, 'abandon', () => (closeCard(), cb.onResume()));
       };
-      openCard(card, () => (closeCard(), cb.onResume()));
+      openCard(card, 'pause', () => (closeCard(), cb.onResume()));
     },
     hidePauseMenu: closeCard,
 
@@ -538,7 +625,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
           : h('p', { class: 'warn' }, o.reason ?? 'It is not safe to end the flight here.', ' Ending now may be recorded as a forced landing — or worse.'),
         h('div', { class: 'row' }, h('button', { onClick: () => (closeCard(), o.onCancel()) }, 'Keep flying'), h('button', { class: `primary ${o.safe ? '' : 'danger'}`, onClick: () => (closeCard(), o.onConfirm()) }, 'End flight')),
       );
-      openCard(card, () => (closeCard(), o.onCancel()));
+      openCard(card, 'end-flight', () => (closeCard(), o.onCancel()), card.querySelector<HTMLButtonElement>('button')!);
     },
     hideEndFlightPrompt: closeCard,
 
@@ -547,15 +634,18 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
         mapHost?.remove();
         mapHost = null;
         mapCanvas = null;
+        mapHint = null;
         return;
       }
       if (!mapHost) {
         mapCanvas = document.createElement('canvas');
-        const key = codeLabel(settings.controls.keyBindings.map?.[0] ?? 'KeyM');
-        mapHost = h('div', { class: 'hud-map' }, mapCanvas, h('div', { class: 'close-hint' }, `${key} — close map`));
+        mapHint = h('div', { class: 'close-hint' });
+        const close = h('button', { class: 'map-close', hidden: !controllerOptions, onClick: () => handleMenuBack() }, 'Close map');
+        mapHost = h('div', { class: 'hud-map' }, mapCanvas, close, mapHint);
         root.append(mapHost);
       }
       drawMap(mapCanvas!, { ...view, style: 'overlay' });
+      updateMapHint();
     },
 
     setGEffect(v) {
@@ -581,11 +671,14 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
     setSettings(s) {
       settings = s;
       unitsKey = '';
+      updateMapHint();
     },
 
     dispose() {
       ro.disconnect();
       unsubPad();
+      nav.dispose();
+      window.removeEventListener('keydown', onCardKey, true);
       closeCard();
       root.remove();
     },

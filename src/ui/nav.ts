@@ -8,6 +8,7 @@
  *
  * Disabled while a flight is running (the game owns input then).
  */
+import { connectedPad } from './gamepad';
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -19,7 +20,7 @@ export interface NavOptions {
   onTab: (dir: -1 | 1) => void;
   /** Optional contextual controller gate; keyboard navigation is unaffected. */
   gamepadEnabled?: () => boolean;
-  /** Contextual ownership filter; unspecified preserves legacy menu mappings. */
+  /** Contextual ownership filter; supplied filters supersede the default standard menu owner. */
   gamepadAllowed?: (pad: Gamepad) => boolean;
   /** Leave Escape/Backspace to a session's pause bindings instead of onBack. */
   keyboardBack?: boolean;
@@ -93,6 +94,51 @@ export function createNav(opts: NavOptions): Nav {
   let padScope: HTMLElement | null = null;
   let generation = 0;
   let highlighted: HTMLElement | null = null;
+  let observedScope: HTMLElement | null = null;
+  const observer = new MutationObserver(records => structuralChange(records));
+
+  function structuralChange(records: MutationRecord[]): boolean {
+    for (const record of records) {
+      for (const nodes of [record.addedNodes, record.removedNodes]) {
+        for (const node of nodes) {
+          if (node instanceof HTMLElement && (node.matches(FOCUSABLE) || node.querySelector(FOCUSABLE))) {
+            const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            resetGamepads();
+            // Partial widget redraws retain surviving/consumer-restored focus.
+            // Persistent header/tab controls instead yield to a rebuilt panel.
+            restoreFocus(focused?.closest('[role="tab"], .rb-header') ? null : focused);
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  function observeScope(scope: HTMLElement): void {
+    if (scope === observedScope) return;
+    observer.disconnect();
+    observedScope = scope;
+    observer.observe(scope, { childList: true, subtree: true });
+  }
+
+  function restoreFocus(preferred?: HTMLElement | null): void {
+    const scope = opts.scope();
+    if (!active || !scope) return;
+    const all = focusables(scope);
+    const auto = scope.querySelector<HTMLElement>('[data-autofocus]');
+    const target = preferred && all.includes(preferred) ? preferred : auto && all.includes(auto) ? auto : (all.find(e => e.closest('.tab-panel')) ?? all.find(e => !e.closest('.rb-header')) ?? all[0]);
+    if (target) focusElement(target, true);
+    else clearFocus();
+  }
+
+  function ownerChanged(scope: HTMLElement, owner: number): boolean {
+    if (!active || opts.scope() !== scope || generation !== owner || opts.gamepadEnabled?.() === false) {
+      resetGamepads();
+      return true;
+    }
+    return false;
+  }
 
   function clearFocus(): void {
     highlighted?.classList.remove('nav-focus');
@@ -126,9 +172,13 @@ export function createNav(opts: NavOptions): Nav {
     pads.delete(index);
   }
 
-  function onConnectionChange(event: GamepadEvent): void {
-    forgetPad(event.gamepad.index);
-    generation++;
+  function onConnectionChange(): void {
+    resetGamepads();
+  }
+
+  function onBlur(): void {
+    clearFocus();
+    resetGamepads();
   }
 
   function move(dir: Dir): void {
@@ -141,6 +191,7 @@ export function createNav(opts: NavOptions): Nav {
       focusElement(items[0]);
       return;
     }
+    if ((dir === 'left' || dir === 'right') && adjustNative(cur, dir === 'right' ? 1 : -1)) return;
     // Left/right inside a segmented group steps through it in order, even where it wraps onto
     // two rows (spatially the button below can be nearer than the next one along).
     const seg = dir === 'left' || dir === 'right' ? cur.closest<HTMLElement>('.seg') : null;
@@ -170,6 +221,37 @@ export function createNav(opts: NavOptions): Nav {
     }
   }
 
+  function adjustNative(el: HTMLElement, dir: -1 | 1): boolean {
+    if (el instanceof HTMLSelectElement) {
+      let next = el.selectedIndex + dir;
+      while (next >= 0 && next < el.options.length) {
+        const option = el.options[next];
+        if (!option.disabled && !(option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled)) {
+          el.selectedIndex = next;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          break;
+        }
+        next += dir;
+      }
+      return true;
+    }
+    if (el instanceof HTMLInputElement && el.type === 'range') {
+      const before = el.value;
+      // stepUp/Down implements native min/max/step snapping.
+      if (el.step === 'any') {
+        el.valueAsNumber += dir * ((Number(el.max || 100) - Number(el.min || 0)) / 100);
+      } else if (dir > 0) el.stepUp();
+      else el.stepDown();
+      if (el.value !== before) {
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    }
+    return false;
+  }
+
   function isTextEntry(el: Element | null): boolean {
     if (!el) return false;
     if (el instanceof HTMLTextAreaElement) return true;
@@ -178,7 +260,7 @@ export function createNav(opts: NavOptions): Nav {
   }
 
   function onKey(e: KeyboardEvent): void {
-    if (!active || e.defaultPrevented) return;
+    if (!active || !opts.scope() || e.defaultPrevented) return;
     if (opts.keyboardBack === false && (e.key === 'Escape' || e.key === 'Backspace')) return;
     const t = document.activeElement;
     const text = isTextEntry(t);
@@ -187,7 +269,7 @@ export function createNav(opts: NavOptions): Nav {
     switch (e.key) {
       case 'ArrowUp':
       case 'ArrowDown':
-        if (select) return;
+        if (select || text) return;
         e.preventDefault();
         move(e.key === 'ArrowUp' ? 'up' : 'down');
         break;
@@ -232,12 +314,14 @@ export function createNav(opts: NavOptions): Nav {
       heldSince.set(id, now);
       lastPress.set(id, now);
       action();
+      structuralChange(observer.takeRecords());
       return;
     }
     // Direction/tab holds repeat after 400 ms, every 120 ms; activation is an edge.
     if (repeat && now - since > 400 && now - (lastPress.get(id) ?? 0) > 120) {
       lastPress.set(id, now);
       action();
+      structuralChange(observer.takeRecords());
     }
   }
 
@@ -248,19 +332,24 @@ export function createNav(opts: NavOptions): Nav {
       resetGamepads();
       return;
     }
+    observeScope(scope);
     if (scope !== padScope) {
       resetGamepads();
       padScope = scope;
       if (highlighted && !scope.contains(highlighted)) clearFocus();
+      // An initially unfocused owner consumes the first A to acquire focus.
+      // Do not pre-focus loading Abandon and turn that first press into a click.
       const focused = document.activeElement;
       if (focused instanceof HTMLElement && scope.contains(focused)) focusElement(focused, true);
     }
     const connected = navigator.getGamepads();
+    const primary = opts.gamepadAllowed ? null : connectedPad();
     for (const [index, state] of pads) {
-      if (!connected[index]?.connected || connected[index]?.id !== state.id) forgetPad(index);
+      const gp = connected[index];
+      if (!gp?.connected || gp.id !== state.id || (opts.gamepadAllowed ? !opts.gamepadAllowed(gp) : gp.index !== primary?.index || gp.id !== primary?.id)) forgetPad(index);
     }
     for (const gp of connected) {
-      if (!gp || !gp.connected || opts.gamepadAllowed?.(gp) === false) continue;
+      if (!gp?.connected || (opts.gamepadAllowed ? !opts.gamepadAllowed(gp) : gp.index !== primary?.index || gp.id !== primary?.id)) continue;
       const b = (i: number) => !!gp.buttons[i]?.pressed;
       const ax = gp.axes[0] ?? 0;
       const ay = gp.axes[1] ?? 0;
@@ -277,26 +366,32 @@ export function createNav(opts: NavOptions): Nav {
       const k = `${gp.index}:`;
       const owner = generation;
       press(k + 'up', now, b(12) || ay < -0.6, () => move('up'));
+      if (ownerChanged(scope, owner)) return;
       press(k + 'down', now, b(13) || ay > 0.6, () => move('down'));
+      if (ownerChanged(scope, owner)) return;
       press(k + 'left', now, b(14) || ax < -0.6, () => move('left'));
+      if (ownerChanged(scope, owner)) return;
       press(k + 'right', now, b(15) || ax > 0.6, () => move('right'));
+      if (ownerChanged(scope, owner)) return;
       press(k + 'a', now, b(0), () => {
         const el = document.activeElement as HTMLElement | null;
         if (el && scope.contains(el)) el.click();
         else move('down');
       }, false);
-      if (!active || opts.scope() !== scope || generation !== owner) { resetGamepads(); return; }
-      press(k + 'b', now, b(1), () => opts.onBack());
-      if (!active || opts.scope() !== scope || generation !== owner) { resetGamepads(); return; }
+      if (ownerChanged(scope, owner)) return;
+      press(k + 'b', now, b(1), () => opts.onBack(), false);
+      if (ownerChanged(scope, owner)) return;
       press(k + 'lb', now, b(4), () => opts.onTab(-1));
+      if (ownerChanged(scope, owner)) return;
       press(k + 'rb', now, b(5), () => opts.onTab(1));
+      if (ownerChanged(scope, owner)) return;
     }
   }
 
   window.addEventListener('keydown', onKey);
   window.addEventListener('focusout', onFocusOut);
   window.addEventListener('pointerdown', clearFocus);
-  window.addEventListener('blur', clearFocus);
+  window.addEventListener('blur', onBlur);
   window.addEventListener('gamepaddisconnected', onConnectionChange);
   window.addEventListener('gamepadconnected', onConnectionChange);
   raf = requestAnimationFrame(pollGamepads);
@@ -310,11 +405,10 @@ export function createNav(opts: NavOptions): Nav {
     focusFirst(preferred) {
       const scope = opts.scope();
       if (!active || !scope) return;
-      const auto = scope.querySelector<HTMLElement>('[data-autofocus]');
-      const all = focusables(scope);
-      // Restore only inside the owner; otherwise prefer content over header Back.
-      const target = preferred && all.includes(preferred) ? preferred : auto && all.includes(auto) ? auto : (all.find((e) => !e.closest('.rb-header')) ?? all[0]);
-      if (target) focusElement(target, true);
+      observeScope(scope);
+      structuralChange(observer.takeRecords());
+      resetGamepads();
+      restoreFocus(preferred);
     },
     dispose() {
       active = false;
@@ -323,10 +417,11 @@ export function createNav(opts: NavOptions): Nav {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('focusout', onFocusOut);
       window.removeEventListener('pointerdown', clearFocus);
-      window.removeEventListener('blur', clearFocus);
+      window.removeEventListener('blur', onBlur);
       window.removeEventListener('gamepaddisconnected', onConnectionChange);
       window.removeEventListener('gamepadconnected', onConnectionChange);
       cancelAnimationFrame(raf);
+      observer.disconnect();
     },
   };
 }

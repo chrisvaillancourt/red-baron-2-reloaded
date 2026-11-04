@@ -111,6 +111,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
 
   const nav = createNav({
     scope: () => getErrorOverlay() ?? modals[modals.length - 1] ?? screen?.el ?? null,
+    gamepadEnabled: () => services.getSettings().controls.gamepadEnabled,
     onBack: () => {
       if (getErrorOverlay()) return;
       if (modals.length) {
