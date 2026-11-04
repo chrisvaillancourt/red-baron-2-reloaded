@@ -31,7 +31,7 @@ function setup(mission = bristolFight()) {
   const rig = new CameraRig(70, 16 / 9);
   const messages: string[] = [];
   const synced: AircraftEntity[] = [];
-  const input = { stationMode: false, syncTo: (ac: AircraftEntity) => synced.push(ac) };
+  const input = { stationMode: false, syncTo: (ac: AircraftEntity) => synced.push(ac), cancelTransientInput: () => {} };
   const crew = new PlayerCrew({ core, rig, input, message: (t) => messages.push(t), bindings: () => DEFAULT_KEY_BINDINGS, visual: () => undefined });
   return { core, rig, input, crew, messages, synced, player: core.world.player! };
 }

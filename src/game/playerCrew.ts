@@ -24,7 +24,7 @@ const DEFAULT_EYE = new Vector3(0, 1, 0);
 export interface PlayerCrewDeps {
   core: Pick<SimCore, 'playerStation' | 'setPlayerStation' | 'world'>;
   rig: CameraRig;
-  input: { stationMode: boolean; syncTo(ac: AircraftEntity): void };
+  input: { stationMode: boolean; syncTo(ac: AircraftEntity): void; cancelTransientInput(): void };
   message(text: string): void;
   bindings(): Record<string, string[]>;
   /** The player's aircraft visual, once loaded. */
@@ -128,6 +128,9 @@ export class PlayerCrew {
     if (id !== from) {
       this.releaseArmed = false;
       this.releaseHeld = false;
+      // Gun to gun keeps stationMode true, so its setter cannot disarm: held RT and stick
+      // must not carry to the new gun. Pilot handovers disarm through stationMode/syncTo.
+      if (from !== 'pilot' && id !== 'pilot') this.d.input.cancelTransientInput();
     }
     if (id === 'pilot') {
       this.leaveGun(view);
