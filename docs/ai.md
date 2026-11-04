@@ -516,11 +516,16 @@ their names, so add or rename a set in both places.
 - `collision.realsim.test.ts` (CI, ~15 s): 20 4v4 furballs with a leader who doesn't dodge;
   at most one collision involving him. `strafe.test.ts`: strafers pick the battery over
   the flak gun at the waypoint.
-- `quickCollision.realsim.test.ts` (CI): three retained Q-05 whole-approach cases
-  use `testing/quickCollisionScenarios.ts`, real quick-mission construction and
-  autoplay with the AI pilot pinned. They assert no collision events, contact,
-  gunfire and clean spawns, rather than incidental timing/state strings. Restoring
-  only public flight states with fresh controllers did not reproduce the failures.
+- `quickCollision.soak.test.ts` (`AI_SOAK=quickcollision`, not CI since D-118): three
+  retained Q-05 whole-approach cases use `testing/quickCollisionScenarios.ts`, real
+  quick-mission construction and autoplay with the AI pilot pinned. They assert no
+  collision events, contact, gunfire and clean spawns. They replay 215–660 s of chaotic
+  flight, so a one-ulp platform difference (Node release, OS, CPU) sends them into a
+  different fight; compare commits on one machine. Restoring only public flight states
+  with fresh controllers did not reproduce the failures. CI keeps the short encounters.
+- **Platform rule (D-118):** a CI test must not depend on bit-exact trajectories longer
+  than about a minute of sim time. Assert behaviour over short encounters, or a rate over
+  many seeds with a tolerance, and leave long exact replays to soaks.
 - `aimDither.realsim.test.ts` and `instructorMargin.realsim.test.ts` (CI): E.III and
   Camel settle on a mouse-aim point without wing-rocking; the instructor presets order
   their stall margins relaxed > standard > authentic and relaxed never stalls a Camel or
