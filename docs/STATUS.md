@@ -16,6 +16,7 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 | Track | Branch | Next action |
 |---|---|---|
 | Tech-debt wave 2 | local `main`, not pushed | Six refactors merged (sim hit tables, SegmentIndex grid, typed screen params, `flightSession` split, campaign rules); each reviewed clean. Merged tree vs `31ece95`: combat, AI default and long, world, mission and geo probes all `equal`; `pnpm check` green (763 Vitest, 45 tool tests). Run `E2E_PORT=<port> pnpm e2e` (stopped for a restart, not failed), then push and verify the deploy. |
+| Friction fixes | `docs/friction-2026-11-04` (`5e4db72`) | Doc fixes from this session's agent friction plus F-113 to F-116; merge with wave 2. |
 
 ## Next
 
