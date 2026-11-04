@@ -350,6 +350,29 @@ every gain with dynamic pressure automatically.
 
 ## Tests
 
+**Refactor equivalence.** A refactor-only commit in `src/ai`, `src/sim` or `src/game`
+claims zero behavior change, which `ab.mjs` cannot show. Prove it exactly instead:
+prepare a detached worktree at the base commit (`git worktree add --detach <dir> <base>`,
+then `sfw pnpm install` there) and run
+
+```sh
+node tools/dev/differential-probe.mjs --baseline <dir> --candidate . \
+  --scenario tools/dev/scenarios/ai-equivalence.mjs --input '{"suite":"default"}'
+```
+
+It must exit 0 (`"verdict": "equal"`); quote the verdict in the report or commit body.
+The scenario samples every aircraft at 10 Hz (position, quaternion, velocity, angular
+velocity, controls, AI phase/target/debug state, outcome) plus every event, over 4v4
+furballs (one runs to a kill), an escorted bomber raid, a low-level bounce and a
+SimCore quick dogfight. A mismatch exits 1 and names the first differing path, such as
+`$["cases"][3]["samples"][697]["aircraft"][1]["angularVelocity"][0]` (case, 10 Hz
+sample, aircraft, field). `{"suite":"long"}` adds 150 s furballs and a quick bombing
+raid (about 30 s). Equal output covers only the paths these cases exercise: a change in
+an unvisited branch (for example the sun-line stalk, with no sun in the harness) stays
+equal. `ab.mjs` stays the tool for behavior changes. CI runs the default suite against
+itself (`tools/dev/differential-probe.test.mjs`) to catch nondeterminism; no golden
+trace is stored, because the claim is "unchanged versus my base", on the same Node.
+
 **A/B measurement.** Use `node tools/dev/ab.mjs` rather than hand-launching paired soaks.
 It supports career, quick, fairness, tailhold, defence and raid on matched seeds/counts:
 `--flag <TACTICS_FLAGS name>` switches a tactic off/on; `--base <ref> --head HEAD`
