@@ -125,6 +125,9 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
 ## Shared workflow lessons
 - **New worktrees have no `node_modules`.** Run `sfw pnpm install` before tests, the
   typecheck or the dev server.
+- **Prove each commit of a series on its own** with
+  `pnpm exec node tools/dev/checkcommits.mjs main..HEAD` (install, typecheck, `pnpm test`
+  per commit in a scratch worktree; exit 0 only if all pass). Don't hand-roll the loop.
 - **A/B with `node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`).
   For file-based readiness, `node tools/dev/waitfor.mjs <file> <regex> …` is the portable
   blocking helper. Don't hand-launch paired soaks or write sleep loops. Quote a difference
