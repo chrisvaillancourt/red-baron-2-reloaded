@@ -33,6 +33,7 @@ import { aerodromesActiveOn, type AerodromeWorld } from '../data/aerodromes';
 import { ACES, aceNamesOn, aceServiceOn, type Ace } from '../data/aces';
 import { eventOn, type HistoricalEvent } from '../data/history';
 import { composeLivery } from '../data/liveries';
+import { BRIEFING_LANG, imperialNation } from '../data/nations';
 import { getRank } from '../data/ranks';
 import { getSquadronInfo } from '../data/squadrons';
 import { terrainHeightAt } from '../world/terrain';
@@ -97,7 +98,7 @@ export function newCtx(seed: number, date: string, side: Side, nation: Nation, d
     nation,
     difficulty,
     event: eventOn(date),
-    imperial: nation === 'britain' || nation === 'usa',
+    imperial: imperialNation(nation),
     unavailableAces: new Set(unavailableAces),
     flights: [],
     balloons: [],
@@ -817,7 +818,7 @@ export function generateCareerMission(pilot: CareerPilot, aircraftChoice: Aircra
 
   const timeOfDay = randomTimeOfDay(ctx.rng);
   const weather = seasonalWeather(date, ctx.rng);
-  const lang = pilot.nation === 'germany' ? 'de' : pilot.nation === 'france' ? 'fr' : 'en';
+  const lang = BRIEFING_LANG[pilot.nation];
   const rank = getRank(pilot.rankId);
   const wingmen = members.length - 1;
   const paragraphs = [

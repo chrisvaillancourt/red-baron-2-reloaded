@@ -9,6 +9,7 @@ import { NATION_SIDE } from '../core/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { ACES, aceNamesOn, getAce } from '../data/aces';
 import { getMedal } from '../data/medals';
+import { BRIEFING_LANG } from '../data/nations';
 import { getRank } from '../data/ranks';
 import { getSquadronInfo } from '../data/squadrons';
 import { composeLivery } from '../data/liveries';
@@ -68,7 +69,7 @@ export function applyResult(p: CareerPilot, mission: MissionDefinition, result: 
   const rankBefore = getRank(p.rankId);
   const narrative: string[] = [];
   let headline: string | undefined;
-  const lang = p.nation === 'germany' ? 'de' : p.nation === 'france' ? 'fr' : 'en';
+  const lang = BRIEFING_LANG[p.nation];
 
   // ------------------------------------------------------------ fate
   let fate: PilotFate = result.playerFate;
