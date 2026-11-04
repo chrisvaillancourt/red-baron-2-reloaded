@@ -16,7 +16,7 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 | Track | Branch | Next action |
 |---|---|---|
-| — | — | Nothing in flight. Q-06 dropped by its soaks (D-121); pick from Next. |
+| — | — | Nothing in flight. Waiting on the owner's iPhone and Xbox playtest ([checklist](PLAYTEST.md#hardware-checklist-iphone-and-xbox-controller)) and the Q-07 and Q-09 decisions. |
 
 ## Next
 
