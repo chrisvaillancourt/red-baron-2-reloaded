@@ -1557,7 +1557,7 @@ mock every rect. happy-dom also let `focus()` land on hidden and non-focusable e
 has had four critical advisories since 2024.
 
 - `vite.config.ts` has two Vitest projects: `unit` (Node, as before) and `ui-dom`
-  (`src/ui/**/*.dom.test.ts`) in headless installed Chrome through
+  (`src/**/*.dom.test.ts`, used for `src/ui`) in headless installed Chrome through
   `@vitest/browser-playwright`, honouring `PW_CHANNEL` like the e2e config. CI uses the
   ubuntu-24.04 runner's preinstalled Chrome; no browser download.
 - New dev dependencies, exact pins: `@vitest/browser-playwright` 5.0.5 and `playwright`

@@ -90,7 +90,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'ui-dom',
-          include: ['src/ui/**/*.dom.test.ts'],
+          // Same glob the unit project excludes, so no *.dom.test.ts falls between the two.
+          include: ['src/**/*.dom.test.ts'],
           browser: {
             enabled: true,
             headless: true,
