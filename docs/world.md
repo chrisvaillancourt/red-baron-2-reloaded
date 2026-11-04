@@ -41,7 +41,9 @@ Rerun with `node tools/dev/differential-probe.mjs --baseline . --candidate .
 reports its own timings, so the probe exits 1 by design. Points near the origin
 cost less (~8 µs for terrain), so whole-sector figures are the ones to quote. The
 perf guards in `src/world/world.test.ts` sample the same sector; re-baseline their
-budgets (~2x the Vitest idle cost) when a query's cost changes on purpose.
+budgets (~2x the Vitest idle cost) when a query's cost changes on purpose. By
+default the guards allow 2x the budget (~4x idle), tight enough that a query doing
+10x the work fails even on cache-hot points; `PERF_STRICT=1` enforces the budget itself.
 
 ## Renderer (`src/render`)
 

@@ -46,16 +46,19 @@ const SECTOR_POINTS = (() => {
 /**
  * Budgets are ~2x the idle per-call cost on these whole-sector points (Apple M3 Max,
  * Node 24, Vitest: terrain ~14 µs, side ~17 µs) and are the regression bar with
- * PERF_STRICT=1. By default they get 3x headroom (~6x idle), so a loaded shared
- * machine or a slower CI runner can't flake them, while a 10x slowdown still fails.
+ * PERF_STRICT=1. By default they get 2x headroom (~4x idle: 60/70 µs). That covers a
+ * loaded shared machine (simulated load peaked at ~39 µs for terrain), and still fails
+ * when a query does 10x the work, even on a cache-hot point that costs only ~6x the
+ * wall-clock (~85 µs for terrain), which 3x headroom (90 µs) let through.
  * Re-baseline when a query's cost changes on purpose (docs/world.md has the figures).
  */
-/** 7 × 20k calls take ~5 s on a 2-core CI runner at 3x budget: the budget, not the timeout, is the gate. */
+const PERF_HEADROOM = 2;
+/** 7 × 20k calls take ~5 s on a 2-core CI runner: the budget, not the timeout, is the gate. */
 const PERF_TIMEOUT_MS = 60_000;
 const PERF_STRICT = typeof process !== 'undefined' && !!process.env.PERF_STRICT;
 function expectPerCallUnder(label: string, ms: number, budgetMs: number): void {
-  const limit = PERF_STRICT ? budgetMs : budgetMs * 3;
-  console.info(`[perf] ${label}: ${(ms * 1000).toFixed(1)} µs/call (budget ${(budgetMs * 1000).toFixed(0)} µs${PERF_STRICT ? ', strict' : ', 3x headroom'})`);
+  const limit = PERF_STRICT ? budgetMs : budgetMs * PERF_HEADROOM;
+  console.info(`[perf] ${label}: ${(ms * 1000).toFixed(1)} µs/call (budget ${(budgetMs * 1000).toFixed(0)} µs${PERF_STRICT ? ', strict' : `, ${PERF_HEADROOM}x headroom`})`);
   expect(ms).toBeLessThan(limit);
 }
 const h = (lat: number, lon: number) => {
