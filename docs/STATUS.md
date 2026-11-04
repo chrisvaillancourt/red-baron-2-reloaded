@@ -16,7 +16,7 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 | Track | Branch | Next action |
 |---|---|---|
-| Q-06 mutual support | `feat/q06-mutual-support` (worktree `../rb2r-q06`) | Owner approved. Steps 1–3 (port behind `TACTICS_FLAGS.mutualSupport`, fixtures, relief counts) in progress; then step-4 soaks one at a time and step-5 review decide keep or drop. |
+| — | — | Nothing in flight. Q-06 dropped by its soaks (D-121); pick from Next. |
 
 ## Next
 

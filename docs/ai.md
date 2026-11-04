@@ -361,6 +361,14 @@ every gain with dynamic pressure automatically.
 
 ## Tests
 
+**Real-sim CI tests check short causal windows.** A CI assertion that compares two whole
+fights (attack time, threat time, losses with a tactic on vs off) is one draw from a chaotic
+distribution: in Q-06, an 8-seed 90 s "on < off" comparison flipped in 5 of 12 runs when a
+start position moved 3 mm (D-121), and D-118 shows platform drift does the same. Assert a
+response within a few seconds of its cause (the helper closes on the pursuer within 2 s),
+and measure whole-fight effects in an opt-in soak over many seeds with a paired statistic.
+Check a new comparison under small start perturbations before relying on it.
+
 **Refactor equivalence.** A refactor-only commit in `src/ai`, `src/sim` or `src/game`
 claims zero behavior change, which `ab.mjs` cannot show. Prove it exactly instead:
 prepare a baseline clone in your scratch directory (`git clone --no-local . <dir>`,

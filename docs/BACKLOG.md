@@ -644,6 +644,8 @@ No collision code or retained staged work was changed by the Xbox release.
 
 ## Q-06 — Ordinary flight-mate mutual support
 
+**Dropped 2026-11-04 (D-121):** the soaks failed the plan's rule; branch `feat/q06-mutual-support` (`328bff5`) is kept unmerged. The plan below is history.
+
 Goal: an AI flight-mate relieves a friend with an enemy on its tail (one leased helper,
 gated on feasibility, visibility and an imminent shot), so lone pursuers face threat from
 aircraft nobody is chasing. An earlier targeting-preference attempt was dropped because it

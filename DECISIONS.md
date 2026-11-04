@@ -1570,3 +1570,35 @@ has had four critical advisories since 2024.
   publishers as their previous versions, no advisories.
 - `ui-dom` is not GPU work for the AGENTS.md scheduling rule: it renders plain DOM.
 - `FlightSession` still has no unit seam; DOM tests cover `src/ui` only.
+
+## D-121 — Q-06 flight-mate relief measured and dropped
+
+Q-06 tried letting one AI flight-mate relieve a friend with an enemy on its tail, so lone
+pursuers would face threat from aircraft nobody was chasing. It was built behind
+`TACTICS_FLAGS.mutualSupport` on branch `feat/q06-mutual-support` (final `328bff5`, not
+merged), with flag-off equivalence proved against `dcb3961`, and reviewed by Opus 5.5 and
+GPT-6.1 Sol over two rounds. Round one found a shared pursuer lease, the player's autoplay
+stand-in taking leases, a mate threshold that depended on whether the mate had an AI
+controller, and a CI comparison that was noise (see docs/ai.md "Tests"); all were fixed
+before the decisive soaks.
+
+The mechanism works: over 48 seeds, relief cut a mate's time under attack by 30% against a
+veteran pursuer (paired mean −8.7 s, sign test p = 0.029) and 37% against a human-like one
+(−12.5 s, p = 0.008). It fails the goal. Flag off vs on at `328bff5`, macOS arm64:
+
+- Tailhold `low`, human-like player: enemy aces' tail-hold on the player 116 → 112 s/run,
+  hits on the player 10.2 → 8.4/run. The plan required a rise.
+- Tailhold `low`, veteran player: tail-hold 128 → 158 s, hits 13.9 → 15.3, but player down
+  30 → 28 of 36. The player's novice wingmen gained most: crashes 16 → 2 (10 → 4 human-like).
+- Fairness, 48 reps: all six setups within noise, but default player-down fell
+  29.2% → 20.8%, the opposite of what Q-06 was for.
+- Career and quick within noise; collisions per 100 missions 7.1 → 8.4 and 5.8 → 6.1.
+
+Relief mostly protects whichever side has weak pilots, which in these missions is usually
+the player's, the D-070 pattern again. The default stays off and the code is not merged.
+Revive from the branch only with a design that targets pressure on the player directly,
+and rerun the same soaks, one at a time:
+`ab.mjs --soak tailhold --set low --flag mutualSupport` (with and without
+`--env AUTOPLAY_PILOT=human`), `--soak fairness --set default,mirror --reps 48`,
+`--soak career --seeds 0,1000,2000`, `--soak quick --reps 24`, and
+`AI_SOAK=mutualsupport` for the mechanism.
