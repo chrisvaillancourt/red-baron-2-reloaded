@@ -6,27 +6,22 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 ## Live
 
-- `31ece95` deployed by [Actions run 41871328346](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41871328346);
-  live `prodcheck` OK. Node 26.12.1 LTS (D-117), long replays as soaks (D-118), D-116,
-  pnpm 12.16.1 via `packageManager`, F-44 `checkcommits`, F-75 `prefix-check`,
-  `worktrees.mjs`, tech-debt wave 1, and the Q-13/Q-06 plans.
+- `78f4dd4` deployed by [Actions run 41879408532](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41879408532);
+  live `prodcheck` OK (the first try hit a transient Pages 503 on a worker asset).
+  Adds tech-debt wave 2 (full e2e 44 passed) and the friction doc fixes to the earlier
+  Node 26.12.1 LTS (D-117), D-118, D-116, pnpm 12.16.1 and tooling work.
 
 ## Now
 
 | Track | Branch | Next action |
 |---|---|---|
-| Tech-debt wave 2 | local `main`, not pushed | Six refactors merged (sim hit tables, SegmentIndex grid, typed screen params, `flightSession` split, campaign rules); each reviewed clean. Merged tree vs `31ece95`: combat, AI default and long, world, mission and geo probes all `equal`; `pnpm check` green (763 Vitest, 45 tool tests). Run `E2E_PORT=<port> pnpm e2e` (stopped for a restart, not failed), then push and verify the deploy. |
-| Friction fixes | `docs/friction-2026-11-04` (`5e4db72`) | Doc fixes from this session's agent friction plus F-113 to F-116; merge with wave 2. |
+| Q-13 controller | `feat/q13-controller` (worktree `../rb2r-q13`) | Q-13A merged and HUD, nav and prompt patches applied (`3601ff2`). Implementing [finish plan](BACKLOG.md#finish-plan--2026-11-04) B1 menu-owner, B2 session binding, B3 prompt fixes; then gates and a standard-tier review of B2. |
 
 ## Next
 
-1. Q-13 controller: [finish plan](BACKLOG.md#finish-plan--2026-11-04) (menu-owner
-   inheritance, session binding, prompt fixes, gates). Branch from `main` after wave 2 is
-   pushed: wave 2 split `src/game/flightSession.ts`. Isolated agent worktrees start from
-   `origin/main`, so create the worktree from local `main` if wave 2 is not yet pushed.
-2. Q-06 mutual support: [finish-or-drop plan](BACKLOG.md#q-06--ordinary-flight-mate-mutual-support),
-   decided by the step-4 soaks.
-3. BACKLOG as contracts only (one Goal/Acceptance/Non-goals section per open item).
+1. Q-06 mutual support: [finish-or-drop plan](BACKLOG.md#q-06--ordinary-flight-mate-mutual-support),
+   decided by the step-4 soaks. Check in with the user before its feature code.
+2. BACKLOG as contracts only (one Goal/Acceptance/Non-goals section per open item).
 
 ## Blocked on the owner
 
