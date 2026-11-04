@@ -1512,3 +1512,24 @@ Any soak or realsim with two AIs extending into each other inside 1.8 s shifts
 after that event (quick, career, fairness, quickdiag, gundiag, autoplay soaks).
 
 Number D-117 assigned by the integration owner when merging the Node LTS fix.
+
+## D-118 — Long exact replays are soaks, not CI tests
+
+The sim is deterministic on one platform only. V8 and libm results differ in the last bit
+across Node releases (D-117), operating systems and CPUs, and a one-ulp difference grows into
+a different fight within about four minutes of sim time. After D-117, CI on Linux x64 failed
+`quickCollision.realsim` (a collision at t=443) where macOS arm64 passed and macOS x64
+collided at t=449, all on Node 26.12.1 at `b508e33`. The three Q-05 cases replay 215–660 s of
+a quick mission to reach an approach recorded on one machine, so they reach it nowhere else.
+
+- The Q-05 replays move to `quickCollision.soak.test.ts` (`AI_SOAK=quickcollision`), for
+  comparing two commits on one machine like the other soaks.
+- CI asserts collision behaviour over short, platform-stable encounters
+  (`extendCollision.test.ts`, `extendCollision.realsim.test.ts`) and a tolerant rate over
+  furballs (`collision.realsim.test.ts`).
+- Rule for new CI tests: an assertion that holds only on the exact trajectory (zero events,
+  one specific outcome) covers at most about a minute of sim time; longer runs assert a range
+  or a rate with a tolerance. Exact-equivalence probes compare two trees on one machine and
+  are unaffected.
+- No cross-platform deterministic math layer: browsers' `Math` differs by engine and version
+  too, so players never shared bit-exact results.
