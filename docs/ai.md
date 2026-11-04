@@ -106,6 +106,10 @@ their leader is doing).
    retaining lateral separation rather than replacing the escape with lift alone.
    Dead-ahead coordinated splitting, avoidance weights, engagement, defence and
    longer-range conflicts are unchanged; the lift vector uses dedicated scratch.
+   When both aircraft are extending AIs and each has the other on its own lift
+   side, only the `splitSide` winner reflects; the other keeps the plain escape
+   away. Two reflections pulled both machines across into the same point
+   (DECISIONS.md "Only one of two extending AIs pulls across").
 3. **Mission** (`navigation.ts`). Waypoints (`fly`, `patrol`, `rendezvous`,
    `attack-balloon`, `attack-ground`, `bomb` (see "Bombers"), `land`), vic formation keeping, escort
    station 300 m above and behind the escorted flight, balloon and strafing

@@ -182,6 +182,7 @@ const _tmp3 = new Vector3();
 const _rel = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _collisionLift = new Vector3();
+const _collisionOtherLift = new Vector3();
 
 export class AIPilot implements AIController {
   readonly entityId: number;
@@ -1875,9 +1876,11 @@ export class AIPilot implements AIController {
       if (dcpa < 1) cpa.copy(lift).multiplyScalar(-splitSide(self, o));
       // During a late extension escape, avoid a roll through the opposite lift
       // direction. Reflect only that component, retaining lateral separation.
+      // Two extending AIs that each see the other on their lift side would both pull
+      // across into the same point, so only one of the pair (splitSide) crosses.
       else if (this.phase === 'extend' && tcpa > 0 && tcpa < BREAK_LEAD_S) {
         const towardLift = cpa.dot(lift);
-        if (towardLift > 0) cpa.addScaledVector(lift, -2 * towardLift);
+        if (towardLift > 0 && !(splitSide(self, o) < 0 && this.otherCrossesToo(o, cpa))) cpa.addScaledVector(lift, -2 * towardLift);
       }
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
@@ -1905,6 +1908,15 @@ export class AIPilot implements AIController {
       // A real conflict overrides the manoeuvre's g cap (formation, extension: 3 g).
       if (wsum > 0.25) steer.maxG = undefined;
     }
+  }
+
+  /**
+   * Would `o`'s own extension escape also reflect toward us? True when it is an AI in
+   * `extend` and our closest approach, seen from its side (`-cpa`), lies on its lift side.
+   */
+  private otherCrossesToo(o: AircraftEntity, cpa: Vector3): boolean {
+    if (REGISTRY.get(o)?.phase !== 'extend') return false;
+    return cpa.dot(upOf(o.state.orientation, _collisionOtherLift)) < 0;
   }
 
   // =====================================================================

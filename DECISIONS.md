@@ -1437,3 +1437,26 @@ make the old PR head an ancestor of this release.
 
 Number D-115 assigned by the integration owner during workflowz integration.
 
+
+## D-XXX — Only one of two extending AIs pulls across (Node 26 move)
+**Context.** On Node 24/26 the quick-collision case "an AI opponent extending past
+the player aircraft" (seed 1495) reported `ai-enemy 116deg extend_#5/extend_#3 t=276`;
+Node 22 passed. The first divergence is in setup: `Math.pow(0.9774423043553705,
+5.25588)` in `airDensityAt` returns `0x3FEC623F13EE31D8` on V8 12.4 (Node 22) and
+`…D9` on V8 13.6/14.6; the exact value lies 0.506 ulp above `…D8`, so the newer result
+is the correctly rounded one. About 10% of setup `pow` calls differ by one ulp; no
+other traced `Math` function differed on equal inputs. The gap grows chaotically
+(1 m by 237 s, 100 m by 251 s), so Node 26 flies a different encounter, not the
+same near miss. In it, AIs 3 and 5 both enter `extend` 1.4 s out with a 31 m
+predicted miss, each with the other on its own lift side. Both applied the D-115
+reflection and pulled toward each other; the predicted miss fell to 2 m.
+**Decision.** In the D-115 branch, an AI skips the reflection when the other
+aircraft is an AI in `extend` that would reflect toward it too and `splitSide`
+says it is the one that yields. The other still crosses. No new policy, radius or
+weight; other phases unchanged. No deterministic-math layer: the sim is only
+promised to be deterministic within one runtime (D-083 replays a mission, not
+inputs), and browsers already differ (V8 versions, JavaScriptCore, SpiderMonkey).
+**Consequences.** The three quick-collision cases pass on Node 22 and 26; the
+seed-1495 pair now clears at about 10 m. Any soak or realsim with two AIs
+extending into each other inside 1.8 s shifts after that event (quick, career,
+fairness, quickdiag, gundiag, autoplay soaks); unit and realsim tests pass.
