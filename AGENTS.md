@@ -26,6 +26,9 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
 - Pure-logic modules (`sim`, `ai`, `world`, `campaign`) must not import `three` scene/renderer
   code — only `three` math classes (Vector3, Quaternion, Matrix4, Euler, MathUtils).
 - Tests: Vitest, co-located as `*.test.ts`. `pnpm test`, `pnpm typecheck` must pass before commit.
+  DOM behaviour in `src/ui` (focus, Tab order, layout-based visibility, keyboard events) goes in
+  `*.dom.test.ts`, which runs in headless installed Chrome (Vitest browser mode, D-120). It is
+  not GPU work. Failure screenshots land in the ignored `.vitest/`.
   This pnpm rejects `-s`: use the plain forms (`pnpm typecheck`, `pnpm test`,
   `pnpm exec vitest run <paths>`).
 - **Commit before you call work done.** Run `git status` before reporting a task complete,

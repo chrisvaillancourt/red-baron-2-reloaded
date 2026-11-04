@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
+import { playwright } from '@vitest/browser-playwright';
 
 /** Same as REPORT_SINK_PATH in src/core/reportSink.ts (reportSink.test.ts checks they match). */
 const REPORT_SINK_PATH = '/__rb2r/flight-report';
@@ -79,7 +80,26 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
   test: {
-    include: ['src/**/*.test.ts'],
-    environment: 'node',
+    projects: [
+      {
+        extends: true,
+        test: { name: 'unit', include: ['src/**/*.test.ts'], exclude: ['src/**/*.dom.test.ts'], environment: 'node' },
+      },
+      {
+        // DOM behaviour (focus, Tab order, layout-based visibility) in real headless Chrome (D-120).
+        extends: true,
+        test: {
+          name: 'ui-dom',
+          // Same glob the unit project excludes, so no *.dom.test.ts falls between the two.
+          include: ['src/**/*.dom.test.ts'],
+          browser: {
+            enabled: true,
+            headless: true,
+            instances: [{ browser: 'chromium' }],
+            provider: playwright({ launchOptions: { channel: process.env.PW_CHANNEL ?? 'chrome' } }),
+          },
+        },
+      },
+    ],
   },
 });
