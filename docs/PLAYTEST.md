@@ -23,7 +23,7 @@ counted. The report is versioned JSON, built on the debrief (DECISIONS "Flight r
    build, press **Copy flight report** and paste it into the chat. A report that a
    decision, test or STATUS item cites is moved to the tracked `playtests/reports/` with
    that change (its README).
-3. **Replay** with `node tools/playtest/replay-report.mjs <report.json>`. The autoplayer
+3. **Replay** with `pnpm exec node tools/playtest/replay-report.mjs <report.json>`. The autoplayer
    flies the same mission 8 times at the report's realism settings. Run 0 uses the game's
    own seeds, and the other runs reseed chance and AI. It prints the reported outcome, each
    enemy's first pass, one line per run, and the fairness soak's summary row. Add

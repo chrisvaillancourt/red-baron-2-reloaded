@@ -130,11 +130,36 @@ export interface AIStats {
 /** Controllers by entity, so wingmen can see what their leader is doing. */
 const REGISTRY = new WeakMap<AircraftEntity, AIPilot>();
 
-/** RTB reasons that are a choice, not a necessity: a fit fighter still fights back. */
-const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort complete']);
+/**
+ * Every reason a pilot heads home, and whether it is a choice (true) or a necessity
+ * (false). A voluntary RTB lets a fit fighter fight back, a bomber still lead, and skips
+ * the cloud escape. A new reason must be added here, which forces that decision.
+ */
+const RTB_VOLUNTARY = {
+  'ordered home': true,
+  'mission complete': true,
+  'escort complete': true,
+  'engine dead': false,
+  'on fire': false,
+  'engine damaged': false,
+  'airframe damaged': false,
+  wounded: false,
+  'low fuel': false,
+  'out of ammunition': false,
+} as const satisfies Record<string, boolean>;
+
+/** Why a pilot is heading home. */
+export type RtbReason = keyof typeof RTB_VOLUNTARY;
+
+const isVoluntaryRtb = (r: RtbReason | null): boolean => r !== null && RTB_VOLUNTARY[r];
 
 /** Seconds of closure at which an attacker breaks off a head-on or overtaking pass. */
 const BREAK_LEAD_S = 1.8;
+/**
+ * Lift-axis acceleration (m/s^2) an extending pilot counts on when pulling across a
+ * conflict, roll-in lag included. Fitted on head-on Camel-class grids (AI_SOAK=extendgrid).
+ */
+const CROSS_PULL_ACCEL = 12;
 /** Seconds of full-g break away from the merge before the extension. */
 const BREAK_S = 0.8;
 /** A bomber formation's leader flies at this fraction of his top speed (a lone machine cruises at 0.8). */
@@ -182,6 +207,7 @@ const _tmp3 = new Vector3();
 const _rel = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _collisionLift = new Vector3();
+const _collisionOtherLift = new Vector3();
 
 export class AIPilot implements AIController {
   readonly entityId: number;
@@ -217,9 +243,9 @@ export class AIPilot implements AIController {
   private lastDamage = 0;
   private hitAt = -100;
   private extendUntil = 0;
-  private rtbReason = '';
+  private rtbReason: RtbReason | null = null;
   /** RTB reason to resume after fighting off an attacker on the way home. */
-  private resumeRtb = '';
+  private resumeRtb: RtbReason | null = null;
   private landing: LandingPlan | null = null;
   landingStage: LandingStage = 'approach';
   private gunnerTarget: number | null = null;
@@ -446,7 +472,7 @@ export class AIPilot implements AIController {
     const dm = self.damage;
     const z = dm.zones;
     const t = this.profile.t;
-    let reason = '';
+    let reason: RtbReason | null = null;
     if (dm.engineDead) reason = 'engine dead';
     else if (dm.onFire) reason = 'on fire';
     else if (z.engine > 0.5) reason = 'engine damaged';
@@ -457,11 +483,11 @@ export class AIPilot implements AIController {
     else if (this.traits.hasFixedGuns && this.opts.task !== 'recon' && this.opts.task !== 'bomb' && fixedAmmo(self) === 0) reason = 'out of ammunition';
     // A bomber hurt but still flying keeps his place in the formation, which is his best
     // protection and goes home when the job is done; only a failing engine, fire or fuel sends him off alone.
-    if ((reason === 'wounded' || reason === 'airframe damaged') && this.holdsFormation(self, world)) reason = '';
+    if ((reason === 'wounded' || reason === 'airframe damaged') && this.holdsFormation(self, world)) reason = null;
     if (reason) this.startRtb(reason);
   }
 
-  private startRtb(reason: string): void {
+  private startRtb(reason: RtbReason): void {
     if (this.phase === 'landing' || this.phase === 'landed') return;
     this.rtbReason = reason;
     this.phase = 'rtb';
@@ -496,7 +522,7 @@ export class AIPilot implements AIController {
   private canLead(_self: AircraftEntity, a: AircraftEntity): boolean {
     if (this.opts.task !== 'bomb') return true;
     const c = REGISTRY.get(a);
-    return !(c && c.phase === 'rtb' && !VOLUNTARY_RTB.has(c.rtbReason) && bombsAboard(a) > 0);
+    return !(c && c.phase === 'rtb' && !isVoluntaryRtb(c.rtbReason) && bombsAboard(a) > 0);
   }
 
   /**
@@ -618,7 +644,7 @@ export class AIPilot implements AIController {
       // Going home because the job is done (or ordered home) is no reason not to fight
       // back: a healthy fighter with ammunition turns on a scout that is attacking it or
       // its flight, instead of being shot in the back all the way to the lines.
-      if (!VOLUNTARY_RTB.has(this.rtbReason) || !this.canFightBack(self)) return;
+      if (!isVoluntaryRtb(this.rtbReason) || !this.canFightBack(self)) return;
       const leader = this.resolveLeader(self, world);
       const threat = known.find(
         (e) =>
@@ -628,7 +654,7 @@ export class AIPilot implements AIController {
       );
       if (!threat) return;
       this.resumeRtb = this.rtbReason;
-      this.rtbReason = '';
+      this.rtbReason = null;
       this.targetId = threat.id;
       this.phase = 'engage';
       return;
@@ -646,9 +672,9 @@ export class AIPilot implements AIController {
     if (this.phase === 'engage' || this.phase === 'extend') {
       this.phase = 'mission';
       // Fought off an attacker on the way home: carry on home.
-      if (this.resumeRtb) {
+      if (this.resumeRtb !== null) {
         const reason = this.resumeRtb;
-        this.resumeRtb = '';
+        this.resumeRtb = null;
         this.startRtb(reason);
       }
     }
@@ -1700,7 +1726,7 @@ export class AIPilot implements AIController {
    * Only clouds the renderer draws count (world.nearestCloud).
    */
   private steerRefuge(self: AircraftEntity, world: WorldQuery, steer: SteerCommand): boolean {
-    if (!TACTICS_FLAGS.cloudEscape || !world.nearestCloud || VOLUNTARY_RTB.has(this.rtbReason)) return false;
+    if (!TACTICS_FLAGS.cloudEscape || !world.nearestCloud || isVoluntaryRtb(this.rtbReason)) return false;
     const s = self.state;
     if (!this.refuge && this.now >= this.refugeCheck) {
       this.refugeCheck = this.now + 2;
@@ -1875,9 +1901,16 @@ export class AIPilot implements AIController {
       if (dcpa < 1) cpa.copy(lift).multiplyScalar(-splitSide(self, o));
       // During a late extension escape, avoid a roll through the opposite lift
       // direction. Reflect only that component, retaining lateral separation.
+      // Two extending AIs that each see the other on their lift side choose together.
+      // Both pulling across must cover both lift-side offsets with two pulls; both escaping
+      // away keeps them. One pulling and one escaping is never better than both of those,
+      // so both pull only when the summed offset is under two pulls (2 * 0.5*a*t^2). The
+      // other computes exactly the same sum from its side (its cpa is exactly -cpa, and
+      // x - y equals -y + x in IEEE arithmetic), so the pair can't split on the threshold.
       else if (this.phase === 'extend' && tcpa > 0 && tcpa < BREAK_LEAD_S) {
         const towardLift = cpa.dot(lift);
-        if (towardLift > 0) cpa.addScaledVector(lift, -2 * towardLift);
+        const pairEscapesAway = this.otherCrossesToo(o, cpa) && towardLift - cpa.dot(_collisionOtherLift) > CROSS_PULL_ACCEL * tcpa * tcpa;
+        if (towardLift > 0 && !pairEscapesAway) cpa.addScaledVector(lift, -2 * towardLift);
       }
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
@@ -1905,6 +1938,17 @@ export class AIPilot implements AIController {
       // A real conflict overrides the manoeuvre's g cap (formation, extension: 3 g).
       if (wsum > 0.25) steer.maxG = undefined;
     }
+  }
+
+  /**
+   * Is `o` in the same choice as us? True when it is an AI in `extend` and our closest
+   * approach, seen from its side (`-cpa`), lies on its lift side. Leaves o's lift in
+   * `_collisionOtherLift`. It reads o's current phase, so a pair whose phases change on
+   * the same AI tick can disagree for one tick.
+   */
+  private otherCrossesToo(o: AircraftEntity, cpa: Vector3): boolean {
+    if (REGISTRY.get(o)?.phase !== 'extend') return false;
+    return cpa.dot(upOf(o.state.orientation, _collisionOtherLift)) < 0;
   }
 
   // =====================================================================
@@ -2088,7 +2132,7 @@ export class AIPilot implements AIController {
   }
 
   /** Why the pilot is heading home, if he is. */
-  get homeReason(): string {
+  get homeReason(): RtbReason | null {
     return this.rtbReason;
   }
 }

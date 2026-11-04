@@ -14,13 +14,14 @@
  * defender state.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { positiveIntEnv } from '../game/testing/env';
 import type { AircraftId, SkillLevel } from '../core/types';
 import { HUMAN_PILOT, humanPilotFromEnv, type HumanPilotParams } from './humanAim';
 import { applyTacticsFlagsFromEnv, TACTICS_FLAGS } from './tactics';
 import { runSim, SimWorld } from './testing/realSimHarness';
 import { TailHoldTracker, zeroTailHold, type TailHoldAcc } from './testing/tailHold';
 
-const SEEDS = Array.from({ length: Number(process.env.DEFENCE_SEEDS ?? 24) }, (_, i) => i + 1);
+const SEEDS = Array.from({ length: positiveIntEnv('DEFENCE_SEEDS', process.env.DEFENCE_SEEDS, 24) }, (_, i) => i + 1);
 const HUMAN = humanPilotFromEnv(process.env);
 const AB = (process.env.DEFENCE_AB ?? '').split(',').filter(Boolean);
 /** DEFENCE_TRACE: seconds and hits taken per defender AI state, printed per survey. */

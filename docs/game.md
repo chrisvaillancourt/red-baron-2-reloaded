@@ -328,7 +328,7 @@ state before audio/HUD/sim — no stutter when a frame sees 0, 1 or 2 steps
 
 ## Playtest screenshots
 
-`node tools/playtest/flight-shots.mjs --aircraft <id> --views cockpit,chase,padlock --fly 4`
+`pnpm exec node tools/playtest/flight-shots.mjs --aircraft <id> --views cockpit,chase,padlock --fly 4`
 against a running dev server (`--port`, `--keys Space --hold 1.5`, `--count`,
 `--start`, `--realism`; `|`-separate views that carry JS). The session debug
 handle exposes `rig`, `visuals` and `freeze()` for QA.
@@ -476,7 +476,7 @@ can wrap any `SimCore` (`src/game/testing/recordedFlight.ts`).
 A recorder failure is logged and the debrief goes on without telemetry.
 
 **Replay.** `src/game/replay.soak.test.ts` (skipped unless `REPLAY=<report.json>`;
-wrapped by `node tools/playtest/replay-report.mjs <report.json>`) flies a report's
+wrapped by `pnpm exec node tools/playtest/replay-report.mjs <report.json>`) flies a report's
 mission with `runAutoplay` at the report's realism, `REPLAY_REPS` times (default
 8). It prints one line per run and a `fairnessLine` row (`autoplaySummary.ts`,
 shared with the fairness soak). Run 0 uses `headlessModules`, the game's own seeds,
@@ -516,9 +516,9 @@ loops; all of it must go when the flight ends.
   heap and 1,200 DOM nodes. PR #14 skipped the gated soak; current heap acceptance
   requires an explicit new soak run, not those old figures.
 - **Hunting a leak**: with a dev server running,
-  `node tools/playtest/retainers.mjs <port> diff 2 3` lists the object
+  `pnpm exec node tools/playtest/retainers.mjs <port> diff 2 3` lists the object
   groups that grow per flight, and
-  `node tools/playtest/retainers.mjs <port> path 3 <CtorName|~prefix>` prints
+  `pnpm exec node tools/playtest/retainers.mjs <port> path 3 <CtorName|~prefix>` prints
   the retainer path from a GC root.
 
 ### Errors

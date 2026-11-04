@@ -15,42 +15,18 @@
 import { describe, it } from 'vitest';
 import { applyTacticsFlagsFromEnv } from './tactics';
 import { buildQuickMission } from '../campaign';
-import type { QuickMissionOptions } from '../core/campaignTypes';
-import type { AircraftEntity, AircraftId, MissionDefinition } from '../core/types';
+import type { AircraftEntity, MissionDefinition } from '../core/types';
 import { getBombStats, loadBombs } from '../sim';
 import { headlessModules, runAutoplay, type AutoplayReport } from '../game/autoplay';
 import type { SimCoreModules } from '../game/simCore';
+import { positiveIntEnv, selectSets } from '../game/testing/env';
+import { RAID_SETS } from './testing/surveySets';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
 applyTacticsFlagsFromEnv(process.env);
-const REPS = Number(process.env.AI_RAID_REPS ?? 12);
+const REPS = positiveIntEnv('AI_RAID_REPS', process.env.AI_RAID_REPS, 12);
 const SET = process.env.AI_RAID_SET ?? 'default';
 
-type Setup = QuickMissionOptions & { label: string };
-const raid = (label: string, enemy: AircraftId, extra: Partial<QuickMissionOptions> = {}): Setup => ({
-  label,
-  type: 'bombing',
-  playerAircraft: 'dh4',
-  enemyAircraft: enemy,
-  enemyCount: 3,
-  wingmen: 2,
-  enemySkill: 'regular',
-  wingmanSkill: 'regular',
-  altitudeM: 2500,
-  startPosition: 'head-on',
-  timeOfDay: 'afternoon',
-  cloudCover: 0.35,
-  ...extra,
-});
-
-const SETS: Record<string, Setup[]> = {
-  default: [
-    raid('dh4+2 v 3 reg d.v', 'albatros_dv'),
-    raid('dh4+2 v 3 reg d.v, 2 camel escort', 'albatros_dv', { escortCount: 2, escortAircraft: 'sopwith_camel' }),
-    raid('dh4+2 v 2 vet d.vii, 2 se5a escort', 'fokker_dvii', { enemyCount: 2, enemySkill: 'veteran', escortCount: 2, escortAircraft: 'se5a' }),
-  ],
-  escort: [0, 1, 2, 4].map((n) => raid(`dh4+2 v 3 reg d.v, ${n} se5a escort`, 'albatros_dv', { escortCount: n, escortAircraft: 'se5a' })),
-};
 
 interface RaidRun {
   rep: AutoplayReport;
@@ -110,7 +86,7 @@ export const RAID_HEADER = 'raid setup | n | dropped/carried | on target/dropped
 
 describe.skipIf(!SOAK.includes('raid'))('quick bombing raid survey', () => {
   it('reports bombs on target and losses per setup', () => {
-    const setups = SET.split(',').flatMap((s) => SETS[s] ?? []);
+    const setups = selectSets('AI_RAID_SET', SET, RAID_SETS);
     const lines = [`raid set=${SET} reps=${REPS} tactics=${process.env.AI_TACTICS ?? 'default'}`, RAID_HEADER];
     for (const s of setups) {
       const runs: RaidRun[] = [];

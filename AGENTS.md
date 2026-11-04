@@ -1,8 +1,9 @@
 # Red Baron II: Reloaded — agent instructions
 
 Modern browser rebuild of Dynamix's Red Baron II (1997). **Orient before planning
-or continuing work:** follow `docs/STATUS.md` → "Receipt freshness gate", then read
-`docs/ARCHITECTURE.md` and the relevant `DECISIONS.md` entries.
+or continuing work:** run `git fetch` and `git status -sb`, read `docs/STATUS.md` (Now and
+Next), then `docs/ARCHITECTURE.md`, your module's doc and the relevant `DECISIONS.md`
+entries. STATUS is a plan, not proof: confirm a claim in git or CI before relying on it.
 
 Shared project policy lives here. `CLAUDE.md` contains only an import of this file.
 
@@ -50,38 +51,29 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
 - End every final report with a **Friction** section: what slowed you down, including
   missing tools, wrong or missing instructions, confusing structure, and flaky commands.
   Give each item a suggested fix. Write "none" if there was none. The lead logs each item
-  in `docs/FRICTION.md` with a disposition. Read that file's Open table before starting.
+  in `docs/FRICTION.md` with a disposition. Before starting, skim its Open table for items
+  touching your module.
 - Run Python via `uv run python`, never bare `python3`. Use `trash` instead of `rm` for
   user-authored files.
 
-## Shared session ownership
-- Every concurrent editing session, including top-level Claude Code and omp sessions,
-  owns a separate branch and worktree or harness-isolated workspace. The main checkout is
-  reserved for the human and designated integration owner; read-only reviews may use it.
-- Each task brief names the base commit, owned scope, integration owner, and (when needed)
-  server ports and scratch/output locations. If no integration owner is named, finish on
-  your task branch without merging or pushing `main`. Only that owner integrates or pushes
-  `main`, within the user's authorization: every push to `main` deploys the public site.
-- A request to merge `main` into a task branch names the exact target commit and integration
-  owner. Report the reached SHA; advance beyond that target only on a new explicit request.
-- Prefer worktrees outside the checkout for manually managed sessions. Claude-managed
-  worktrees may remain under `.claude/worktrees/`. Check the actual loaded context in nested
-  workspaces for conflicting ancestor rules; do not assume all harnesses use the same layout.
-- Modify only your workspace and branch. Handoff includes the branch/commit or retained
-  patch location, changed scope, verification, and unresolved dependencies. Cross-harness
-  messaging and task state are not shared; the brief and handoff are the contract.
-- Task-state changes follow `docs/STATUS.md` → "State transitions and blocked handoffs";
-  a signing/push blocker needs a shared receipt, not only notes staged in one worktree.
-- The parent session owns integrating retained isolated-agent changes into its task branch,
-  resolving conflicts, verifying the integrated result, and committing before reporting it
-  complete. A child's report alone is not proof that its changes reached the parent.
-- Preserve existing worktrees. Before proposing removal, check ownership, uncommitted work,
-  merge status and unpushed commits; obtain explicit user approval before deleting them.
-- At integration handoff, the integration owner inventories worktrees with `git worktree list`,
-  removes completed task worktrees within the user's cleanup authorization, and reports any
-  retained workspace with its owner and preservation reason. Check ignored scratch/report
-  files and active processes too; a clean Git status alone is not permission to discard them.
-  Keep live inventory in Git, not an undated claim in STATUS that every worktree is gone.
+## Work in progress
+- **Own one branch and worktree per editing session** (Claude Code, omp or a subagent),
+  outside the main checkout, which belongs to the human and the integration owner.
+  Modify only your own workspace.
+- **Only the integration owner merges or pushes `main`,** within the user's authorization:
+  every push to `main` deploys the public site. Without a named owner, finish on your branch.
+- **Keep work in progress small:** at most one candidate per track waiting for integration;
+  integrate it before starting the next on that track.
+- **Prove before review:** workers run focused tests in their own worktree; review a frozen,
+  exercised commit, at most three rounds. The integration owner runs the full gate once after
+  merging, and schedules GPU/e2e work one job at a time.
+- **Hand off** the branch and commit, changed scope, verification and open dependencies.
+  The parent integrates and verifies a child's commits; a child's report is not proof.
+- **Record evidence once,** in the merge commit or PR body. STATUS holds only Now and Next.
+- **Checkpoint** every 20–30 minutes of autonomous work: what landed, what was proved, the
+  blocker, the next action. If nothing landed or was proved, change the approach.
+- **Preserve worktrees.** Before removing one, check its uncommitted work, merge status and
+  unpushed commits, and get the user's approval.
 
 ## Shared execution and browser QA
 - **Managed jobs:** start long finite commands as harness-tracked background jobs. Do other
@@ -125,8 +117,15 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
 ## Shared workflow lessons
 - **New worktrees have no `node_modules`.** Run `sfw pnpm install` before tests, the
   typecheck or the dev server.
-- **A/B with `node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`).
-  For file-based readiness, `node tools/dev/waitfor.mjs <file> <regex> …` is the portable
+- **Node is pinned to the current LTS** by `package.json` `devEngines.runtime`, and CI uses
+  the same version. pnpm scripts and `pnpm exec node …` run it; a bare `node` may differ, and
+  V8 releases can shift deterministic sim results by an ulp (D-117). Run repo tools as
+  `pnpm exec node tools/dev/<tool>.mjs`. Move to each new LTS in its own commit.
+- **Prove each commit of a series on its own** with
+  `pnpm exec node tools/dev/checkcommits.mjs main..HEAD` (install, typecheck, `pnpm test`
+  per commit in a scratch worktree; exit 0 only if all pass). Don't hand-roll the loop.
+- **A/B with `pnpm exec node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`).
+  For file-based readiness, `pnpm exec node tools/dev/waitfor.mjs <file> <regex> …` is the portable
   blocking helper. Don't hand-launch paired soaks or write sleep loops. Quote a difference
   only when the tool says "differs" (docs/ai.md "Tests").
 - **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,

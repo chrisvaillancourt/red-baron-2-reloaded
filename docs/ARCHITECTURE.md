@@ -172,7 +172,7 @@ replacement for regression server isolation.
 Compare existing baseline/candidate checkouts with one scenario and one set of inputs:
 
 ```sh
-node tools/dev/differential-probe.mjs --baseline /path/to/baseline --candidate . \
+pnpm exec node tools/dev/differential-probe.mjs --baseline /path/to/baseline --candidate . \
   --scenario tools/dev/scenarios/world-equivalence.mjs --input '{"seed":42}'
 ```
 
@@ -181,6 +181,31 @@ loads the full terrain/land-use/front-line/road graph, warms rivers, aerodrome l
 crater grids and roads identically, then snapshots deterministic observations. It
 includes cold/warm cache evidence and copies observations before shared scratch can
 be reused. Equal observations are evidence for these inputs, not a proof for every input.
+`ai-equivalence.mjs` traces AI/sim combat (harness cases plus a SimCore quick mission)
+for refactor-only changes; see docs/ai.md "Tests" → "Refactor equivalence".
+
+`mission-equivalence.mjs` generates a fixed grid of missions: 1,670 career missions (the
+eleven nation/date/squadron cases of `campaign.test.ts` × each difficulty × air and ground
+start × `missionsFlown` 0–24, plus altered-ace and preferred-aircraft pilots, all from
+literal `CareerPilot`s with fixed `rngSeed`s) and 108 quick missions (every type × start
+position × three seeds; bombing also varies escorts and cloud). Run it before merging any
+change to `src/campaign/` mission generation, with the baseline a detached worktree at the
+merge base:
+
+```sh
+pnpm exec node tools/dev/differential-probe.mjs --baseline /path/to/merge-base --candidate . \
+  --scenario tools/dev/scenarios/mission-equivalence.mjs \
+  --input '{"suite":"all","seed":12345}' --timeout-ms 300000
+```
+
+`suite` is `career`, `quick` or `all`; the full report is about 37 MB because it inlines
+both sides' missions, and `quick` alone is under 2 MB. A thrown case is recorded as
+`{error}` so it shows as a difference, and `undefined` fields are encoded as
+`{"$undefined":true}`. `equal` means the generated missions match for these inputs; a draw
+added or reordered after the last one that shapes a mission changes nothing and stays
+`equal`. A `different` verdict must match an intended content change named in the commit.
+Untracked symlinks to directories (a linked `node_modules`) make the probe fail with
+`EISDIR`, so don't link one into a scratch candidate.
 
 A scenario is a native Node `.mjs` file default-exporting
 `async function ({ load, input })`; use `await load('src/sim/flightModel.ts')` or another

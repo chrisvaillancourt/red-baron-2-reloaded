@@ -21,6 +21,7 @@
  * player with the human-like aim. SIM_KILLS_SETS=default,camel,spad,dvii,bristol,brisfit picks setups (brisfit only when named).
  */
 import { describe, it } from 'vitest';
+import { finiteEnv, positiveIntEnv } from '../game/testing/env';
 import { Quaternion, Vector3 } from 'three';
 import type { WorldQuery } from '../core/interfaces';
 import type { AircraftId, DamageZone, GameEvent } from '../core/types';
@@ -117,8 +118,8 @@ function parseWeights(s: string | undefined): Record<Sector, number> {
 
 describe.skipIf(!SOAK.includes('zones'))('engine block: zones by approach sector', () => {
   it('reports the zones a hit damages, today and in path order', () => {
-    const sigma = Number(process.env.SIM_ZONES_SIGMA ?? 0.6);
-    const per = Number(process.env.SIM_ZONES_N ?? 20000);
+    const sigma = finiteEnv('SIM_ZONES_SIGMA', process.env.SIM_ZONES_SIGMA, 0.6);
+    const per = positiveIntEnv('SIM_ZONES_N', process.env.SIM_ZONES_N, 20000);
     const w = parseWeights(process.env.SIM_ZONES_WEIGHTS);
     const lines = [
       `zones sigma=${sigma} m, ${per} rounds a sector; share of hits (rounds that cross any box) that damage each zone, today -> path order`,
@@ -306,7 +307,7 @@ const overlaps = (a: [number, number], b: [number, number]) => a[0] <= b[1] && b
 
 describe.skipIf(!SOAK.includes('kills'))('engine block: hits to kill', () => {
   it('flies quick dogfights with the rule off and on', () => {
-    const reps = Number(process.env.SIM_KILLS_REPS ?? 24);
+    const reps = positiveIntEnv('SIM_KILLS_REPS', process.env.SIM_KILLS_REPS, 24);
     const sets = (process.env.SIM_KILLS_SETS ?? 'default,camel,spad,dvii,bristol').split(',').filter((s) => s in KILL_SETS);
     const saved = SIM_FLAGS.damagePath;
     const lines = [`kills reps=${reps} pilot=${process.env.AUTOPLAY_PILOT ?? 'ai'}; each setup flown with SIM_FLAGS.damagePath off, then on, same seeds`];

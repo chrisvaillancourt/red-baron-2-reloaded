@@ -25,16 +25,40 @@ function perCallMs(batch: (i: number) => number, calls: number, runs = 7): numbe
   return times[runs >> 1];
 }
 /**
- * Budgets (~2x an idle run) are the regression bar with PERF_STRICT=1. By default
- * they get 3x headroom so machine load can't flake them, while an accidental
- * order-of-magnitude slowdown still fails.
+ * Query points spread over the whole sector (sea, coast, far front, near-origin
+ * relief), from the same seeded LCG and bounds as
+ * tools/dev/scenarios/world-equivalence.mjs. Precomputed so the generator isn't
+ * timed; the timed loops index it modulo its length.
  */
-/** 7 × 20k calls take ~5 s on a 2-core CI runner at 3x budget: the budget, not the timeout, is the gate. */
+const SECTOR_POINTS = (() => {
+  const n = 4096;
+  const xs = new Float64Array(n);
+  const zs = new Float64Array(n);
+  let state = 42;
+  for (let i = 0; i < n; i++) {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    xs[i] = -65000 + (state / 4294967296) * 143000;
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    zs[i] = -90000 + (state / 4294967296) * 168000;
+  }
+  return { n, xs, zs };
+})();
+/**
+ * Budgets are ~2x the idle per-call cost on these whole-sector points (Apple M3 Max,
+ * Node 24, Vitest: terrain ~14 µs, side ~17 µs) and are the regression bar with
+ * PERF_STRICT=1. By default they get 2x headroom (~4x idle: 60/70 µs). That covers a
+ * loaded shared machine (simulated load peaked at ~39 µs for terrain), and still fails
+ * when a query does 10x the work, even on a cache-hot point that costs only ~6x the
+ * wall-clock (~85 µs for terrain), which 3x headroom (90 µs) let through.
+ * Re-baseline when a query's cost changes on purpose (docs/world.md has the figures).
+ */
+const PERF_HEADROOM = 2;
+/** 7 × 20k calls take ~5 s on a 2-core CI runner: the budget, not the timeout, is the gate. */
 const PERF_TIMEOUT_MS = 60_000;
 const PERF_STRICT = typeof process !== 'undefined' && !!process.env.PERF_STRICT;
 function expectPerCallUnder(label: string, ms: number, budgetMs: number): void {
-  const limit = PERF_STRICT ? budgetMs : budgetMs * 3;
-  console.info(`[perf] ${label}: ${(ms * 1000).toFixed(1)} µs/call (budget ${(budgetMs * 1000).toFixed(0)} µs${PERF_STRICT ? ', strict' : ', 3x headroom'})`);
+  const limit = PERF_STRICT ? budgetMs : budgetMs * PERF_HEADROOM;
+  console.info(`[perf] ${label}: ${(ms * 1000).toFixed(1)} µs/call (budget ${(budgetMs * 1000).toFixed(0)} µs${PERF_STRICT ? ', strict' : `, ${PERF_HEADROOM}x headroom`})`);
   expect(ms).toBeLessThan(limit);
 }
 const h = (lat: number, lon: number) => {
@@ -82,8 +106,9 @@ describe('terrain', () => {
     }
   });
   it('is fast enough for mesh generation', () => {
-    const ms = perCallMs((i) => terrainHeightAt((i % 141) * 37 - 2000, Math.floor(i / 141) * 41 - 30000), 20000);
-    expectPerCallUnder('terrainHeightAt', ms, 0.04);
+    const { n, xs, zs } = SECTOR_POINTS;
+    const ms = perCallMs((i) => terrainHeightAt(xs[i % n], zs[i % n]), 20000);
+    expectPerCallUnder('terrainHeightAt', ms, 0.03);
     }, PERF_TIMEOUT_MS);
 });
 
@@ -129,8 +154,9 @@ describe('front lines', () => {
     expect(pts[pts.length - 1].z).toBeGreaterThan(78_000);
   });
   it('is fast per call', () => {
-    const ms = perCallMs((i) => (sideOfFrontAt((i % 200) * 500 - 50000, Math.floor(i / 200) * 1500 - 80000, '1917-06-01') === 'allied' ? 1 : 0), 20000);
-    expectPerCallUnder('sideOfFrontAt', ms, 0.03);
+    const { n, xs, zs } = SECTOR_POINTS;
+    const ms = perCallMs((i) => (sideOfFrontAt(xs[i % n], zs[i % n], '1917-06-01') === 'allied' ? 1 : 0), 20000);
+    expectPerCallUnder('sideOfFrontAt', ms, 0.035);
     }, PERF_TIMEOUT_MS);
 });
 

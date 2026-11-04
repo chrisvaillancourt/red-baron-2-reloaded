@@ -4,9 +4,9 @@
 
 | Export | Notes |
 |---|---|
-| `terrainHeightAt(x, z)` | Metres ASL (sea floor < 0). Authored 0.125° relief grid + named features (Vimy/Artois escarpment, Passchendaele–Messines ridge, Flemish hills) + carved river valleys + coast + smooth fBm (shortest wavelength ~500 m) + flattened aerodromes. ~1–2 µs/call. |
+| `terrainHeightAt(x, z)` | Metres ASL (sea floor < 0). Authored 0.125° relief grid + named features (Vimy/Artois escarpment, Passchendaele–Messines ridge, Flemish hills) + carved river valleys + coast + smooth fBm (shortest wavelength ~500 m) + flattened aerodromes. ~15 µs/call over the whole sector (see "Query cost" below). |
 | `terrainNormalAt(x, z)` | Central-difference normal. |
-| `frontLineAt(date)` / `signedDistanceToFront(x, z, date)` / `sideOfFrontAt(x, z, date)` | Historical lines 1915-07 → 1918-11-11 as six-section keyframes interpolated per section (quiet sectors don't drift). Negative distance = allied (west). Cached per date; bucketed segment index, ~µs per query. |
+| `frontLineAt(date)` / `signedDistanceToFront(x, z, date)` / `sideOfFrontAt(x, z, date)` | Historical lines 1915-07 → 1918-11-11 as six-section keyframes interpolated per section (quiet sectors don't drift). Negative distance = allied (west). Cached per date; bucketed segment index, ~15–20 µs per query (see "Query cost" below). |
 | `craterIntensityAt(x, z, date)` | 0..1. Every line held up to the date (incl. ground swept by offensives, sampled every 10 days) is rasterised into a 250 m grid on first use per date (~0.5 s), then bilinear lookups. |
 | `craterGridsForDate` / `installCraterGrids` / `hasCraterGrids` | Hand a date's grids between threads. The renderer builds them in `terrain/craterWorker.ts` at load (`CraterGridLoader`, awaited by `whenReady`), so main-thread queries (effects' `landUseAt` on bullet impacts) never build synchronously. |
 | `landUseAt(x, z, date)` | `'field' \| 'pasture' \| 'forest' \| 'town' \| 'water' \| 'trench-zone' \| 'shell-cratered' \| 'beach' \| 'sea'`. |
@@ -19,6 +19,31 @@ order and reuse per-segment generation stamps instead of allocating a visited se
 Passing a `NearestHit` output object also avoids result allocation. The distance cap
 is exclusive; equal-distance ties keep the first segment visited. Generation wrap
 clears the stamps before reuse, and each index owns its visitation storage.
+
+### Query cost
+
+Measured 2026-11-04 at `8daef36` on an Apple M3 Max, Node 24.22.1, with
+`tools/dev/scenarios/world-bench.mjs`: 200k seeded points over the whole sector
+(x −65…78 km, z −90…78 km, the `world-equivalence.mjs` bounds), date 1917-06-01,
+median of 3 passes per query. Six samples on a shared machine at load average 9–21,
+so the high ends carry load noise; an earlier, quieter run over slightly narrower
+bounds gave the low ends.
+
+| Query | µs/call |
+|---|---|
+| `terrainHeightAt` | ~14–17 |
+| `coastDistance` | ~10–11 |
+| `signedDistanceToFront` | ~14–20 |
+| `sideOfFrontAt` | ~16–24 |
+
+Rerun with `node tools/dev/differential-probe.mjs --baseline . --candidate .
+--scenario tools/dev/scenarios/world-bench.mjs --timeout-ms 240000`; each side
+reports its own timings, so the probe exits 1 by design. Points near the origin
+cost less (~8 µs for terrain), so whole-sector figures are the ones to quote. The
+perf guards in `src/world/world.test.ts` sample the same sector; re-baseline their
+budgets (~2x the Vitest idle cost) when a query's cost changes on purpose. By
+default the guards allow 2x the budget (~4x idle), tight enough that a query doing
+10x the work fails even on cache-hot points; `PERF_STRICT=1` enforces the budget itself.
 
 ## Renderer (`src/render`)
 
@@ -41,7 +66,7 @@ world.render(camera);
 * Quality presets: `src/render/quality.ts` (terrain LOD, mask resolution, shadows, tree radius/density, cloud puff budget, building distance, far plane, particle cap).
 
 ### Components
-Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`: quadtree LOD built in a worker pool, land-use shader, feature mask for water/roads), sea, river & road ribbons (near camera), towns/farms/ruins (`towns.ts`, instanced per 8 km tile), trees (`trees.ts`, streamed 500 m cells), aerodromes, clouds (billboard cumulus + overcast deck, in-cloud whiteout), effects (`effects/`: particles, tracers, event handling, bombs).
+Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`: quadtree LOD built in a worker pool, land-use shader, feature mask for water/roads), sea, river & road ribbons (near camera), towns/farms/ruins (`towns.ts`, instanced per 8 km tile, released two tiles beyond building distance), trees (`trees.ts`, streamed 500 m cells), aerodromes, clouds (billboard cumulus + overcast deck, in-cloud whiteout), effects (`effects/`: particles, tracers, event handling, bombs).
 
 **Field materials** (`terrain/terrainMaterial.ts`). Neighboring crop colours are
 pulled toward the seasonal local average to reduce the quilt effect. Broad soil

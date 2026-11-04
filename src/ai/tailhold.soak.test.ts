@@ -17,45 +17,26 @@
 import { describe, it } from 'vitest';
 import { applyTacticsFlagsFromEnv } from './tactics';
 import { buildQuickMission } from '../campaign';
-import type { QuickMissionOptions } from '../core/campaignTypes';
-import type { AircraftEntity, AircraftId } from '../core/types';
-import { QUICK_DEFAULTS } from '../data/quickDefaults';
+import type { AircraftEntity } from '../core/types';
 import { headlessModules } from '../game/autoplay';
 import { SimCore, SIM_HZ } from '../game/simCore';
 import { DEFAULT_SETTINGS } from '../core/settings';
+import { finiteEnv, positiveIntEnv, selectSets } from '../game/testing/env';
 import { humanPilotFromEnv } from './humanAim';
+import { TAILHOLD_SETS } from './testing/surveySets';
 import { TailHoldTracker, tailHoldLine, type TailHoldAcc } from './testing/tailHold';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
 applyTacticsFlagsFromEnv(process.env);
-const REPS = Number(process.env.AI_TH_REPS ?? 36);
+const REPS = positiveIntEnv('AI_TH_REPS', process.env.AI_TH_REPS, 36);
 const SET = process.env.AI_TH_SET ?? 'default';
-const MAX_T = Number(process.env.AI_TH_MAXTIME ?? 600);
+const MAX_T = finiteEnv('AI_TH_MAXTIME', process.env.AI_TH_MAXTIME, 600);
 const HUMAN = humanPilotFromEnv(process.env);
-
-type Setup = QuickMissionOptions & { label: string };
-const base = (player: AircraftId, enemy: AircraftId, extra: Partial<QuickMissionOptions> = {}): Setup => ({
-  label: `${player} v ${enemy}`,
-  type: 'dogfight', playerAircraft: player, enemyAircraft: enemy, enemyCount: 2, wingmen: 1,
-  enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.35,
-  ...extra,
-});
-const SETS: Record<string, Setup[]> = {
-  default: [{ ...QUICK_DEFAULTS, label: 'default (quick screen)' }],
-  mirror: [base('sopwith_camel', 'sopwith_camel'), base('fokker_dvii', 'fokker_dvii')],
-  energy: [base('sopwith_camel', 'fokker_dvii'), base('fokker_dvii', 'sopwith_camel')],
-  low: [
-    {
-      ...base('bristol_f2b', 'fokker_dvii', { enemyCount: 5, wingmen: 3, enemySkill: 'ace', wingmanSkill: 'novice', altitudeM: 300, timeOfDay: 'dusk', cloudCover: 0.2 }),
-      label: 'report: brisfit+3 v 5 ace d.vii 300 m',
-    },
-  ],
-};
 
 describe.skipIf(!SOAK.includes('tailhold'))('tail-hold survey', () => {
   it('reports how defenders deal with an enemy on their tail', () => {
     const lines: string[] = [`tailhold set=${SET} reps=${REPS} AI_TACTICS=${process.env.AI_TACTICS ?? '(default)'} player=${HUMAN ? 'human-like' : 'veteran'}`];
-    for (const s of SET.split(',').flatMap((k) => SETS[k] ?? [])) {
+    for (const s of selectSets('AI_TH_SET', SET, TAILHOLD_SETS)) {
       const acc = new Map<string, TailHoldAcc>();
       const accP = new Map<string, TailHoldAcc>();
       let pFixed = 0;

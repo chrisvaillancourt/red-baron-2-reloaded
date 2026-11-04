@@ -108,8 +108,8 @@ test('CLI scenario exceptions exit with failure and retain useful diagnostics', 
   assert.match(report.candidate.error, /scenario exploded/);
 });
 
-test('real leaf and full world graphs are equal with identical lazy setup', async () => {
-  for (const name of ['geo-equivalence', 'world-equivalence']) {
+test('real leaf, full world and generated-mission graphs are equal with identical lazy setup', async () => {
+  for (const name of ['geo-equivalence', 'world-equivalence', 'mission-equivalence']) {
     const report = await compareRoots({
       baseline: root, candidate: root,
       scenario: fileURLToPath(new URL(`./scenarios/${name}.mjs`, import.meta.url)),
@@ -120,5 +120,32 @@ test('real leaf and full world graphs are equal with identical lazy setup', asyn
       assert.ok(report.baseline.result.setup.cold.every((ready) => !ready));
       assert.ok(report.baseline.result.setup.warm.every(Boolean));
     }
+    if (name === 'mission-equivalence') {
+      const { career, quick } = report.baseline.result;
+      assert.deepEqual([...career, ...quick].filter((m) => m.error), []);
+      assert.ok(new Set(career.map((m) => m.type)).size >= 8, 'every career mission type is generated');
+      assert.deepEqual([...new Set(quick.map((m) => m.type))].sort(),
+        ['balloon-attack', 'bombing', 'dogfight', 'escort', 'ground-attack', 'intercept']);
+    }
   }
+});
+
+test('AI equivalence default suite reproduces exactly in fresh processes', { timeout: 120000 }, async () => {
+  const aiScenario = fileURLToPath(new URL('./scenarios/ai-equivalence.mjs', import.meta.url));
+  const report = await compareRoots({ baseline: root, candidate: root, scenario: aiScenario, input: { suite: 'default' }, timeoutMs: 120000 });
+  // Equal here catches nondeterminism (unseeded Math.random, run-dependent Map/Set order).
+  assertVerdict(report, 'equal');
+  const { cases } = report.baseline.result;
+  assert.ok(cases.length > 0);
+  for (const c of cases) {
+    assert.ok(c.samples.length > 0, c.id);
+    assert.ok(c.samples.every((s) => s.aircraft.length > 0), c.id);
+  }
+  // Not trivially quiet: the furballs shoot, hit and kill, so combat paths are in the trace.
+  const furballs = cases.filter((c) => c.kind === 'furball');
+  assert.ok(furballs.some((c) => (c.tally.events['bullet-hit'] ?? 0) > 0));
+  assert.ok(furballs.some((c) => (c.tally.events['aircraft-destroyed'] ?? 0) > 0));
+  assert.ok(cases.some((c) => c.kind === 'quick'), 'SimCore game path covered');
+  const empty = await compareRoots({ baseline: root, candidate: root, scenario: aiScenario, input: {} });
+  assertVerdict(empty, 'failed');
 });

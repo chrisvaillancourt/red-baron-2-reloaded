@@ -1,6 +1,6 @@
 # Workflowz retrospective and restart recommendations
 
-Recorded 2026-10-05 UTC after the user paused execution. This is an assessment and a proposed operating model, **not an applied policy change or authorization to resume**. The backlog remains paused.
+Recorded 2026-10-05 UTC after the user paused execution. Its operating rules were applied on 2026-11-04: see AGENTS.md "Work in progress" and DECISIONS D-116.
 
 ## Assessment
 

@@ -5,6 +5,7 @@
  * Regression for the Fokker E.III dithering +/-20 deg of bank on a 3-7 deg error.
  */
 import { describe, expect, it } from 'vitest';
+import { nonNegativeIntEnv, positiveIntEnv } from '../game/testing/env';
 import { Vector3 } from 'three';
 import type { AircraftId, FlightModelLevel } from '../core/types';
 import { createMouseAimState, mouseAimAssist } from '../game/input';
@@ -175,7 +176,7 @@ describe.skipIf(!(process.env.AI_SOAK ?? '').split(',').includes('dither'))('dit
       ['spad_xiii', 'fokker_dvii'],
       ['sopwith_camel', 'albatros_dv'],
     ];
-    const seeds = Number(process.env.AI_SEEDS ?? 4);
+    const seeds = positiveIntEnv('AI_SEEDS', process.env.AI_SEEDS, 4);
     for (const [a, b] of pairs)
       for (const level of ['relaxed', 'standard', 'authentic'] as FlightModelLevel[]) {
         let rev = 0, rate = 0, win = 0, on3 = 0, on6 = 0;
@@ -196,7 +197,7 @@ describe.skipIf(!(process.env.AI_SOAK ?? '').split(',').includes('dither'))('dit
 describe.skipIf(!(process.env.AI_SOAK ?? '').split(',').includes('dithertrace'))('dither trace', () => {
   it('prints', () => {
     const t: string[] = [];
-    duelDither('fokker_eiii', 'airco_dh2', 'standard', Number(process.env.AI_SEED ?? 1), 120, t);
+    duelDither('fokker_eiii', 'airco_dh2', 'standard', nonNegativeIntEnv('AI_SEED', process.env.AI_SEED, 1), 120, t);
     process.stdout.write('\n' + t.slice(0, 160).join('\n') + '\n');
   }, 600_000);
 });

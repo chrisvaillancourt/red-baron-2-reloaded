@@ -38,7 +38,7 @@ Extra read-only state on the returned `AIPilot` (not in the `AIController` inter
 | `phase` | `'takeoff'` while rolling/climbing out; `'landed'` means the aircraft has stopped on a friendly field: despawn it with outcome `'landed-friendly'` (or use src/sim `isStoppedOnGround`). `'out'` = dead/removed. |
 | `debugState` | e.g. `engage #12`, `defend break`, `rtb`, `landing`, `takeoff roll`, plus `recover` / `pull-up` flags. |
 | `targetId` | Current air target (HUD "wingman is attacking X"). |
-| `homeReason` | Why it went home: `'out of ammunition'`, `'engine damaged'`, `'mission complete'`… |
+| `homeReason` | Why it went home (`RtbReason`, or `null` when it isn't heading home): `'out of ammunition'`, `'engine damaged'`, `'mission complete'`… Each reason is classed voluntary or not in `RTB_VOLUNTARY` (controller.ts); a new reason must be added there. |
 | `stats` | `gunsSolutionTime`, `firingTime`, `defendTime` (tests/tuning). |
 
 `getAIPilot(ac)` returns the controller for an entity (wingmen use it to see what
@@ -106,6 +106,17 @@ their leader is doing).
    retaining lateral separation rather than replacing the escape with lift alone.
    Dead-ahead coordinated splitting, avoidance weights, engagement, defence and
    longer-range conflicts are unchanged; the lift vector uses dedicated scratch.
+   When both aircraft are extending AIs and each has the other on its own lift
+   side, the pair chooses together: both pull across while the summed lift-side
+   offsets (each projected on its own lift axis) are under `CROSS_PULL_ACCEL *
+   tcpa^2` (12 m/s^2), otherwise both keep the plain escape away. Both compute that
+   sum bit-identically from one snapshot, so unequal rolls or a height offset can't
+   split them. One crossing while the other escapes is never better than both of
+   those; electing one crosser rammed a knife-edge pass. The constant was fitted on
+   head-on Camel-class grids (`src/ai/testing/extendEncounter.ts`, survey:
+   `AI_SOAK=extendgrid`); each AI reads the other's current phase, so the pair can
+   still disagree for one AI tick when a phase changes (DECISIONS.md "Two extending
+   AIs choose their escape together").
 3. **Mission** (`navigation.ts`). Waypoints (`fly`, `patrol`, `rendezvous`,
    `attack-balloon`, `attack-ground`, `bomb` (see "Bombers"), `land`), vic formation keeping, escort
    station 300 m above and behind the escorted flight, balloon and strafing
@@ -263,7 +274,7 @@ what the interceptors lose to the gunners once escorts are about (15 of 72 lost 
 2 with it on, against Camels). The autoplayer is one of the bombers and goes down in 29-67%
 of raids, highest unescorted.
 
-**A/B against the wave's base** (`node tools/dev/ab.mjs --base <ref> --head HEAD`): nothing
+**A/B against the wave's base** (`pnpm exec node tools/dev/ab.mjs --base <ref> --head HEAD`): nothing
 the tool calls a difference.
 
 | soak | base | metric | base | head | verdict |
@@ -350,7 +361,30 @@ every gain with dynamic pressure automatically.
 
 ## Tests
 
-**A/B measurement.** Use `node tools/dev/ab.mjs` rather than hand-launching paired soaks.
+**Refactor equivalence.** A refactor-only commit in `src/ai`, `src/sim` or `src/game`
+claims zero behavior change, which `ab.mjs` cannot show. Prove it exactly instead:
+prepare a detached worktree at the base commit (`git worktree add --detach <dir> <base>`,
+then `sfw pnpm install` there) and run
+
+```sh
+pnpm exec node tools/dev/differential-probe.mjs --baseline <dir> --candidate . \
+  --scenario tools/dev/scenarios/ai-equivalence.mjs --input '{"suite":"default"}'
+```
+
+It must exit 0 (`"verdict": "equal"`); quote the verdict in the report or commit body.
+The scenario samples every aircraft at 10 Hz (position, quaternion, velocity, angular
+velocity, controls, AI phase/target/debug state, outcome) plus every event, over 4v4
+furballs (one runs to a kill), an escorted bomber raid, a low-level bounce and a
+SimCore quick dogfight. A mismatch exits 1 and names the first differing path, such as
+`$["cases"][3]["samples"][697]["aircraft"][1]["angularVelocity"][0]` (case, 10 Hz
+sample, aircraft, field). `{"suite":"long"}` adds 150 s furballs and a quick bombing
+raid (about 30 s). Equal output covers only the paths these cases exercise: a change in
+an unvisited branch (for example the sun-line stalk, with no sun in the harness) stays
+equal. `ab.mjs` stays the tool for behavior changes. CI runs the default suite against
+itself (`tools/dev/differential-probe.test.mjs`) to catch nondeterminism; no golden
+trace is stored, because the claim is "unchanged versus my base", on the same Node.
+
+**A/B measurement.** Use `pnpm exec node tools/dev/ab.mjs` rather than hand-launching paired soaks.
 It supports career, quick, fairness, tailhold, defence and raid on matched seeds/counts:
 `--flag <TACTICS_FLAGS name>` switches a tactic off/on; `--base <ref> --head HEAD`
 freezes both revisions. `--jobs 1` limits CPU contention. Raw reports, stdout/stderr,
@@ -364,11 +398,11 @@ Career/quick `RATES` and fairness retain their 95% interval-overlap heuristic
 percentages. Raid ground destruction includes incidental AA, not only objective targets.
 
 Examples:
-- `node tools/dev/ab.mjs --soak career --flag stalk`
-- `node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk`
-- `node tools/dev/ab.mjs --soak tailhold --set default,low --reps 36 --flag escalateDefence --env AUTOPLAY_PILOT=human`
-- `node tools/dev/ab.mjs --soak defence --reps 24 --a DEFENCE_AB=off --b DEFENCE_AB=mix --env AUTOPLAY_PILOT=human`
-- `node tools/dev/ab.mjs --soak raid --set default,escort --reps 12 --flag bomberFormation`
+- `pnpm exec node tools/dev/ab.mjs --soak career --flag stalk`
+- `pnpm exec node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk`
+- `pnpm exec node tools/dev/ab.mjs --soak tailhold --set default,low --reps 36 --flag escalateDefence --env AUTOPLAY_PILOT=human`
+- `pnpm exec node tools/dev/ab.mjs --soak defence --reps 24 --a DEFENCE_AB=off --b DEFENCE_AB=mix --env AUTOPLAY_PILOT=human`
+- `pnpm exec node tools/dev/ab.mjs --soak raid --set default,escort --reps 12 --flag bomberFormation`
 
 Defence activates its actual survey mode, which overrides `escalateDefence`,
 `defenceLadder` and `defenceReversal`; compare `DEFENCE_AB` modes, not those flags.
@@ -378,6 +412,15 @@ Tailhold defaults to 36 repetitions. Repeat `--env`, `--a` and `--b` for each
 `--a AI_TACTICS=stalk=0,AUTOPLAY_PILOT=human` syntax is no longer supported.
 Failed workers, malformed reports, mismatched repetitions/cohorts or different
 tailhold/defence pursuers cannot produce a comparison.
+
+**Soak knobs fail loudly.** Soak env vars are read with `positiveIntEnv` (counts),
+`nonNegativeIntEnv` (seeds, 0 = off) or `finiteEnv` (times, angles) from
+`src/game/testing/env.ts`: unset or empty takes the default, anything unreadable
+throws naming the variable. Set lists (`AI_FAIR_SET`, `AI_TH_SET`, `AI_RAID_SET`,
+`AI_GD_SET`) go through `selectSets`, which throws on an unknown name, and a fairness
+`AI_FAIR_ONLY` that matches nothing throws too. The set tables live in
+`src/ai/testing/surveySets.ts`; `surveySets.test.ts` checks `tools/dev/ab.mjs`'s copy of
+their names, so add or rename a set in both places.
 
 - `realsim.test.ts` (CI, ~13 s): scenario tests on the real `stepFlight` +
   `createCombatSystem`, standard realism, engine torque on — every type flies a
@@ -462,7 +505,7 @@ tailhold/defence pursuers cannot produce a comparison.
   the tail-hold is one constant-direction turn. `DEFENCE_AB=off,brake,ladder,mix` prints
   each defence instead (with `AUTOPLAY_PILOT=human` for the human-like pursuer), and
   `DEFENCE_TRACE=1` hits per second by state.
-- In-engine proof: `node tools/playtest/ai-depth-shots.mjs <out> <port> sun|cloud|defence`
+- In-engine proof: `pnpm exec node tools/playtest/ai-depth-shots.mjs <out> <port> sun|cloud|defence`
   (dev server, seeded with `SEED=n`) logs each shot's AI state, range, sun angle and cloud
   density, and for the `defence` scene the wingman's state, range and both speeds. The
   browser fight isn't deterministic, so `WHEN=<regex>` shoots only while the enemy's AI
