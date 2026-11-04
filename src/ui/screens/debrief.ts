@@ -1,8 +1,8 @@
-import type { CareerPilot, DebriefReport, MedalAward, QuickMissionOptions } from '../../core/campaignTypes';
+import type { CareerPilot, DebriefReport, MedalAward } from '../../core/campaignTypes';
 import { buildInfo } from '../../core/build';
 import { buildFlightReport, FLIGHT_NOTE_MAX, serializeFlightReport, type FlightRating } from '../../core/flightReport';
 import { REPORT_SINK_PATH } from '../../core/reportSink';
-import type { MissionDefinition, MissionResult, Nation, VictoryClaim } from '../../core/types';
+import type { Nation, VictoryClaim } from '../../core/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import type { ScreenFactory } from '../context';
 import { artBackground, h, setChildren, svg } from '../dom';
@@ -69,12 +69,12 @@ const RATING_LABEL: Record<FlightRating, string> = { 'too-easy': 'Too easy', fai
  * strip: rating, note, "Copy flight report"), 3. newspaper, 4. promotion, 5. one page per
  * medal, 6. memorial (career over). See docs/ui.md "Debrief".
  */
-export const debriefScreen: ScreenFactory = (ctx, params) => {
-  const mission = params.mission as MissionDefinition;
-  const result = params.result as MissionResult;
-  const report = params.report as DebriefReport | undefined;
-  const pilotId = params.pilotId as string | undefined;
-  const quickOptions = (params.quickOptions as QuickMissionOptions | undefined) ?? null;
+export const debriefScreen: ScreenFactory<'debrief'> = (ctx, params) => {
+  const mission = params.mission;
+  const result = params.result;
+  const report = params.report;
+  const pilotId = params.pilotId;
+  const quickOptions = params.quickOptions ?? null;
   const pilot: CareerPilot | null = pilotId ? ctx.services.campaign.loadPilot(pilotId) : null;
   const nation: Nation = pilot?.nation ?? mission.flights.find((f) => f.role === 'player-flight')?.nation ?? 'britain';
   const squadron = pilot ? ctx.services.campaign.getSquadron(pilot.squadronId) : undefined;

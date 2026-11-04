@@ -52,7 +52,7 @@ export type { UiCatalog, RankDisplay, MedalDisplay, AceDisplay } from './catalog
 export type { ScreenId } from './context';
 export * as uiFormat from './format';
 
-const SCREENS: Record<ScreenId, ScreenFactory> = {
+const SCREENS: { [K in ScreenId]: ScreenFactory<K> } = {
   title: titleScreen,
   roster: rosterScreen,
   'create-pilot': createPilotScreen,
@@ -68,6 +68,16 @@ const SCREENS: Record<ScreenId, ScreenFactory> = {
   credits: creditsScreen,
   aces: acesScreen,
 };
+
+/**
+ * The router stack and the loose entry points (UiController.show, initialParams) lose the
+ * id/params correlation that Router's signatures check, so they go through these shapes.
+ */
+type LooseScreenFactory = (ctx: UiContext, params: object) => Screen;
+interface LooseRouter {
+  push(id: ScreenId, params?: object): void;
+  reset(id: ScreenId, params?: object): void;
+}
 
 export interface UiOptions {
   /** Element that receives a flight or defense container (default: document.body). */
@@ -90,7 +100,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
   const layer = h('div', { class: 'rb-ui' });
   root.append(layer);
 
-  const stack: { id: ScreenId; params: ScreenParams }[] = [];
+  const stack: { id: ScreenId; params: object }[] = [];
   let screen: Screen | null = null;
   let currentId: ScreenId = opts.initialScreen ?? 'title';
   let session: 'flight' | 'defense' | null = null;
@@ -113,7 +123,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     onTab: (dir) => { if (!getErrorOverlay()) screen?.onTab?.(dir); },
   });
 
-  function mount(id: ScreenId, params: ScreenParams): void {
+  function mount(id: ScreenId, params: object): void {
     if (disposed) return;
     const prev = screen;
     if (prev) {
@@ -123,7 +133,7 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     }
     currentId = id;
     try {
-      screen = SCREENS[id](ctx, params);
+      screen = (SCREENS[id] as LooseScreenFactory)(ctx, params);
     } catch (err) {
       console.error(`[ui] screen ${id} failed`, err);
       screen = SCREENS.title(ctx, {});
@@ -142,18 +152,18 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
     get current() {
       return currentId;
     },
-    push(id, params = {}) {
+    push(id: ScreenId, params: object = {}) {
       if (disposed) return;
       stack.push({ id, params });
       mount(id, params);
     },
-    replace(id, params = {}) {
+    replace(id: ScreenId, params: object = {}) {
       if (disposed) return;
       stack.pop();
       stack.push({ id, params });
       mount(id, params);
     },
-    reset(id, params = {}) {
+    reset(id: ScreenId, params: object = {}) {
       if (disposed) return;
       stack.length = 0;
       stack.push({ id, params });
@@ -317,13 +327,13 @@ export function createUi(root: HTMLElement, services: GameServices, opts: UiOpti
   layer.addEventListener('mouseover', onOver);
   window.addEventListener('keydown', unlock, { once: true });
 
-  router.reset(currentId, opts.initialParams ?? {});
+  (router as LooseRouter).reset(currentId, opts.initialParams ?? {});
 
   const controller: UiController = {
     get current() {
       return currentId;
     },
-    show: (id, params) => router.push(id, params),
+    show: (id, params) => (router as LooseRouter).push(id, params),
     back: () => router.back(),
     setVisible(v) {
       if (disposed) return;

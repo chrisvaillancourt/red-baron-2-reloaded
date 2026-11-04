@@ -1,4 +1,3 @@
-import type { MissionDefinition } from '../../core/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { getAerodrome } from '../../data/aerodromes';
 import type { ScreenFactory } from '../context';
@@ -10,9 +9,9 @@ import { MISSION_TYPE_LABEL, SKILL_LABEL, TIME_LABEL, weatherSummary, windFrom }
 import { rankDisplay } from '../catalog';
 import { maybeShowFlyingSchool } from '../flyingSchool';
 
-export const briefingScreen: ScreenFactory = (ctx, params) => {
-  const mission = params.mission as MissionDefinition;
-  const pilotId = params.pilotId as string | undefined;
+export const briefingScreen: ScreenFactory<'briefing'> = (ctx, params) => {
+  const mission = params.mission;
+  const pilotId = params.pilotId;
   const campaign = ctx.services.campaign;
   const player = mission.flights.find((f) => f.role === 'player-flight') ?? mission.flights[0];
   const units = resolveUnits(ctx.settings().units, player?.nation ?? 'britain');
@@ -75,7 +74,7 @@ export const briefingScreen: ScreenFactory = (ctx, params) => {
             ctx.router.replace('debrief', { result, mission, pilotId });
           }
         } else {
-          ctx.router.replace('debrief', { result, mission, quick: true, quickOptions: params.quickOptions });
+          ctx.router.replace('debrief', { result, mission, quickOptions: params.quickOptions });
         }
       },
     },
