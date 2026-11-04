@@ -8,6 +8,7 @@ import { combatRun, routeFlight } from './testing/realScenarios';
 import type { AircraftId, Waypoint } from '../core/types';
 import { getAircraft } from '../data/aircraft';
 import { getAerodrome } from '../data/aerodromes';
+import { finiteEnv, positiveIntEnv } from '../game/testing/env';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
 function report(rows: string[]): void {
@@ -85,13 +86,14 @@ describe.skipIf(!SOAK.includes('turn'))('probe hard-turn pursuit', () => {
     const ctl = world.addAI(ac, 'ace');
     ctl.autopilot.trace = true;
     const ap = new SimAutopilot();
-    const bank = (Number(process.env.AI_BANK ?? 65) * Math.PI) / 180;
+    const bank = (finiteEnv('AI_BANK', process.env.AI_BANK, 65) * Math.PI) / 180;
     const f = new Vector3(), rel = new Vector3();
+    const every = positiveIntEnv('AI_EVERY', process.env.AI_EVERY, 30);
     let k = 0;
     runSim(world, 40, {
       scripted: new Map([[tgt.id, (a, dt) => void ap.update(a, { altitude: 1500, bank, throttle: 1 }, dt)]]),
       onStep: () => {
-        if (k++ % (Number(process.env.AI_EVERY ?? 30)) === 0) {
+        if (k++ % every === 0) {
           rel.copy(tgt.state.position).sub(ac.state.position);
           f.set(0, 0, -1).applyQuaternion(ac.state.orientation);
           const a = ctl.autopilot;
@@ -148,9 +150,10 @@ describe.skipIf(!SOAK.includes('mission'))('probe full mission', () => {
       let airborne = [-1, -1];
       const phases = new Set<string>();
       let formErr = 0, formN = 0;
+      const traceS = process.env.AI_TRACE ? finiteEnv('AI_TRACE', process.env.AI_TRACE, 0) : undefined;
       runSim(world, 1500, {
         onStep: (t) => {
-          if (process.env.AI_TRACE && Math.round(t * 120) % Math.max(1, Math.round(120 * Number(process.env.AI_TRACE))) === 0) for (const [a, c] of [[lead, cl], [wing, cw]] as const) rows.push(`  ${id} #${a.id} t=${t.toFixed(0)} ${c.debugState} stage=${c.landingStage} rel=(${(a.state.position.x - home.x).toFixed(0)},${(a.state.position.z - home.z).toFixed(0)}) agl=${a.state.heightAboveGround.toFixed(0)} V=${a.state.airspeed.toFixed(0)} vy=${a.state.velocity.y.toFixed(1)} g=${a.state.gLoad.toFixed(1)} st=${a.state.stalled ? 1 : 0} ctl=${a.controls.pitch.toFixed(2)},${a.controls.roll.toFixed(2)},${a.controls.throttle.toFixed(2)} pitch=${(Math.asin(new Vector3(0, 0, -1).applyQuaternion(a.state.orientation).y) * 57.3).toFixed(1)} bank=${(bankAngle(a.state.orientation) * 57.3).toFixed(1)} w=(${a.state.angularVelocity.x.toFixed(2)},${a.state.angularVelocity.y.toFixed(2)},${a.state.angularVelocity.z.toFixed(2)}) gnd=${a.state.onGround ? 1 : 0} aoa=${(a.state.aoa * 57.3).toFixed(1)} ${a.outcome ?? ""} ${getSimInternal(a).impactKind ?? ""}`);
+          if (traceS !== undefined && Math.round(t * 120) % Math.max(1, Math.round(120 * traceS)) === 0) for (const [a, c] of [[lead, cl], [wing, cw]] as const) rows.push(`  ${id} #${a.id} t=${t.toFixed(0)} ${c.debugState} stage=${c.landingStage} rel=(${(a.state.position.x - home.x).toFixed(0)},${(a.state.position.z - home.z).toFixed(0)}) agl=${a.state.heightAboveGround.toFixed(0)} V=${a.state.airspeed.toFixed(0)} vy=${a.state.velocity.y.toFixed(1)} g=${a.state.gLoad.toFixed(1)} st=${a.state.stalled ? 1 : 0} ctl=${a.controls.pitch.toFixed(2)},${a.controls.roll.toFixed(2)},${a.controls.throttle.toFixed(2)} pitch=${(Math.asin(new Vector3(0, 0, -1).applyQuaternion(a.state.orientation).y) * 57.3).toFixed(1)} bank=${(bankAngle(a.state.orientation) * 57.3).toFixed(1)} w=(${a.state.angularVelocity.x.toFixed(2)},${a.state.angularVelocity.y.toFixed(2)},${a.state.angularVelocity.z.toFixed(2)}) gnd=${a.state.onGround ? 1 : 0} aoa=${(a.state.aoa * 57.3).toFixed(1)} ${a.outcome ?? ""} ${getSimInternal(a).impactKind ?? ""}`);
           [lead, wing].forEach((a, i) => { if (airborne[i] < 0 && a.state.heightAboveGround > 30) airborne[i] = t; });
           phases.add(cl.phase);
           if (cw.phase === 'formation' && cl.phase !== 'takeoff' && lead.state.heightAboveGround > 300) {
@@ -176,10 +179,11 @@ describe.skipIf(!SOAK.includes('straight'))('probe straight target', () => {
     ctl.autopilot.trace = true;
     let k = 0;
     const rel = new Vector3(), f = new Vector3();
+    const every = positiveIntEnv('AI_EVERY', process.env.AI_EVERY, 240);
     runSim(world, 120, {
       scripted: new Map([[tgt.id, (ac) => void Object.assign(ac.controls, { pitch: 0, roll: 0, yaw: 0, throttle: 0.7 })]]),
       onStep: (t) => {
-        if (k++ % Number(process.env.AI_EVERY ?? 240) === 0) {
+        if (k++ % every === 0) {
           rel.copy(tgt.state.position).sub(att.state.position);
           f.set(0, 0, -1).applyQuaternion(att.state.orientation);
           rows.push(`t=${t.toFixed(0)} r=${rel.length().toFixed(0)} err=${(f.angleTo(rel) * 57.3).toFixed(1)} V=${att.state.airspeed.toFixed(0)}/${tgt.state.airspeed.toFixed(0)} alt=${att.state.altitude.toFixed(0)}/${tgt.state.altitude.toFixed(0)} tgtBank=${(bankAngle(tgt.state.orientation) * 57.3).toFixed(0)} ${ctl.debugState} fire=${att.controls.fireGuns} hits=${world.eventsOf('bullet-hit').length} tgt=${tgt.outcome} g=${att.state.gLoad.toFixed(1)} nDes=${ctl.autopilot.lastNDes.toFixed(1)} aoa=${(att.state.aoa * 57.3).toFixed(1)} st=${att.state.stalled ? 1 : 0} ctl=${att.controls.pitch.toFixed(2)},${att.controls.roll.toFixed(2)},${att.controls.yaw.toFixed(2)},${att.controls.throttle.toFixed(2)} | ${ctl.autopilot.dbg}`);

@@ -7,10 +7,11 @@
  * avoidance that makes the AI timid shows up too.
  */
 import { describe, it } from 'vitest';
+import { positiveIntEnv } from '../game/testing/env';
 import { furball, tally, vic, type Tally } from './testing/collisionScenarios';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
-const SEEDS = Number(process.env.AI_SEEDS ?? 30);
+const SEEDS = positiveIntEnv('AI_SEEDS', process.env.AI_SEEDS, 30);
 
 function report(name: string, t: Tally): string {
   const n = [...t.collisions.values()].reduce((s, v) => s + v, 0);

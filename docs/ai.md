@@ -379,6 +379,15 @@ Tailhold defaults to 36 repetitions. Repeat `--env`, `--a` and `--b` for each
 Failed workers, malformed reports, mismatched repetitions/cohorts or different
 tailhold/defence pursuers cannot produce a comparison.
 
+**Soak knobs fail loudly.** Soak env vars are read with `positiveIntEnv` (counts),
+`nonNegativeIntEnv` (seeds, 0 = off) or `finiteEnv` (times, angles) from
+`src/game/testing/env.ts`: unset or empty takes the default, anything unreadable
+throws naming the variable. Set lists (`AI_FAIR_SET`, `AI_TH_SET`, `AI_RAID_SET`,
+`AI_GD_SET`) go through `selectSets`, which throws on an unknown name, and a fairness
+`AI_FAIR_ONLY` that matches nothing throws too. The set tables live in
+`src/ai/testing/surveySets.ts`; `surveySets.test.ts` checks `tools/dev/ab.mjs`'s copy of
+their names, so add or rename a set in both places.
+
 - `realsim.test.ts` (CI, ~13 s): scenario tests on the real `stepFlight` +
   `createCombatSystem`, standard realism, engine torque on — every type flies a
   route/patrol; vic formation < 40 m; take-off → mission → RTB → landing for seven

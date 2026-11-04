@@ -10,37 +10,23 @@ import { describe, it } from 'vitest';
 import { applyTacticsFlagsFromEnv } from './tactics';
 import { Vector3 } from 'three';
 import { buildQuickMission } from '../campaign';
-import type { QuickMissionOptions } from '../core/campaignTypes';
-import type { AircraftEntity, AircraftId } from '../core/types';
-import { QUICK_DEFAULTS } from '../data/quickDefaults';
+import type { AircraftEntity } from '../core/types';
 import { headlessModules } from '../game/autoplay';
 import { SimCore, SIM_HZ } from '../game/simCore';
 import { DEFAULT_SETTINGS } from '../core/settings';
+import { nonNegativeIntEnv, positiveIntEnv, selectSets } from '../game/testing/env';
 import { forwardOf } from './math';
 import { EntryTracker, entryLine, type EntryAcc } from './entryStats';
+import { GUNDIAG_SETS } from './testing/surveySets';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
 // AI_TACTICS=boomZoomOutTurned=1,stalk=0,... flips src/ai/tactics.ts TACTICS_FLAGS for A/B runs.
 applyTacticsFlagsFromEnv(process.env);
-const REPS = Number(process.env.AI_GD_REPS ?? 8);
+const REPS = positiveIntEnv('AI_GD_REPS', process.env.AI_GD_REPS, 8);
 const SET = process.env.AI_GD_SET ?? 'default';
-/** Print a 2 s state trace of the first rep up to this mission time (s). */
-const TRACE = Number(process.env.AI_GD_TRACE ?? 0);
+/** Print a 2 s state trace of the first rep up to this mission time (s); 0 = no trace. */
+const TRACE = nonNegativeIntEnv('AI_GD_TRACE', process.env.AI_GD_TRACE, 0);
 
-const base = (player: AircraftId, enemy: AircraftId, extra: Partial<QuickMissionOptions> = {}): QuickMissionOptions => ({
-  type: 'dogfight', playerAircraft: player, enemyAircraft: enemy, enemyCount: 2, wingmen: 1,
-  enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.35,
-  ...extra,
-});
-const SETS: Record<string, QuickMissionOptions[]> = {
-  // The Quick Mission screen's setup (src/data/quickDefaults.ts); `dv` is the pre-wave-9 default.
-  default: [{ ...QUICK_DEFAULTS }],
-  dv: [base('sopwith_camel', 'albatros_dv')],
-  reverse: [base('albatros_dv', 'sopwith_camel')],
-  mirror: [base('sopwith_camel', 'sopwith_camel'), base('albatros_dv', 'albatros_dv')],
-  // Entry geometry by enemy skill: aces should come from above / out of the sun far more than novices.
-  skill: [base('sopwith_camel', 'albatros_dv', { enemySkill: 'novice' }), base('sopwith_camel', 'albatros_dv', { enemySkill: 'ace' }), base('sopwith_camel', 'sopwith_camel', { enemySkill: 'novice' }), base('sopwith_camel', 'sopwith_camel', { enemySkill: 'ace' })],
-};
 
 interface Acc {
   engage: number; near: number; nose30: number; nose10: number; solution: number; firing: number;
@@ -51,7 +37,7 @@ const zero = (): Acc => ({ engage: 0, near: 0, nose30: 0, nose10: 0, solution: 0
 describe.skipIf(!SOAK.includes('gundiag'))('gunnery diag', () => {
   it('reports per-type solution / firing / hit rates', () => {
     const lines: string[] = [];
-    for (const q of SET.split(',').flatMap((s) => SETS[s] ?? [])) {
+    for (const q of selectSets('AI_GD_SET', SET, GUNDIAG_SETS)) {
       const acc = new Map<string, Acc>();
       const entry = new Map<string, EntryAcc>();
       const key = (a: AircraftEntity, pl: AircraftEntity) => `${a.side === pl.side ? 'P' : 'E'}:${a.spec.shortName}${a === pl ? '(pl)' : ''}`;

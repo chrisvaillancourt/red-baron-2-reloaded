@@ -8,6 +8,7 @@
  */
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { finiteEnv, nonNegativeIntEnv, positiveIntEnv } from './testing/env';
 import { buildQuickMission, createCampaignService, memoryStorage } from '../campaign';
 import type { CareerDifficulty, QuickMissionOptions } from '../core/campaignTypes';
 import type { MissionDefinition, Nation } from '../core/types';
@@ -19,17 +20,17 @@ import { ratesLine } from './testing/stats';
 applyTacticsFlagsFromEnv(process.env);
 
 const MODES = (process.env.AUTOPLAY ?? '').split(',').filter(Boolean);
-const PER_PILOT = Number(process.env.AUTOPLAY_MISSIONS ?? 5);
+const PER_PILOT = positiveIntEnv('AUTOPLAY_MISSIONS', process.env.AUTOPLAY_MISSIONS, 5);
 const OUT = process.env.AUTOPLAY_OUT;
-const MAX_TIME = Number(process.env.AUTOPLAY_MAXTIME ?? 2400);
+const MAX_TIME = finiteEnv('AUTOPLAY_MAXTIME', process.env.AUTOPLAY_MAXTIME, 2400);
 /** Seeded repetitions of each quick-mission setup (quick missions are otherwise random). */
-const QUICK_REPS = Number(process.env.AUTOPLAY_QUICK_REPS ?? 1);
+const QUICK_REPS = positiveIntEnv('AUTOPLAY_QUICK_REPS', process.env.AUTOPLAY_QUICK_REPS, 1);
 /** Summarise quick runs per setup as well as per type (AUTOPLAY_QUICK_BY_SETUP=1). */
 const QUICK_BY_SETUP = !!process.env.AUTOPLAY_QUICK_BY_SETUP;
 /** Career difficulty for the career survey (recruit | pilot | ace). */
 const DIFFICULTY = (process.env.AUTOPLAY_DIFFICULTY ?? 'pilot') as CareerDifficulty;
 /** Offset for the career pilots' seeds, so repeated surveys sample different careers. */
-const SEED_BASE = Number(process.env.AUTOPLAY_SEED_BASE ?? 0);
+const SEED_BASE = nonNegativeIntEnv('AUTOPLAY_SEED_BASE', process.env.AUTOPLAY_SEED_BASE, 0);
 
 function log(line: string) {
   if (OUT) appendFileSync(OUT, line + '\n');

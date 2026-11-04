@@ -1,5 +1,6 @@
 /** Diagnostic: trace a quick ground-attack mission (AI_SOAK=quickdiag). */
 import { describe, it } from 'vitest';
+import { nonNegativeIntEnv } from '../game/testing/env';
 import { buildQuickMission } from '../campaign';
 import type { QuickMissionOptions } from '../core/campaignTypes';
 import { QUICK_DEFAULTS } from '../data/quickDefaults';
@@ -19,7 +20,7 @@ describe.skipIf(!SOAK.includes('quickdiag'))('quick diag', () => {
         : which === 'dvii'
         ? { type: 'ground-attack', playerAircraft: 'fokker_dvii', enemyAircraft: 'spad_xiii', enemyCount: 2, wingmen: 1, enemySkill: 'veteran', wingmanSkill: 'regular', altitudeM: 2500, startPosition: 'head-on', timeOfDay: 'afternoon', cloudCover: 0.5 }
         : { type: 'ground-attack', playerAircraft: 'sopwith_camel', enemyAircraft: 'fokker_dri', enemyCount: 3, wingmen: 2, enemySkill: 'regular', wingmanSkill: 'regular', altitudeM: 2000, startPosition: 'random', timeOfDay: 'midday', cloudCover: 0.3 };
-    const m = buildQuickMission(q, Number(process.env.AI_QSEED ?? 1009));
+    const m = buildQuickMission(q, nonNegativeIntEnv('AI_QSEED', process.env.AI_QSEED, 1009));
     process.stdout.write(`flights: ${m.flights.map((f) => `${f.id}/${f.role}/${f.task}/${f.aircraftId}x${f.members.length} delay=${f.spawnDelay ?? 0} start=(${f.start.x},${f.start.altitude},${f.start.z}) wps=${f.waypoints.map((w) => w.action).join(',')}`).join(' | ')}\n`);
     const core = new SimCore(headlessModules, m, () => DEFAULT_SETTINGS.realism, { aiPlayer: true });
     const pl = core.world.player!;

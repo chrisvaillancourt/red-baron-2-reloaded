@@ -5,8 +5,10 @@ import type { Nation } from '../core/types';
 import { headlessModules } from '../game/autoplay';
 import { SimCore, SIM_HZ } from '../game/simCore';
 import { DEFAULT_SETTINGS } from '../core/settings';
+import { positiveIntEnv } from '../game/testing/env';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
+const MISSIONS = positiveIntEnv('AI_MISSIONS', process.env.AI_MISSIONS, 4);
 
 describe.skipIf(!SOAK.includes('lossdiag'))('loss diag', () => {
   it('career losses', () => {
@@ -21,7 +23,7 @@ describe.skipIf(!SOAK.includes('lossdiag'))('loss diag', () => {
     for (const [nation, date] of careers) {
       const p = campaign.createPilot({ firstName: 'D', lastName: `P${seed}`, nation, startDate: date, difficulty: 'pilot' });
       p.rngSeed = seed++ * 7777;
-      for (let i = 0; i < Number(process.env.AI_MISSIONS ?? 4); i++) {
+      for (let i = 0; i < MISSIONS; i++) {
         if (p.status !== 'active' && p.status !== 'hospital') break;
         if (p.status === 'hospital') campaign.returnToDuty?.(p);
         const m = campaign.generateMission(p, campaign.availableAircraft(p)[0]);

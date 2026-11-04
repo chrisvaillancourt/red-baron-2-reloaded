@@ -4,6 +4,7 @@
  * AI_SEEDS (default 6) and AI_TYPES (comma list) narrow the runs.
  */
 import { describe, it } from 'vitest';
+import { positiveIntEnv } from '../game/testing/env';
 import { appendFileSync } from 'node:fs';
 import type { AircraftId, SkillLevel, Waypoint } from '../core/types';
 import { AIRCRAFT_LIST } from '../data/aircraft';
@@ -12,7 +13,7 @@ import { combatRun, historyTap, routeFlight } from './testing/realScenarios';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
 const only = process.env.AI_TYPES?.split(',') as AircraftId[] | undefined;
-const SEEDS = Number(process.env.AI_SEEDS ?? 6);
+const SEEDS = positiveIntEnv('AI_SEEDS', process.env.AI_SEEDS, 6);
 
 function report(rows: string[]): void {
   const out = process.env.AI_OUT;

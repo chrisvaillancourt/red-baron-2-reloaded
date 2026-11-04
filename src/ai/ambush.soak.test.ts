@@ -10,6 +10,7 @@
  *   AI_SOAK=ambush AI_AMBUSH_REPS=12 [AI_TACTICS=stalk=0] pnpm vitest run src/ai/ambush.soak.test.ts
  */
 import { describe, it } from 'vitest';
+import { positiveIntEnv } from '../game/testing/env';
 import type { AircraftEntity, SkillLevel } from '../core/types';
 import { sunDirectionFor } from '../world/sun';
 import { likelySpottedBy, sunAngle } from './perception';
@@ -20,7 +21,7 @@ import { routeFlight } from './testing/realScenarios';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
 applyTacticsFlagsFromEnv(process.env);
-const REPS = Number(process.env.AI_AMBUSH_REPS ?? 12);
+const REPS = positiveIntEnv('AI_AMBUSH_REPS', process.env.AI_AMBUSH_REPS, 12);
 const DEG = Math.PI / 180;
 
 interface Entry { dh: number; sunDeg: number; seen: boolean }
