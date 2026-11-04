@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
-import type { AircraftEntity, BalloonEntity, GameEvent } from '../core/types';
+import type { AircraftEntity, BalloonEntity, GameEvent, GroundTargetEntity } from '../core/types';
 import { setGunnerTarget } from './combat';
 import { SIM_FLAGS } from './flags';
 import { SIM_DT, orientationFrom } from './flightModel';
@@ -216,6 +216,60 @@ describe('hits and kills', () => {
     s.step(4, undefined, false);
     expect(s.groundTargets[0].destroyed).toBe(true);
     expect(count(s.events, 'ground-destroyed')).toBe(1);
+  });
+
+  describe('ground hits near the vertical reject bound', () => {
+    // Fire a short burst far away, then re-aim the live rounds as level shots along -z
+    // over x = 0 at the given heights.
+    function rounds(s: Scenario, ys: number[]) {
+      const shooter = s.add(1, 'sopwith_camel', 5000, 0, 1000);
+      shooter.controls.fireGuns = true;
+      while (s.combat.bullets.length < ys.length) s.step(SIM_DT, undefined, false);
+      shooter.controls.fireGuns = false;
+      const live = s.combat.bullets as unknown as { position: Vector3; velocity: Vector3 }[];
+      live.forEach((b, i) => {
+        b.position.set(0, ys[i] ?? 5000, 40);
+        b.velocity.set(0, 0, -600);
+      });
+    }
+    const truck = (id: number, y: number, z: number, health = 1): GroundTargetEntity =>
+      ({ id, kind: 'ground', type: 'truck', side: 'central', position: new Vector3(0, y, z), heading: 0, health, destroyed: false });
+    const groundHits = (s: Scenario) => s.events.filter((e) => e.type === 'bullet-hit' && e.zone === 'ground').length;
+
+    it('a round just above a truck misses and one just inside its box top hits', () => {
+      // Truck box top is y + 2.6; its broad-phase sphere top is y + 1.3 + hypot(1.1, 3) + 2.6.
+      const above = scenario({ realism: { gunJams: false } });
+      above.groundTargets.push(truck(60, 200, 0));
+      rounds(above, [200 + 1.3 + Math.hypot(1.1, 3) + 2.6 + 0.05]);
+      above.step(0.2, undefined, false);
+      expect(groundHits(above)).toBe(0);
+
+      const inside = scenario({ realism: { gunJams: false } });
+      inside.groundTargets.push(truck(60, 200, 0));
+      rounds(inside, [202.55]);
+      inside.step(0.2, undefined, false);
+      expect(groundHits(inside)).toBe(1);
+    });
+
+    it('a lower target does not hide a higher one in its path', () => {
+      const s = scenario({ realism: { gunJams: false } });
+      s.groundTargets.push(truck(60, 60, 0));
+      s.groundTargets.push(truck(61, 300, -10));
+      rounds(s, [301]);
+      s.step(0.2, undefined, false);
+      expect(s.events.filter((e) => e.type === 'bullet-hit' && e.targetId === 61).length).toBe(1);
+    });
+
+    it('a target destroyed mid-step lets the following rounds pass', () => {
+      const s = scenario({ realism: { gunJams: false } });
+      // One truck hit (0.12) finishes it.
+      s.groundTargets.push(truck(60, 200, 0, 0.1));
+      rounds(s, [201, 201]);
+      s.step(0.2, undefined, false);
+      expect(groundHits(s)).toBe(1);
+      expect(s.groundTargets[0].destroyed).toBe(true);
+      expect(s.combat.bullets.filter((b) => b.position.z < -20 && Math.abs(b.position.y - 201) < 1).length).toBe(1);
+    });
   });
 });
 
