@@ -1,6 +1,6 @@
 // Detached scratch worktrees at a pinned commit, plus a child runner whose whole process
-// group is stopped when it finishes or is interrupted. Shared by checkcommits (F-44) and the
-// planned prefix-check (F-75).
+// group is stopped when it finishes or is interrupted. Shared by checkcommits (F-44) and
+// prefix-check (F-75).
 import { spawn, execFileSync } from 'node:child_process';
 import { createWriteStream, readFileSync, realpathSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';

@@ -74,6 +74,8 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
   blocker, the next action. If nothing landed or was proved, change the approach.
 - **Preserve worktrees.** Before removing one, check its uncommitted work, merge status and
   unpushed commits, and get the user's approval.
+  `pnpm exec node tools/dev/worktrees.mjs` (`--json`) lists every worktree's state and the
+  ones that look safe to remove; it never removes anything.
 
 ## Shared execution and browser QA
 - **Managed jobs:** start long finite commands as harness-tracked background jobs. Do other
@@ -124,6 +126,10 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
 - **Prove each commit of a series on its own** with
   `pnpm exec node tools/dev/checkcommits.mjs main..HEAD` (install, typecheck, `pnpm test`
   per commit in a scratch worktree; exit 0 only if all pass). Don't hand-roll the loop.
+- **Prove a new test fails first** with
+  `pnpm exec node tools/dev/prefix-check.mjs <test…> -- <source…>`: your test files run
+  against HEAD's sources in a scratch worktree. Exit 0 = red at HEAD, 1 = passes there,
+  2 = inconclusive (a test file failed to load) or setup error. Don't swap files by hand.
 - **A/B with `pnpm exec node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`).
   For file-based readiness, `pnpm exec node tools/dev/waitfor.mjs <file> <regex> …` is the portable
   blocking helper. Don't hand-launch paired soaks or write sleep loops. Quote a difference
