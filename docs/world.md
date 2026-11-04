@@ -4,9 +4,9 @@
 
 | Export | Notes |
 |---|---|
-| `terrainHeightAt(x, z)` | Metres ASL (sea floor < 0). Authored 0.125° relief grid + named features (Vimy/Artois escarpment, Passchendaele–Messines ridge, Flemish hills) + carved river valleys + coast + smooth fBm (shortest wavelength ~500 m) + flattened aerodromes. ~15 µs/call over the whole sector (see "Query cost" below). |
+| `terrainHeightAt(x, z)` | Metres ASL (sea floor < 0). Authored 0.125° relief grid + named features (Vimy/Artois escarpment, Passchendaele–Messines ridge, Flemish hills) + carved river valleys + coast + smooth fBm (shortest wavelength ~500 m) + flattened aerodromes. ~3–4 µs/call over the whole sector (see "Query cost" below). |
 | `terrainNormalAt(x, z)` | Central-difference normal. |
-| `frontLineAt(date)` / `signedDistanceToFront(x, z, date)` / `sideOfFrontAt(x, z, date)` | Historical lines 1915-07 → 1918-11-11 as six-section keyframes interpolated per section (quiet sectors don't drift). Negative distance = allied (west). Cached per date; bucketed segment index, ~15–20 µs per query (see "Query cost" below). |
+| `frontLineAt(date)` / `signedDistanceToFront(x, z, date)` / `sideOfFrontAt(x, z, date)` | Historical lines 1915-07 → 1918-11-11 as six-section keyframes interpolated per section (quiet sectors don't drift). Negative distance = allied (west). Cached per date; bucketed segment index, ~4 µs per query (see "Query cost" below). |
 | `craterIntensityAt(x, z, date)` | 0..1. Every line held up to the date (incl. ground swept by offensives, sampled every 10 days) is rasterised into a 250 m grid on first use per date (~0.5 s), then bilinear lookups. |
 | `craterGridsForDate` / `installCraterGrids` / `hasCraterGrids` | Hand a date's grids between threads. The renderer builds them in `terrain/craterWorker.ts` at load (`CraterGridLoader`, awaited by `whenReady`), so main-thread queries (effects' `landUseAt` on bullet impacts) never build synchronously. |
 | `landUseAt(x, z, date)` | `'field' \| 'pasture' \| 'forest' \| 'town' \| 'water' \| 'trench-zone' \| 'shell-cratered' \| 'beach' \| 'sea'`. |
@@ -14,27 +14,30 @@
 | `riverQuery`, `riverPolylines`, `coastDistance`, `roadNetwork` | Water/coast/roads for placement and rendering. |
 
 `SegmentIndex` serves nearest-segment and signed-distance queries for front lines,
-rivers, coast and ridges. Queries visit bucket-ring perimeters in stable column/row
-order and reuse per-segment generation stamps instead of allocating a visited set.
+rivers, coast and ridges. Buckets live in a dense grid over the occupied cell bounding
+box. Queries visit bucket-ring perimeters in stable column/row order, clipped to that box
+(cells outside it are empty), and start at the first ring that reaches it. They reuse
+per-segment generation stamps instead of allocating a visited set.
 Passing a `NearestHit` output object also avoids result allocation. The distance cap
 is exclusive; equal-distance ties keep the first segment visited. Generation wrap
 clears the stamps before reuse, and each index owns its visitation storage.
 
 ### Query cost
 
-Measured 2026-11-04 at `8daef36` on an Apple M3 Max, Node 24.22.1, with
+Measured 2026-11-04 on an Apple M3 Max, Node 26.12.1, with
 `tools/dev/scenarios/world-bench.mjs`: 200k seeded points over the whole sector
 (x −65…78 km, z −90…78 km, the `world-equivalence.mjs` bounds), date 1917-06-01,
-median of 3 passes per query. Six samples on a shared machine at load average 9–21,
-so the high ends carry load noise; an earlier, quieter run over slightly narrower
-bounds gave the low ends.
+median of 3 passes per query, on a shared machine at load average 6–8. "Before" is
+`b508e33` (sparse `Map` buckets, unclipped rings); "after" is the dense, clipped grid.
+The same change cut `buildChunk` from ~25 to ~10 ms per default 33×33 chunk (~94 to
+~39 ms at 64 segments), with byte-identical output.
 
-| Query | µs/call |
-|---|---|
-| `terrainHeightAt` | ~14–17 |
-| `coastDistance` | ~10–11 |
-| `signedDistanceToFront` | ~14–20 |
-| `sideOfFrontAt` | ~16–24 |
+| Query | before µs/call | after µs/call |
+|---|---|---|
+| `terrainHeightAt` | ~14 | ~3.2 |
+| `coastDistance` | ~10 | ~2.6 |
+| `signedDistanceToFront` | ~16 | ~3.8 |
+| `sideOfFrontAt` | ~17 | ~3.7 |
 
 Rerun with `node tools/dev/differential-probe.mjs --baseline . --candidate .
 --scenario tools/dev/scenarios/world-bench.mjs --timeout-ms 240000`; each side

@@ -48,7 +48,13 @@ interface Seg {
 export class SegmentIndex {
   private readonly segs: Seg[] = [];
   private readonly cell: number;
-  private readonly buckets = new Map<number, number[]>();
+  /**
+   * Dense bucket grid over the occupied cell bbox [minCX..maxCX] x [minCZ..maxCZ],
+   * column-major: cell (ix, iz) lives at (ix - minCX) * gridH + (iz - minCZ).
+   * Each bucket lists segment indices in ascending order; empty cells are null.
+   */
+  private readonly grid: (number[] | null)[] = [];
+  private readonly gridH: number = 0;
   private readonly seen: Uint32Array;
   private generation = 0;
   private minCX = Infinity;
@@ -93,28 +99,35 @@ export class SegmentIndex {
         nxt.paz = pz;
       }
     });
-    this.segs.forEach((s, i) => {
-      const x0 = Math.floor(Math.min(s.ax, s.bx) / this.cell);
-      const x1 = Math.floor(Math.max(s.ax, s.bx) / this.cell);
-      const z0 = Math.floor(Math.min(s.az, s.bz) / this.cell);
-      const z1 = Math.floor(Math.max(s.az, s.bz) / this.cell);
-      for (let cx = x0; cx <= x1; cx++)
-        for (let cz = z0; cz <= z1; cz++) {
-          const k = this.key(cx, cz);
-          let b = this.buckets.get(k);
-          if (!b) this.buckets.set(k, (b = []));
-          b.push(i);
-          this.minCX = Math.min(this.minCX, cx);
-          this.maxCX = Math.max(this.maxCX, cx);
-          this.minCZ = Math.min(this.minCZ, cz);
-          this.maxCZ = Math.max(this.maxCZ, cz);
-        }
-    });
+    // Pass 1: the occupied cell bbox. Pass 2: fill buckets in ascending segment order.
+    const cellRange = (s: Seg): [number, number, number, number] => [
+      Math.floor(Math.min(s.ax, s.bx) / this.cell),
+      Math.floor(Math.max(s.ax, s.bx) / this.cell),
+      Math.floor(Math.min(s.az, s.bz) / this.cell),
+      Math.floor(Math.max(s.az, s.bz) / this.cell),
+    ];
+    for (const s of this.segs) {
+      const [x0, x1, z0, z1] = cellRange(s);
+      this.minCX = Math.min(this.minCX, x0);
+      this.maxCX = Math.max(this.maxCX, x1);
+      this.minCZ = Math.min(this.minCZ, z0);
+      this.maxCZ = Math.max(this.maxCZ, z1);
+    }
+    if (this.segs.length > 0) {
+      this.gridH = this.maxCZ - this.minCZ + 1;
+      this.grid = new Array<number[] | null>((this.maxCX - this.minCX + 1) * this.gridH).fill(null);
+      this.segs.forEach((s, i) => {
+        const [x0, x1, z0, z1] = cellRange(s);
+        for (let cx = x0; cx <= x1; cx++)
+          for (let cz = z0; cz <= z1; cz++) {
+            const k = (cx - this.minCX) * this.gridH + (cz - this.minCZ);
+            const b = this.grid[k];
+            if (b) b.push(i);
+            else this.grid[k] = [i];
+          }
+      });
+    }
     this.seen = new Uint32Array(this.segs.length);
-  }
-
-  private key(cx: number, cz: number): number {
-    return (cx + 32768) * 65536 + (cz + 32768);
   }
 
   get segmentCount(): number {
@@ -146,15 +159,28 @@ export class SegmentIndex {
     const generation = this.generation;
     // Max ring needed to cover the whole index from this point.
     const maxRing = Math.max(Math.abs(cx - this.minCX), Math.abs(cx - this.maxCX), Math.abs(cz - this.minCZ), Math.abs(cz - this.maxCZ)) + 1;
-    for (let r = 0; r <= maxRing; r++) {
+    // Rings closer than the Chebyshev cell distance to the bbox hold no buckets,
+    // and `best` is still maxDistance there, so starting at r0 breaks where r = 0 would.
+    const r0 = Math.max(0, this.minCX - cx, cx - this.maxCX, this.minCZ - cz, cz - this.maxCZ);
+    const gridH = this.gridH;
+    for (let r = r0; r <= maxRing; r++) {
       // Any segment in ring r is at least (r - 1) * cell away.
       if ((r - 1) * this.cell > best) break;
-      for (let ix = cx - r; ix <= cx + r; ix++) {
+      // Cells outside the bbox hold no buckets, so clip the ring to it.
+      const ixLo = Math.max(cx - r, this.minCX);
+      const ixHi = Math.min(cx + r, this.maxCX);
+      const izLo = cz - r;
+      const izHi = cz + r;
+      for (let ix = ixLo; ix <= ixHi; ix++) {
         // Keep ix/iz ascending, including tie order: outer columns visit every
         // row, while inner columns visit only the bottom and top perimeter.
-        const zStep = ix === cx - r || ix === cx + r ? 1 : 2 * r;
-        for (let iz = cz - r; iz <= cz + r; iz += zStep) {
-          const b = this.buckets.get(this.key(ix, iz));
+        const outer = ix === cx - r || ix === cx + r;
+        const zStep = outer ? 1 : 2 * r;
+        const col = (ix - this.minCX) * gridH - this.minCZ;
+        for (let iz = outer ? Math.max(izLo, this.minCZ) : izLo; iz <= izHi; iz += zStep) {
+          if (iz < this.minCZ) continue;
+          if (iz > this.maxCZ) break;
+          const b = this.grid[col + iz];
           if (!b) continue;
           for (const si of b) {
             if (this.seen[si] === generation) continue;
