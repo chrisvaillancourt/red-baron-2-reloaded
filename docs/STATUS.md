@@ -6,16 +6,16 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 ## Live
 
-- `origin/main` `b508e33`: Node 26.12.1 LTS pinned (`devEngines.runtime`, CI), D-116/D-117,
-  F-44 `checkcommits`, tech-debt wave 1. Deployment: check the latest main run.
+- Release `4f7abbd` deployed by [Actions run 41869054412](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41869054412);
+  live `prodcheck` OK. Node 26.12.1 LTS (D-117), long replays as soaks (D-118), D-116,
+  F-44 `checkcommits`, tech-debt wave 1. Then pnpm 12.16.1 via `packageManager`,
+  F-75 `prefix-check`, `worktrees.mjs`, and the Q-13/Q-06 plans.
 
 ## Now
 
 | Track | Branch | Next action |
 |---|---|---|
-| pnpm pin | `build/pnpm-12.16` | `packageManager: pnpm@12.16.1`, CI reads it. Full check green; push after the `b508e33` deployment succeeds. |
 | Tech-debt wave 2 | `perf/sim-*`, `perf/world-segment-grid`, `refactor/*` | Behavior-neutral refactors proved with the equivalence probes; review, then integrate. |
-| Dev tools | `feat/dev-tools-prefix-worktrees` | F-75 `prefix-check` and `worktrees.mjs` inventory; in review. |
 
 ## Next
 
