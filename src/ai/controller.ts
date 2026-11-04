@@ -130,8 +130,28 @@ export interface AIStats {
 /** Controllers by entity, so wingmen can see what their leader is doing. */
 const REGISTRY = new WeakMap<AircraftEntity, AIPilot>();
 
-/** RTB reasons that are a choice, not a necessity: a fit fighter still fights back. */
-const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort complete']);
+/**
+ * Every reason a pilot heads home, and whether it is a choice (true) or a necessity
+ * (false). A voluntary RTB lets a fit fighter fight back, a bomber still lead, and skips
+ * the cloud escape. A new reason must be added here, which forces that decision.
+ */
+const RTB_VOLUNTARY = {
+  'ordered home': true,
+  'mission complete': true,
+  'escort complete': true,
+  'engine dead': false,
+  'on fire': false,
+  'engine damaged': false,
+  'airframe damaged': false,
+  wounded: false,
+  'low fuel': false,
+  'out of ammunition': false,
+} as const satisfies Record<string, boolean>;
+
+/** Why a pilot is heading home. */
+export type RtbReason = keyof typeof RTB_VOLUNTARY;
+
+const isVoluntaryRtb = (r: RtbReason | null): boolean => r !== null && RTB_VOLUNTARY[r];
 
 /** Seconds of closure at which an attacker breaks off a head-on or overtaking pass. */
 const BREAK_LEAD_S = 1.8;
@@ -217,9 +237,9 @@ export class AIPilot implements AIController {
   private lastDamage = 0;
   private hitAt = -100;
   private extendUntil = 0;
-  private rtbReason = '';
+  private rtbReason: RtbReason | null = null;
   /** RTB reason to resume after fighting off an attacker on the way home. */
-  private resumeRtb = '';
+  private resumeRtb: RtbReason | null = null;
   private landing: LandingPlan | null = null;
   landingStage: LandingStage = 'approach';
   private gunnerTarget: number | null = null;
@@ -446,7 +466,7 @@ export class AIPilot implements AIController {
     const dm = self.damage;
     const z = dm.zones;
     const t = this.profile.t;
-    let reason = '';
+    let reason: RtbReason | null = null;
     if (dm.engineDead) reason = 'engine dead';
     else if (dm.onFire) reason = 'on fire';
     else if (z.engine > 0.5) reason = 'engine damaged';
@@ -457,11 +477,11 @@ export class AIPilot implements AIController {
     else if (this.traits.hasFixedGuns && this.opts.task !== 'recon' && this.opts.task !== 'bomb' && fixedAmmo(self) === 0) reason = 'out of ammunition';
     // A bomber hurt but still flying keeps his place in the formation, which is his best
     // protection and goes home when the job is done; only a failing engine, fire or fuel sends him off alone.
-    if ((reason === 'wounded' || reason === 'airframe damaged') && this.holdsFormation(self, world)) reason = '';
+    if ((reason === 'wounded' || reason === 'airframe damaged') && this.holdsFormation(self, world)) reason = null;
     if (reason) this.startRtb(reason);
   }
 
-  private startRtb(reason: string): void {
+  private startRtb(reason: RtbReason): void {
     if (this.phase === 'landing' || this.phase === 'landed') return;
     this.rtbReason = reason;
     this.phase = 'rtb';
@@ -496,7 +516,7 @@ export class AIPilot implements AIController {
   private canLead(_self: AircraftEntity, a: AircraftEntity): boolean {
     if (this.opts.task !== 'bomb') return true;
     const c = REGISTRY.get(a);
-    return !(c && c.phase === 'rtb' && !VOLUNTARY_RTB.has(c.rtbReason) && bombsAboard(a) > 0);
+    return !(c && c.phase === 'rtb' && !isVoluntaryRtb(c.rtbReason) && bombsAboard(a) > 0);
   }
 
   /**
@@ -618,7 +638,7 @@ export class AIPilot implements AIController {
       // Going home because the job is done (or ordered home) is no reason not to fight
       // back: a healthy fighter with ammunition turns on a scout that is attacking it or
       // its flight, instead of being shot in the back all the way to the lines.
-      if (!VOLUNTARY_RTB.has(this.rtbReason) || !this.canFightBack(self)) return;
+      if (!isVoluntaryRtb(this.rtbReason) || !this.canFightBack(self)) return;
       const leader = this.resolveLeader(self, world);
       const threat = known.find(
         (e) =>
@@ -628,7 +648,7 @@ export class AIPilot implements AIController {
       );
       if (!threat) return;
       this.resumeRtb = this.rtbReason;
-      this.rtbReason = '';
+      this.rtbReason = null;
       this.targetId = threat.id;
       this.phase = 'engage';
       return;
@@ -646,9 +666,9 @@ export class AIPilot implements AIController {
     if (this.phase === 'engage' || this.phase === 'extend') {
       this.phase = 'mission';
       // Fought off an attacker on the way home: carry on home.
-      if (this.resumeRtb) {
+      if (this.resumeRtb !== null) {
         const reason = this.resumeRtb;
-        this.resumeRtb = '';
+        this.resumeRtb = null;
         this.startRtb(reason);
       }
     }
@@ -1700,7 +1720,7 @@ export class AIPilot implements AIController {
    * Only clouds the renderer draws count (world.nearestCloud).
    */
   private steerRefuge(self: AircraftEntity, world: WorldQuery, steer: SteerCommand): boolean {
-    if (!TACTICS_FLAGS.cloudEscape || !world.nearestCloud || VOLUNTARY_RTB.has(this.rtbReason)) return false;
+    if (!TACTICS_FLAGS.cloudEscape || !world.nearestCloud || isVoluntaryRtb(this.rtbReason)) return false;
     const s = self.state;
     if (!this.refuge && this.now >= this.refugeCheck) {
       this.refugeCheck = this.now + 2;
@@ -2088,7 +2108,7 @@ export class AIPilot implements AIController {
   }
 
   /** Why the pilot is heading home, if he is. */
-  get homeReason(): string {
+  get homeReason(): RtbReason | null {
     return this.rtbReason;
   }
 }

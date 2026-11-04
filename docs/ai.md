@@ -38,7 +38,7 @@ Extra read-only state on the returned `AIPilot` (not in the `AIController` inter
 | `phase` | `'takeoff'` while rolling/climbing out; `'landed'` means the aircraft has stopped on a friendly field: despawn it with outcome `'landed-friendly'` (or use src/sim `isStoppedOnGround`). `'out'` = dead/removed. |
 | `debugState` | e.g. `engage #12`, `defend break`, `rtb`, `landing`, `takeoff roll`, plus `recover` / `pull-up` flags. |
 | `targetId` | Current air target (HUD "wingman is attacking X"). |
-| `homeReason` | Why it went home: `'out of ammunition'`, `'engine damaged'`, `'mission complete'`… |
+| `homeReason` | Why it went home (`RtbReason`, or `null` when it isn't heading home): `'out of ammunition'`, `'engine damaged'`, `'mission complete'`… Each reason is classed voluntary or not in `RTB_VOLUNTARY` (controller.ts); a new reason must be added there. |
 | `stats` | `gunsSolutionTime`, `firingTime`, `defendTime` (tests/tuning). |
 
 `getAIPilot(ac)` returns the controller for an entity (wingmen use it to see what
