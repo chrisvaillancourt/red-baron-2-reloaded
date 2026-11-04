@@ -40,7 +40,8 @@ import { FlightRecorder } from './flightRecorder';
 import { PlayerAwareness } from './playerAwareness';
 import { SimCore, SIM_HZ } from './simCore';
 import type { SessionWorld } from './world';
-import { showFlightInterrupted } from './errorOverlay';
+import { getErrorOverlay, showFlightInterrupted } from './errorOverlay';
+import { bindFlightController, ControllerHint } from './flightController';
 import { markErrorReported } from '../core/flightErrors';
 import { getActiveFlight, setActiveFlight } from './activeFlight';
 
@@ -121,6 +122,9 @@ export class FlightSession {
   private hud!: Hud;
   private input!: InputManager;
   private touch: TouchControls | null = null;
+  /** Clears this session's HUD controller options (set once the flight is ready). */
+  private unbindController: (() => void) | null = null;
+  private readonly controllerHint = new ControllerHint();
   private touchCapable = false;
   private touchActive = false;
   private touchCapture = false;
@@ -333,6 +337,12 @@ export class FlightSession {
     this.canvas.focus();
 
     window.__rb2 = { ...window.__rb2, session: this.debugHandle() };
+    this.unbindController = bindFlightController({
+      hud: this.hud,
+      owner: () => this.input.gamepadOwner,
+      dispatch: (action) => this.controllerAction(action),
+      foregroundOverlay: getErrorOverlay,
+    });
     this.bus.emit({ type: 'radio', from: '', text: `${mission.title}. ${this.touchActive ? 'Menu opens flight actions and the map.' : 'Esc for the menu, M for the map.'}` });
     this.lastT = performance.now();
     this.started = true;
@@ -451,6 +461,27 @@ export class FlightSession {
     } else if (!this.mapOpen && !this.hud.menuOpen) {
       this.input.queueCommand(action);
     }
+    this.updateTouch();
+  }
+
+  /**
+   * A command from the HUD's controller menus: the Flight actions card (which closed itself
+   * and leaves resuming to us) or B on the map. It joins the touch/keyboard edge path, so
+   * the next frame's handleCommands runs it exactly once.
+   */
+  private controllerAction(action: EdgeAction): void {
+    if (this.finished || this.contextLost) return;
+    if (action === 'map' && this.mapOpen) {
+      // Map close bypasses input capture, as the View button's edge does (handleCommands).
+      if (this.canCloseMap) this.handleCommands(['map']);
+      this.updateTouch();
+      return;
+    }
+    if (this.paused) {
+      this.resumeAudio();
+      this.setPaused(false);
+    }
+    this.input.queueCommand(action);
     this.updateTouch();
   }
 
@@ -738,6 +769,8 @@ export class FlightSession {
     // Modal capture blocks input; a silent simulation freeze still permits commands.
     this.updateTouch();
     this.input.enabled = !this.inputCaptured;
+    // X releases bombs instead of cycling targets in bombsight view (readGamepad context).
+    this.input.bombsightMode = this.rig.mode === 'bombsight';
     const station = this.core.playerStation;
     const inp = this.input.update(dtReal, player && player.outcome === null ? player : null, this.rig.mouseSteers);
     this.handleCommands(inp.commands);
@@ -820,7 +853,7 @@ export class FlightSession {
           aimDirection: inp.aimDirection,
           waypointIndex: this.waypointIndex,
           wingmanOrders: this.wingmanOrders,
-          hint: this.settings.showTutorialHints && world.time < 20 ? (this.touchActive ? 'Touch stick to steer · FIRE shoots · MENU for views, crew and orders' : START_HINT + (crewStations(player.spec).length > 1 ? CREW_HINT : '')) : null,
+          hint: this.flightHint(player, world.time),
           knowsEnemy: (id) => this.awareness.knows(id, world.time),
           crew: this.crew.hud(this.rig.camera),
         }),
@@ -833,6 +866,16 @@ export class FlightSession {
     }
 
     if (this.director.ended) this.finish();
+  }
+
+  /** The tutorial hint line: the standard-controller hint while a pad drives the flight. */
+  private flightHint(player: AircraftEntity, time: number): string | null {
+    if (!this.settings.showTutorialHints) return null;
+    const pad = this.settings.controls.gamepadEnabled && this.input.getGamepad() !== null;
+    const padHint = this.controllerHint.update(time, pad, this.input.stationMode, this.input.bombsightMode);
+    if (pad) return padHint;
+    if (time >= 20) return null;
+    return this.touchActive ? 'Touch stick to steer · FIRE shoots · MENU for views, crew and orders' : START_HINT + (crewStations(player.spec).length > 1 ? CREW_HINT : '');
   }
 
   private step(h: number): void {
@@ -973,6 +1016,8 @@ export class FlightSession {
     this.entityObjects.clear();
     this.interp = new RenderInterpolator();
     this.pixelRequests = [];
+    step('controller binding', () => this.unbindController?.());
+    this.unbindController = null;
     step('hud', () => this.hud?.dispose());
     step('root', () => this.root?.remove());
     if (window.__rb2) window.__rb2.session = null;

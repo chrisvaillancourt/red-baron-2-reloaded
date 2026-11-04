@@ -152,6 +152,18 @@ lead choice, pause, purchases, next raid and report/replay work with the pad.
 Numeric custom seeds and Options sliders still require keyboard/mouse; this is not
 a claim of controller-only operation across every application screen.
 
+In flight, the session binds the HUD with `bindFlightController`
+(`src/game/flightController.ts`): only the flight input's pinned pad (inherited from
+the menu at launch) navigates HUD cards, Menu opens pause, whose "Flight actions"
+card lists `ACTION_GROUPS`, and B backs out card by card. A chosen action resumes the
+flight and joins the touch edge path (`InputManager.queueCommand`), so the next frame
+runs it once. B on the map closes it. Each bind starts a new epoch: a torn-down or
+superseded session's callbacks are no-ops, and teardown clears the HUD's options.
+While a standard pad drives the flight, the tutorial hint line shows
+`controllerFlightHint` for the pilot/gunner and bombsight context, at the start and
+for 10 s after each context change. On the desktop map, B also reaches the flight
+input as chase view (the map does not capture flight input there).
+
 ### Quick Mission crew options
 
 - **Your seat**: for a multi-crew type (the Bristol F.2b, the D.H.4), a button per crew station

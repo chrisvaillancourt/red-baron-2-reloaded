@@ -336,7 +336,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
       } catch { /* Keyboard close remains available without the Gamepad API. */ }
     }
     const key = codeLabel(settings.controls.keyBindings.map?.[0] ?? 'KeyM');
-    setText(mapHint, `${key}${controller ? ' / View / Menu / B' : ''} — close map`);
+    setText(mapHint, `${key}${controller ? ' / View / B' : ''} — close map`);
   }
 
   function showActions(cb: PauseCallbacks): void {
