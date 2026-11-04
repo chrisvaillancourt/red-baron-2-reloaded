@@ -1438,7 +1438,7 @@ make the old PR head an ancestor of this release.
 Number D-115 assigned by the integration owner during workflowz integration.
 
 
-## D-XXX — Short STATUS and work-in-progress rules replace the receipt ledger
+## D-116 — Short STATUS and work-in-progress rules replace the receipt ledger
 
 Supersedes D-114's receipt freshness gate and STATUS's state-transition protocol.
 The workflowz retrospective found orchestration, not checks, was the bottleneck: the
@@ -1453,3 +1453,5 @@ rows) was loaded by every agent at spawn.
   worktree per session, one candidate per track awaiting integration, focused tests by
   workers, the full gate once after merge, evidence once in the merge or PR body.
 - FRICTION keeps only open rows; the lead prunes Done and Skip rows when logging a wave.
+
+Number D-116 assigned by the integration owner when merging wave 1.

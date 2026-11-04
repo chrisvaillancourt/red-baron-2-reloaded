@@ -1,6 +1,6 @@
 # Workflowz retrospective and restart recommendations
 
-Recorded 2026-10-05 UTC after the user paused execution. Its operating rules were applied on 2026-11-04: see AGENTS.md "Work in progress" and the DECISIONS entry that supersedes D-114.
+Recorded 2026-10-05 UTC after the user paused execution. Its operating rules were applied on 2026-11-04: see AGENTS.md "Work in progress" and DECISIONS D-116.
 
 ## Assessment
 
