@@ -16,7 +16,7 @@ over a real-scale Western Front, from the Fokker Scourge of 1915 to the Armistic
 ## Play it
 
 The quickest way is the [online build](https://chrisvaillancourt.github.io/red-baron-2-reloaded/),
-which is redeployed from `main` on every push. To run it locally, you need Node 22+, pnpm, and a desktop browser with WebGL2 and a real GPU (Chrome, Edge,
+which is redeployed from `main` on every push. To run it locally, you need pnpm 12 (it fetches the pinned Node 26 LTS itself) and a desktop browser with WebGL2 and a real GPU (Chrome, Edge,
 Safari or Firefox).
 
 ```sh
