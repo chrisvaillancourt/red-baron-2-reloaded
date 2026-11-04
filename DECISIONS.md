@@ -1437,3 +1437,19 @@ make the old PR head an ancestor of this release.
 
 Number D-115 assigned by the integration owner during workflowz integration.
 
+
+## D-XXX — Short STATUS and work-in-progress rules replace the receipt ledger
+
+Supersedes D-114's receipt freshness gate and STATUS's state-transition protocol.
+The workflowz retrospective found orchestration, not checks, was the bottleneck: the
+parent spent its time maintaining receipts and review queues, and docs churn outran code
+(about 2,000 docs lines against 700 source lines between `9c40f8e` and `b7e8911`). STATUS
+had frozen for four weeks at 196 lines, and FRICTION's Open table (44 KB, mostly finished
+rows) was loaded by every agent at spawn.
+
+- STATUS holds only Live, Now, Next and owner blockers, updated with the work that changes
+  them; the old ledger is archived in STATUS-ARCHIVE.
+- AGENTS.md "Work in progress" replaces "Shared session ownership": one branch and
+  worktree per session, one candidate per track awaiting integration, focused tests by
+  workers, the full gate once after merge, evidence once in the merge or PR body.
+- FRICTION keeps only open rows; the lead prunes Done and Skip rows when logging a wave.

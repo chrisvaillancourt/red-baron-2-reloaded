@@ -1,6 +1,6 @@
 # Task contracts and execution evidence
 
-Current scheduling, release anchor, ownership and receipt freshness live only in
+Current work (Now and Next) lives only in
 [STATUS.md](STATUS.md). This file holds contracts, operating policy and revisioned
 evidence—not another live queue. The original cycle base was
 `07dfaa462a098df633e512a86406b9d7c416fc73`; dated measurements below keep their own refs.
@@ -11,8 +11,8 @@ Durable external blockers and untriggered historical ideas live in
 
 ## Operating decisions
 
-- Follow STATUS's receipt freshness gate before dispatch. Newer applicable PR/handoff evidence must be reconciled into that ledger; this file does not override it.
-- Three active implementation/evidence tracks maximum; refill on completion or external blocking. Clear review/integration congestion before starting more code.
+- Check STATUS Now/Next and confirm claims in git or CI before dispatch; this file does not override STATUS.
+- Work-in-progress limits are in AGENTS.md "Work in progress".
 - Use isolated workspaces and exact base SHAs. One owner for each shared production file; freeze pursuer/damage policy during tactics comparisons. One exclusive GPU verification slot.
 - Ready work requires observable acceptance and satisfied prerequisites. Blocked work names its unblock condition; deferred work names a trigger or date.
 - Prioritize release safety, reproduced player problems, enabling work, repeated friction, then conditional polish. Refactor locally where duplicated knowledge is already causing errors; do not build speculative frameworks.
@@ -46,7 +46,7 @@ there is no unattended scheduler running between sessions.
 8. Close tasks against their acceptance evidence. Record bug fixes separately from
    duplicate/stale-item closure; track reopened defects and queue age, not agent count.
 
-Choose the current eligible tracks and blockers from [STATUS.md](STATUS.md#next-dispatch).
+Choose the current eligible tracks and blockers from [STATUS.md](STATUS.md#next).
 The dated contracts/evidence below explain acceptance and provenance, not an alternate queue.
 
 The user selected **Verified merges and deployments** for autonomous work while away:
