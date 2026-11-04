@@ -60,4 +60,32 @@ describe('gamepad mapping (virtual pad)', () => {
     expect(f.lookYaw).toBeLessThan(0);
     expect(f.lookPitch).toBeGreaterThan(0);
   });
+
+  it('reserves X for held bomb release and a single release edge in both bombsight seats', () => {
+    for (const stationMode of [false, true]) {
+      const context = { stationMode, bombsightMode: true };
+      const first = readGamepad(pad(undefined, [2]), rest, cs, 1 / 60, context);
+      expect(first.releaseBomb).toBe(true);
+      expect(first.commands).toEqual(['releaseBomb']);
+      const held = readGamepad(pad(undefined, [2]), first.pressed, cs, 1 / 60, context);
+      expect(held.releaseBomb).toBe(true);
+      expect(held.commands).toEqual([]);
+      const released = readGamepad(pad(), held.pressed, cs, 1 / 60, context);
+      expect(released.releaseBomb).toBe(false);
+      expect(readGamepad(pad(undefined, [2]), released.pressed, cs, 1 / 60, context).commands).toEqual(['releaseBomb']);
+    }
+  });
+
+  it('changes only the crew seat shortcuts outside bombsight, keeping target selection', () => {
+    const p = pad(undefined, [2, 4, 5, 7]);
+    const pilot = readGamepad(p, rest, cs, 1 / 60);
+    expect(pilot.commands).toEqual(['nextTarget']);
+    const crew = readGamepad(p, rest, cs, 1 / 60, { stationMode: true });
+    expect(crew.commands).toEqual(['nextTarget', 'stationPrev', 'stationNext']);
+    expect(crew.yaw).toBe(0);
+    expect(crew.fire).toBe(true);
+    expect(crew.releaseBomb).toBe(false);
+    expect(readGamepad(pad(undefined, [1]), rest, cs, 1 / 60).commands).toEqual(['viewChase']);
+    expect(readGamepad(pad(undefined, [1]), rest, cs, 1 / 60, { stationMode: true }).commands).toEqual(['stationPilot']);
+  });
 });

@@ -365,7 +365,7 @@ describe('touch input frames', () => {
   });
 
   it('disabled input emits no flight state or stale commands, while gamepad Start can still unpause', () => {
-    const pad = { connected: true, axes: [1, 1, 1, 1], buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0 })) };
+    const pad = { index: 0, id: 'standard pad', mapping: 'standard', connected: true, axes: [1, 1, 1, 1], buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0 })) };
     vi.stubGlobal('navigator', { getGamepads: () => [pad] });
     try {
       const input = touchInput({ gamepadEnabled: true });
