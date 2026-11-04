@@ -17,12 +17,13 @@ const gp = (index: number, id: string) => ({ index, id, mapping: 'standard', con
 function bind(owner: { index: number; id: string } | null = { index: 2, id: 'menu' }, overlay: HTMLElement | null = null) {
   const hud = fakeHud();
   const dispatched: EdgeAction[] = [];
-  const state = { owner, overlay };
+  const state = { owner, overlay, captures: true };
   const unbind = bindFlightController({
     hud,
     owner: () => state.owner,
     dispatch: (a) => dispatched.push(a),
     foregroundOverlay: () => state.overlay,
+    mapCapturesInput: () => state.captures,
   });
   return { hud, dispatched, state, unbind, options: hud.options! };
 }
@@ -54,6 +55,7 @@ describe('flight controller binding', () => {
     expect(dispatched).toEqual([]);
     expect(options.gamepadAllowed(gp(2, 'menu'))).toBe(false);
     expect(options.foregroundOverlay()).toBeNull();
+    expect(options.mapCapturesInput()).toBe(false);
     unbind();
     expect(hud.calls.filter((c) => c === null)).toHaveLength(1);
   });

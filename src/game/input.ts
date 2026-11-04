@@ -235,7 +235,7 @@ export interface PadFrame {
  */
 export function readGamepad(
   pad: PadLike, prev: readonly boolean[], cs: ControlSettings, dt: number,
-  context: { stationMode?: boolean; bombsightMode?: boolean } = {},
+  context: { stationMode?: boolean; bombsightMode?: boolean; mapMode?: boolean } = {},
   out: PadFrame = createPadFrame(),
 ): PadFrame {
   const dz = cs.gamepadDeadzone;
@@ -252,7 +252,8 @@ export function readGamepad(
   if (edges & (1 << 2)) commands.push(context.bombsightMode ? 'releaseBomb' : 'nextTarget');
   if (edges & (1 << 3)) commands.push('viewPadlock');
   if (edges & (1 << 11)) commands.push('padlockNearest');
-  if (edges & (1 << 1)) commands.push(context.stationMode ? 'stationPilot' : 'viewChase');
+  // Over a map that does not capture flight input, B closes it and does nothing else.
+  if (edges & (1 << 1)) commands.push(context.mapMode ? 'map' : context.stationMode ? 'stationPilot' : 'viewChase');
   // A fresh crew B returns control to the pilot, overriding this frame's seat cycling.
   if (context.stationMode && !(edges & (1 << 1))) {
     if (edges & (1 << 4)) commands.push('stationPrev');
@@ -448,6 +449,9 @@ export class InputManager {
     this._bombsightMode = value;
     if (this.padFrame.pressed[PAD_X]) this.xLatched = true;
   }
+
+  /** The map is open without capturing flight input: B closes it (readGamepad context). */
+  mapMode = false;
 
   get gamepadOwner(): Readonly<{ index: number; id: string }> | null { return this._gamepadOwner; }
 

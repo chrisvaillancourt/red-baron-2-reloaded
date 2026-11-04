@@ -232,3 +232,74 @@ test('Flying Manual and Flying School controller prompts come from the mapped ta
     await page.screenshot({ path: 'test-results/controller-flight/flying-school.png' });
   } finally { await context.close(); }
 });
+
+test('desktop map: flight inputs never drive the map; a fresh B, View or M closes it once', async ({ browser, baseURL }) => {
+  test.setTimeout(120_000);
+  const context = await controllerContext(browser, baseURL);
+  const errors: string[] = [];
+  try {
+    const page = await context.newPage();
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto('/');
+    await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30_000 });
+    await fly(page);
+    const map = page.locator('.hud-map');
+
+    await test.step('a held stick and A neither focus nor click Close map, and the pad stays armed', async () => {
+      await tap(page, 8);
+      await expect(map).toBeVisible();
+      await expect(map.locator('.map-close')).toHaveAttribute('tabindex', '-1');
+      await stick(page, 1);
+      await page.waitForTimeout(1000);
+      await tap(page, 0);
+      await page.waitForTimeout(200);
+      await expect(map).toBeVisible();
+      expect((await flight(page)).roll).toBeGreaterThan(0.5);
+      await stick(page, 0);
+    });
+
+    await test.step('keyboard arrows and Enter do not reach Close map', async () => {
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(200);
+      await expect(map).toBeVisible();
+    });
+
+    await test.step('B closes the map once without changing the view', async () => {
+      const mode = (await flight(page)).mode;
+      await tap(page, 1);
+      await expect(map).toHaveCount(0);
+      await page.waitForTimeout(200);
+      await expect(map).toHaveCount(0);
+      expect((await flight(page)).mode).toBe(mode);
+    });
+
+    await test.step('at the observer gun, B closes the map and keeps the seat', async () => {
+      await page.evaluate(() => window.__rb2!.session!.command('stationNext'));
+      await expect.poll(async () => (await flight(page)).station).toBe('observer');
+      await tap(page, 8);
+      await expect(map).toBeVisible();
+      await tap(page, 1);
+      await expect(map).toHaveCount(0);
+      await page.waitForTimeout(200);
+      expect((await flight(page)).station).toBe('observer');
+    });
+
+    await test.step('View and M close it once; a mouse click on Close map still works', async () => {
+      await tap(page, 8);
+      await expect(map).toBeVisible();
+      await tap(page, 8);
+      await expect(map).toHaveCount(0);
+      await page.keyboard.press('KeyM');
+      await expect(map).toBeVisible();
+      await page.keyboard.press('KeyM');
+      await expect(map).toHaveCount(0);
+      await tap(page, 8);
+      await expect(map).toBeVisible();
+      await map.locator('.map-close').click();
+      await expect(map).toHaveCount(0);
+    });
+    await end(page);
+    expect(errors).toEqual([]);
+  } finally { await context.close(); }
+});

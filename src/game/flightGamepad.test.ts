@@ -155,6 +155,15 @@ describe('flight standard controller ownership and disarming', () => {
     expect(frame().commands).toEqual([]);
   });
 
+  it('B closes a non-capturing map instead of changing view or seat', () => {
+    const p = pad();
+    const cs = DEFAULT_SETTINGS.controls;
+    button(p, 1, true);
+    expect(readGamepad(p, [], cs, 1 / 60, { mapMode: true }).commands).toEqual(['map']);
+    expect(readGamepad(p, [], cs, 1 / 60, { mapMode: true, stationMode: true }).commands).toEqual(['map']);
+    expect(readGamepad(p, [], cs, 1 / 60, {}).commands).toEqual(['viewChase']);
+  });
+
   it('routes crew bumpers to seats, aims LS with inversion once, and preserves RT/A', () => {
     const p = pad();
     const { input, controls, frame } = setup([p]);

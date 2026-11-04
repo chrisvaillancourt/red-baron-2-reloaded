@@ -157,12 +157,18 @@ In flight, the session binds the HUD with `bindFlightController`
 the menu at launch) navigates HUD cards, Menu opens pause, whose "Flight actions"
 card lists `ACTION_GROUPS`, and B backs out card by card. A chosen action resumes the
 flight and joins the touch edge path (`InputManager.queueCommand`), so the next frame
-runs it once. B on the map closes it. Each bind starts a new epoch: a torn-down or
-superseded session's callbacks are no-ops, and teardown clears the HUD's options.
+runs it once. The pause card shows "Flight actions" in every flight, so keyboard and
+mouse players see it too. Each bind starts a new epoch: a torn-down or superseded
+session's callbacks are no-ops, and teardown clears the HUD's options.
+The map captures flight input only in a touch-capable flight (`mapCapturesInput`);
+there HUD navigation owns it and B closes it. On the desktop the pilot flies on under
+the map, so HUD navigation takes no directions or A there, "Close map" is out of pad and
+keyboard focus order (a mouse click still works), and the flight input's `mapMode`
+turns a fresh B into the map toggle: B, View or M closes the map once, with no view or
+seat change.
 While a standard pad drives the flight, the tutorial hint line shows
 `controllerFlightHint` for the pilot/gunner and bombsight context, at the start and
-for 10 s after each context change. On the desktop map, B also reaches the flight
-input as chase view (the map does not capture flight input there).
+for 10 s after each context change.
 
 ### Quick Mission crew options
 

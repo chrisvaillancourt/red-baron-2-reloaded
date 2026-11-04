@@ -269,7 +269,7 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
   let cardBack: (() => void) | null = null;
   let mapHint: HTMLElement | null = null;
   const nav = createNav({
-    scope: () => controllerOptions?.foregroundOverlay() ?? activeCard ?? mapHost,
+    scope: () => controllerOptions?.foregroundOverlay() ?? activeCard ?? (controllerOptions?.mapCapturesInput() ? mapHost : null),
     onBack: () => { handleMenuBack(); },
     onTab: () => {},
     gamepadEnabled: () => settings.controls.gamepadEnabled && controllerOptions !== null,
@@ -335,6 +335,9 @@ export function createHud(container: HTMLElement, initialSettings: GameSettings)
         }
       } catch { /* Keyboard close remains available without the Gamepad API. */ }
     }
+    // A map the pilot flies under keeps Close map out of pad and keyboard focus (mouse only).
+    const close = mapHost?.querySelector<HTMLButtonElement>('.map-close');
+    if (close) close.tabIndex = controllerOptions?.mapCapturesInput() ? 0 : -1;
     const key = codeLabel(settings.controls.keyBindings.map?.[0] ?? 'KeyM');
     setText(mapHint, `${key}${controller ? ' / View / B' : ''} — close map`);
   }

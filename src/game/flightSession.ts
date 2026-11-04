@@ -342,6 +342,7 @@ export class FlightSession {
       owner: () => this.input.gamepadOwner,
       dispatch: (action) => this.controllerAction(action),
       foregroundOverlay: getErrorOverlay,
+      mapCapturesInput: () => this.mapCaptures,
     });
     this.bus.emit({ type: 'radio', from: '', text: `${mission.title}. ${this.touchActive ? 'Menu opens flight actions and the map.' : 'Esc for the menu, M for the map.'}` });
     this.lastT = performance.now();
@@ -417,6 +418,11 @@ export class FlightSession {
 
   private get inputCaptured(): boolean {
     return this.hud.menuOpen || this.touchCapture || this.contextLost || ((this.touchCapable || this.touchActive) && (this.mapOpen || document.hidden));
+  }
+
+  /** A touch-capable flight holds still under the map; a desktop pilot flies on under it. */
+  private get mapCaptures(): boolean {
+    return this.touchCapable || this.touchActive;
   }
 
   private get canCloseMap(): boolean {
@@ -771,6 +777,7 @@ export class FlightSession {
     this.input.enabled = !this.inputCaptured;
     // X releases bombs instead of cycling targets in bombsight view (readGamepad context).
     this.input.bombsightMode = this.rig.mode === 'bombsight';
+    this.input.mapMode = this.mapOpen && !this.mapCaptures;
     const station = this.core.playerStation;
     const inp = this.input.update(dtReal, player && player.outcome === null ? player : null, this.rig.mouseSteers);
     this.handleCommands(inp.commands);

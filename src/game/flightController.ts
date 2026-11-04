@@ -15,6 +15,8 @@ export interface FlightControllerDeps {
   dispatch(action: EdgeAction): void;
   /** An error card above the flight, which then owns navigation. */
   foregroundOverlay(): HTMLElement | null;
+  /** An open map holds the flight (touch-capable flights). */
+  mapCapturesInput(): boolean;
 }
 
 /** Bumped by every bind: only the newest session's callbacks act. */
@@ -38,6 +40,7 @@ export function bindFlightController(deps: FlightControllerDeps): () => void {
       if (live()) deps.dispatch(action);
     },
     foregroundOverlay: () => (live() ? deps.foregroundOverlay() : null),
+    mapCapturesInput: () => live() && deps.mapCapturesInput(),
   });
   return () => {
     if (!bound) return;

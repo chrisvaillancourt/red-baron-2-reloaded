@@ -248,6 +248,11 @@ export interface HudControllerOptions {
   gamepadAllowed(pad: Gamepad): boolean;
   onAction(action: EdgeAction): void;
   foregroundOverlay(): HTMLElement | null;
+  /**
+   * True when an open map holds the flight (touch-capable flights). Otherwise the pilot
+   * flies on under it, so HUD navigation leaves it alone and the flight input closes it.
+   */
+  mapCapturesInput(): boolean;
 }
 
 export interface Hud {
