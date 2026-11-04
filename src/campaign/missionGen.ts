@@ -28,7 +28,7 @@ import type {
   Waypoint,
 } from '../core/types';
 import { NATION_SIDE } from '../core/types';
-import { AIRCRAFT } from '../data/aircraft';
+import { AIRCRAFT, inServiceOn } from '../data/aircraft';
 import { aerodromesActiveOn, type AerodromeWorld } from '../data/aerodromes';
 import { ACES, aceNamesOn, aceServiceOn, type Ace } from '../data/aces';
 import { eventOn, type HistoricalEvent } from '../data/history';
@@ -52,7 +52,7 @@ import {
   type XZ,
 } from './placement';
 import { Rng, seedFrom } from './rng';
-import { aircraftPool, nationForAircraft, squadronAircraftOn, squadronBaseOn, squadronsOfSide } from './squadronUtil';
+import { aircraftPool, fliesType, nationForAircraft, squadronAircraftOn, squadronBaseOn, squadronsOfSide } from './squadronUtil';
 import { describeWeather, fmt, randomTimeOfDay, seasonalWeather } from './weather';
 
 export interface GenerateOptions {
@@ -284,7 +284,7 @@ export function fighterFlight(
  */
 export function chargeNames(aircraftId: AircraftId, date: string): { plural: string; long: string; inService: boolean } {
   const spec = AIRCRAFT[aircraftId];
-  const inService = spec.introduced <= date && date <= spec.retired;
+  const inService = inServiceOn(spec, date);
   if (inService) return { plural: `${spec.shortName}s`, long: `${spec.name} machines`, inService };
   const kind = spec.role === 'bomber' ? 'bombers' : 'two-seaters';
   return { plural: kind, long: `observation ${kind}`, inService };
@@ -297,11 +297,11 @@ export function twoSeaterFlight(
 ): MissionFlight {
   const all = aircraftPool(opts.side, opts.task === 'bomb' ? 'bomber' : 'recon', ctx.date);
   // Escort your own nation's machines when it flies any in service (a French pilot escorts Farmans).
-  const own = opts.preferNation ? all.filter((id) => AIRCRAFT[id].nation === opts.preferNation || AIRCRAFT[id].alsoUsedBy.includes(opts.preferNation!)) : [];
+  const own = opts.preferNation ? all.filter((id) => fliesType(id, opts.preferNation!)) : [];
   const pool = own.length ? own : all;
   const aircraftId = ctx.rng.pick(pool);
   const spec = AIRCRAFT[aircraftId];
-  const nation = opts.preferNation && (spec.nation === opts.preferNation || spec.alsoUsedBy.includes(opts.preferNation)) ? opts.preferNation : nationForAircraft(aircraftId, opts.side);
+  const nation = opts.preferNation && fliesType(aircraftId, opts.preferNation) ? opts.preferNation : nationForAircraft(aircraftId, opts.side);
   return addFlight(ctx, {
     role: opts.role,
     side: opts.side,

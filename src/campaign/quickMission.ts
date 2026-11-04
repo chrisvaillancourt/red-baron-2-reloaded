@@ -28,7 +28,7 @@ import {
 } from './missionGen';
 import { add, clampToSector, describeLocation, dist, enemyDirection, frontAnchor, heading, pointOnSide, type FrontPoint, type XZ } from './placement';
 import { seedFrom } from './rng';
-import { aircraftPool, nationForAircraft } from './squadronUtil';
+import { aircraftPool, fliesType, nationForAircraft } from './squadronUtil';
 import { describeWeather } from './weather';
 
 /** Quick ground attack: defenders' scramble point beyond the target (m) and cruise height (m AGL). */
@@ -117,7 +117,7 @@ function escortLine(f: MissionFlight | undefined): string {
 /** A fighter of the player's side in service on the date, his own nation's if it flies one. */
 function escortFighter(ctx: GenCtx, side: Side, nation: Nation): AircraftId {
   const pool = aircraftPool(side, 'fighter', ctx.date);
-  const own = pool.filter((id) => AIRCRAFT[id].nation === nation || AIRCRAFT[id].alsoUsedBy.includes(nation));
+  const own = pool.filter((id) => fliesType(id, nation));
   return ctx.rng.pick(own.length ? own : pool);
 }
 

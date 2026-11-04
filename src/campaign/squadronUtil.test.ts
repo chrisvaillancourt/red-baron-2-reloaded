@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AircraftSpec } from '../core/types';
 import { AIRCRAFT_LIST } from '../data/aircraft';
-import { aircraftPool } from './squadronUtil';
+import { aircraftPool, fliesType } from './squadronUtil';
 
 const DATES = ['1915-08-01', '1916-03-01', '1916-07-10', '1916-12-01', '1917-05-01', '1917-10-01', '1918-06-01', '1918-10-15'];
 const ROLES = ['fighter', 'two-seater', 'bomber', 'recon'] as const;
@@ -42,5 +42,14 @@ describe('AI aircraft pools', () => {
           expect(spec.role, `${side} ${date} ${id}`).toBe('fighter');
           expect(spec.bombs?.length ?? 0, `${side} ${date} ${id}`).toBe(0);
         }
+  });
+});
+
+describe('fliesType', () => {
+  it('counts a type for its own nation and for the nations that also used it', () => {
+    expect(fliesType('nieuport_11', 'france')).toBe(true);
+    expect(fliesType('nieuport_11', 'britain')).toBe(true);
+    expect(fliesType('nieuport_11', 'germany')).toBe(false);
+    expect(fliesType('nieuport_11', 'usa')).toBe(false);
   });
 });
