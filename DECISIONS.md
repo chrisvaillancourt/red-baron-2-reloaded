@@ -1456,19 +1456,39 @@ aircraft escaped the same way the crosser pulled, so the crosser chased it.
 **Decision.** Along the lift axis each of the pair either pulls across or escapes
 away; one of each is never better than both pulling or both escaping. When the
 other aircraft is an AI in `extend` with us on its lift side, both pull across only
-while the lift-axis offset is under `0.5 * CROSS_PULL_ACCEL * tcpa^2`, otherwise
-neither reflects. `CROSS_PULL_ACCEL = 12` m/s^2 was fitted on two-Camel knife-edge
-grids: 750 hard cases (roll -1.2 to -1.95 rad, offsets 2-30 m, 55-100 m half
-range) collide 28 times with the parent rule, 25 with the election, 20 with both
-always escaping, 8 at 12 m/s^2 (6 m/s^2: 20, 20 m/s^2: 20); a 495-case mixed grid
-gives 9 / 6 / 6 / 6. The lone-extender D-115 reflection is unchanged. No
-deterministic-math layer: the sim is only promised to be deterministic within one
-runtime (D-083 replays a mission, not inputs), and browsers already differ (V8
-versions, JavaScriptCore, SpiderMonkey).
-**Consequences.** The three quick-collision cases and the review encounter
+while the two lift-side offsets, each on its own aircraft's lift axis, sum to less
+than `CROSS_PULL_ACCEL * tcpa^2`; otherwise neither reflects. Each aircraft computes
+the sum as `cpa·liftSelf - cpa·liftOther` from its own side, and the other's cpa is
+exactly `-cpa`, so the two values are bit-identical: a round-2 review showed that a
+per-aircraft threshold on its own projection let one reflect and one escape under
+unequal rolls (`extendCollision.test.ts` checks the shared choice on such a grid).
+`CROSS_PULL_ACCEL = 12` m/s^2 was fitted on head-on Camel-class grids, not derived.
+Colliding encounters, 4 s each (`AI_SOAK=extendgrid`, Node 26; parent / this rule /
+parent-clear-but-collides / parent-collides-but-clears):
+
+| Grid | n | Parent | This rule | New | Fixed |
+|---|---:|---:|---:|---:|---:|
+| mixed rolls | 495 | 9 | 6 | 1 | 4 |
+| hard (each on the other's lift side) | 750 | 28 | 7 | 2 | 23 |
+| review pairs | 840 | 46 | 26 | 5 | 25 |
+| review lone extender | 81 | 9 | 9 | 0 | 0 |
+| review three aircraft | 243 | 16 | 12 | 8 | 12 |
+| review unequal rolls | 243 | 23 | 18 | 7 | 12 |
+
+Lone-extender results are bit-identical to the parent. 9 and 15 m/s^2 give 88 and
+70 collisions over these grids against 78 at 12; an independent review sampled
+4,000 random cases (unequal rolls, height offsets, third aircraft, mixed types)
+and found 12 the minimum (36 and 38 against 94 and 88 for the parent; 9: 45/41,
+15: 51/45). The lone-extender D-115 reflection is unchanged. No deterministic-math
+layer: the sim is only promised to be deterministic within one runtime (D-083
+replays a mission, not inputs), and browsers already differ (V8 versions,
+JavaScriptCore, SpiderMonkey).
+**Consequences.** The three quick-collision cases and the round-1 review encounter
 (`extendCollision.realsim.test.ts`) pass on Node 22 and 26. That encounter passes
-within about 1 m of contact under every rule tried (0.1 m under this one), so its test asserts no
-collision, not a margin. Each AI reads the other's live phase, so a pair can
-disagree for one AI tick when a phase changes. Any soak or realsim with two AIs
-extending into each other inside 1.8 s shifts after that event (quick, career,
-fairness, quickdiag, gundiag, autoplay soaks).
+within about 1 m of contact under every rule tried (0.1 m under this one), so its
+test asserts no collision, not a margin. Some encounters the parent cleared now
+collide (23 of 2,652 above, including the round-2 review's symmetric and
+unequal-roll examples): a fixed threshold always has a boundary. Each AI reads the
+other's live phase, so a pair can disagree for one AI tick when a phase changes.
+Any soak or realsim with two AIs extending into each other inside 1.8 s shifts
+after that event (quick, career, fairness, quickdiag, gundiag, autoplay soaks).

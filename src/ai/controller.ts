@@ -137,7 +137,7 @@ const VOLUNTARY_RTB = new Set(['ordered home', 'mission complete', 'escort compl
 const BREAK_LEAD_S = 1.8;
 /**
  * Lift-axis acceleration (m/s^2) an extending pilot counts on when pulling across a
- * conflict, roll-in lag included. Fitted on two-Camel extension grids (docs/ai.md).
+ * conflict, roll-in lag included. Fitted on head-on Camel-class grids (AI_SOAK=extendgrid).
  */
 const CROSS_PULL_ACCEL = 12;
 /** Seconds of full-g break away from the merge before the extension. */
@@ -1882,12 +1882,14 @@ export class AIPilot implements AIController {
       // During a late extension escape, avoid a roll through the opposite lift
       // direction. Reflect only that component, retaining lateral separation.
       // Two extending AIs that each see the other on their lift side choose together.
-      // Both pulling across must cover 2*towardLift with two pulls; both escaping away
-      // keeps it. One pulling and one escaping is never better than both of those, so
-      // both pull only when one pull (0.5*a*t^2) would cover the offset.
+      // Both pulling across must cover both lift-side offsets with two pulls; both escaping
+      // away keeps them. One pulling and one escaping is never better than both of those,
+      // so both pull only when the summed offset is under two pulls (2 * 0.5*a*t^2). The
+      // other computes exactly the same sum from its side (its cpa is exactly -cpa, and
+      // x - y equals -y + x in IEEE arithmetic), so the pair can't split on the threshold.
       else if (this.phase === 'extend' && tcpa > 0 && tcpa < BREAK_LEAD_S) {
         const towardLift = cpa.dot(lift);
-        const pairEscapesAway = towardLift > 0.5 * CROSS_PULL_ACCEL * tcpa * tcpa && this.otherCrossesToo(o, cpa);
+        const pairEscapesAway = this.otherCrossesToo(o, cpa) && towardLift - cpa.dot(_collisionOtherLift) > CROSS_PULL_ACCEL * tcpa * tcpa;
         if (towardLift > 0 && !pairEscapesAway) cpa.addScaledVector(lift, -2 * towardLift);
       }
       avoid.addScaledVector(cpa.normalize(), -w);
@@ -1920,8 +1922,9 @@ export class AIPilot implements AIController {
 
   /**
    * Is `o` in the same choice as us? True when it is an AI in `extend` and our closest
-   * approach, seen from its side (`-cpa`), lies on its lift side. It reads o's current
-   * phase, so a pair whose phases change on the same AI tick can disagree for one tick.
+   * approach, seen from its side (`-cpa`), lies on its lift side. Leaves o's lift in
+   * `_collisionOtherLift`. It reads o's current phase, so a pair whose phases change on
+   * the same AI tick can disagree for one tick.
    */
   private otherCrossesToo(o: AircraftEntity, cpa: Vector3): boolean {
     if (REGISTRY.get(o)?.phase !== 'extend') return false;

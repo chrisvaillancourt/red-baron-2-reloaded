@@ -107,13 +107,16 @@ their leader is doing).
    Dead-ahead coordinated splitting, avoidance weights, engagement, defence and
    longer-range conflicts are unchanged; the lift vector uses dedicated scratch.
    When both aircraft are extending AIs and each has the other on its own lift
-   side, the pair chooses together: both pull across while the lift-axis offset
-   is under `0.5 * CROSS_PULL_ACCEL * tcpa^2` (12 m/s^2), otherwise both keep the
-   plain escape away. One crossing while the other escapes is never better than
-   both of those; electing one crosser rammed a knife-edge pass. The constant was
-   fitted on two-Camel knife-edge grids (`src/ai/testing/extendEncounter.ts`); each
-   AI reads the other's current phase, so the pair can disagree for one AI tick
-   when a phase changes (DECISIONS.md "Two extending AIs choose their escape together").
+   side, the pair chooses together: both pull across while the summed lift-side
+   offsets (each projected on its own lift axis) are under `CROSS_PULL_ACCEL *
+   tcpa^2` (12 m/s^2), otherwise both keep the plain escape away. Both compute that
+   sum bit-identically from one snapshot, so unequal rolls or a height offset can't
+   split them. One crossing while the other escapes is never better than both of
+   those; electing one crosser rammed a knife-edge pass. The constant was fitted on
+   head-on Camel-class grids (`src/ai/testing/extendEncounter.ts`, survey:
+   `AI_SOAK=extendgrid`); each AI reads the other's current phase, so the pair can
+   still disagree for one AI tick when a phase changes (DECISIONS.md "Two extending
+   AIs choose their escape together").
 3. **Mission** (`navigation.ts`). Waypoints (`fly`, `patrol`, `rendezvous`,
    `attack-balloon`, `attack-ground`, `bomb` (see "Bombers"), `land`), vic formation keeping, escort
    station 300 m above and behind the escorted flight, balloon and strafing
