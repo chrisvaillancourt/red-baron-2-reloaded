@@ -36,6 +36,7 @@ import {
   pointSegmentDistanceSq,
   segmentBox,
   traceRound,
+  type AircraftHitModel,
   type ZoneBox,
 } from './hitboxes';
 import { blastDamage, blastSize, groundCrossing, nextBombStore, recordBomb, stepBomb } from './bombs';
@@ -814,11 +815,31 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     return !g || g.stations[g.active]?.station.id === zb.station;
   }
 
-  function hitAircraft(b: Bullet, world: WorldQuery, dt: number): boolean {
+  // Per-step table of aircraft a round can hit, in world.aircraft order, with their hit
+  // models: valid for one combat.update, because only stepFlight sets `impacted`. Built on
+  // the step's first hit test, so getSimInternal never creates internals in a step where
+  // no round reached the aircraft test (as with the per-bullet loop it replaces).
+  const liveAc: AircraftEntity[] = [];
+  const liveHm: AircraftHitModel[] = [];
+  let liveCount = -1;
+
+  function buildLiveTable(world: WorldQuery) {
+    liveCount = 0;
     for (const ac of world.aircraft) {
-      if (ac.id === b.shooterId) continue;
       if (getSimInternal(ac).impacted) continue;
-      const hm = getHitModel(ac.spec);
+      liveAc[liveCount] = ac;
+      liveHm[liveCount++] = getHitModel(ac.spec);
+    }
+    // Drop references to aircraft no longer in the world.
+    liveAc.length = liveHm.length = liveCount;
+  }
+
+  function hitAircraft(b: Bullet, world: WorldQuery, dt: number): boolean {
+    if (liveCount < 0) buildLiveTable(world);
+    for (let n = 0; n < liveCount; n++) {
+      const ac = liveAc[n];
+      if (ac.id === b.shooterId) continue;
+      const hm = liveHm[n];
       const p = ac.state.position;
       const v = ac.state.velocity;
       // Relative segment: bullet vs target's previous and current position.
@@ -923,6 +944,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
 
   let impactCounter = 0;
   function updateBullets(world: WorldQuery, dt: number) {
+    liveCount = -1;
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
       b.prev.copy(b.position);

@@ -378,7 +378,10 @@ furballs (one runs to a kill), an escorted bomber raid, a low-level bounce and a
 SimCore quick dogfight. A mismatch exits 1 and names the first differing path, such as
 `$["cases"][3]["samples"][697]["aircraft"][1]["angularVelocity"][0]` (case, 10 Hz
 sample, aircraft, field). `{"suite":"long"}` adds 150 s furballs and a quick bombing
-raid (about 30 s). Equal output covers only the paths these cases exercise: a change in
+raid (about 30 s). For `src/sim/combat.ts`, also run
+`tools/dev/scenarios/combat-equivalence.mjs` (`--input '{"seeds":[3,7,11]}'`): strafers
+over flak and ground fire, and dense four-rank gun lines, with aircraft forced
+`impacted` mid-run, traced at 10 Hz. Equal output covers only the paths these cases exercise: a change in
 an unvisited branch (for example the sun-line stalk, with no sun in the harness) stays
 equal. `ab.mjs` stays the tool for behavior changes. CI runs the default suite against
 itself (`tools/dev/differential-probe.test.mjs`) to catch nondeterminism; no golden
