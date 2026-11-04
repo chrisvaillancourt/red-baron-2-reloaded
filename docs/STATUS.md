@@ -6,22 +6,21 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 ## Live
 
-- `3b3a89e` deployed by [Actions run 41891081021](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41891081021);
-  live `prodcheck` OK. Adds Q-13 Xbox controller coverage (merge `04ddbae`; full e2e 54
-  passed) to tech-debt wave 2, the friction doc fixes, Node 26.12.1 LTS (D-117), D-118,
-  D-116, pnpm 12.16.1 and the tooling work.
+- `dcb3961` deployed by [Actions run 41898030234](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41898030234);
+  live `prodcheck` OK. Adds DOM unit tests in Vitest browser mode (D-120; Vitest 5.0.5),
+  probe evidence scoped to inputs and coverage floors (F-113, F-115) and Q-15's closure
+  (D-119) to Q-13 Xbox controller coverage (`04ddbae`), tech-debt wave 2, Node 26.12.1 LTS
+  (D-117), D-118, D-116 and pnpm 12.16.1.
 
 ## Now
 
 | Track | Branch | Next action |
 |---|---|---|
-| Q-06 mutual support | not started | Waiting for the owner's go-ahead before feature code; plan in Next 1. |
+| Q-06 mutual support | `feat/q06-mutual-support` (worktree `../rb2r-q06`) | Owner approved. Steps 1–3 (port behind `TACTICS_FLAGS.mutualSupport`, fixtures, relief counts) in progress; then step-4 soaks one at a time and step-5 review decide keep or drop. |
 
 ## Next
 
-1. Q-06 mutual support: [finish-or-drop plan](BACKLOG.md#q-06--ordinary-flight-mate-mutual-support),
-   decided by the step-4 soaks. Check in with the user before its feature code.
-2. BACKLOG as contracts only (one Goal/Acceptance/Non-goals section per open item).
+1. BACKLOG as contracts only (one Goal/Acceptance/Non-goals section per open item).
 
 ## Blocked on the owner
 
