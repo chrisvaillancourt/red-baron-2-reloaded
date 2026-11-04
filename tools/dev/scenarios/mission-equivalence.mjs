@@ -4,6 +4,28 @@
 // last one that shapes output changes nothing and correctly stays equal).
 //
 // Input: { suite?: 'career' | 'quick' | 'all' (default 'all'), seed?: number (default 12345) }.
+// Coverage (F-115), per generated suite: missions built without error, distinct mission
+// types, missions with ground targets (and balloons, career) and with two or more flights.
+import { requireCoverage } from './coverage.mjs';
+
+// Seed 12345 builds 1670 career missions (8 types, 473 with ground targets, 183 with
+// balloons, 1586 with 2+ flights) and 108 quick (6 types, 72 with ground targets, all
+// with 2+ flights) without error (2026-11-04). Floors sit near half or below.
+const MINIMUMS = {
+  career: { missions: 800, types: 6, 'with-ground-targets': 150, 'with-balloons': 50, 'with-two-flights': 800 },
+  quick: { missions: 54, types: 4, 'with-ground-targets': 24, 'with-two-flights': 54 },
+};
+
+function missionCounts(missions) {
+  const built = missions.filter((m) => !m.error);
+  return {
+    missions: built.length,
+    types: new Set(built.map((m) => m.type)).size,
+    'with-ground-targets': built.filter((m) => m.groundTargets?.length > 0).length,
+    'with-balloons': built.filter((m) => m.balloons?.length > 0).length,
+    'with-two-flights': built.filter((m) => m.flights?.length >= 2).length,
+  };
+}
 
 const CAREER_CASES = [
   ['germany', '1915-10-01', 'ffa62'],
@@ -104,5 +126,7 @@ export default async function ({ load, input }) {
     out.quick = quick;
   }
 
-  return encode(out);
+  const scopes = {};
+  for (const name of ['career', 'quick']) if (out[name]) scopes[name] = { counts: missionCounts(out[name]), minimums: MINIMUMS[name] };
+  return { ...encode(out), tally: requireCoverage('mission-equivalence', scopes) };
 }

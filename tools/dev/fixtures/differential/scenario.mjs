@@ -18,6 +18,7 @@ export default async function ({ load, input }) {
   if (input.mode === 'undefined') return { value: undefined };
   // The worker's cwd is the comparison root: write a file there mid-run.
   if (input.mode === 'write') { appendFileSync(join(process.cwd(), input.file), 'written during the run\n'); return { written: input.file }; }
+  if (input.mode === 'coverage') return { tally: (await import('../../scenarios/coverage.mjs')).requireCoverage('fixture', { run: { counts: input.counts, minimums: input.minimums } }) };
   if (input.mode === 'array-subclass') {
     class Samples extends Array { get units() { return 'm'; } }
     return new Samples(1, 2);

@@ -2,6 +2,11 @@
 // Each case returns a time-ordered trace, so the probe's first differing path names
 // the case, sample (tick), aircraft and field where the two checkouts diverged.
 // No golden constants: equality is always baseline-vs-candidate on the same Node.
+// Coverage (F-115): each case declares `min`, a floor for the event counts in its tally,
+// well below current counts (2026-11-04, listed per case), so a case that stops firing,
+// hitting or killing fails instead of comparing equal.
+import { requireCoverage } from './coverage.mjs';
+
 export default async function aiEquivalence({ load, input }) {
   const { SimWorld, STANDARD_REALISM, runSim } = await load('src/ai/testing/realSimHarness.ts');
   const { combatRun, lowLevelRun, routeFlight } = await load('src/ai/testing/realScenarios.ts');
@@ -12,15 +17,20 @@ export default async function aiEquivalence({ load, input }) {
 
   const SAMPLE_EVERY = 12; // physics steps (120 Hz) between samples: 10 Hz
   const cases = [
-    ...[1, 2, 3].map((seed) => ({ id: `furball/4v4/${seed}`, kind: 'furball', seed, seconds: 60, suites: ['default'] })),
-    // Long enough for a kill (aircraft-destroyed and its aftermath enter the trace).
-    { id: 'furball/4v4-veteran/1', kind: 'furball', seed: 1, seconds: 85, skills: ['veteran', 'regular'], suites: ['default'] },
-    { id: 'raid/escorted/1', kind: 'raid', seed: 1, seconds: 40, suites: ['default'] },
-    { id: 'low-level/bounce/1', kind: 'low-level', seed: 1, seconds: 30, suites: ['default'] },
-    { id: 'quick/dogfight/7000', kind: 'quick', seed: 7000, seconds: 30, suites: ['default'] },
-    // Longer variants for a heavier refactor check; not part of the CI default.
-    ...[4, 5, 6].map((seed) => ({ id: `furball/4v4/${seed}/long`, kind: 'furball', seed, seconds: 150, suites: ['long'] })),
-    { id: 'quick/bombing/7001/long', kind: 'quick-bombing', seed: 7001, seconds: 120, suites: ['long'] },
+    // 146-198 shots, 9-21 hits.
+    ...[1, 2, 3].map((seed) => ({ id: `furball/4v4/${seed}`, kind: 'furball', seed, seconds: 60, suites: ['default'], min: { 'gun-fired': 20, 'bullet-hit': 2 } })),
+    // Long enough for a kill (aircraft-destroyed and its aftermath enter the trace). 307 shots, 49 hits, 1 kill.
+    { id: 'furball/4v4-veteran/1', kind: 'furball', seed: 1, seconds: 85, skills: ['veteran', 'regular'], suites: ['default'], min: { 'gun-fired': 30, 'bullet-hit': 5, 'aircraft-destroyed': 1 } },
+    // 24 shots.
+    { id: 'raid/escorted/1', kind: 'raid', seed: 1, seconds: 40, suites: ['default'], min: { 'gun-fired': 3 } },
+    // 73 shots, 2 hits.
+    { id: 'low-level/bounce/1', kind: 'low-level', seed: 1, seconds: 30, suites: ['default'], min: { 'gun-fired': 10, 'bullet-hit': 1 } },
+    // 72 shots, 2 hits.
+    { id: 'quick/dogfight/7000', kind: 'quick', seed: 7000, seconds: 30, suites: ['default'], min: { 'gun-fired': 10, 'bullet-hit': 1 } },
+    // Longer variants for a heavier refactor check; not part of the CI default. 533-594 shots, 32-82 hits.
+    ...[4, 5, 6].map((seed) => ({ id: `furball/4v4/${seed}/long`, kind: 'furball', seed, seconds: 150, suites: ['long'], min: { 'gun-fired': 50, 'bullet-hit': 5 } })),
+    // 25 flak bursts; no shots, hits or bomb events in 120 s.
+    { id: 'quick/bombing/7001/long', kind: 'quick-bombing', seed: 7001, seconds: 120, suites: ['long'], min: { 'flak-burst': 3 } },
   ];
 
   // Selection is required, like bomber-pacing: an accidental invocation must not run a suite.
@@ -174,5 +184,7 @@ export default async function aiEquivalence({ load, input }) {
     availableCaseIds: cases.map((c) => c.id),
     // Array order is the comparison order: the first differing case, then sample, wins.
     cases: observations,
+    tally: requireCoverage('ai-equivalence', Object.fromEntries(observations.map((o) =>
+      [o.id, { counts: o.tally.events, minimums: selected.find((c) => c.id === o.id).min }]))),
   };
 }

@@ -395,6 +395,20 @@ if any changed: `EVIDENCE_PATHS` in `tools/dev/differential-probe.mjs` (`src/`,
 `tsconfig.json`), or the whole directory for a root nested inside a checkout. Other
 files, such as a log written into the checkout during `pnpm test`, may change (F-113).
 
+**Coverage minimums.** Two checkouts that both skip a path compare `equal` and prove
+nothing about it: a 16-aircraft grid with zero bullet hits says nothing about hits
+(F-115). So every equivalence scenario (`ai`, `combat`, `mission`, `world`, `geo`)
+declares, per case or suite, a minimum count for each event its header says it covers,
+and returns the counts and minimums under `tally` (a key that sorts after the
+observations, so a real difference is still reported first). A run below a minimum
+throws in the scenario, and the probe reports `failed` on both sides with a message
+naming the case, event, count and minimum. Minimums sit well below current counts
+(each scenario lists the counts it was measured at); they guard against zero and
+near-zero rather than pinning sim figures. A new case or scenario declares its own, via
+`requireCoverage` in `tools/dev/scenarios/coverage.mjs`. A minimum that fails after a
+deliberate behavior change means the case no longer exercises its path: change the
+case, not the floor. Ground fire in `combat-equivalence` emits no event and has no count.
+
 **A/B measurement.** Use `pnpm exec node tools/dev/ab.mjs` rather than hand-launching paired soaks.
 It supports career, quick, fairness, tailhold, defence and raid on matched seeds/counts:
 `--flag <TACTICS_FLAGS name>` switches a tactic off/on; `--base <ref> --head HEAD`

@@ -5,6 +5,20 @@
 // differing path names the case, sample, aircraft and field. No golden constants.
 //   pnpm exec node tools/dev/differential-probe.mjs --baseline <dir> --candidate . \
 //     --scenario tools/dev/scenarios/combat-equivalence.mjs --input '{"seeds":[3,7,11]}'
+// Coverage (F-115), per case: aircraft hits, impacted aircraft, and flak bursts, ground
+// impacts and damaged ground targets (strafe) or gunner hits and kills (columns). Ground
+// fire emits no event, so it has no count.
+import { countEvents, requireCoverage } from './coverage.mjs';
+
+// Seeds 3, 7 and 11 (2026-11-04). strafe-flak: 87-103 hits, 18-21 flak bursts, 124-179
+// ground impacts, 1-4 ground targets damaged, 4-5 impacted, and no gunner hits, so the
+// gunner path rests on columns-16: 793-836 hits, 3-8 gunner hits, 7-8 kills, 4 impacted.
+// Floors guard against zero and near-zero; they are not pinned figures.
+const MINIMUMS = {
+  'strafe-flak': { 'bullet-hit': 20, 'flak-burst': 5, 'bullet-impact-ground': 25, 'ground-damaged': 1, impacted: 2 },
+  'columns-16': { 'bullet-hit': 150, 'gunner-hit': 1, 'aircraft-destroyed': 2, impacted: 2 },
+};
+
 export default async function combatEquivalence({ load, input }) {
   const { scenario, aimAt } = await load('src/sim/testing/scenario.ts');
   const { orientationFrom, getSimInternal, SIM_DT } = await load('src/sim/flightModel.ts');
@@ -59,7 +73,21 @@ export default async function combatEquivalence({ load, input }) {
     return samples;
   }
 
+  // Counted from the trace, so the tally sees exactly what the comparison sees.
+  function coverage(s, samples) {
+    const flexible = new Map(s.aircraft.map((ac) => [ac.id, ac.spec.guns.map((g) => g.mount === 'flexible')]));
+    const events = samples.flatMap((sm) => sm.events);
+    const last = samples[samples.length - 1];
+    return {
+      ...countEvents(events),
+      'gunner-hit': events.filter((e) => e.type === 'bullet-hit' && flexible.get(e.shooterId)?.[e.mountIndex]).length,
+      'ground-damaged': last.ground.filter(([, health]) => health < 1).length,
+      impacted: last.aircraft.filter((ac) => ac.impacted).length,
+    };
+  }
+
   const cases = [];
+  const scopes = {};
   for (const seed of seeds) {
     // Strafers over flak/ground fire plus a two-seater high furball, full physics.
     {
@@ -80,6 +108,7 @@ export default async function combatEquivalence({ load, input }) {
         }
       }, true);
       cases.push({ id: `strafe-flak/${seed}`, samples });
+      scopes[`strafe-flak/${seed}`] = { counts: coverage(s, samples), minimums: MINIMUMS['strafe-flak'] };
     }
     // 16 aircraft in four columns of four, kinematic. Each rank aims at the one ahead, so
     // rounds that miss (or pass an impacted aircraft) carry on to the ranks in front.
@@ -102,8 +131,9 @@ export default async function combatEquivalence({ load, input }) {
         }
       }, 'kinematic');
       cases.push({ id: `columns-16/${seed}`, samples });
+      scopes[`columns-16/${seed}`] = { counts: coverage(s, samples), minimums: MINIMUMS['columns-16'] };
     }
   }
   const hits = cases.map((c) => [c.id, c.samples.reduce((n, sm) => n + sm.events.filter((e) => e.type === 'bullet-hit').length, 0)]);
-  return { seeds, hits, cases };
+  return { seeds, hits, cases, tally: requireCoverage('combat-equivalence', scopes) };
 }

@@ -143,6 +143,38 @@ test('unsupported or ambiguous payloads fail rather than losing properties', asy
   assert.match(subclass.baseline.error, /plain array/);
 });
 
+// Every scope a scenario declares has positive minimums, and this run met them (F-115).
+function assertCoverage(name, tally) {
+  assert.ok(tally && Object.keys(tally).length > 0, `${name} declares coverage minimums`);
+  for (const [scope, { counts, minimums }] of Object.entries(tally)) {
+    assert.ok(Object.keys(minimums).length > 0, `${name} ${scope} declares a minimum`);
+    for (const [key, min] of Object.entries(minimums)) {
+      assert.ok(min > 0, `${name} ${scope} ${key} minimum is positive`);
+      assert.ok(counts[key] >= min, `${name} ${scope} ${key}: ${counts[key]} < ${min}`);
+    }
+  }
+}
+
+test('a scenario below its declared coverage minimum fails on both sides, never equal (F-115)', async () => {
+  const minimums = { 'bullet-hit': 5, 'aircraft-destroyed': 1 };
+  const short = await compareRoots({ baseline, candidate: baseline, scenario,
+    input: { mode: 'coverage', counts: { 'bullet-hit': 0, 'aircraft-destroyed': 1 }, minimums } });
+  assertVerdict(short, 'failed');
+  for (const side of [short.baseline, short.candidate]) {
+    assert.equal(side.ok, false);
+    assert.match(side.error, /below its declared minimum/);
+    assert.match(side.error, /run bullet-hit 0 < 5/);
+    assert.doesNotMatch(side.error, /aircraft-destroyed/);
+  }
+  const missing = await compareRoots({ baseline, candidate: baseline, scenario, input: { mode: 'coverage', counts: {}, minimums } });
+  assertVerdict(missing, 'failed');
+  assert.match(missing.candidate.error, /run bullet-hit 0 < 5; run aircraft-destroyed 0 < 1/);
+  const met = await compareRoots({ baseline, candidate: baseline, scenario,
+    input: { mode: 'coverage', counts: { 'bullet-hit': 5, 'aircraft-destroyed': 2 }, minimums } });
+  assertVerdict(met, 'equal');
+  assertCoverage('fixture', met.baseline.result.tally);
+});
+
 test('CLI scenario exceptions exit with failure and retain useful diagnostics', () => {
   const run = spawnSync(process.execPath, [cli, '--baseline', baseline, '--candidate', baseline, '--scenario', scenario, '--input', '{"mode":"throw"}'], { encoding: 'utf8', cwd: root });
   assertExit(run, 2);
@@ -151,14 +183,15 @@ test('CLI scenario exceptions exit with failure and retain useful diagnostics', 
   assert.match(report.candidate.error, /scenario exploded/);
 });
 
-test('real leaf, full world and generated-mission graphs are equal with identical lazy setup', async () => {
-  for (const name of ['geo-equivalence', 'world-equivalence', 'mission-equivalence']) {
+test('real leaf, full world, generated-mission and combat graphs are equal and meet their coverage minimums with identical lazy setup', async () => {
+  for (const name of ['geo-equivalence', 'world-equivalence', 'mission-equivalence', 'combat-equivalence']) {
     const report = await compareRoots({
       baseline: root, candidate: root,
       scenario: fileURLToPath(new URL(`./scenarios/${name}.mjs`, import.meta.url)),
-      input: { seed: 42 },
+      input: name === 'combat-equivalence' ? null : { seed: 42 },
     });
     assertVerdict(report, 'equal');
+    assertCoverage(name, report.baseline.result.tally);
     if (name === 'world-equivalence') {
       assert.ok(report.baseline.result.setup.cold.every((ready) => !ready));
       assert.ok(report.baseline.result.setup.warm.every(Boolean));
@@ -189,6 +222,8 @@ test('AI equivalence default suite reproduces exactly in fresh processes', { tim
   assert.ok(furballs.some((c) => (c.tally.events['bullet-hit'] ?? 0) > 0));
   assert.ok(furballs.some((c) => (c.tally.events['aircraft-destroyed'] ?? 0) > 0));
   assert.ok(cases.some((c) => c.kind === 'quick'), 'SimCore game path covered');
+  assertCoverage('ai-equivalence', report.baseline.result.tally);
+  assert.deepEqual(Object.keys(report.baseline.result.tally), cases.map((c) => c.id));
   const empty = await compareRoots({ baseline: root, candidate: root, scenario: aiScenario, input: {} });
   assertVerdict(empty, 'failed');
 });
