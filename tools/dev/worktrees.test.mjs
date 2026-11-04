@@ -77,6 +77,8 @@ async function fixture(t) {
   return { root, tmp, paths };
 }
 
+// The tool always counts /tmp as temporary; on Linux the fixture itself lives there.
+const inSystemTmp = (p) => { const r = realpathSync(p); const t = realpathSync('/tmp'); return r === t || r.startsWith(`${t}/`); };
 const byPath = (report) => Object.fromEntries(report.worktrees.map((w) => [w.path, w]));
 
 test('reports each worktree state and names only merged, clean, unlocked, non-main candidates', async (t) => {
@@ -102,7 +104,7 @@ test('reports each worktree state and names only merged, clean, unlocked, non-ma
   assert.deepEqual(
     (({ branch, merged, dirty, untracked, staged, mergeHead, ahead, prunable, underTmp }) =>
       ({ branch, merged, dirty, untracked, staged, mergeHead, ahead, prunable, underTmp }))(rows[paths.merged]),
-    { branch: 'merged', merged: true, dirty: 0, untracked: 0, staged: false, mergeHead: false, ahead: 0, prunable: false, underTmp: false });
+    { branch: 'merged', merged: true, dirty: 0, untracked: 0, staged: false, mergeHead: false, ahead: 0, prunable: false, underTmp: inSystemTmp(paths.merged) });
   assert.equal(rows[paths.ahead].merged, false);
   assert.equal(rows[paths.ahead].ahead, 2);
   assert.match(rows[paths.ahead].lastCommit, /^\d{4}-\d\d-\d\dT/);
