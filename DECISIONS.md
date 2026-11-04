@@ -1533,3 +1533,16 @@ a quick mission to reach an approach recorded on one machine, so they reach it n
   are unaffected.
 - No cross-platform deterministic math layer: browsers' `Math` differs by engine and version
   too, so players never shared bit-exact results.
+
+## D-119 — Claude Code is the primary driver; Q-15 closed
+
+On 2026-11-04 the owner chose Claude Code as the primary driver for this project. omp may
+later delegate to Claude Code, but there are no plans for it. Q-15 (an omp-led trial of
+Claude workers with an explicit workspace and base) is closed as superseded: Claude Code
+already integrates, and it reaches GPT review lanes through omp rather than the reverse.
+
+- `docs/HARNESSES.md` no longer asks the next Claude session to review Q-15.
+- The base-commit and isolation rules in `docs/HARNESSES.md` still apply to any harness that
+  dispatches editing agents, including omp delegating to Claude through `claude_task`
+  (`docs/OMP.md`).
+- Reopen as a new item, not Q-15, if omp becomes the driver again.

@@ -894,9 +894,8 @@ without cleanup authorization. No unresolved implementation dependency.
 
 ## Q-15 — Deferred Claude worker routing
 
-**State:** deferred by the user on 2026-10-04 until the next time they use Claude
-in this project. Review/resume this item with the owner then; opening Claude
-alone does not authorize configuration changes. Nothing below is implemented.
+**State:** closed as superseded on 2026-11-04 (D-119): Claude Code is the primary
+driver. Nothing below was implemented; it is kept as history.
 
 ### Recommended scope
 
