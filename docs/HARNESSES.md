@@ -29,8 +29,10 @@ permissions. Historical workarounds are observations, not permission to bypass a
   compound commands, loops, `$VAR` paths and process substitution (F-3, F-11, F-18, F-21).
   Use simple worktree-relative/absolute paths. If an allowed operation needs a workaround,
   put it in a small Node script using `spawnSync`'s `cwd`, written through file-editing tools.
-  F-24 suspected a Git guard matching "github" in paths; treat that as an observation, not a
-  universal shell restriction. Cross-worktree `git -C` was refused (F-39); request committed
+  The guard treats any compound command whose text contains "git" as a git command, and the
+  repo's absolute path contains "github" (F-24, confirmed by four agents on 2026-11-04). So
+  write scratch files with the Write tool, and run each command alone with output
+  redirected to a relative path, reading it in a separate call. Cross-worktree `git -C` was refused (F-39); request committed
   interface details from the owner rather than reaching into a sibling's working files.
 - The session scratchpad may be shared across tracks (F-68); use a per-track subdirectory.
   Scripts importing project packages still belong in the repo's `tools/dev/scratch/<task>/`.

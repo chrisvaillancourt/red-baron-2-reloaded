@@ -363,8 +363,9 @@ every gain with dynamic pressure automatically.
 
 **Refactor equivalence.** A refactor-only commit in `src/ai`, `src/sim` or `src/game`
 claims zero behavior change, which `ab.mjs` cannot show. Prove it exactly instead:
-prepare a detached worktree at the base commit (`git worktree add --detach <dir> <base>`,
-then `sfw pnpm install` there) and run
+prepare a baseline clone in your scratch directory (`git clone --no-local . <dir>`,
+`git -C <dir> checkout --detach <base>`, then `sfw pnpm install` there; a clone keeps the
+shared worktree registry untouched) and run
 
 ```sh
 pnpm exec node tools/dev/differential-probe.mjs --baseline <dir> --candidate . \
@@ -375,7 +376,9 @@ It must exit 0 (`"verdict": "equal"`); quote the verdict in the report or commit
 The scenario samples every aircraft at 10 Hz (position, quaternion, velocity, angular
 velocity, controls, AI phase/target/debug state, outcome) plus every event, over 4v4
 furballs (one runs to a kill), an escorted bomber raid, a low-level bounce and a
-SimCore quick dogfight. A mismatch exits 1 and names the first differing path, such as
+SimCore quick dogfight. A mismatch exits 1 and names the first differing path in the
+report's `difference.path` (object keys are compared in sorted order, so a scenario puts
+its time-ordered `samples` under a key that sorts before summaries), such as
 `$["cases"][3]["samples"][697]["aircraft"][1]["angularVelocity"][0]` (case, 10 Hz
 sample, aircraft, field). `{"suite":"long"}` adds 150 s furballs and a quick bombing
 raid (about 30 s). For `src/sim/combat.ts`, also run
@@ -440,6 +443,14 @@ their names, so add or rename a set in both places.
   `landed-friendly` / `landed-enemy`.
 - `testing/realScenarios.ts` — `combatRun` (head-on group fights with per-side
   stats), `routeFlight`, `historyTap` (state history before self-inflicted losses).
+- **AI behaviour candidates ship behind a `TACTICS_FLAGS` entry** so `ab.mjs --flag` can
+  A/B them without edits; turn the default on only after the soaks accept it.
+- **Writing a soak:** name it `*.soak.test.ts` and gate it with
+  `describe.skipIf(!SOAK.includes('<name>'))`, where `SOAK` splits `AI_SOAK` on commas (see
+  `collision.soak.test.ts`); print results with `process.stdout.write`.
+- **Review repros:** put an encounter a reviewer finds into a shared fixture (for extend
+  pairs, `extendGrids()` in `testing/extendEncounter.ts`) rather than a `/tmp` script, so
+  it can become a regression test directly.
 - Soak / probe runs (skipped unless enabled):
   `AI_SOAK=route,combat,struct,terrain AI_SEEDS=6 AI_OUT=/tmp/x.txt pnpm vitest run src/ai/tuning.soak.test.ts`
   and `AI_SOAK=track|turn|straight|mission|zones|spot|probe pnpm vitest run src/ai/probe.soak.test.ts`.
