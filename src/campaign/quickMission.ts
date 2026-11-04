@@ -40,6 +40,8 @@ const GA_ELEMENT_GAP = 90;
 /** Head-on dogfights: the line between the flights must let this much light through at the start, and the search step along the front (m). */
 const CLEAR_START_TRANSMITTANCE = Math.max(0.5, SIGHT_MIN_TRANSMITTANCE);
 const CLEAR_START_STEP_M = 2000;
+/** Order in which cloud-blocked starts try other spots along the front, in CLEAR_START_STEP_M steps: nearest first, alternating sides. */
+const FRONT_SEARCH_STEPS = [1, -1, 2, -2, 3, -3, 4, -4] as const;
 
 /** Bombing raids: the target's depth behind the lines and the start's behind ours (m). */
 const RAID_TARGET_DEPTH_M = 6000;
@@ -101,7 +103,7 @@ function planRaid(ctx: GenCtx, o: QuickMissionOptions, a: { side: Side; enemySid
   };
   const first = plan(0);
   if (clear(first)) return first;
-  for (const k of [1, -1, 2, -2, 3, -3, 4, -4]) {
+  for (const k of FRONT_SEARCH_STEPS) {
     const r = plan(k);
     if (clear(r)) return r;
   }
@@ -393,7 +395,7 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
     const clearLine = (a: XZ, b: XZ) => clouds.transmittance(a.x, pAlt, a.z, b.x, eAlt, b.z, 0) >= CLEAR_START_TRANSMITTANCE;
     const enemyFlight = ctx.flights.find((f) => f.role === 'enemy');
     if (enemyFlight && !clearLine(pStart, eStart)) {
-      for (const k of [1, -1, 2, -2, 3, -3, 4, -4]) {
+      for (const k of FRONT_SEARCH_STEPS) {
         const f2 = frontAnchor({ x: 0, z: 0 }, date, frontShift + k * CLEAR_START_STEP_M);
         const p2 = pointOnSide(f2, side, runIn, date);
         const e2 = pointOnSide(f2, enemySide, runIn, date);
@@ -413,7 +415,7 @@ export function buildQuickMission(o: QuickMissionOptions, seed = Math.floor(Math
     ace ? `Your opponent: ${aceNamesOn(ace, date).display}${ace.nickname ? ` - "${ace.nickname}"` : ''}. ${ace.bio}` : '',
     `You fly the ${playerSpec.name}${wingmen ? ` with ${wingmen} wingm${wingmen > 1 ? 'en' : 'an'}` : ''} against ${enemyCount} ${AIRCRAFT[o.enemyAircraft].name}${enemyCount > 1 ? 's' : ''}.`,
     escortLine(ctx.flights.find((f) => f.role === 'friendly' && f.task === 'escort' && f.escortFlightId === 'player-1')),
-    `Weather: ${describeWeather(weather, nation === 'britain' || nation === 'usa')}`,
+    `Weather: ${describeWeather(weather, ctx.imperial)}`,
   ].filter(Boolean);
 
   return {
