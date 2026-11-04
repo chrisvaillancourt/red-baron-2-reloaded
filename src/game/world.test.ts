@@ -139,8 +139,11 @@ describe('buildWorld: ids and membership', () => {
 
   it('keeps pending members in flightMembers in slot order; allAircraft flattens them in mission order', () => {
     const { world, mission } = setup({ wingmen: 1, enemyCount: 3 }, (m) => {
-      flight(m, 'enemy').spawnDelay = 25;
+      // Delay the first flight so live-then-pending order differs from mission order.
+      flight(m, 'player').spawnDelay = 25;
     });
+    expect(world.pending.length).toBeGreaterThan(0);
+    expect(world.aircraft.length).toBeGreaterThan(0);
     for (const f of mission.flights) {
       const members = world.flightMembers.get(f.id)!;
       expect(members).toHaveLength(f.members.length);
