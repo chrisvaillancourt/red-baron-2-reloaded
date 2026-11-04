@@ -3,6 +3,7 @@ import { artBackground, h } from '../dom';
 import { ACTION_GROUPS, ACTIONS, codeLabel } from '../bindings';
 import { screenShell, withHints } from '../components';
 import { showFlyingSchool } from '../flyingSchool';
+import { PAD_PROMPTS } from '../../game/flightPrompts';
 
 /** The first key bound to an action, as the Manual prints it. */
 const keyOf = (b: Record<string, string[]>, action: string) => (b[action]?.[0] ? codeLabel(b[action][0]) : 'unbound');
@@ -85,26 +86,12 @@ export const controlsScreen: ScreenFactory = (ctx) => {
     h(
       'div',
       { class: 'key-grid' },
-      ...[
-        ['Left stick', 'Pilot: pitch & roll. At a gun: aim the gun.'],
-        ['Right stick', 'Look around'],
-        ['LB / RB', 'Pilot: left / right rudder. At a gun: previous / next crew station.'],
-        ['RT', 'Fire the guns while held'],
-        ['LT', 'Blip switch while held'],
-        ['D-pad ↑ / ↓', 'Throttle up / down'],
-        ['D-pad ← / →', 'Normal time / compress time'],
-        ['A', 'Hammer a jammed gun'],
-        ['X', 'Pilot: cycle target. In bombsight view: hold to release a bomb.'],
-        ['Y', 'Padlock view'],
-        ['R3', 'Padlock nearest enemy'],
-        ['B', 'Pilot: chase view. At a gun: return to pilot.'],
-        ['View / Back', 'Open or close the map. While it owns input, View / Back, Menu or B closes the map instead of opening pause or resuming a hidden card.'],
-        ['Menu / Start', 'Open pause from flight. B resumes from pause.'],
-      ].map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
+      // Built from the prompt table that flightPrompts.test.ts checks against readGamepad.
+      ...PAD_PROMPTS.map((p) => [p.glyph, p.doc]).map(([k, v]) => h('div', { class: 'k' }, h('span', null, v), h('kbd', null, k))),
     ),
     h('p', { class: 'typed muted' }, 'In the gunner’s seat, LB / RB change crew station and B returns to the pilot; LS aims, RT fires, and A clears a jam. In bombsight view, X is not target selection: hold X to release a bomb. These are standard-mapped controls, not a promise that every aircraft or sortie carries bombs or has a gunner.'),
-    h('p', { class: 'typed muted' }, 'Menu opens pause from flight; in the pause card B resumes. Menu opens the flight actions card, where B returns to pause; B backs out of an action group or cancels a confirmation rather than acting on the flight. View / Back opens and closes the map; when the map owns input, View / Back, Menu or B closes the map without exposing pause or resuming flight.'),
-    h('p', { class: 'typed muted' }, 'Controls outside this list remain available from the scrollable Menu → Flight actions card. Text fields, names, custom seeds and key-binding capture use the keyboard; controller navigation can adjust native selects and ranges. Keyboard bindings remain the assignments shown above; controller labels do not imply pad remapping.'),
+    h('p', { class: 'typed muted' }, 'Menu pauses the flight. On the pause card, B resumes and Flight actions lists the other commands; on that card B returns to pause, and choosing an action resumes the flight with it. B cancels a confirmation. View / Back opens and closes the map, and B also closes it.'),
+    h('p', { class: 'typed muted' }, 'Controls outside this list are on the pause card’s Flight actions. Text fields, names, custom seeds and key-binding capture use the keyboard; controller navigation can adjust native selects and ranges. Keyboard bindings remain the assignments shown above; controller labels do not imply pad remapping.'),
     h('h3', null, 'At a gun or the bombsight'),
     h('p', { class: 'typed muted' }, 'Your pilot flies while you work a gun or the bombsight; the throttle and flight keys are his.'),
     h(

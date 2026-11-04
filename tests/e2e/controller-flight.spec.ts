@@ -211,3 +211,24 @@ test('controller flight: ownership, pause and Flight actions, hints, release and
     expect(errors).toEqual([]);
   } finally { await context.close(); }
 });
+
+test('Flying Manual and Flying School controller prompts come from the mapped table', async ({ browser, baseURL }) => {
+  const context = await controllerContext(browser, baseURL);
+  try {
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.getByRole('button', { name: /Flying Manual/ }).click();
+    const manual = page.locator('[data-screen="controls"]:not(.leaving)');
+    const l3 = manual.locator('.key-grid .k', { has: page.locator('kbd', { hasText: /^L3$/ }) });
+    await expect(l3).toHaveText(/Cockpit view/);
+    await expect(manual).toContainText('Menu pauses the flight. On the pause card, B resumes and Flight actions lists the other commands');
+    await expect(manual).not.toContainText('Menu opens the flight actions card');
+    await manual.getByRole('button', { name: 'Flying School primer' }).click();
+    const school = page.locator('.rb-modal:has-text("Flying School")');
+    await expect(school.locator('[data-pad-lesson]')).toHaveCount(6);
+    await expect(school.locator('[data-pad-lesson="V"]')).toContainText('L3 selects cockpit view');
+    await expect(school).toContainText('press Menu and choose Flight actions');
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'test-results/controller-flight/flying-school.png' });
+  } finally { await context.close(); }
+});
