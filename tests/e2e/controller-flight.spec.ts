@@ -244,6 +244,8 @@ test('desktop map: flight inputs never drive the map; a fresh B, View or M close
     await page.waitForFunction(() => !!window.__rb2?.services, undefined, { timeout: 30_000 });
     await fly(page);
     const map = page.locator('.hud-map');
+    // A connected but idle pad leaves the keyboard hint in place.
+    await expect(page.locator('.hud-hint')).toContainText('Mouse to steer');
 
     await test.step('a held stick and A neither focus nor click Close map, and the pad stays armed', async () => {
       await tap(page, 8);
@@ -256,6 +258,7 @@ test('desktop map: flight inputs never drive the map; a fresh B, View or M close
       await expect(map).toBeVisible();
       expect((await flight(page)).roll).toBeGreaterThan(0.5);
       await stick(page, 0);
+      await expect(page.locator('.hud-hint')).toContainText('Pilot: left stick flies');
     });
 
     await test.step('keyboard arrows and Enter do not reach Close map', async () => {

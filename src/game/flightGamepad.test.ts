@@ -155,6 +155,21 @@ describe('flight standard controller ownership and disarming', () => {
     expect(frame().commands).toEqual([]);
   });
 
+  it('reports pad use only after a released pad produces input', () => {
+    const p = pad();
+    button(p, 0, true);
+    const { input, frame } = setup([p], p);
+    frame();
+    expect(input.padUsed).toBe(false); // A held from the menu launch is not use
+    button(p, 0, false);
+    frame();
+    frame();
+    expect(input.padUsed).toBe(false); // connected and idle
+    p.axes[2] = 0.9;
+    frame();
+    expect(input.padUsed).toBe(true);
+  });
+
   it('B closes a non-capturing map instead of changing view or seat', () => {
     const p = pad();
     const cs = DEFAULT_SETTINGS.controls;

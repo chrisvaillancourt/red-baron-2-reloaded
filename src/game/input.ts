@@ -450,6 +450,10 @@ export class InputManager {
     if (this.padFrame.pressed[PAD_X]) this.xLatched = true;
   }
 
+  private _padUsed = false;
+  /** The owning pad has produced input since it armed (held launch controls don't count). */
+  get padUsed(): boolean { return this._padUsed; }
+
   /** The map is open without capturing flight input: B closes it (readGamepad context). */
   mapMode = false;
 
@@ -588,6 +592,7 @@ export class InputManager {
     this.detachFns.forEach((f) => f());
     this.detachFns = [];
     this._gamepadOwner = null;
+    this._padUsed = false;
     this.padArmed = false;
     this.padFrame.pressed.length = 0;
     if (typeof document !== 'undefined' && document.pointerLockElement === this.element) document.exitPointerLock?.();
@@ -655,6 +660,10 @@ export class InputManager {
       // Held across a bombsight change: the history already blocks its edge.
       if (frame.pressed[PAD_X]) frame.releaseBomb = false;
       else this.xLatched = false;
+    }
+    if (this.padArmed && !this._padUsed) {
+      for (const held of frame.pressed) if (held) this._padUsed = true;
+      for (let i = 0; i < 4; i++) if (Math.abs(pad.axes[i] ?? 0) > cs.gamepadDeadzone) this._padUsed = true;
     }
     if (!this.padArmed) {
       let neutral = true;

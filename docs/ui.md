@@ -166,7 +166,8 @@ the map, so HUD navigation takes no directions or A there, "Close map" is out of
 keyboard focus order (a mouse click still works), and the flight input's `mapMode`
 turns a fresh B into the map toggle: B, View or M closes the map once, with no view or
 seat change.
-While a standard pad drives the flight, the tutorial hint line shows
+Once the pinned standard pad has produced input this flight (`InputManager.padUsed`;
+controls held through the launch don't count), the tutorial hint line shows
 `controllerFlightHint` for the pilot/gunner and bombsight context, at the start and
 for 10 s after each context change.
 

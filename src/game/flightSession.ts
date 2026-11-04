@@ -875,10 +875,13 @@ export class FlightSession {
     if (this.director.ended) this.finish();
   }
 
-  /** The tutorial hint line: the standard-controller hint while a pad drives the flight. */
+  /**
+   * The tutorial hint line: the standard-controller hint once the pinned pad has produced
+   * input this flight; until then (an idle pad, a keyboard pilot) the keyboard or touch hint.
+   */
   private flightHint(player: AircraftEntity, time: number): string | null {
     if (!this.settings.showTutorialHints) return null;
-    const pad = this.settings.controls.gamepadEnabled && this.input.getGamepad() !== null;
+    const pad = this.settings.controls.gamepadEnabled && this.input.padUsed && this.input.getGamepad() !== null;
     const padHint = this.controllerHint.update(time, pad, this.input.stationMode, this.input.bombsightMode);
     if (pad) return padHint;
     if (time >= 20) return null;
