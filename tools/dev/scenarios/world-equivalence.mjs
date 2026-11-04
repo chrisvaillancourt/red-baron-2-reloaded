@@ -1,6 +1,10 @@
 // One scenario file runs unchanged against both complete extensionless TS graphs.
 // Import order and lazy setup are intentional: river/aerodrome levels, front-line
 // crater grids and roads must see the same history before any observations.
+// Coverage (F-115): crater grids for every date, the road network, and observations near
+// rivers and the coast, on fresh battlefield, on cratered or trench ground and in towns.
+import { requireCoverage } from './coverage.mjs';
+
 export default async function ({ load, input }) {
   const geo = await load('src/core/geo.ts');
   const terrain = await load('src/world/terrain.ts');
@@ -47,9 +51,29 @@ export default async function ({ load, input }) {
     }
   }
   const network = roads.roadNetwork();
+  const warm = dates.map((date) => front.hasCraterGrids(date));
+  const roadSummary = { count: network.length, points: network.reduce((n, road) => n + road.points.length, 0) };
+  const where = (test) => observations.filter(test).length;
+  const counts = {
+    'crater-grid-dates': warm.filter(Boolean).length,
+    roads: roadSummary.count,
+    'road-points': roadSummary.points,
+    'near-river': where((o) => o.river.distance < 2000),
+    'near-coast': where((o) => o.coast < 5000),
+    'fresh-battlefield': where((o) => o.freshness > 0),
+    'cratered-or-trench': where((o) => o.surface === 'shell-cratered' || o.surface === 'trench-zone'),
+    town: where((o) => o.surface === 'town'),
+  };
+  // Seed 42 gives 3 dates, 225 roads (2436 points), 42 near rivers, 9 near the coast,
+  // 32 fresh, 21 cratered or trench and 15 town (2026-11-04). Dates are the input count.
+  const minimums = {
+    'crater-grid-dates': dates.length, roads: 50, 'road-points': 500, 'near-river': 10,
+    'near-coast': 2, 'fresh-battlefield': 8, 'cratered-or-trench': 5, town: 3,
+  };
   return {
-    setup: { cold, warm: dates.map((date) => front.hasCraterGrids(date)) },
-    roads: { count: network.length, points: network.reduce((n, road) => n + road.points.length, 0) },
+    setup: { cold, warm },
+    roads: roadSummary,
     observations,
+    tally: requireCoverage('world-equivalence', { world: { counts, minimums } }),
   };
 }

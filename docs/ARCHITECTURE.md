@@ -182,7 +182,9 @@ crater grids and roads identically, then snapshots deterministic observations. I
 includes cold/warm cache evidence and copies observations before shared scratch can
 be reused. Equal observations are evidence for these inputs, not a proof for every input.
 `ai-equivalence.mjs` traces AI/sim combat (harness cases plus a SimCore quick mission)
-for refactor-only changes; see docs/ai.md "Tests" → "Refactor equivalence".
+for refactor-only changes; see docs/ai.md "Tests" → "Refactor equivalence". Each
+equivalence scenario fails, rather than reporting `equal`, when a case's event counts fall
+below its declared minimums (docs/ai.md → "Coverage minimums").
 
 `mission-equivalence.mjs` generates a fixed grid of missions: 1,670 career missions (the
 eleven nation/date/squadron cases of `campaign.test.ts` × each difficulty × air and ground

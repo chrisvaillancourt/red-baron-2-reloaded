@@ -11,7 +11,7 @@ import { execFileSync, fork } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { firstDifference, numberReplacer, validateValue } from './differential-values.mjs';
@@ -23,7 +23,7 @@ Same default-exported scenario({ load, input }) in each fresh Node/Vite SSR work
 load('src/world/landuse.ts') resolves from that worker's root. input is cloned JSON.
 Return plain objects, arrays, strings, booleans, null and numbers. NaN, Infinity,
 -Infinity and -0 retain identity; CLI JSON tags them as {$number:"NaN"}, etc.
-JSON stdout: roots/revisions/dirty-tree fingerprints, scenario hash, observations,
+JSON stdout: roots/revisions/fingerprints of the scenario inputs (evidence.paths), scenario hash, observations,
 first differing path, errors and worker logs. Exit: 0 equal, 1 different, 2 failed.
 Roots must exist within Git checkouts; dependencies must already be available.
 No project Vite config/.env, browser or worktree/config mutation. Default timeout 60000 ms.
@@ -73,20 +73,40 @@ export async function compareRoots({ baseline, candidate, scenario, input = null
   };
 }
 
-function checkoutEvidence(root) {
+/**
+ * What a scenario can read from a checkout-root comparison, relative to that root (F-113).
+ * load() reaches src/ only (no src module imports outside it or reads files at runtime);
+ * Vite's transform reads tsconfig.json and package.json; the lockfile pins node_modules.
+ * public/ and the probe's own tools are included for the run's provenance. Other files
+ * (logs, test-results/, docs) cannot change an observation, so writing them is allowed.
+ */
+export const EVIDENCE_PATHS = Object.freeze([
+  'src', 'public', 'tools/dev/scenarios', 'tools/dev/fixtures',
+  'tools/dev/differential-probe.mjs', 'tools/dev/differential-worker.mjs', 'tools/dev/differential-values.mjs',
+  'package.json', 'pnpm-lock.yaml', 'tsconfig.json',
+]);
+
+/**
+ * Exact state of the files a scenario can read. At a checkout's top level that is
+ * EVIDENCE_PATHS; a root nested inside a checkout (such as a test fixture) is all input.
+ */
+export function checkoutEvidence(root) {
   const git = (args, cwd = root) => execFileSync('git', ['-C', cwd, ...args], { maxBuffer: 32 * 1024 * 1024 });
-  const gitRoot = git(['rev-parse', '--show-toplevel']).toString().trim();
+  const gitRoot = realpathSync(git(['rev-parse', '--show-toplevel']).toString().trim());
   const revision = git(['rev-parse', 'HEAD']).toString().trim();
-  const status = git(['status', '--porcelain=v1', '--untracked-files=all'], gitRoot).toString();
-  const trackedDiffSha256 = createHash('sha256').update(git(['diff', '--binary', 'HEAD', '--'], gitRoot)).digest('hex');
-  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'], gitRoot).toString().split('\0').filter(Boolean);
+  const nested = relative(gitRoot, realpathSync(root)).split(sep).join('/');
+  const paths = nested ? [nested] : [...EVIDENCE_PATHS];
+  const pathspecs = ['--', ...paths.map((p) => `:(top,literal)${p}`)];
+  const status = git(['status', '--porcelain=v1', '--untracked-files=all', ...pathspecs], gitRoot).toString();
+  const trackedDiffSha256 = createHash('sha256').update(git(['diff', '--binary', 'HEAD', ...pathspecs], gitRoot)).digest('hex');
+  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z', ...pathspecs], gitRoot).toString().split('\0').filter(Boolean);
   const hash = createHash('sha256');
-  for (const path of untracked.sort()) {
-    const bytes = readFileSync(join(gitRoot, path));
-    hash.update(JSON.stringify([path, bytes.length]));
+  for (const file of untracked.sort()) {
+    const bytes = readFileSync(join(gitRoot, file));
+    hash.update(JSON.stringify([file, bytes.length]));
     hash.update(bytes);
   }
-  return { root, gitRoot, revision, dirty: status.length > 0, status, trackedDiffSha256, untrackedSha256: hash.digest('hex') };
+  return { root, gitRoot, revision, paths, dirty: status.length > 0, status, trackedDiffSha256, untrackedSha256: hash.digest('hex') };
 }
 
 function runWorker(job, timeoutMs, env) {
