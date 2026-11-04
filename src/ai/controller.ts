@@ -155,6 +155,11 @@ const isVoluntaryRtb = (r: RtbReason | null): boolean => r !== null && RTB_VOLUN
 
 /** Seconds of closure at which an attacker breaks off a head-on or overtaking pass. */
 const BREAK_LEAD_S = 1.8;
+/**
+ * Lift-axis acceleration (m/s^2) an extending pilot counts on when pulling across a
+ * conflict, roll-in lag included. Fitted on head-on Camel-class grids (AI_SOAK=extendgrid).
+ */
+const CROSS_PULL_ACCEL = 12;
 /** Seconds of full-g break away from the merge before the extension. */
 const BREAK_S = 0.8;
 /** A bomber formation's leader flies at this fraction of his top speed (a lone machine cruises at 0.8). */
@@ -202,6 +207,7 @@ const _tmp3 = new Vector3();
 const _rel = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _collisionLift = new Vector3();
+const _collisionOtherLift = new Vector3();
 
 export class AIPilot implements AIController {
   readonly entityId: number;
@@ -1895,9 +1901,16 @@ export class AIPilot implements AIController {
       if (dcpa < 1) cpa.copy(lift).multiplyScalar(-splitSide(self, o));
       // During a late extension escape, avoid a roll through the opposite lift
       // direction. Reflect only that component, retaining lateral separation.
+      // Two extending AIs that each see the other on their lift side choose together.
+      // Both pulling across must cover both lift-side offsets with two pulls; both escaping
+      // away keeps them. One pulling and one escaping is never better than both of those,
+      // so both pull only when the summed offset is under two pulls (2 * 0.5*a*t^2). The
+      // other computes exactly the same sum from its side (its cpa is exactly -cpa, and
+      // x - y equals -y + x in IEEE arithmetic), so the pair can't split on the threshold.
       else if (this.phase === 'extend' && tcpa > 0 && tcpa < BREAK_LEAD_S) {
         const towardLift = cpa.dot(lift);
-        if (towardLift > 0) cpa.addScaledVector(lift, -2 * towardLift);
+        const pairEscapesAway = this.otherCrossesToo(o, cpa) && towardLift - cpa.dot(_collisionOtherLift) > CROSS_PULL_ACCEL * tcpa * tcpa;
+        if (towardLift > 0 && !pairEscapesAway) cpa.addScaledVector(lift, -2 * towardLift);
       }
       avoid.addScaledVector(cpa.normalize(), -w);
       wsum += w;
@@ -1925,6 +1938,17 @@ export class AIPilot implements AIController {
       // A real conflict overrides the manoeuvre's g cap (formation, extension: 3 g).
       if (wsum > 0.25) steer.maxG = undefined;
     }
+  }
+
+  /**
+   * Is `o` in the same choice as us? True when it is an AI in `extend` and our closest
+   * approach, seen from its side (`-cpa`), lies on its lift side. Leaves o's lift in
+   * `_collisionOtherLift`. It reads o's current phase, so a pair whose phases change on
+   * the same AI tick can disagree for one tick.
+   */
+  private otherCrossesToo(o: AircraftEntity, cpa: Vector3): boolean {
+    if (REGISTRY.get(o)?.phase !== 'extend') return false;
+    return cpa.dot(upOf(o.state.orientation, _collisionOtherLift)) < 0;
   }
 
   // =====================================================================
