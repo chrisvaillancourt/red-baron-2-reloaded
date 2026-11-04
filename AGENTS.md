@@ -148,6 +148,9 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
   `tools/dev/scratch/<task>/`, not the session scratchpad: Node resolves packages only from
   inside the repo (F-48). Vitest collects only `src/**/*.test.ts`, so a scratch test needs
   its own config (`pnpm exec vitest run --config tools/dev/scratch/<task>/vitest.config.ts`).
+- **Doc links are tested.** `pnpm test` fails on a broken relative Markdown link or anchor
+  (`tools/dev/mdlinks.mjs`, F-124). After moving or renaming a doc section, run
+  `pnpm exec node tools/dev/mdlinks.mjs` and fix what it lists.
 - **Back up a branch before a rebase with a tag,** not another branch: `rebase.updateRefs`
   moves branches along with the rewrite (F-50).
 - **Playtest reports:** human flights are saved to `playtests/inbox/`, which is git-ignored,
