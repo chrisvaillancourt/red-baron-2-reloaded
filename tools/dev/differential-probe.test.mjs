@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspect } from 'node:util';
 import { test } from 'node:test';
@@ -54,6 +57,46 @@ test('CLI reports changed observations, exact checkout evidence, and mismatch ex
   assert.equal(report.baseline.evidence.root, baseline);
   assert.match(report.baseline.evidence.revision, /^[0-9a-f]{40}$/);
   assert.match(report.scenario.sha256, /^[0-9a-f]{64}$/);
+});
+
+// A throwaway checkout shaped like the repo: a committed src/ input and manifest.
+function scratchCheckout() {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'rb2r-probe-evidence-')));
+  const git = (...args) => execFileSync('git', ['-C', dir, '-c', 'user.name=probe', '-c', 'user.email=probe@example.invalid',
+    '-c', 'commit.gpgsign=false', ...args], { stdio: 'pipe' });
+  git('init', '-q');
+  mkdirSync(join(dir, 'src'));
+  writeFileSync(join(dir, 'src/input.ts'), 'export const value = 1;\n');
+  writeFileSync(join(dir, 'package.json'), '{ "type": "module" }\n');
+  git('add', '.');
+  git('commit', '-q', '-m', 'fixture');
+  return dir;
+}
+
+test('files the scenarios never read may change during a run (F-113)', async () => {
+  const dir = scratchCheckout();
+  try {
+    for (const file of ['pnpm-test.log', 'test-results.json']) {
+      const report = await compareRoots({ baseline: dir, candidate: dir, scenario, input: { mode: 'write', file } });
+      assertVerdict(report, 'equal');
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an edit to a scenario input during a run still fails the comparison', async () => {
+  const dir = scratchCheckout();
+  try {
+    for (const file of ['src/input.ts', 'src/new.ts', 'package.json']) {
+      const report = await compareRoots({ baseline: dir, candidate: dir, scenario, input: { mode: 'write', file } });
+      assertVerdict(report, 'failed');
+      assert.match(report.baseline.error, /checkout changed during scenario execution/, file);
+      assert.match(report.candidate.error, /checkout changed during scenario execution/, file);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('errors, nonzero exit, late exit, missing result and timeout never compare equal', async () => {

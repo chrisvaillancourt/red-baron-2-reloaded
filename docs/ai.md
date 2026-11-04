@@ -389,6 +389,11 @@ an unvisited branch (for example the sun-line stalk, with no sun in the harness)
 equal. `ab.mjs` stays the tool for behavior changes. CI runs the default suite against
 itself (`tools/dev/differential-probe.test.mjs`) to catch nondeterminism; no golden
 trace is stored, because the claim is "unchanged versus my base", on the same Node.
+The probe fingerprints each root's scenario inputs before and after the runs and fails
+if any changed: `EVIDENCE_PATHS` in `tools/dev/differential-probe.mjs` (`src/`,
+`public/`, the scenarios, fixtures and probe files, `package.json`, `pnpm-lock.yaml`,
+`tsconfig.json`), or the whole directory for a root nested inside a checkout. Other
+files, such as a log written into the checkout during `pnpm test`, may change (F-113).
 
 **A/B measurement.** Use `pnpm exec node tools/dev/ab.mjs` rather than hand-launching paired soaks.
 It supports career, quick, fairness, tailhold, defence and raid on matched seeds/counts:

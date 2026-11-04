@@ -1,3 +1,6 @@
+import { appendFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 let scenarioCalls = 0;
 export default async function ({ load, input }) {
   scenarioCalls++;
@@ -13,6 +16,8 @@ export default async function ({ load, input }) {
   if (input.mode === 'echo') return { value: input.value };
   if (input.mode === 'negative-zero') return { value: -0 };
   if (input.mode === 'undefined') return { value: undefined };
+  // The worker's cwd is the comparison root: write a file there mid-run.
+  if (input.mode === 'write') { appendFileSync(join(process.cwd(), input.file), 'written during the run\n'); return { written: input.file }; }
   if (input.mode === 'array-subclass') {
     class Samples extends Array { get units() { return 'm'; } }
     return new Samples(1, 2);
