@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { withScratchWorktree } from './scratch-worktree.mjs';
@@ -239,5 +239,5 @@ test('withScratchWorktree uses the caller prefix and removes the tree when the a
   }), /consumer failed/);
   assert.ok(seen);
   assert.equal(registered(root), 1);
-  assert.deepEqual((await readdir(tmpdir())).filter((n) => n.startsWith('rb2r-prefix-test-')), []);
+  await assert.rejects(access(dirname(seen)), { code: 'ENOENT' }, 'its own temp parent is removed');
 });

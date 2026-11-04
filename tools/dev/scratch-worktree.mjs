@@ -45,6 +45,7 @@ export function run(command, args, { cwd, env = process.env, logFile } = {}) {
     const log = logFile ? createWriteStream(logFile) : null;
     const chunks = [];
     let result = null;
+    let linger;
     const child = spawn(command, args, { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const finish = () => {
       active.delete(child);
@@ -59,12 +60,13 @@ export function run(command, args, { cwd, env = process.env, logFile } = {}) {
     child.on('exit', (code, signal) => {
       result ??= { code, signal, error: null };
       // The leader is gone; give its group a moment to finish writing, then clear it out.
-      setTimeout(() => {
+      linger = setTimeout(() => {
         signalGroup(child.pid, 'SIGKILL');
         for (const stream of [child.stdout, child.stderr]) stream.destroy();
       }, LINGER_MS).unref();
     });
     child.on('close', () => {
+      clearTimeout(linger);
       result ??= { code: null, signal: null, error: null };
       signalGroup(child.pid, 'SIGKILL'); // background children that didn't hold the pipe
       finish();
@@ -110,9 +112,12 @@ async function removeScratch(root, parent, directory, git) {
   let admin = null;
   try {
     const pointer = readFileSync(join(directory, '.git'), 'utf8').match(/^gitdir: (.+)$/m)?.[1];
-    if (pointer) admin = isAbsolute(pointer) ? pointer : resolve(directory, pointer);
-    const common = resolve(root, git('rev-parse', '--git-common-dir').toString().trim());
-    if (admin && !admin.startsWith(`${join(common, 'worktrees')}/`)) admin = null;
+    if (pointer) {
+      const candidate = realpathSync(isAbsolute(pointer) ? pointer : resolve(directory, pointer));
+      const common = realpathSync(resolve(root, git('rev-parse', '--git-common-dir').toString().trim()));
+      // Only ever delete a directory inside this repository's worktrees/ admin area.
+      if (candidate.startsWith(`${join(common, 'worktrees')}/`)) admin = candidate;
+    }
   } catch { /* add failed before creating the tree */ }
   for (let attempt = 0; attempt < 2; attempt++) {
     try { git('worktree', 'remove', '--force', directory); break; } catch { /* busy or unregistered */ }
