@@ -904,12 +904,37 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
     bus.emit({ type: 'explosion', position: bl.position.clone(), size: 3 });
   }
 
+  /** Broad-phase sphere radius per ground target type: hypot(hx, hz) + h (>= h). */
+  const GROUND_BOUND_R = Object.fromEntries(
+    Object.entries(GROUND_TARGET_BOXES).map(([type, spec]) => [type, Math.hypot(spec.hx, spec.hz) + spec.h]),
+  ) as Record<keyof typeof GROUND_TARGET_BOXES, number>;
+
+  /**
+   * Highest broad-phase sphere top over live ground targets (-Infinity when none):
+   * max of position.y + h/2 + GROUND_BOUND_R. A segment wholly above it is more than r
+   * above every sphere center, so the broad phase fails; and since r >= h it is also
+   * meters above every box top, so segmentBox would miss too, whatever the rounding.
+   * Targets only die during the bullet loop, which can only lower the true top, so one
+   * value per step stays conservative.
+   */
+  function groundTopY(world: WorldQuery): number {
+    let top = -Infinity;
+    for (const gt of world.groundTargets) {
+      if (gt.destroyed) continue;
+      const y = gt.position.y + GROUND_TARGET_BOXES[gt.type].h / 2 + GROUND_BOUND_R[gt.type];
+      if (y > top) top = y;
+    }
+    return top;
+  }
+
+  let groundTop = -Infinity;
   function hitGround(b: Bullet, world: WorldQuery): boolean {
+    if (Math.min(b.prev.y, b.position.y) > groundTop) return false;
     for (const gt of world.groundTargets) {
       if (gt.destroyed) continue;
       const spec = GROUND_TARGET_BOXES[gt.type];
       const p = gt.position;
-      const r = Math.hypot(spec.hx, spec.hz) + spec.h;
+      const r = GROUND_BOUND_R[gt.type];
       if (
         pointSegmentDistanceSq(p.x, p.y + spec.h / 2, p.z, b.prev.x, b.prev.y, b.prev.z, b.position.x, b.position.y, b.position.z) >
         r * r
@@ -945,6 +970,7 @@ export function createCombatSystem(bus: EventBus, getRealism: () => RealismSetti
   let impactCounter = 0;
   function updateBullets(world: WorldQuery, dt: number) {
     liveCount = -1;
+    groundTop = groundTopY(world);
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
       b.prev.copy(b.position);
