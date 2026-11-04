@@ -181,6 +181,8 @@ loads the full terrain/land-use/front-line/road graph, warms rivers, aerodrome l
 crater grids and roads identically, then snapshots deterministic observations. It
 includes cold/warm cache evidence and copies observations before shared scratch can
 be reused. Equal observations are evidence for these inputs, not a proof for every input.
+`ai-equivalence.mjs` traces AI/sim combat (harness cases plus a SimCore quick mission)
+for refactor-only changes; see docs/ai.md "Tests" → "Refactor equivalence".
 
 A scenario is a native Node `.mjs` file default-exporting
 `async function ({ load, input })`; use `await load('src/sim/flightModel.ts')` or another
