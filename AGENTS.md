@@ -130,6 +130,8 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
   `pnpm exec node tools/dev/prefix-check.mjs <test…> -- <source…>`: your test files run
   against HEAD's sources in a scratch worktree. Exit 0 = red at HEAD, 1 = passes there,
   2 = inconclusive (a test file failed to load) or setup error. Don't swap files by hand.
+  A test of a brand-new module always reports 2, because HEAD has nothing to import; prove
+  it red by reverting the call site in a scratch copy, or with a failing spec.
 - **A/B with `pnpm exec node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`).
   For file-based readiness, `pnpm exec node tools/dev/waitfor.mjs <file> <regex> …` is the portable
   blocking helper. Don't hand-launch paired soaks or write sleep loops. Quote a difference
