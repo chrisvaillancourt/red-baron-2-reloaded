@@ -51,6 +51,47 @@ What a report holds:
 
 The only personal field is a career pilot's name.
 
+## Hardware checklist: iPhone and Xbox controller
+
+For the owner's physical acceptance of Q-12 (iPhone) and Q-13 (Xbox controller). Software and
+synthetic-browser checks already pass; only real hardware can settle these. Note anything
+that feels wrong in the debrief's note field, even if you can't say why.
+
+**Record once per device:** model, OS and browser version, graphics preset, and for the pad
+its model and connection (USB or Bluetooth).
+
+**Where to play**
+- **iPhone:** the [live build](https://chrisvaillancourt.github.io/red-baron-2-reloaded/)
+  in Safari, landscape. Reports don't save there: on each combat report press **Copy
+  flight report** and paste it into a note to send later. Each report includes fps p50/p95.
+- **Xbox pad on the Mac:** `pnpm dev` in the main checkout, so reports save to
+  `playtests/inbox/` by themselves. Repeat a short run on the live build in Safari.
+
+**iPhone (Q-12)**
+- [ ] Title → Quick Mission → briefing → flight → debrief, touch only: steer, look, fire,
+      throttle, crew seat and map all reachable; menus fit the screen in landscape.
+- [ ] Rotate to portrait and back mid-flight; the layout recovers and controls still work.
+- [ ] Sound starts after the first touch.
+- [ ] Switch to another app mid-flight and back: the flight is paused and resumes cleanly.
+- [ ] A career: enlist, fly two sorties, close Safari, reopen; the career is still there.
+- [ ] One flight of about 15 minutes: note stutter, heat and whether Safari reloads the page.
+
+**Xbox controller (Q-13)**
+- [ ] Menus with the pad only: title → Quick Mission → briefing → take off (A selects,
+      B backs out).
+- [ ] In flight: fly (left stick, LB/RB rudder), fire (RT), clear a jam (A), throttle
+      (D-pad up/down), time compression (D-pad left/right), views (B chase, L3 cockpit),
+      targets (X cycle, Y padlock, R3 nearest enemy), map (View), and Menu → pause →
+      Flight actions → a wingman order → back to flight.
+- [ ] A two-seater (Bristol or D.H.4): Menu → Flight actions → Next crew station to reach
+      the gunner; aim (left stick) and fire; LB/RB between guns; B back to the pilot. In a
+      D.H.4, Flight actions → Bombsight, then hold X to drop a bomb.
+- [ ] End the flight, debrief, replay, all on the pad.
+- [ ] Unplug the pad (or switch it off) mid-flight, then reconnect: nothing stays held.
+      Click another window and come back: same.
+- [ ] Airfield Defense with the pad: aim, fire, reload, pause, resupply.
+- [ ] Feel: anything awkward, too sensitive or hard to reach. Say which button.
+
 ## Historical wave-7 release check
 
 The real app was played in headless Chrome, through the real menus and controls:
