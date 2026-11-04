@@ -6,11 +6,12 @@
  */
 import { appendFileSync } from 'node:fs';
 import { describe, it } from 'vitest';
+import { positiveIntEnv } from '../game/testing/env';
 import type { AircraftId, SkillLevel } from '../core/types';
 import { lowLevelRun } from './testing/realScenarios';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
-const SEEDS = Number(process.env.AI_SEEDS ?? 6);
+const SEEDS = positiveIntEnv('AI_SEEDS', process.env.AI_SEEDS, 6);
 
 const MATCHUPS: { a: AircraftId; sa: SkillLevel; b: AircraftId; sb: SkillLevel; n: [number, number]; kind: 'bounce' | 'level' }[] = [
   { a: 'sopwith_camel', sa: 'veteran', b: 'fokker_dri', sb: 'regular', n: [3, 3], kind: 'bounce' },

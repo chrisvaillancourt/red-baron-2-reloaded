@@ -8,13 +8,14 @@
  *   AI_SOAK=energy pnpm vitest run src/ai/energy.soak.test.ts
  */
 import { describe, it } from 'vitest';
+import { finiteEnv } from '../game/testing/env';
 import { Vector3 } from 'three';
 import type { AircraftId } from '../core/types';
 import type { SteerCommand } from './autopilot';
 import { SimWorld } from './testing/realSimHarness';
 
 const SOAK = (process.env.AI_SOAK ?? '').split(',');
-const DIVE_S = Number(process.env.AI_EN_DIVE ?? 12);
+const DIVE_S = finiteEnv('AI_EN_DIVE', process.env.AI_EN_DIVE, 12);
 const TYPES = (process.env.AI_EN_TYPES ?? 'albatros_dv,sopwith_camel,fokker_dri,spad_xiii,fokker_dvii,se5a,pfalz_diiia').split(',') as AircraftId[];
 
 describe.skipIf(!SOAK.includes('energy'))('dive and zoom energy', () => {

@@ -39,7 +39,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SOAKS = ['career', 'quick', 'fairness', 'tailhold', 'defence', 'raid'];
 const DEFENCE_MODES = ['off', 'brake', 'ladder', 'mix'];
 const DEFENCE_FLAGS = ['escalateDefence', 'defenceLadder', 'defenceReversal'];
-const SETS = {
+// Hand-kept copies of the soak tables' names in src/ai/testing/surveySets.ts, which this
+// file can't import; src/ai/testing/surveySets.test.ts fails when they drift.
+export const SETS = {
   fairness: ['default', 'vet', 'even', 'dvii', 'dviiground', 'dviitypes', 'twoseat', 'mirror', 'matrix', 'camel', 'energy', 'survey'],
   tailhold: ['default', 'mirror', 'energy', 'low'],
   raid: ['default', 'escort'],
