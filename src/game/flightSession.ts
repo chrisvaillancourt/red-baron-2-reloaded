@@ -679,7 +679,9 @@ export class FlightSession {
           this.timeScaleIdx = 0;
           break;
         case 'map':
-          this.cancelInputs();
+          // Only a map that captures input (touch-capable) holds the flight; on the desktop
+          // the pilot flies on beneath it, so held keys, mouse and pad carry through.
+          if (this.mapCaptures) this.cancelInputs();
           this.mapOpen = !this.mapOpen;
           if (!this.mapOpen) this.hud.showMap(null);
           break;

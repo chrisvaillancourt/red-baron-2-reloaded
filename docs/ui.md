@@ -165,7 +165,8 @@ there HUD navigation owns it and B closes it. On the desktop the pilot flies on 
 the map, so HUD navigation takes no directions or A there, "Close map" is out of pad and
 keyboard focus order (a mouse click still works), and the flight input's `mapMode`
 turns a fresh B into the map toggle: B, View or M closes the map once, with no view or
-seat change.
+seat change. Opening or closing the desktop map leaves held keys, mouse and pad input
+alone; only a capturing (touch-capable) map releases them.
 Once the pinned standard pad has produced input this flight (`InputManager.padUsed`;
 controls held through the launch don't count), the tutorial hint line shows
 `controllerFlightHint` for the pilot/gunner and bombsight context, at the start and
