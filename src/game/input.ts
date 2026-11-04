@@ -493,6 +493,7 @@ export class InputManager {
   private losePad(): void {
     if (this._gamepadOwner) this.padLoss = true;
     this._gamepadOwner = null;
+    this._padUsed = false;
     this.padArmed = false;
     this.padFrame.pressed.length = 0;
   }

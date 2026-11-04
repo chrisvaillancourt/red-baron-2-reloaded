@@ -168,6 +168,9 @@ describe('flight standard controller ownership and disarming', () => {
     p.axes[2] = 0.9;
     frame();
     expect(input.padUsed).toBe(true);
+    p.connected = false;
+    frame();
+    expect(input.padUsed).toBe(false); // a pad adopted later starts unused
   });
 
   it('B closes a non-capturing map instead of changing view or seat', () => {
