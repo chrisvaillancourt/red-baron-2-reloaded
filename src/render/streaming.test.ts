@@ -62,6 +62,25 @@ describe('TownLayer streaming', () => {
     expect(near.length).toBeGreaterThan(0);
     cam.set(q.buildingDistance * 5, 300, 0);
     tw.update(cam);
-    for (const g of near) expect(g.visible).toBe(false);
+    // Hidden, or released from the scene altogether.
+    for (const g of near) expect(g.visible && g.parent === tw.group).toBe(false);
+  });
+
+  it('releases tiles left behind on a long flight', () => {
+    const tw = new TownLayer('1917-06-01', { ...QUALITY.low });
+    const cam = new Vector3();
+    let early = 0;
+    for (let x = 0; x <= 160_000; x += 4000) {
+      cam.set(x, 300, 0);
+      for (let k = 0; k < 6; k++) tw.update(cam);
+      if (x === 40_000) early = tw.group.children.length;
+    }
+    // Retained tiles depend on the view radius, not on distance flown.
+    expect(early).toBeGreaterThan(0);
+    expect(tw.group.children.length).toBeLessThanOrEqual(early + 6);
+    // Released tiles rebuild when the camera returns.
+    cam.set(0, 300, 0);
+    expect(settle(tw, cam)).toBeLessThan(FRAME_CAP);
+    expect(tw.group.children.some((g) => g.visible)).toBe(true);
   });
 });

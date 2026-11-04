@@ -41,7 +41,7 @@ world.render(camera);
 * Quality presets: `src/render/quality.ts` (terrain LOD, mask resolution, shadows, tree radius/density, cloud puff budget, building distance, far plane, particle cap).
 
 ### Components
-Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`: quadtree LOD built in a worker pool, land-use shader, feature mask for water/roads), sea, river & road ribbons (near camera), towns/farms/ruins (`towns.ts`, instanced per 8 km tile), trees (`trees.ts`, streamed 500 m cells), aerodromes, clouds (billboard cumulus + overcast deck, in-cloud whiteout), effects (`effects/`: particles, tracers, event handling, bombs).
+Sky (`sky.ts`, Preetham with a CPU port for matching haze), terrain (`terrain/`: quadtree LOD built in a worker pool, land-use shader, feature mask for water/roads), sea, river & road ribbons (near camera), towns/farms/ruins (`towns.ts`, instanced per 8 km tile, released two tiles beyond building distance), trees (`trees.ts`, streamed 500 m cells), aerodromes, clouds (billboard cumulus + overcast deck, in-cloud whiteout), effects (`effects/`: particles, tracers, event handling, bombs).
 
 **Field materials** (`terrain/terrainMaterial.ts`). Neighboring crop colours are
 pulled toward the seasonal local average to reduce the quilt effect. Broad soil
