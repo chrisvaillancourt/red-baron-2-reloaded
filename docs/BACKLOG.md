@@ -417,6 +417,42 @@ possible for all common controls, not merely provide basic stick input.
 - Coordinate with Q-12 at the input-command seam; serialize changes to shared
   input/session files rather than implementing two competing control systems.
 
+### Finish plan — 2026-11-04
+
+Source of truth: the retained omp worktrees `rb2r-workflowz-controller*`. Their HEAD is
+signed `bbfdcd0` (input prerequisite, not on main); HUD, navigation and prompts are staged
+but uncommitted, and `2edd91e`/`ae82dbb` are index tree hashes, not commits. All pieces
+merge cleanly onto `b508e33`; main has not touched a Q-13 file since `a91f9b4`. The session
+tree's only original work is an unrun menu-owner regression test.
+
+Build a fresh branch from main: merge `feat/workflowz-flight-controller` (keeps the
+signature), then apply the HUD and navigation staged diffs as separate commits (export with
+`--src-prefix=a/ --dst-prefix=b/`; `diff.mnemonicPrefix` breaks plain patches). Don't
+apply the session tree's staged diff: it duplicates HUD plus navigation.
+
+1. **Menu-owner inheritance.** `InputManager` takes the menu's owning pad; `flightSession`
+   passes it. Acceptance: the retained test passes; with a lower-index pad also pressed, only
+   the menu pad flies; held A/RT/stick at launch stay neutral until released.
+2. **Session binding.** Wire `hud.setControllerOptions` (`gamepadAllowed` → input owner,
+   `onAction` → session edge dispatch, `foregroundOverlay` → error card), guard callbacks
+   with a session epoch and clear them on teardown, end of flight and replay; show the
+   contextual pilot/gunner/bombsight hint in flight. Acceptance: Menu opens pause then the
+   actions card, B backs out, each action group dispatches once, nothing fires after
+   teardown or from a stale session, and disconnect/blur/station change release held actions.
+3. **Prompt fixes** from review: per-lesson Flying School grid rows, a correct description of
+   the Menu → actions path, and the L3 cockpit-view row. Acceptance: a test derives the
+   prompt text from the `readGamepad` mapping, so text and mapping can't drift.
+4. **Gates.** `pnpm check`; headless stubbed-pad specs, one GPU job at a time, for two-pad
+   ownership, Menu → actions → B, each action group, map ownership, station hints,
+   disconnect/reconnect, blur, and teardown into debrief and replay; rerun
+   `controller-navigation`, `defense-gamepad`, `crew` and `options`; screenshots of the
+   actions card, hints, Flying School and docs; full `pnpm e2e`. Standard-tier review for
+   the session binding.
+
+Non-goals: remapping, sensitivity, inversion or controller-selection options; `src/core`
+contract changes. Physical acceptance (real Xbox pad over USB and Bluetooth, Chrome and
+Safari, sleep/disconnect, feel; record model, transport and OS) stays with the owner.
+
 ### Q13A input prerequisite — revisioned receipts
 
 Parent receipts refreshed 2026-10-05T04:04:11Z; workspace
@@ -600,6 +636,42 @@ Do not discard or blindly commit that older staged merge: refresh current-main
 integration and decision numbering in an owned workspace, then rerun release gates.
 No collision code or retained staged work was changed by the Xbox release.
 
+## Q-06 — Ordinary flight-mate mutual support
+
+Goal: an AI flight-mate relieves a friend with an enemy on its tail (one leased helper,
+gated on feasibility, visibility and an imminent shot), so lone pursuers face threat from
+aircraft nobody is chasing. An earlier targeting-preference attempt was dropped because it
+favoured the veteran player's side (D-070); this must not repeat that.
+
+Source: uncommitted candidate in the retained omp worktree `rb2r-workflowz-mutual-support`
+(base `1851431`, test file untracked). On `b508e33` it applies with two trivial
+`controller.ts` conflicts (keep D-117's scratch vector and `RtbReason`; add the relief
+fields) and passes 17/19. Both failures are fixture faults, identical with relief off: the
+helper starts nose-on to the pursuer, and the attack-my-target decoy flies away at 41 m/s.
+
+Plan (finish or drop, about a day):
+1. Rebase onto main behind `TACTICS_FLAGS.mutualSupport`. With the flag off,
+   `ai-equivalence` must report `equal` against the base.
+2. Fix the fixtures: start the helper beam-on or reversed, make the decoy closable (or assert
+   target, phase and closure rate), use feature-off as the primary control and ignore the
+   first second of geometry. Acceptance: 19/19, and veteran relief beats feature-off on
+   mate-threat time over at least 8 seeds.
+3. Count relief events in the tailhold and fairness reports.
+4. Soaks, one at a time, flag off vs on: tailhold `low` with `AUTOPLAY_PILOT=human` and with
+   the veteran pilot (enemy hits or tail-hold on the player must rise); fairness
+   `default,mirror` at 48 reps (96 if marginal) within noise with default player-down not
+   below its band; career within noise; no rise in collisions. Turn the default on only if
+   all hold; otherwise drop it and record a DECISIONS entry.
+5. Fresh-context review of `chooseRelief`'s cross-controller `perception.sweep`, which
+   advances another pilot's perception and RNG outside its own update.
+
+Planning evidence (descriptive, 8 seeds × 90 s, relief on vs off): human-like pursuit cut
+mate-threat time 337 → 112 s; veteran pursuit cut mate losses 3/8 → 1/8 but raised threat
+time 175 → 203 s. Early soaks suggest relief mostly helps the player's side (tailhold `low`
+novice crashes 10 → 2), the opposite of the complaint, so step 4 decides.
+
+Non-goals: new manoeuvres, pursuer calibration (Q-07), commanded wingman orders, recon or
+escort changes, fairness band retuning.
 
 ## Q-14 — Production Airfield Defense
 
