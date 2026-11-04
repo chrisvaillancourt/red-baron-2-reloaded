@@ -6,28 +6,24 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 ## Live
 
-- `origin/main` `8daef36`, deployed by [Actions run 41795159742](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41795159742).
-- Node 26.12.1 LTS is pinned for local runs (`devEngines.runtime`) and CI once
-  `integrate/wave1` lands.
+- `origin/main` `b508e33`: Node 26.12.1 LTS pinned (`devEngines.runtime`, CI), D-116/D-117,
+  F-44 `checkcommits`, tech-debt wave 1. Deployment: check the latest main run.
 
 ## Now
 
 | Track | Branch | Next action |
 |---|---|---|
-| Integration | `integrate/wave1` | F-44 checkcommits, agent docs (D-116), tech-debt wave 1 (9 branches), the extending-pair collision fix (D-117) and the Node 26 pin. Full gate green; push to `main` awaits owner approval. |
+| pnpm pin | `build/pnpm-12.16` | `packageManager: pnpm@12.16.1`, CI reads it. Full check green; push after the `b508e33` deployment succeeds. |
+| Tech-debt wave 2 | `perf/sim-*`, `perf/world-segment-grid`, `refactor/*` | Behavior-neutral refactors proved with the equivalence probes; review, then integrate. |
+| Dev tools | `feat/dev-tools-prefix-worktrees` | F-75 `prefix-check` and `worktrees.mjs` inventory; in review. |
 
 ## Next
 
-1. Tech-debt wave 2, proved with the wave-1 probes: sim bullet/ground hit tables
-   (sim-1/2), world `SegmentIndex` grid (W1), typed screen params (ui-2), `flightSession`
-   split (game-7), campaign duplicate rules.
-2. Q-13 controller session/prompts: retained omp worktrees `rb2r-workflowz-controller-*`;
-   prompts have three open review defects (Flying School grid, action-card entry text,
-   L3 manual binding). Not publishable until session binding and UI proof land.
-3. Q-06 flight-mate mutual support (`rb2r-workflowz-mutual-support`, uncommitted): 17/19
-   real-sim cases pass; two fail (attack timing, attack-my-target spacing).
-4. F-75 `prefix-check` on `tools/dev/scratch-worktree.mjs`; worktree inventory tool.
-5. BACKLOG as contracts only (one Goal/Acceptance/Non-goals section per open item).
+1. Q-13 controller: [finish plan](BACKLOG.md#finish-plan--2026-11-04) (menu-owner
+   inheritance, session binding, prompt fixes, gates).
+2. Q-06 mutual support: [finish-or-drop plan](BACKLOG.md#q-06--ordinary-flight-mate-mutual-support),
+   decided by the step-4 soaks.
+3. BACKLOG as contracts only (one Goal/Acceptance/Non-goals section per open item).
 
 ## Blocked on the owner
 
