@@ -7,15 +7,14 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 ## Live
 
 - `origin/main` `8daef36`, deployed by [Actions run 41795159742](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41795159742).
-- CI runs Node 22; Node 24/26 fail one realsim test on main (Now, track 1).
+- Node 26.12.1 LTS is pinned for local runs (`devEngines.runtime`) and CI once
+  `integrate/wave1` lands.
 
 ## Now
 
 | Track | Branch | Next action |
 |---|---|---|
-| Node LTS | `fix/node-lts-collision` | One-ulp `Math.pow` drift (V8 13+) exposed two extending AIs both crossing into each other. Fix reviewed (Opus clean); finish Sol review and Node 26 A/B, add the two-aircraft unit test, then pin Node 26 LTS in `devEngines.runtime` and CI. |
-| Tech-debt wave 1 | `test/*`, `refactor/*`, `fix/tools-*` | Equivalence probes, missing tests and small type fixes from the 2026-11-04 audit; each branch reviewed, then integrated serially with `checkcommits`. |
-| F-44 | `feat/checkcommits` | Rewrite committed; round-two review, then integrate. |
+| Integration | `integrate/wave1` | F-44 checkcommits, agent docs (D-116), tech-debt wave 1 (9 branches), the extending-pair collision fix (D-117) and the Node 26 pin. Full gate green; push to `main` awaits owner approval. |
 
 ## Next
 

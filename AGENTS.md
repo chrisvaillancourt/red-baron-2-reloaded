@@ -117,11 +117,15 @@ Shared project policy lives here. `CLAUDE.md` contains only an import of this fi
 ## Shared workflow lessons
 - **New worktrees have no `node_modules`.** Run `sfw pnpm install` before tests, the
   typecheck or the dev server.
+- **Node is pinned to the current LTS** by `package.json` `devEngines.runtime`, and CI uses
+  the same version. pnpm scripts and `pnpm exec node …` run it; a bare `node` may differ, and
+  V8 releases can shift deterministic sim results by an ulp (D-117). Run repo tools as
+  `pnpm exec node tools/dev/<tool>.mjs`. Move to each new LTS in its own commit.
 - **Prove each commit of a series on its own** with
   `pnpm exec node tools/dev/checkcommits.mjs main..HEAD` (install, typecheck, `pnpm test`
   per commit in a scratch worktree; exit 0 only if all pass). Don't hand-roll the loop.
-- **A/B with `node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`).
-  For file-based readiness, `node tools/dev/waitfor.mjs <file> <regex> …` is the portable
+- **A/B with `pnpm exec node tools/dev/ab.mjs`** (career, quick, fairness; `--flag`, `--base <ref>`).
+  For file-based readiness, `pnpm exec node tools/dev/waitfor.mjs <file> <regex> …` is the portable
   blocking helper. Don't hand-launch paired soaks or write sleep loops. Quote a difference
   only when the tool says "differs" (docs/ai.md "Tests").
 - **Don't pin exact sim figures in tests.** A merge elsewhere (placement, weather,

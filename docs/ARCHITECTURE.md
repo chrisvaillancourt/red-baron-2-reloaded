@@ -172,7 +172,7 @@ replacement for regression server isolation.
 Compare existing baseline/candidate checkouts with one scenario and one set of inputs:
 
 ```sh
-node tools/dev/differential-probe.mjs --baseline /path/to/baseline --candidate . \
+pnpm exec node tools/dev/differential-probe.mjs --baseline /path/to/baseline --candidate . \
   --scenario tools/dev/scenarios/world-equivalence.mjs --input '{"seed":42}'
 ```
 
@@ -193,7 +193,7 @@ change to `src/campaign/` mission generation, with the baseline a detached workt
 merge base:
 
 ```sh
-node tools/dev/differential-probe.mjs --baseline /path/to/merge-base --candidate . \
+pnpm exec node tools/dev/differential-probe.mjs --baseline /path/to/merge-base --candidate . \
   --scenario tools/dev/scenarios/mission-equivalence.mjs \
   --input '{"suite":"all","seed":12345}' --timeout-ms 300000
 ```

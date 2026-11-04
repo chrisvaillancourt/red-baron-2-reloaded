@@ -274,7 +274,7 @@ what the interceptors lose to the gunners once escorts are about (15 of 72 lost 
 2 with it on, against Camels). The autoplayer is one of the bombers and goes down in 29-67%
 of raids, highest unescorted.
 
-**A/B against the wave's base** (`node tools/dev/ab.mjs --base <ref> --head HEAD`): nothing
+**A/B against the wave's base** (`pnpm exec node tools/dev/ab.mjs --base <ref> --head HEAD`): nothing
 the tool calls a difference.
 
 | soak | base | metric | base | head | verdict |
@@ -367,7 +367,7 @@ prepare a detached worktree at the base commit (`git worktree add --detach <dir>
 then `sfw pnpm install` there) and run
 
 ```sh
-node tools/dev/differential-probe.mjs --baseline <dir> --candidate . \
+pnpm exec node tools/dev/differential-probe.mjs --baseline <dir> --candidate . \
   --scenario tools/dev/scenarios/ai-equivalence.mjs --input '{"suite":"default"}'
 ```
 
@@ -384,7 +384,7 @@ equal. `ab.mjs` stays the tool for behavior changes. CI runs the default suite a
 itself (`tools/dev/differential-probe.test.mjs`) to catch nondeterminism; no golden
 trace is stored, because the claim is "unchanged versus my base", on the same Node.
 
-**A/B measurement.** Use `node tools/dev/ab.mjs` rather than hand-launching paired soaks.
+**A/B measurement.** Use `pnpm exec node tools/dev/ab.mjs` rather than hand-launching paired soaks.
 It supports career, quick, fairness, tailhold, defence and raid on matched seeds/counts:
 `--flag <TACTICS_FLAGS name>` switches a tactic off/on; `--base <ref> --head HEAD`
 freezes both revisions. `--jobs 1` limits CPU contention. Raw reports, stdout/stderr,
@@ -398,11 +398,11 @@ Career/quick `RATES` and fairness retain their 95% interval-overlap heuristic
 percentages. Raid ground destruction includes incidental AA, not only objective targets.
 
 Examples:
-- `node tools/dev/ab.mjs --soak career --flag stalk`
-- `node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk`
-- `node tools/dev/ab.mjs --soak tailhold --set default,low --reps 36 --flag escalateDefence --env AUTOPLAY_PILOT=human`
-- `node tools/dev/ab.mjs --soak defence --reps 24 --a DEFENCE_AB=off --b DEFENCE_AB=mix --env AUTOPLAY_PILOT=human`
-- `node tools/dev/ab.mjs --soak raid --set default,escort --reps 12 --flag bomberFormation`
+- `pnpm exec node tools/dev/ab.mjs --soak career --flag stalk`
+- `pnpm exec node tools/dev/ab.mjs --soak fairness --set default,mirror --reps 48 --flag stalk`
+- `pnpm exec node tools/dev/ab.mjs --soak tailhold --set default,low --reps 36 --flag escalateDefence --env AUTOPLAY_PILOT=human`
+- `pnpm exec node tools/dev/ab.mjs --soak defence --reps 24 --a DEFENCE_AB=off --b DEFENCE_AB=mix --env AUTOPLAY_PILOT=human`
+- `pnpm exec node tools/dev/ab.mjs --soak raid --set default,escort --reps 12 --flag bomberFormation`
 
 Defence activates its actual survey mode, which overrides `escalateDefence`,
 `defenceLadder` and `defenceReversal`; compare `DEFENCE_AB` modes, not those flags.
@@ -505,7 +505,7 @@ their names, so add or rename a set in both places.
   the tail-hold is one constant-direction turn. `DEFENCE_AB=off,brake,ladder,mix` prints
   each defence instead (with `AUTOPLAY_PILOT=human` for the human-like pursuer), and
   `DEFENCE_TRACE=1` hits per second by state.
-- In-engine proof: `node tools/playtest/ai-depth-shots.mjs <out> <port> sun|cloud|defence`
+- In-engine proof: `pnpm exec node tools/playtest/ai-depth-shots.mjs <out> <port> sun|cloud|defence`
   (dev server, seeded with `SEED=n`) logs each shot's AI state, range, sun angle and cloud
   density, and for the `defence` scene the wingman's state, range and both speeds. The
   browser fight isn't deterministic, so `WHEN=<regex>` shoots only while the enemy's AI

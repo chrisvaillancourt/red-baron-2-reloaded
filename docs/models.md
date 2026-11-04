@@ -77,7 +77,7 @@ avoid generating preview images as well.
 * `tools/blender/art.py` — Cycles key-art scenes; reuses the generator and paints liveries with
   a NumPy port of the runtime painter.
 * `dev/hangar.html` — in-engine inspection (any type × livery, turntable, cockpit view, RPM,
-  control wiggle, firing, damage, wing break). `node tools/hangar-shots.mjs <url> <outDir> '<json>'`
+  control wiggle, firing, damage, wing break). `pnpm exec node tools/hangar-shots.mjs <url> <outDir> '<json>'`
   screenshots it with Playwright (uses the installed Chrome channel).
 * `src/render/aircraft/models.test.ts` parses every GLB in Node and checks the contract below.
 
