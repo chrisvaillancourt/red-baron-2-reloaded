@@ -477,15 +477,17 @@ export class FlightSession {
    */
   private controllerAction(action: EdgeAction): void {
     if (this.finished || this.contextLost) return;
+    // Resume first: a Flight actions choice made over an open map must not leave the
+    // flight paused with no card.
+    if (this.paused) {
+      this.resumeAudio();
+      this.setPaused(false);
+    }
     if (action === 'map' && this.mapOpen) {
       // Map close bypasses input capture, as the View button's edge does (handleCommands).
       if (this.canCloseMap) this.handleCommands(['map']);
       this.updateTouch();
       return;
-    }
-    if (this.paused) {
-      this.resumeAudio();
-      this.setPaused(false);
     }
     this.input.queueCommand(action);
     this.updateTouch();

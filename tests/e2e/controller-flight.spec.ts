@@ -288,6 +288,19 @@ test('desktop map: flight inputs never drive the map; a fresh B, View or M close
       expect((await flight(page)).station).toBe('observer');
     });
 
+    await test.step('Flight actions Map over an open map closes it and resumes the flight', async () => {
+      await tap(page, 8);
+      await expect(map).toBeVisible();
+      await openActions(page);
+      await actionsCard(page).locator('[data-flight-action="map"]').focus();
+      await tap(page, 0);
+      await expect(map).toHaveCount(0);
+      await expect(page.locator('.hud-menu-backdrop')).toHaveCount(0);
+      expect((await flight(page)).paused).toBe(false);
+      const t0 = await page.evaluate(() => window.__rb2!.session!.time);
+      await expect.poll(() => page.evaluate(() => window.__rb2!.session!.time)).toBeGreaterThan(t0 + 0.1);
+    });
+
     await test.step('View and M close it once; a mouse click on Close map still works', async () => {
       await tap(page, 8);
       await expect(map).toBeVisible();
