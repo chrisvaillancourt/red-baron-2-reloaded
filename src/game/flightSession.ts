@@ -28,10 +28,9 @@ import { getActiveDefense } from './activeDefense';
 import type { MissionDirector } from './missionDirector';
 import type { GameModules } from './moduleTypes';
 import type { Hud } from '../ui/hud/types';
-import type { MapMarker, MapView } from '../ui/map/mapRenderer';
+import { buildMapView } from './mapView';
 import { createTouchControls } from '../ui/touchControls';
 import type { TouchControls } from './touchInput';
-import { resolveUnits } from '../ui/format';
 // Read-only gunner state for the rear-gun visuals (pure sim helper, no composition needed).
 import { getGunnerTarget, pilotGTolerance } from '../sim';
 import { stepGEffect } from './gEffect';
@@ -566,37 +565,6 @@ export class FlightSession {
     else if (player && e.type === 'gun-jammed' && e.aircraftId === player.id) this.hud.showMessage('Gun jammed! Hammer the clear-jam key.', { kind: 'warning', duration: 3 });
   }
 
-  private buildMapView(): MapView {
-    const p = this.world.player;
-    const units = resolveUnits(this.settings.units, p?.nation ?? 'britain').system;
-    const markers: MapMarker[] = [];
-    for (const a of this.world.aircraft) {
-      if (a.outcome !== null) continue;
-      const friendly = p && a.side === p.side;
-      const near = p && a.state.position.distanceTo(p.state.position) < 6000;
-      if (a !== p && !friendly && !near) continue;
-      const fwd = new Vector3(0, 0, -1).applyQuaternion(a.state.orientation);
-      markers.push({ kind: 'aircraft', x: a.state.position.x, z: a.state.position.z, side: a.side, heading: Math.atan2(fwd.x, -fwd.z), isPlayer: a === p });
-    }
-    for (const b of this.world.balloons) markers.push({ kind: 'balloon', x: b.position.x, z: b.position.z, side: b.side, destroyed: b.destroyed });
-    for (const g of this.world.groundTargets)
-      markers.push({ kind: 'ground', x: g.position.x, z: g.position.z, side: g.side, destroyed: g.destroyed, label: g.type.replace(/-/g, ' ') });
-    const flight = p ? this.world.getFlight(p.flightId) : undefined;
-    return {
-      date: this.mission.date,
-      units,
-      playerSide: p?.side,
-      center: p ? { x: p.state.position.x, z: p.state.position.z } : undefined,
-      spanM: 40_000,
-      route: flight?.waypoints,
-      activeWaypoint: this.waypointIndex,
-      markers,
-      homeAerodromeId: this.mission.homeAerodromeId,
-      title: this.mission.title,
-      style: 'overlay',
-    };
-  }
-
   /** Why time compression must be off right now, or null (see timeCompression.ts). */
   private compressionBlock(): CompressionBlock {
     const p = this.world.player;
@@ -859,7 +827,7 @@ export class FlightSession {
     }
     if (this.mapOpen && now >= this.mapRedrawAt) {
       this.mapRedrawAt = now + 200;
-      this.hud.showMap(this.buildMapView());
+      this.hud.showMap(buildMapView({ world: this.world, mission: this.mission, units: this.settings.units, waypointIndex: this.waypointIndex }));
     }
 
     if (this.director.ended) this.finish();
