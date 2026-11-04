@@ -10,7 +10,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { run, stopAll, withScratchWorktree } from './scratch-worktree.mjs';
+import { isolatedEnv, run, stopAll, withScratchWorktree } from './scratch-worktree.mjs';
 
 const GATES = [
   ['install', 'sfw', ['pnpm', 'install', '--frozen-lockfile']],
@@ -66,7 +66,8 @@ async function main(args) {
   }
 
   const results = [];
-  for (const commit of commits) {
+  const env = isolatedEnv(root);
+  for (const [index, commit] of commits.entries()) {
     const short = commit.slice(0, 10);
     const gates = Object.fromEntries(GATES.map(([name]) => [name, { status: 'not-run' }]));
     const result = { commit, subject: git(root, 'log', '-1', '--format=%s', commit), status: 'not-run', gates, cleanup: null };
@@ -79,8 +80,8 @@ async function main(args) {
         if (name !== 'install' && gates.install.status !== 'passed') break;
         say(`  ${name} ...`);
         const started = Date.now();
-        const log = join(logs, `${short}-${name}.log`);
-        const outcome = await run(command, commandArgs, { cwd: directory, logFile: log });
+        const log = join(logs, `${index + 1}-${short}-${name}.log`);
+        const outcome = await run(command, commandArgs, { cwd: directory, env, logFile: log });
         const status = interrupted ? 'interrupted' : outcome.code === 0 ? 'passed' : 'failed';
         gates[name] = { status, code: outcome.code, signal: outcome.signal, error: outcome.error,
           seconds: Math.round((Date.now() - started) / 100) / 10, log };
@@ -92,7 +93,7 @@ async function main(args) {
         }
       }
     }).catch((error) => {
-      gates.setup = { status: 'failed', error: error.message };
+      gates.setup = { status: interrupted ? 'interrupted' : 'failed', error: error.message };
       say(`  setup failed: ${error.message}`);
       return { cleanup: error.cleanup ?? 'unknown' };
     });
