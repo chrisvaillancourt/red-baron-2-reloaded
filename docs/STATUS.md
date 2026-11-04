@@ -6,16 +6,16 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 ## Live
 
-- `78f4dd4` deployed by [Actions run 41879408532](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41879408532);
-  live `prodcheck` OK (the first try hit a transient Pages 503 on a worker asset).
-  Adds tech-debt wave 2 (full e2e 44 passed) and the friction doc fixes to the earlier
-  Node 26.12.1 LTS (D-117), D-118, D-116, pnpm 12.16.1 and tooling work.
+- `3b3a89e` deployed by [Actions run 41891081021](https://github.com/chrisvaillancourt/red-baron-2-reloaded/actions/runs/41891081021);
+  live `prodcheck` OK. Adds Q-13 Xbox controller coverage (merge `04ddbae`; full e2e 54
+  passed) to tech-debt wave 2, the friction doc fixes, Node 26.12.1 LTS (D-117), D-118,
+  D-116, pnpm 12.16.1 and the tooling work.
 
 ## Now
 
 | Track | Branch | Next action |
 |---|---|---|
-| Q-13 controller | merged `04ddbae`, pushing | Verify the deploy and live `prodcheck`. Physical Xbox acceptance stays with the owner (Blocked below). |
+| Q-06 mutual support | not started | Waiting for the owner's go-ahead before feature code; plan in Next 1. |
 
 ## Next
 
