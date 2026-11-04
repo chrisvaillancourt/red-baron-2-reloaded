@@ -49,7 +49,7 @@ split/weights and engagement/defence/long-range behavior. F-74 is a reset commen
 Protect the original 24-file staged merge of `4dc8ec8` in the retained collision tree;
 do not transplant old survey/mobile history. Smoke, fairness and full release gates
 prove different scopes; within-noise comparisons do not establish equivalence.
-For current phase see [STATUS](STATUS.md#current-queue); for dated candidate/gate
+For current phase see [STATUS](STATUS.md#now); for dated candidate/gate
 receipts and signing history see the [Q-05 contract](BACKLOG.md#q-05--corrected-collision-integration-contract).
 
 ### Q-13: input prerequisite before session/menu coverage
@@ -62,7 +62,7 @@ slices. No new settings/core contracts or policy changes. Common actions, native
 widgets, accurate prompts and deterministic/browser regressions must all migrate;
 physical lifecycle/ergonomics signoff stays distinct. See [game](game.md), [UI](ui.md),
 [Q-13 contract](BACKLOG.md#q-13--xbox-controller-coverage-and-ergonomics), D-113.
-Current phase belongs in [STATUS](STATUS.md#current-queue); exact candidate-specific
+Current phase belongs in [STATUS](STATUS.md#now); exact candidate-specific
 tests and native crew-return proof belong in the
 [dated Q13A receipts](BACKLOG.md#q13a-input-prerequisite--revisioned-receipts).
 
@@ -77,7 +77,7 @@ for slot/relead censoring, null encounter/release windows and every selected cas
 Repeatability is not gameplay improvement. See [bombers](bombers.md),
 [Q-08 contract](BACKLOG.md#q-08--bomber-pacing-and-interception-measurement-only),
 [Architecture probes](ARCHITECTURE.md#exact-cpu-differential-probes), D-093/D-098/D-099.
-Current phase belongs in [STATUS](STATUS.md#current-queue); original and corrected
+Current phase belongs in [STATUS](STATUS.md#now); original and corrected
 measurement provenance remain in the dated Q-08 BACKLOG receipts linked above.
 
 ### Independent author/developer diagnostics
