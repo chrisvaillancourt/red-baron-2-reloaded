@@ -2,7 +2,7 @@
 
 This is a compact design/ownership record, **not a dispatch queue or release receipt**.
 [STATUS](STATUS.md) owns current phase/owner/next action; [BACKLOG](BACKLOG.md) owns
-contracts and revisioned evidence; [DEFERRED-TODOS](DEFERRED-TODOS.md) owns genuine
+open contracts and [BACKLOG-ARCHIVE](BACKLOG-ARCHIVE.md) revisioned evidence; [DEFERRED-TODOS](DEFERRED-TODOS.md) owns genuine
 external blockers/untriggered ideas. Behavioral API details belong in module notes.
 
 ## Current orchestration contract
@@ -44,13 +44,13 @@ base. Dedicated lift scratch; during extension only, `0 < tcpa < BREAK_LEAD_S`, 
 positive closest-approach lift component and preserve lateral separation. Keep dead-ahead
 split/weights and engagement/defence/long-range behavior. F-74 is a reset comment only:
 `bombRun.stage`, not phase, identifies the just-ended run. See [AI notes](ai.md),
-[Q-05 contract](BACKLOG.md#q-05--corrected-collision-integration-contract).
+[Q-05 contract](BACKLOG-ARCHIVE.md#q-05--corrected-collision-integration-contract).
 
 Protect the original 24-file staged merge of `4dc8ec8` in the retained collision tree;
 do not transplant old survey/mobile history. Smoke, fairness and full release gates
 prove different scopes; within-noise comparisons do not establish equivalence.
 For current phase see [STATUS](STATUS.md#now); for dated candidate/gate
-receipts and signing history see the [Q-05 contract](BACKLOG.md#q-05--corrected-collision-integration-contract).
+receipts and signing history see the [Q-05 contract](BACKLOG-ARCHIVE.md#q-05--corrected-collision-integration-contract).
 
 ### Q-13: input prerequisite before session/menu coverage
 
@@ -64,7 +64,7 @@ physical lifecycle/ergonomics signoff stays distinct. See [game](game.md), [UI](
 [Q-13 contract](BACKLOG.md#q-13--xbox-controller-coverage-and-ergonomics), D-113.
 Current phase belongs in [STATUS](STATUS.md#now); exact candidate-specific
 tests and native crew-return proof belong in the
-[dated Q13A receipts](BACKLOG.md#q13a-input-prerequisite--revisioned-receipts).
+[dated Q13A receipts](BACKLOG-ARCHIVE.md#q13a-input-prerequisite--revisioned-receipts).
 
 ### Q-08: measurement only
 
@@ -75,10 +75,10 @@ performance references versus requested 0.72 formation cap/0.8 cruise are separa
 observations. Existing Quick intercept is unloaded recon, not a loaded raid. Account
 for slot/relead censoring, null encounter/release windows and every selected case.
 Repeatability is not gameplay improvement. See [bombers](bombers.md),
-[Q-08 contract](BACKLOG.md#q-08--bomber-pacing-and-interception-measurement-only),
+[Q-08 contract](BACKLOG-ARCHIVE.md#q-08--bomber-pacing-and-interception-measurement-only),
 [Architecture probes](ARCHITECTURE.md#exact-cpu-differential-probes), D-093/D-098/D-099.
 Current phase belongs in [STATUS](STATUS.md#now); original and corrected
-measurement provenance remain in the dated Q-08 BACKLOG receipts linked above.
+measurement provenance remain in the dated Q-08 BACKLOG-ARCHIVE receipts linked above.
 
 ### Independent author/developer diagnostics
 
@@ -87,7 +87,7 @@ legacy-ring provenance logging changes no mesh; F-55 bench listener must exercis
 real bomber store/predicted whistle queue and WebAudio, not directly play a fake
 whistle. See [sim](sim.md), [models](models.md), [audio](audio.md) and FRICTION rather
 than copying all APIs here. Current ownership/phase is in STATUS; retained author
-and actual runtime receipts are in BACKLOG/FRICTION, distinct from publication.
+and actual runtime receipts are in BACKLOG-ARCHIVE/FRICTION, distinct from publication.
 
 ## Evidence discipline
 

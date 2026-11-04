@@ -1182,7 +1182,7 @@ STATUS owns the rolling queue; BACKLOG records execution, measurements and debt.
 Number assigned by the integration owner during the user-authorized PR #9 merge.
 Full browser runs still need an exclusive machine GPU slot. Refactors consolidate
 existing behavior, without runtime dependencies or shared game-contract changes.
-Verification and measurement limitations are recorded in `docs/BACKLOG.md`.
+Verification and measurement limitations are recorded in `docs/BACKLOG-ARCHIVE.md`.
 
 ## D-107 — Compare real survey outputs without manufacturing precision
 **Context.** Tailhold, defence and raid had reporters but no A/B adapters. Their
@@ -1308,7 +1308,7 @@ ownership before implementation; all findings were incorporated. Real CLI
 positive/negative/partial selection and persistent file-triggered watch ran,
 complete CPU/build gates passed, and fresh-session isolation plus actual-game
 Chrome/Metal input/replay and inspected viewport screenshots were exercised.
-Counts, timings and limitations are in `docs/BACKLOG.md`.
+Counts, timings and limitations are in `docs/BACKLOG-ARCHIVE.md`.
 
 **Consequences.** No game/core/dependency changes. Shorter development loops do
 not count as complete release proof. Upstream attach/recovery defects remain
@@ -1334,7 +1334,7 @@ input/viewport acceptance and output ownership. Final two-pass native smoke
 passed in 20.305 s with inspected desktop/narrow images, all guns/ranging and
 no browser errors or leaks. Complete CPU, 33-case browser and production gates
 passed. Negative callback, CLI and output-boundary paths were exercised.
-Detailed timings/limits are in `docs/BACKLOG.md`; the small replay-readiness
+Detailed timings/limits are in `docs/BACKLOG-ARCHIVE.md`; the small replay-readiness
 difference does not establish a performance improvement.
 
 **Consequences.** No runtime/core/dependency or Claude configuration changes.
@@ -1428,7 +1428,7 @@ The refreshed branch passed the complete CPU gate and safe non-publishing CI.
 The 48-repetition default/mirror fairness comparison was within noise, including
 default mortality 29.2% to 25%; that is neither equivalence nor a balance-band
 acceptance claim. Detailed immutable revisions, cohorts and limitations remain
-in `docs/BACKLOG.md`; integration/browser/publication receipts are separate.
+in `docs/BACKLOG-ARCHIVE.md`; integration/browser/publication receipts are separate.
 
 **Consequences.** No airframe, damage, pursuer-calibration or core-contract
 change. Ordinary mutual-support work waits for this release. Retain the original
