@@ -6,7 +6,8 @@
 import type { UiContext } from './context';
 import { h } from './dom';
 import { codeLabel } from './bindings';
-import { connectedPad, padGlyph } from './gamepad';
+import { connectedPad } from './gamepad';
+import { controllerFlightHint } from '../game/flightPrompts';
 
 const SEEN_KEY = 'rb2r.flyingSchool.seen.v1';
 
@@ -61,23 +62,14 @@ export function showFlyingSchool(ctx: UiContext): Promise<boolean> {
     VI: 'Menu → Map / End flight · Return to flight closes menus',
   };
 
-  // With a controller plugged in, each lesson also shows its gamepad buttons
-  // (mapping: readGamepad in src/game/input.ts).
-  const pad = s.controls.gamepadEnabled && !!connectedPad();
-  const PAD: Record<string, (Node | string)[]> = {
-    I: [padGlyph('LS'), ' fly · ', padGlyph('LB'), padGlyph('RB'), ' rudder · ', padGlyph('RS'), ' look'],
-    II: [padGlyph('D-pad ↑↓'), ' throttle · ', padGlyph('LT'), ' blip'],
-    III: [padGlyph('RT'), ' fire · ', padGlyph('A'), ' clear jam'],
-    IV: [padGlyph('Y'), ' padlock · ', padGlyph('X'), ' next target · ', padGlyph('R3'), ' nearest'],
-    V: [padGlyph('L3'), ' cockpit · ', padGlyph('B'), ' chase'],
-    VI: [padGlyph('Back'), ' map · ', padGlyph('Start'), ' pause · ', padGlyph('D-pad ←→'), ' time'],
-  };
+  // Show live controller guidance only for an enabled recognized standard pad.
+  const connected = connectedPad();
+  const pad = s.controls.gamepadEnabled && !!connected && connected.mapping === 'standard';
   const lesson = (n: string, title: string, text: Node | string, ...k: (Node | string)[]) =>
     h(
       'div',
       { class: 'fs-lesson' },
-      h('div', { class: 'fs-n' }, n),
-      h('div', null, h('h3', null, title), h('p', null, text), touch && TOUCH[n] ? h('div', { class: 'fs-keys' }, TOUCH[n]) : k.length ? h('div', { class: 'fs-keys' }, ...k) : null, pad && PAD[n] ? h('div', { class: 'fs-keys fs-pad' }, ...PAD[n]) : null),
+      h('div', null, h('h3', null, title), h('p', null, text), touch && TOUCH[n] ? h('div', { class: 'fs-keys' }, TOUCH[n]) : k.length ? h('div', { class: 'fs-keys' }, ...k) : null),
     );
 
   const body = h(
@@ -105,6 +97,10 @@ export function showFlyingSchool(ctx: UiContext): Promise<boolean> {
       lesson('V', 'Views', 'The cockpit is where the fighting is done; the outside views help you learn your machine.', ...keys('viewCockpit', 1), ' cockpit · ', ...keys('viewChase', 1), ' chase'),
       lesson('VI', 'Coming home', 'Land at your aerodrome, or end the flight over friendly ground when no enemy is near. The map shows your route.', ...keys('endFlight', 1), ' end flight · ', ...keys('map', 1), ' map · ', ...keys('pause', 1), ' pause'),
     ),
+    pad ? h('p', { class: 'typed fs-intro fs-pad' }, controllerFlightHint(false, false)) : null,
+    h('p', { class: 'typed fs-intro' }, 'At a gun the left stick aims; RT fires; A clears a jam; LB / RB change crew stations; B returns to the pilot. In bombsight view, hold X to release a bomb instead of cycling targets. These standard-mapped controls require Gamepad enabled and a recognized standard controller; guns and bomb racks depend on the aircraft and sortie.'),
+    h('p', { class: 'typed fs-intro' }, 'Menu opens pause; B resumes. Menu also opens the flight actions card; B returns to pause, backs out of action groups or cancels a confirmation. View opens the map and closes it when it owns input. Other actions are in Menu → Flight actions.'),
+    h('p', { class: 'typed fs-intro' }, 'Keyboard, mouse and touch controls remain available. Text fields, names, custom seeds and key-binding capture use the keyboard; standard-controller navigation can adjust native selects and ranges.'),
     touch ? h('p', { class: 'typed fs-intro' }, 'Touch controls appear automatically; Hide touch controls turns them off and Touch controls brings them back. Menu stays available even with the HUD hidden. Its scrollable action sheet pauses your flight and includes crew stations, bombsight, bomb release and wingman orders. At a crew station the AI pilot flies; hand back with Menu → Pilot station.') : null,
   );
 
