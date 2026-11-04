@@ -20,12 +20,12 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 ## Next
 
-1. BACKLOG as contracts only (one Goal/Acceptance/Non-goals section per open item).
+Nothing ready; see Blocked on the owner. Open contracts: [BACKLOG](BACKLOG.md).
 
 ## Blocked on the owner
 
 - Q-07 pursuer calibration: needs rated human dogfight reports.
-- Q-09 damage/career/raid policy decisions ([DEFERRED-TODOS](DEFERRED-TODOS.md#blocked-task-contracts)).
+- Q-09 damage/career/raid policy decisions ([BACKLOG](BACKLOG.md#q-09-damage--damage-path-default)).
 - Q-12 touch: physical iPhone/Safari acceptance.
 - Q-13 controller: physical Xbox acceptance (USB and Bluetooth, Chrome and Safari).
 - Q-10 CI runner migration: target 2027-01-31.

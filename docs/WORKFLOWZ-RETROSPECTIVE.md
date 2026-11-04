@@ -33,7 +33,7 @@ Unfinished source is isolated, not published:
 
 The temporary prompt-QA server was stopped. Workspaces, retained evidence and user playtest services were preserved. F-49/F-55 were marked complete in session task state; the remaining 14 items were blocked by the explicit user pause.
 
-Use [STATUS](STATUS.md), [BACKLOG](BACKLOG.md) and the retained workspaces for exact contracts and evidence. Reconcile current revisions and working changes before resumption; this report is not a fresh claim that every retained workspace is clean.
+Use [STATUS](STATUS.md), [BACKLOG](BACKLOG.md), [BACKLOG-ARCHIVE](BACKLOG-ARCHIVE.md) and the retained workspaces for exact contracts and evidence. Reconcile current revisions and working changes before resumption; this report is not a fresh claim that every retained workspace is clean.
 
 ## Proposed operating rules
 

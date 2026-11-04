@@ -12,7 +12,7 @@ This is a **measurement-only** cohort. `tools/dev/scenarios/bomber-pacing.mjs`
 uses the existing native differential loader and real simulation; it does not change
 aircraft cards, coefficients, AI speed caps, tactics, mission placement or test tolerances.
 The revisioned measurement below belongs to its explicitly frozen authored tree;
-integration/runtime/publication receipts remain distinct in BACKLOG and STATUS.
+integration/runtime/publication receipts remain distinct in BACKLOG-ARCHIVE and STATUS.
 
 ### Bounded matrix and explicit selection
 
