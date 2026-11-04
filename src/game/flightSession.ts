@@ -30,6 +30,7 @@ import type { GameModules } from './moduleTypes';
 import type { Hud } from '../ui/hud/types';
 import { buildMapView } from './mapView';
 import { createTouchControls } from '../ui/touchControls';
+import { connectedPad } from '../ui/gamepad';
 import type { TouchControls } from './touchInput';
 // Read-only gunner state for the rear-gun visuals (pure sim helper, no composition needed).
 import { getGunnerTarget, pilotGTolerance } from '../sim';
@@ -269,7 +270,8 @@ export class FlightSession {
 
     // Camera, input, overlays.
     this.rig = new CameraRig(settings.fov, 1, this.renderer.near, this.renderer.far);
-    this.input = new InputManager(this.canvas, () => this.settings.controls, () => this.world, () => this.settings.realism.flightModel);
+    // Inherit the pad that owned menu navigation, so a lower-index pad cannot take the flight.
+    this.input = new InputManager(this.canvas, () => this.settings.controls, () => this.world, () => this.settings.realism.flightModel, connectedPad());
     this.input.attach();
     const player = this.world.player;
     this.crew = new PlayerCrew({

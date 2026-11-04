@@ -487,7 +487,15 @@ export class InputManager {
     /** Live world + realism for the model-aware mouse-aim instructor (legacy law without them). */
     private readonly getWorld: () => WorldQuery | null = () => null,
     private readonly getLevel: () => FlightModelLevel = () => 'standard',
-  ) {}
+    /**
+     * The standard pad that owned menu navigation at launch. The flight inherits it as
+     * owner (instead of the first standard pad) and disarms it: controls held through the
+     * launch stay neutral until released.
+     */
+    initialPad: Gamepad | null = null,
+  ) {
+    if (initialPad?.connected && initialPad.mapping === 'standard') this.adoptPad(initialPad);
+  }
 
   attach(): void {
     if (this.detachFns.length) return;

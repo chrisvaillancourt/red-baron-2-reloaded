@@ -17,10 +17,10 @@ function pad(index = 0, id = 'Xbox', mapping = 'standard'): TestPad {
 function button(p: TestPad, index: number, held: boolean, value = held ? 1 : 0): void {
   p.buttons[index] = { pressed: held, value };
 }
-function setup(pads: (TestPad | null)[]) {
+function setup(pads: (TestPad | null)[], initialPad: TestPad | null = null) {
   const controls = { ...DEFAULT_SETTINGS.controls, mouseMode: 'off' as const, gamepadEnabled: true };
   vi.stubGlobal('navigator', { getGamepads: () => pads });
-  const input = new InputManager(new EventTarget() as HTMLElement, () => controls);
+  const input = new InputManager(new EventTarget() as HTMLElement, () => controls, undefined, undefined, initialPad as unknown as Gamepad | null);
   return { input, controls, frame: () => input.update(1 / 60, null, false) };
 }
 function connection(target: EventTarget, type: string, p: TestPad): void {
@@ -31,6 +31,27 @@ function connection(target: EventTarget, type: string, p: TestPad): void {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('flight standard controller ownership and disarming', () => {
+  it('inherits the menu owner instead of a lower-index pad and neutralizes held launch controls', () => {
+    const other = pad(0, 'other');
+    const menu = pad(2, 'menu');
+    button(other, 7, true);
+    other.axes[0] = -1;
+    button(menu, 0, true);
+    button(menu, 7, true);
+    menu.axes[0] = 0.8;
+    const { frame } = setup([other, menu], menu);
+    expect(frame().controls).toMatchObject({ roll: 0, fireGuns: false, clearJam: false });
+    button(menu, 0, false);
+    button(menu, 7, false);
+    menu.axes[0] = 0;
+    frame();
+    menu.axes[0] = 0.8;
+    button(menu, 7, true);
+    const controls = frame().controls;
+    expect(controls.fireGuns).toBe(true);
+    expect(controls.roll).toBeGreaterThan(0);
+  });
+
   it('detects press, hold, release and repress with shared output/history storage', () => {
     const p = pad();
     const cs = DEFAULT_SETTINGS.controls;
