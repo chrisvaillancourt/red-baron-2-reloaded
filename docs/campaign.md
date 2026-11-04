@@ -161,3 +161,8 @@ from 4 km behind our lines to a target 6 km behind the enemy's, at `altitudeM` (
 
 A raid draws its weather before its layout, to run that check; every other type keeps its
 old draw order, so their missions are unchanged for a seed.
+
+These "unchanged for a seed" and "built exactly as before" promises, here and under Quick
+missions, are checked by `tools/dev/scenarios/mission-equivalence.mjs` against a baseline
+checkout (ARCHITECTURE.md → "Exact CPU differential probes"). The Vitest determinism tests
+compare two calls in one process, so they can't see a cross-version change.
