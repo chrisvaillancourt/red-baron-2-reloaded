@@ -1,5 +1,5 @@
 import '../styles/defense.css';
-import type { DefenseOptions, DefenseResult } from '../../core/defense';
+import type { DefenseOptions } from '../../core/defense';
 import type { ScreenFactory } from '../context';
 import { artBackground, h } from '../dom';
 import { codeLabel } from '../bindings';
@@ -14,10 +14,10 @@ function freshSeed(previous?: number): number {
   return seed === previous ? (seed + 1) >>> 0 : seed;
 }
 
-export const defenseBriefingScreen: ScreenFactory = (ctx, params) => {
+export const defenseBriefingScreen: ScreenFactory<'defense-briefing'> = (ctx, params) => {
   // The router retains this draft only for this briefing, including visits to the guide/options.
   // It never enters settings, a career, or persistent storage.
-  const options: DefenseOptions = (params.options as DefenseOptions | undefined) ?? {
+  const options: DefenseOptions = params.options ?? {
     seed: freshSeed(), difficulty: 'regular', aimAssist: true,
   };
   params.options = options;
@@ -97,8 +97,8 @@ export const defenseBriefingScreen: ScreenFactory = (ctx, params) => {
   return { el: shell.el, music: 'briefing', dispose() { live = false; } };
 };
 
-export const defenseReportScreen: ScreenFactory = (ctx, params) => {
-  const result = params.result as DefenseResult;
+export const defenseReportScreen: ScreenFactory<'defense-report'> = (ctx, params) => {
+  const result = params.result;
   if (!result || result.kind !== 'airfield-defense') throw new Error('Defense report requires a battery result');
   const options = { ...result.options };
   let live = true;

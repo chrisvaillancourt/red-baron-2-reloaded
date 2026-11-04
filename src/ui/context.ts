@@ -2,6 +2,7 @@
 import type { MusicCue, GameServices } from '../core/interfaces';
 import type { GameSettings, MissionDefinition, MissionResult } from '../core/types';
 import type { DefenseOptions, DefenseResult } from '../core/defense';
+import type { DebriefReport, QuickMissionOptions } from '../core/campaignTypes';
 
 export type ScreenId =
   | 'title'
@@ -29,14 +30,57 @@ export interface Screen {
   dispose?(): void;
 }
 
+/**
+ * Untyped params at the loose entry points (UiController.show, UiOptions.initialParams,
+ * window.__rb2ui), which dev tools drive from URLs and scripts.
+ */
 export type ScreenParams = Record<string, unknown>;
+
+/** A screen that takes no params. Unlike `{}`, this rejects stray keys. */
+type NoParams = Record<string, never>;
+
+/** The params each screen accepts; router calls and screen factories are checked against it. */
+export interface ScreenParamMap {
+  title: NoParams;
+  roster: NoParams;
+  'create-pilot': NoParams;
+  hq: { pilotId: string; welcome?: boolean };
+  briefing: { mission: MissionDefinition; pilotId?: string; quickOptions?: QuickMissionOptions };
+  debrief: {
+    mission: MissionDefinition;
+    result: MissionResult;
+    report?: DebriefReport;
+    pilotId?: string;
+    quickOptions?: QuickMissionOptions;
+  };
+  quick: NoParams;
+  'defense-briefing': {
+    /**
+     * Draft the router retains across Gunner's Guide/Options visits. The screen writes it
+     * back into this params object, and router.back() remounts the same object from the
+     * stack, so the field must stay mutable (docs/ui.md "Airfield Defense").
+     */
+    options?: DefenseOptions;
+  };
+  'defense-report': { result: DefenseResult };
+  'gunner-guide': NoParams;
+  options: NoParams;
+  controls: NoParams;
+  credits: NoParams;
+  aces: NoParams;
+}
+
+/** Params are optional for screens whose params are all optional, required otherwise. */
+export type ScreenParamArgs<K extends ScreenId> = {} extends ScreenParamMap[K]
+  ? [params?: ScreenParamMap[K]]
+  : [params: ScreenParamMap[K]];
 
 export interface Router {
   readonly current: ScreenId;
-  push(id: ScreenId, params?: ScreenParams): void;
-  replace(id: ScreenId, params?: ScreenParams): void;
+  push<K extends ScreenId>(id: K, ...params: ScreenParamArgs<K>): void;
+  replace<K extends ScreenId>(id: K, ...params: ScreenParamArgs<K>): void;
   /** Clear the stack and show `id`. */
-  reset(id: ScreenId, params?: ScreenParams): void;
+  reset<K extends ScreenId>(id: K, ...params: ScreenParamArgs<K>): void;
   back(): void;
 }
 
@@ -67,4 +111,4 @@ export interface UiContext {
   defend(options: DefenseOptions): Promise<DefenseResult | null>;
 }
 
-export type ScreenFactory = (ctx: UiContext, params: ScreenParams) => Screen;
+export type ScreenFactory<K extends ScreenId = ScreenId> = (ctx: UiContext, params: ScreenParamMap[K]) => Screen;

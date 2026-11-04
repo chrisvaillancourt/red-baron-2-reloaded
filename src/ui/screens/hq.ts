@@ -14,7 +14,7 @@ import { equipmentOn } from './createPilot';
 
 const CLOSED = new Set(['killed', 'captured', 'retired', 'war-over']);
 
-export const hqScreen: ScreenFactory = (ctx, params) => {
+export const hqScreen: ScreenFactory<'hq'> = (ctx, params) => {
   const campaign = ctx.services.campaign;
   const pilotId = String(params.pilotId ?? '');
   const loaded = campaign.loadPilot(pilotId);
@@ -137,7 +137,9 @@ export const hqScreen: ScreenFactory = (ctx, params) => {
             { class: 'actions' },
             h(
               'button',
-              { class: 'btn primary', 'data-autofocus': '', onClick: () => ctx.router.push('briefing', { mission, pilotId: p.id }) },
+              // Non-null: this card only renders with a mission, and every generate() is followed
+              // by tabs.refresh(), which rebuilds the card before another click can land.
+              { class: 'btn primary', 'data-autofocus': '', onClick: () => ctx.router.push('briefing', { mission: mission!, pilotId: p.id }) },
               'Proceed to briefing →',
             ),
           ),
