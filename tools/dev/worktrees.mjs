@@ -75,7 +75,7 @@ async function inspect(entry, index, base, temps) {
     detached: entry.detached || (!entry.branch && !entry.bare), bare: entry.bare,
     locked: entry.locked, prunable: entry.prunable || !existsSync(entry.path),
     underTmp: temps.some((t) => real(entry.path) === t || real(entry.path).startsWith(`${t}/`)),
-    merged: null, ahead: null, lastCommit: null, dirty: null, untracked: null, staged: null, mergeHead: null, error: null,
+    merged: null, ahead: null, lastCommit: null, dirty: null, untracked: null, staged: null, mergeHead: null, operation: null, error: null,
   };
   if (row.prunable || row.bare || !entry.head) return row;
   try {
@@ -87,12 +87,15 @@ async function inspect(entry, index, base, temps) {
       git(entry.path, 'rev-list', '--count', `${base}..${entry.head}`),
       git(entry.path, 'log', '-1', '--format=%cI', entry.head),
       git(entry.path, 'status', '--porcelain=v1', '-z', '--untracked-files=all'),
-      git(entry.path, 'rev-parse', '--git-path', 'MERGE_HEAD'),
+      git(entry.path, 'rev-parse', ...STATE_FILES.flatMap((f) => ['--git-path', f])),
     ]);
-    const mergeHead = mergeHeadPath.trim();
+    const present = mergeHeadPath.trim().split('\n')
+      .map((p, i) => existsSync(isAbsolute(p) ? p : resolve(entry.path, p)) && STATE_FILES[i]);
     Object.assign(row, parseStatus(status), {
       merged, ahead: Number(ahead.trim()), lastCommit: last.trim(),
-      mergeHead: existsSync(isAbsolute(mergeHead) ? mergeHead : resolve(entry.path, mergeHead)),
+      mergeHead: present[0] === 'MERGE_HEAD',
+      // A rebase, cherry-pick, revert or bisect in progress holds state a removal would lose.
+      operation: present.slice(1).filter(Boolean).map((f) => OPERATION[f]).join(',') || null,
     });
   } catch (error) {
     row.error = (error.stderr || error.message || String(error)).trim().split('\n')[0];
@@ -100,8 +103,12 @@ async function inspect(entry, index, base, temps) {
   return row;
 }
 
+const OPERATION = { 'rebase-merge': 'rebase', 'rebase-apply': 'rebase', CHERRY_PICK_HEAD: 'cherry-pick',
+  REVERT_HEAD: 'revert', BISECT_LOG: 'bisect' };
+const STATE_FILES = ['MERGE_HEAD', ...Object.keys(OPERATION)];
+
 export const isCandidate = (r) => !r.main && !r.bare && !r.prunable && !r.locked && !r.error &&
-  r.merged === true && r.dirty === 0 && r.untracked === 0 && r.staged === false && r.mergeHead === false;
+  r.merged === true && r.dirty === 0 && r.untracked === 0 && r.staged === false && r.mergeHead === false && !r.operation;
 
 const yn = (v) => (v === null ? '-' : v ? 'y' : 'n');
 

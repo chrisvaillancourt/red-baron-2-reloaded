@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
@@ -52,6 +52,7 @@ async function fixture(t) {
     ahead: wt('ahead', '-b', 'ahead'),
     dirty: wt('dirty', '-b', 'dirty'),
     merging: wt('merging', '-b', 'merging'),
+    rebasing: wt('rebasing', '-b', 'rebasing'),
     detached: wt('detached', '--detach'),
     locked: wt('locked', '-b', 'locked'),
     gone: wt('gone', '-b', 'gone'),
@@ -69,6 +70,8 @@ async function fixture(t) {
   await writeFile(join(paths.dirty, 'new2.txt'), 'u\n');
   const mergeHead = git(paths.merging, 'rev-parse', '--git-path', 'MERGE_HEAD');
   await writeFile(isAbsolute(mergeHead) ? mergeHead : resolve(paths.merging, mergeHead), `${git(root, 'rev-parse', 'HEAD')}\n`);
+  const rebaseDir = git(paths.rebasing, 'rev-parse', '--git-path', 'rebase-merge');
+  await mkdir(isAbsolute(rebaseDir) ? rebaseDir : resolve(paths.rebasing, rebaseDir));
   git(root, 'worktree', 'lock', paths.locked);
   await rename(paths.gone, join(home, 'gone-moved'));
   return { root, tmp, paths };
@@ -92,7 +95,7 @@ test('reports each worktree state and names only merged, clean, unlocked, non-ma
   const { code, report, stderr } = await runCli(paths.dirty, ['--json'], tmp);
   assert.equal(code, 0, stderr);
   const rows = byPath(report);
-  assert.equal(report.worktrees.length, 9);
+  assert.equal(report.worktrees.length, 10);
   assert.equal(rows[root].main, true);
   assert.equal(rows[root].merged, true);
 
@@ -105,6 +108,8 @@ test('reports each worktree state and names only merged, clean, unlocked, non-ma
   assert.match(rows[paths.ahead].lastCommit, /^\d{4}-\d\d-\d\dT/);
   assert.deepEqual([rows[paths.dirty].dirty, rows[paths.dirty].untracked, rows[paths.dirty].staged], [2, 2, true]);
   assert.equal(rows[paths.merging].mergeHead, true);
+  assert.equal(rows[paths.rebasing].operation, 'rebase', 'a paused rebase is not removable');
+  assert.equal(rows[paths.merged].operation, null);
   assert.equal(rows[paths.detached].branch, null);
   assert.equal(rows[paths.detached].detached, true);
   assert.equal(rows[paths.locked].locked, true);
@@ -125,7 +130,7 @@ test('the table ends with the candidate summary and says nothing was removed', a
   assert.match(stdout, /Nothing was removed/);
   assert.match(stdout, /Look safe to remove .*: 3\n/);
   assert.match(stdout, new RegExp(`Prunable .*: 1\\n  ${paths.gone}`));
-  assert.equal(git(root, 'worktree', 'list', '--porcelain').split('\n').filter((l) => l.startsWith('worktree ')).length, 9);
+  assert.equal(git(root, 'worktree', 'list', '--porcelain').split('\n').filter((l) => l.startsWith('worktree ')).length, 10);
 });
 
 test('--base changes the merge target; bad arguments exit 2', async (t) => {
