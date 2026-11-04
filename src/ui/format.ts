@@ -6,6 +6,7 @@
  * read km/h and metres. RNAS-style knots are available via `speedUnit`.
  */
 import type { GameSettings, Nation } from '../core/types';
+import { imperialNation } from '../data/nations';
 
 export type UnitSystem = 'metric' | 'imperial';
 export type SpeedUnit = 'kmh' | 'mph' | 'kt';
@@ -24,7 +25,7 @@ const M_TO_YD = 1.0936133;
 
 export function resolveUnits(pref: GameSettings['units'], nation: Nation): UnitPrefs {
   const system: UnitSystem =
-    pref === 'metric' ? 'metric' : pref === 'imperial' ? 'imperial' : nation === 'britain' || nation === 'usa' ? 'imperial' : 'metric';
+    pref === 'metric' ? 'metric' : pref === 'imperial' ? 'imperial' : imperialNation(nation) ? 'imperial' : 'metric';
   return { system, speed: system === 'metric' ? 'kmh' : 'mph' };
 }
 
