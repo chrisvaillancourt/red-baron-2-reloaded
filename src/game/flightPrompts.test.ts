@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../core/settings';
 import { controllerFlightHint, PAD_PROMPTS, padPromptEffect, padPromptText, type PadEffect } from './flightPrompts';
-import { readGamepad, type PadFrame, type PadLike } from './input';
+import { InputManager, readGamepad, type PadFrame, type PadLike } from './input';
+
+afterEach(() => vi.unstubAllGlobals());
 
 const cs = { ...DEFAULT_SETTINGS.controls, invertPitch: false };
 const CONTEXTS = [[false, false], [true, false], [false, true], [true, true]] as const;
@@ -21,6 +23,19 @@ function expectEffect(effect: PadEffect, buttons: number[], atGun: boolean, bomb
   } else if ('signed' in effect) {
     expect(Math.sign(read(pad([buttons[0]]), atGun, bombsight)[effect.signed])).toBe(effect.first);
     expect(Math.sign(read(pad([buttons[1]]), atGun, bombsight)[effect.signed])).toBe(-effect.first);
+  } else if (effect.stick === 'aim') {
+    // At a gun the stick swings the gun through InputManager, not the flight controls.
+    const p = { ...pad(), index: 0, id: 'pad', mapping: 'standard', connected: true, axes: [0, 0, 0, 0] };
+    vi.stubGlobal('navigator', { getGamepads: () => [p] });
+    const input = new InputManager({} as HTMLElement, () => ({ ...cs, mouseMode: 'off' as const, gamepadEnabled: true }));
+    input.stationMode = atGun;
+    input.bombsightMode = bombsight;
+    input.update(1 / 60, null, false);
+    p.axes = [0.9, 0.9, 0, 0];
+    const f = input.update(1 / 60, null, false);
+    expect(Math.abs(f.stationAim!.azimuth)).toBeGreaterThan(0);
+    expect(Math.abs(f.stationAim!.elevation)).toBeGreaterThan(0);
+    expect(f.controls).toMatchObject({ roll: 0, pitch: 0 });
   } else {
     const [x, y] = effect.stick === 'flight' ? [0, 1] : [2, 3];
     const axes = [0, 0, 0, 0];
@@ -32,12 +47,16 @@ function expectEffect(effect: PadEffect, buttons: number[], atGun: boolean, bomb
   }
 }
 
-/** Every button that changes readGamepad's output in a context, from the mapping itself. */
+/**
+ * Every button that changes readGamepad's output in a context, from the mapping itself.
+ * At a gun the AI pilot owns blip, throttle and rudder, so those outputs do nothing there.
+ */
 function mappedButtons(atGun: boolean, bombsight: boolean): number[] {
-  const idle = JSON.stringify({ ...read(pad(), atGun, bombsight), pressed: [] });
+  const live = (f: PadFrame) => JSON.stringify({ ...f, pressed: [], ...(atGun ? { blip: false, throttleDelta: 0, yaw: 0 } : {}) });
+  const idle = live(read(pad(), atGun, bombsight));
   const out: number[] = [];
   for (let b = 0; b < 17; b++) {
-    if (JSON.stringify({ ...read(pad([b]), atGun, bombsight), pressed: [] }) !== idle) out.push(b);
+    if (live(read(pad([b]), atGun, bombsight)) !== idle) out.push(b);
   }
   return out;
 }
@@ -53,8 +72,8 @@ describe('controller prompts follow the readGamepad mapping', () => {
       }
     });
 
-    it(`every button mapped for the ${label} has a prompt row`, () => {
-      const prompted = new Set(PAD_PROMPTS.flatMap((p) => p.buttons));
+    it(`every button that acts for the ${label} is in that context's hint`, () => {
+      const prompted = new Set(PAD_PROMPTS.filter((p) => padPromptText(p, atGun, bombsight) !== null).flatMap((p) => p.buttons));
       expect(mappedButtons(atGun, bombsight).filter((b) => !prompted.has(b))).toEqual([]);
     });
   }

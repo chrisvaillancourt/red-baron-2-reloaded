@@ -220,7 +220,7 @@ test('Flying Manual and Flying School controller prompts come from the mapped ta
     await page.getByRole('button', { name: /Flying Manual/ }).click();
     const manual = page.locator('[data-screen="controls"]:not(.leaving)');
     const l3 = manual.locator('.key-grid .k', { has: page.locator('kbd', { hasText: /^L3$/ }) });
-    await expect(l3).toHaveText(/Cockpit view/);
+    await expect(l3).toHaveText(/cockpit view/i);
     await expect(manual).toContainText('Menu pauses the flight. On the pause card, B resumes and Flight actions lists the other commands');
     await expect(manual).not.toContainText('Menu opens the flight actions card');
     await manual.getByRole('button', { name: 'Flying School primer' }).click();
