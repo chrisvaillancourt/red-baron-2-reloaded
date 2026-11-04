@@ -15,7 +15,7 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 | Track | Branch | Next action |
 |---|---|---|
-| Q-13 controller | `feat/q13-controller` (worktree `../rb2r-q13`) | Q-13A merged and HUD, nav and prompt patches applied (`3601ff2`). Implementing [finish plan](BACKLOG.md#finish-plan--2026-11-04) B1 menu-owner, B2 session binding, B3 prompt fixes; then gates and a standard-tier review of B2. |
+| Q-13 controller | merged `04ddbae`, pushing | Verify the deploy and live `prodcheck`. Physical Xbox acceptance stays with the owner (Blocked below). |
 
 ## Next
 
@@ -29,4 +29,5 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 - Q-09 damage/career/raid policy decisions ([DEFERRED-TODOS](DEFERRED-TODOS.md#blocked-task-contracts)).
 - Q-11 license choice.
 - Q-12 touch: physical iPhone/Safari acceptance.
+- Q-13 controller: physical Xbox acceptance (USB and Bluetooth, Chrome and Safari).
 - Q-10 CI runner migration: target 2027-01-31.

@@ -453,6 +453,12 @@ Non-goals: remapping, sensitivity, inversion or controller-selection options; `s
 contract changes. Physical acceptance (real Xbox pad over USB and Bluetooth, Chrome and
 Safari, sleep/disconnect, feel; record model, transport and OS) stays with the owner.
 
+**Done 2026-11-04** in merge `04ddbae` (evidence in its message): steps 1–4, with three
+review rounds that also fixed gun-to-gun disarm, bombsight-held input and desktop-map
+input ownership. Open: physical acceptance above. Deferred, with the next controller change
+as trigger: pause on pad loss (Airfield Defense does), hint timing under time compression,
+faint D-pad glyphs, B and View in one frame toggling the map twice.
+
 ### Q13A input prerequisite — revisioned receipts
 
 Parent receipts refreshed 2026-10-05T04:04:11Z; workspace
