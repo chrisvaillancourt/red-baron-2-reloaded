@@ -214,3 +214,24 @@ test('Ctrl-C stops vitest and its children and removes the scratch tree', async 
   assert.deepEqual(leftovers, []);
   assert.equal(alive(Number(await readFile(pidFile, 'utf8'))), false);
 });
+
+test('a test that calls a symbol HEAD does not export is inconclusive, not red', async (t) => {
+  const { classify } = await import('./prefix-check.mjs');
+  const dir = await tempDir(t, 'rb2r-prefix-classify-');
+  await mkdir(join(dir, 'src'));
+  await writeFile(join(dir, 'src/a.test.ts'), '');
+  const report = (message) => ({ testResults: [{ name: join(dir, 'src/a.test.ts'), status: 'failed', message: '',
+    assertionResults: [{ status: 'failed', fullName: 'a works', failureMessages: [message] }] }] });
+  for (const message of [
+    'TypeError: (0 , __vite_ssr_import_1__.newThing) is not a function',
+    'TypeError: newThing is not a function',
+    'TypeError: Widget is not a constructor',
+    'ReferenceError: newThing is not defined',
+  ]) {
+    const result = classify(report(message), ['src/a.test.ts'], dir, 1);
+    assert.equal(result.verdict, 'inconclusive', message);
+    assert.match(result.reason, /missing|stub/);
+  }
+  const red = classify(report('AssertionError: expected 1 to be 2'), ['src/a.test.ts'], dir, 1);
+  assert.equal(red.verdict, 'red');
+});

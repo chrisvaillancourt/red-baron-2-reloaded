@@ -54,6 +54,8 @@ function differsFromHead(root, rel) {
  * Classify a Vitest JSON report: 'red' (at least one assertion failed, every named file
  * loaded), 'passed' (nothing failed), or 'inconclusive' with a reason.
  */
+const MISSING_SYMBOL = /__vite_ssr_import_\d+__|\bis not a (function|constructor)\b|^ReferenceError: \S+ is not defined/m;
+
 export function classify(report, tests, directory, exitCode) {
   if (!report) return { verdict: 'inconclusive', reason: 'Vitest wrote no JSON report', files: [] };
   // Vitest reports real paths; the temp directory may sit behind a symlink (macOS /var).
@@ -68,6 +70,9 @@ export function classify(report, tests, directory, exitCode) {
       status: loadError ? 'load-error' : failed.length ? 'failed' : 'passed',
       message: loadError ? (file.message || 'failed with no test results') : undefined,
       failed: failed.map((a) => a.fullName ?? a.title),
+      missingSymbol: failed
+        .filter((a) => (a.failureMessages ?? []).some((m) => MISSING_SYMBOL.test(m)))
+        .map((a) => a.fullName ?? a.title),
       passed: assertions.filter((a) => a.status === 'passed').length,
     };
   });
@@ -76,7 +81,14 @@ export function classify(report, tests, directory, exitCode) {
   const broken = files.filter((f) => f.status === 'load-error');
   if (broken.length) {
     return { verdict: 'inconclusive', files,
-      reason: `${broken.map((f) => f.file).join(', ')} failed to load at HEAD, so no assertion ran there (a missing export? add a stub first)` };
+      reason: `${broken.map((f) => f.file).join(', ')} failed to load at HEAD, so no assertion ran there (a module or setup error)` };
+  }
+  // Vitest compiles a missing named import to `undefined`, so the file loads and the test
+  // fails calling it. That proves the symbol is absent at HEAD, not that the behaviour is.
+  const missingSymbol = files.flatMap((f) => f.missingSymbol);
+  if (missingSymbol.length) {
+    return { verdict: 'inconclusive', files,
+      reason: `${missingSymbol.join('; ')}: a symbol the test uses is missing at HEAD; add a stub that exports it first` };
   }
   if (files.some((f) => f.status === 'failed')) return { verdict: 'red', files };
   if (exitCode !== 0) return { verdict: 'inconclusive', reason: `Vitest exited ${exitCode} with no failed test (unhandled error?)`, files };
