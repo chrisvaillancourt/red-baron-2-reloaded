@@ -16,7 +16,8 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 | Track | Branch | Next action |
 |---|---|---|
-| — | — | Nothing in flight. Waiting on the owner's iPhone and Xbox playtest ([checklist](PLAYTEST.md#hardware-checklist-iphone-and-xbox-controller)) and the Q-07 and Q-09 decisions. |
+| Visuals pass | `feat/visuals-pass` | Owner asked for a visuals pass on 2026-11-04. Landed on the branch: post effects (D-123), cloud shadows (D-124), ground grain. Next: crater-wall striping, effects (fire, smoke, muzzle flash), aircraft in cloud shadow. Not pushed: every push deploys, and the hardware playtest is running. |
+| — | — | Waiting on the owner's iPhone and Xbox playtest ([checklist](PLAYTEST.md#hardware-checklist-iphone-and-xbox-controller)) and the Q-07 and Q-09 decisions. |
 
 ## Next
 
