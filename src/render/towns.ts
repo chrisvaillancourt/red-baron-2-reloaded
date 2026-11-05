@@ -31,13 +31,13 @@ function rng(seed: number): () => number {
 }
 
 // --- geometries (unit sized, base at y = 0) ---------------------------------
-function gableRoof(): BufferGeometry {
+export function gableRoof(): BufferGeometry {
   // Unit footprint 1x1 (x: -0.5..0.5, z: -0.5..0.5), ridge along z at height 1.
   const v = [
-    // left slope
-    -0.55, 0, -0.55, 0, 1, -0.55, 0, 1, 0.55, -0.55, 0, -0.55, 0, 1, 0.55, -0.55, 0, 0.55,
+    // left slope (counter-clockwise seen from outside, so the normal faces up and out)
+    -0.55, 0, -0.55, 0, 1, 0.55, 0, 1, -0.55, -0.55, 0, -0.55, -0.55, 0, 0.55, 0, 1, 0.55,
     // right slope
-    0.55, 0, -0.55, 0.55, 0, 0.55, 0, 1, 0.55, 0.55, 0, -0.55, 0, 1, 0.55, 0, 1, -0.55,
+    0.55, 0, -0.55, 0, 1, 0.55, 0.55, 0, 0.55, 0.55, 0, -0.55, 0, 1, -0.55, 0, 1, 0.55,
     // gable ends
     -0.5, 0, 0.5, 0.5, 0, 0.5, 0, 1, 0.5, 0.5, 0, -0.5, -0.5, 0, -0.5, 0, 1, -0.5,
   ];
