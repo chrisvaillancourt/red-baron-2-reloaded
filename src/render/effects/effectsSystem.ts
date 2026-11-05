@@ -24,6 +24,20 @@ interface GroundFire {
 
 const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
 
+/**
+ * Where engine `e` exhausts, body frame (forward −Z): at a twin's nacelle, behind the crew
+ * of a single-engine pusher (D.H.2, F.E.2b, Farman, Voisin), else just aft of the cowling.
+ */
+export function exhaustPoint(ac: AircraftEntity, e: number, out: Vector3): Vector3 {
+  const g = ac.spec.geometry;
+  const n = ac.spec.performance.engineCount ?? 1;
+  if (g.nacelle) {
+    const x = n > 1 ? (e === 0 ? -1 : 1) * (g.nacelleOffsetX ?? 0) : 0;
+    return out.set(x, g.nacelle.centerY, g.nacelle.centerZ + (g.nacelle.pusher ? g.nacelle.length * 0.5 : 0));
+  }
+  return g.pusher ? out.set(0, 0.1, g.length * 0.06) : out.set(0, -0.15, -g.length * 0.32);
+}
+
 /** Burst size (the `explosion` scale) of a bomb's charge: 3.4 for the 23 kg of a P.u.W. 50 kg. */
 export function bombBurstSize(explosiveKg: number): number {
   return 1.2 * Math.cbrt(Math.max(0.2, explosiveKg));
@@ -271,7 +285,6 @@ export class EffectsSystem {
       this.exhaustAcc.set(ac.id, acc);
       return;
     }
-    const g = ac.spec.geometry;
     const n = perf.engineCount ?? 1;
     const fade = 1 - Math.sqrt(dist2) / 450;
     const alpha = (rotary ? 0.34 : 0.18) * strength * (0.4 + 0.6 * fade);
@@ -280,11 +293,7 @@ export class EffectsSystem {
     while (acc > spacing && guard++ < 6) {
       acc -= spacing;
       for (let e = 0; e < n; e++) {
-        // Body frame: forward -Z. Nacelle engines exhaust at the nacelle; others just aft of the cowling.
-        const x = g.nacelle ? (n > 1 ? (e === 0 ? -1 : 1) * (g.nacelleOffsetX ?? 0) : 0) : 0;
-        const y = g.nacelle ? g.nacelle.centerY : -0.15;
-        const z = g.nacelle ? g.nacelle.centerZ + (g.nacelle.pusher ? g.nacelle.length * 0.5 : 0) : -g.length * 0.32;
-        this.tmp.set(x, y, z).applyQuaternion(ac.state.orientation).add(p);
+        exhaustPoint(ac, e, this.tmp).applyQuaternion(ac.state.orientation).add(p);
         this.puff({
           x: this.tmp.x + rnd(0.15), y: this.tmp.y + rnd(0.15), z: this.tmp.z + rnd(0.15), vx: rnd(0.4), vy: rnd(0.3), vz: rnd(0.4),
           life: rotary ? 2.4 : 1.6, size0: 0.4, size1: rotary ? 3.6 : 2.6, color: col, alpha0: alpha, alpha1: 0, drag: 1.5, windFollow: 1, lift: 0.2,

@@ -5,7 +5,8 @@ import type { AircraftEntity, AircraftId } from '../../core/types';
 import { getAircraft } from '../../data/aircraft';
 import { createAircraftEntity } from '../../sim/entity';
 import { flatEnv } from '../../sim/testUtil';
-import { EffectsSystem } from './effectsSystem';
+import { Vector3 } from 'three';
+import { EffectsSystem, exhaustPoint } from './effectsSystem';
 
 function plane(id: AircraftId, x: number): AircraftEntity {
   const ac = createAircraftEntity({ id: 1, spec: getAircraft(id), env: flatEnv(), start: { x, z: 0, altitude: 1000, heading: 0, airspeed: 45 } });
@@ -27,6 +28,18 @@ function fly(ac: AircraftEntity, camX: number, seconds = 1): number {
   }
   return fx.activeCount;
 }
+
+describe('exhaustPoint', () => {
+  it('puts a single-engine pusher\'s exhaust behind the crew and its gun, a tractor\'s at the nose', () => {
+    for (const id of ['airco_dh2', 'fe2b'] as const) {
+      const ac = plane(id, 0);
+      const gunZ = Math.max(...ac.spec.guns.map((g) => g.position[2]));
+      expect(exhaustPoint(ac, 0, new Vector3()).z, id).toBeGreaterThan(gunZ);
+      expect(exhaustPoint(ac, 0, new Vector3()).z, id).toBeGreaterThan(0);
+    }
+    expect(exhaustPoint(plane('sopwith_camel', 0), 0, new Vector3()).z).toBeLessThan(-1);
+  });
+});
 
 describe('engine exhaust', () => {
   it('trails a running rotary near the camera, thicker than an inline at the same throttle', () => {
