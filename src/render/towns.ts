@@ -17,6 +17,7 @@ import {
   type Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { addFacades, addRoofTiles } from './facades';
 import type { QualityPreset } from './quality';
 import { buildTownTile, TILE, type InstanceSet, type TownTileData, type TownTileRequest } from './townTiles';
 
@@ -141,10 +142,12 @@ export class TownLayer {
   private readonly wallMat = new MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
   private readonly roofMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
   private readonly churchMat = new MeshStandardMaterial({ roughness: 0.9, vertexColors: true });
+  /** Ruins share the wall look without windows (their walls are broken stubs). */
+  private readonly ruinMat = new MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
 
   /** Lit materials, for renderer-wide shading such as cloud shadows. */
   litMaterials(): Material[] {
-    return [this.wallMat, this.roofMat, this.churchMat];
+    return [this.wallMat, this.roofMat, this.churchMat, this.ruinMat];
   }
   private date: string;
   /** Tile placement runs in a worker (a city tile is ~100-200 ms); stale-date results are dropped. */
@@ -164,6 +167,8 @@ export class TownLayer {
   ) {
     this.date = date;
     this.group.name = 'towns';
+    addFacades(this.wallMat);
+    addRoofTiles(this.roofMat);
     if (typeof Worker !== 'undefined') {
       try {
         this.worker = new Worker(new URL('./townWorker.ts', import.meta.url), { type: 'module' });
@@ -271,9 +276,9 @@ export class TownLayer {
     };
     add(this.wallGeo, this.wallMat, d.walls, true);
     add(this.roofGeo, this.roofMat, d.roofs, true);
-    add(this.ruinGeo, this.wallMat, d.ruins, true);
+    add(this.ruinGeo, this.ruinMat, d.ruins, true);
     add(this.churchGeo, this.churchMat, d.churches, false);
-    add(this.ruinGeo, this.wallMat, d.ruinedChurches, false);
+    add(this.ruinGeo, this.ruinMat, d.ruinedChurches, false);
     this.group.add(t.group);
   }
 
