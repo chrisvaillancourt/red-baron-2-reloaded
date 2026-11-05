@@ -44,6 +44,7 @@ import { Sea } from './sea';
 import { linearToDisplay, skyRadiance, SkyDome, type SkyParams } from './sky';
 import { buildFeatureMask, type FeatureMask } from './terrain/featureMask';
 import { applyPalette, createTerrainMaterial, PALETTES } from './terrain/terrainMaterial';
+import { createDetailTexture } from './terrain/detailTexture';
 import { TerrainSystem } from './terrain/terrainSystem';
 import { TownLayer } from './towns';
 import { TreeLayer } from './trees';
@@ -164,7 +165,13 @@ export class WorldRendererImpl implements WorldRenderer {
     this.scene.add(this.sun, this.sun.target);
 
     this.mask = buildFeatureMask(this.date, this.quality.maskResolution);
-    this.terrainMaterial = createTerrainMaterial(this.mask.texture, this.mask.rect, 1, this.cloudShadows.uniforms);
+    this.terrainMaterial = createTerrainMaterial(
+      this.mask.texture,
+      this.mask.rect,
+      1,
+      this.cloudShadows.uniforms,
+      createDetailTexture(Math.min(8, this.renderer.capabilities.getMaxAnisotropy())),
+    );
     this.terrain = new TerrainSystem(this.terrainMaterial, this.date, {
       maxLevel: this.quality.terrainMaxLevel,
       splitFactor: this.quality.terrainSplit,
@@ -457,6 +464,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.pmrem.dispose();
     this.post?.dispose();
     this.mask.texture.dispose();
+    (this.terrainMaterial.userData.uniforms.uGrainTex.value as Texture).dispose();
     this.effects.dispose();
     this.clouds.dispose();
     this.cloudShadows.dispose();

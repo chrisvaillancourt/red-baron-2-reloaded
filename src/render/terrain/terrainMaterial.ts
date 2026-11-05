@@ -8,6 +8,7 @@
  */
 import { Color, MeshStandardMaterial, Texture, Vector4, type IUniform } from 'three';
 import { CLOUD_SHADOW_GLSL, CloudShadows } from '../cloudShadows';
+import { createDetailTexture } from './detailTexture';
 
 export interface TerrainPalette {
   fields: string[]; // 6 crop colours
@@ -62,6 +63,7 @@ varying float vFront;
 varying float vFresh;
 varying vec3 vWPos;
 uniform sampler2D uMask;
+uniform sampler2D uGrainTex; // detailTexture.ts: R fine grain, G clumps (mean 0.5)
 uniform vec4 uMaskRect; // x0, z0, 1/width, 1/depth
 uniform vec3 uFields[6];
 uniform vec3 uPasture, uForest, uForestDark, uHedge, uTownGround, uMud, uChalk, uRoad, uWater, uSand, uDeadWood;
@@ -228,7 +230,22 @@ const FRAG_COLOR = /* glsl */ `
   float rowFreq = 1.0 / (2.2 + 1.5 * fract(fid * 7.0));
   float rowAA = clamp(1.0 - px * rowFreq * 2.0, 0.0, 1.0);
   float rowWave = 0.5 + 0.5 * sin(rowCoord * rowFreq * 6.2832);
-  if (!isPasture) fieldCol *= 1.0 - 0.13 * rowAA * rowWave;
+  if (!isPasture) {
+    fieldCol *= 1.0 - 0.13 * rowAA * rowWave;
+    // Ridge-and-furrow relief, lit by the sun (bump, see normal_fragment_begin).
+    // None where shellfire has churned the field (crater cover) or in woods and towns.
+    float tillK = 1.0 - smoothstep(0.1, 0.35, max(crater, max(forest, town)));
+    tBump += (rowWave - 0.5) * 0.16 * rowAA * tillK;
+    // Uneven growth streaks along the rows (rows run along rowAlong).
+    float rowAlong = irregular ? q.x : q.y;
+    float streakK = clamp(1.0 - px / 6.0, 0.0, 1.0);
+    if (streakK > 0.0) fieldCol *= 1.0 + (tnoise(vec2(rowCoord / 3.5, rowAlong / 55.0) + fid * 31.0) - 0.5) * 0.2 * streakK;
+  } else if (micro > 0.0) {
+    // Tussocky grass: lumpy relief and clumps of darker and paler blades.
+    float tus = tfbm(p / 1.1 + 3.0);
+    tBump += (tus - 0.5) * 0.09 * micro * (1.0 - smoothstep(0.1, 0.35, crater));
+    fieldCol *= 1.0 + (tus - 0.5) * 0.22 * micro;
+  }
   // Broad soil moisture variation crosses parcel boundaries; stronger local
   // growth variation breaks up flat fills without erasing the field layout.
   fieldCol *= 0.82 + 0.36 * (tnoise(p / 900.0) * 0.65 + tnoise(p / 370.0) * 0.35);
@@ -301,7 +318,6 @@ const FRAG_COLOR = /* glsl */ `
   weeds = mix(weeds, uChalk * 0.9, (1.0 - flanders) * smoothstep(0.66, 0.86, chalkN) * 0.35);
   col = mix(col, mix(weeds, mud, smoothstep(0.1, 0.6, fresh)), churnRaw);
   }
-  tBump = 0.0;
   if (crater > 0.12 && px > 14.0) {
     // Far: big craters and shell-hole clusters still texture the ground.
     float cd = smoothstep(0.18, 0.8, crater);
@@ -444,6 +460,17 @@ const FRAG_COLOR = /* glsl */ `
 
   // --- beaches
   col = mix(col, uSand * (0.95 + 0.1 * tnoise(p / 8.0)), smoothstep(0.3, 0.8, beach));
+
+  // --- ground grain from the mipmapped detail texture: fades to nothing with
+  // distance by itself (mips average to the 0.5 mean), crisp at grazing angles.
+  {
+    vec4 d1 = texture2D(uGrainTex, p / 2.6);
+    vec4 d2 = texture2D(uGrainTex, p / 21.0 + 0.31);
+    float gk = (1.0 - clamp(tWater * 1.5, 0.0, 1.0)) * uDetail;
+    float dv = (d1.r - 0.5) * 0.34 + (d2.g - 0.5) * 0.3;
+    col *= 1.0 + dv * gk;
+    tBump += ((d1.r - 0.5) * 0.035 + (d2.g - 0.5) * 0.14) * gk;
+  }
   diffuseColor.rgb = col;
 }
 `;
@@ -454,10 +481,12 @@ export function createTerrainMaterial(
   detail = 1,
   /** CloudShadows.uniforms; without them the ground gets no cloud shadows. */
   cloudShadow: Record<string, IUniform> = new CloudShadows().uniforms,
+  grain: Texture = createDetailTexture(4),
 ): MeshStandardMaterial {
   const mat = new MeshStandardMaterial({ roughness: 0.96, metalness: 0, color: 0xffffff });
   const u: Record<string, IUniform> = {
     uMask: { value: mask },
+    uGrainTex: { value: grain },
     uMaskRect: { value: maskRect },
     uFields: { value: Array.from({ length: 6 }, () => new Color()) },
     uPasture: { value: new Color() },
@@ -487,7 +516,7 @@ export function createTerrainMaterial(
       vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
     );
     shader.fragmentShader = FRAG_PARS + CLOUD_SHADOW_GLSL + shader.fragmentShader
-      .replace('#include <color_fragment>', '#include <color_fragment>\n tWater = 0.0;\n' + FRAG_COLOR)
+      .replace('#include <color_fragment>', '#include <color_fragment>\n tWater = 0.0;\n tBump = 0.0;\n' + FRAG_COLOR)
       .replace(
         '#include <lights_fragment_end>',
         `#include <lights_fragment_end>
@@ -532,7 +561,7 @@ export function createTerrainMaterial(
         }`,
       );
   };
-  mat.customProgramCacheKey = () => 'rb2-terrain-v4';
+  mat.customProgramCacheKey = () => 'rb2-terrain-v6';
   return mat;
 }
 
