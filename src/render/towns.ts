@@ -102,19 +102,23 @@ function ruinGeometry(): BufferGeometry {
   return g;
 }
 
+/** Four-sided pyramid spire on the church tower, wound so its faces point up and out. */
+export function spireGeometry(): BufferGeometry {
+  const s = 3.4, h = 16, y0 = 22, t = y0 + h;
+  const pv = [s, y0, -s, -s, y0, -s, 0, t, 0, s, y0, s, s, y0, -s, 0, t, 0, -s, y0, s, s, y0, s, 0, t, 0, -s, y0, -s, -s, y0, s, 0, t, 0];
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pv, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
 function churchGeometry(): BufferGeometry {
   const stone = new Color('#9a948a');
   const slate = new Color('#4d4f55');
   const nave = colored(wallBox().scale(10, 11, 28), stone);
   const naveRoof = colored(gableRoof().scale(10.5, 6, 28.5).translate(0, 11, 0), slate);
   const tower = colored(wallBox().scale(6, 22, 6).translate(0, 0, 16), stone);
-  const spire = new BufferGeometry();
-  // Four-sided pyramid spire
-  const s = 3.4, h = 16, y0 = 22;
-  const pv = [-s, y0, -s, s, y0, -s, 0, y0 + h, 0, s, y0, -s, s, y0, s, 0, y0 + h, 0, s, y0, s, -s, y0, s, 0, y0 + h, 0, -s, y0, s, -s, y0, -s, 0, y0 + h, 0];
-  spire.setAttribute('position', new Float32BufferAttribute(pv, 3));
-  spire.translate(0, 0, 16);
-  spire.computeVertexNormals();
+  const spire = spireGeometry().translate(0, 0, 16);
   colored(spire, slate);
   [nave, tower].forEach((g) => g.deleteAttribute('uv'));
   return mergeGeometries([nave, naveRoof, tower, spire].map((g) => (g.index ? g.toNonIndexed() : g)))!;
