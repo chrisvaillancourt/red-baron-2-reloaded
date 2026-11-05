@@ -1,6 +1,7 @@
 /**
  * Free-fly QA harness for the world renderer (dev/world.html).
- * URL params: q, date, tod, cover, base, vis, town | x&z, alt, yaw, pitch, demo=1
+ * URL params: q, date, tod, cover, base, vis, town | x&z, alt, yaw, pitch, demo=1,
+ * noshadow=1, nopost=1 (post effects off, for A/B)
  * Exposes window.__harness for Playwright.
  */
 import { BoxGeometry, Euler, Group, Mesh, MeshStandardMaterial, PerspectiveCamera, Vector3 } from 'three';
@@ -32,6 +33,7 @@ for (const name of (params.get('hide') ?? '').split(',').filter(Boolean)) {
 }
 
 if (params.get('noshadow')) world.renderer.shadowMap.enabled = false;
+if (params.get('nopost') && world.post) world.post.enabled = false;
 
 function resize() {
   camera.aspect = innerWidth / innerHeight;
