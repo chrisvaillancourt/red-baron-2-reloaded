@@ -1617,3 +1617,26 @@ understood, and compatible with the dependencies (three.js is MIT).
   Dynamix or Sierra's games; the title stays a non-commercial tribute (D-008).
 - Copyright holder: Chris Vaillancourt, 2026. `package.json` stays `private: true`, so
   nothing is published to npm.
+
+## D-123 — Display-space post effects
+
+The flown image read flat and milky: a wide white haze band at the horizon, low contrast
+and no glow from the sun, fires or muzzle flashes. On 2026-11-04 the owner asked for a
+visuals pass.
+
+- The scene still renders to the canvas exactly as before, and `PostFx`
+  (`src/render/post/postFx.ts`) then copies the frame (`copyFramebufferToTexture`) and
+  composites it back with a grade, vignette, grain and, on High/Ultra, bloom. No new
+  dependency.
+- Why not three's HDR path (`outputBufferType: HalfFloatType` + `setEffects`): it renders
+  the scene into a linear target, but three's fog and four custom shaders (sky haze,
+  cloud puffs, cloud deck, particles) mix a display-space fog color after tone mapping.
+  Moving them to linear would change every hazy pixel and need a full retune. The
+  display-space chain keeps them, keeps the canvas MSAA, and costs one copy.
+- The grade (`gradeFor`) is a gentle S-curve and +8 % saturation on clear days; a low sun
+  warms highlights and cools shadows; overcast and thick haze fall back toward neutral.
+  The haze itself got slightly bluer and its sky band narrower (`worldRenderer.ts`), the
+  other half of the milky look.
+- Presets: Low none, Medium grade/vignette/grain, High and Ultra add bloom. Measured on
+  the M-series dev Mac at 1280×720, High, `shootWorld.mjs` views: 60 fps held, +5 draw
+  calls a frame.

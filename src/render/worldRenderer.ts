@@ -34,6 +34,8 @@ import { balloonBurnState, createBalloonVisual, syncBalloonVisual } from './obje
 import { CraterGridLoader } from './terrain/craterGridLoader';
 import { createGroundTargetVisual, setGroundTargetDestroyed } from './objects/groundTargets';
 import { releaseGpuResources } from './releaseGpu';
+import { PostFx } from './post/postFx';
+import { gradeFor } from './post/grade';
 import { QUALITY, type QualityPreset } from './quality';
 import { RiverRibbons } from './rivers';
 import { RoadRibbons } from './roadRibbons';
@@ -112,6 +114,8 @@ export class WorldRendererImpl implements WorldRenderer {
   private lastFrame = performance.now();
   private readonly skyParams: SkyParams = { sunDirection: new Vector3(0, 1, 0), turbidity: 4, rayleigh: 1.5, mieCoefficient: 0.005, mieDirectionalG: 0.8, overcast: 0 };
   private readonly fogDisplay = new Color();
+  /** Display-space post effects, or null on presets without them. */
+  readonly post: PostFx | null;
 
   constructor(canvas: HTMLCanvasElement, opts: WorldRendererOptions) {
     this.quality = QUALITY[opts.quality];
@@ -134,6 +138,11 @@ export class WorldRendererImpl implements WorldRenderer {
     this.renderer.shadowMap.enabled = this.quality.shadows;
     this.renderer.shadowMap.type = PCFShadowMap;
     this.pmrem = new PMREMGenerator(this.renderer);
+    // Post passes are extra render calls: count the whole frame, reset in render().
+    this.renderer.info.autoReset = false;
+    this.post = this.quality.postFx
+      ? new PostFx({ bloom: this.quality.bloom, bloomStrength: 0.32, bloomThreshold: 0.86, vignette: 0.22, grain: 0.018 })
+      : null;
 
     this.scene.add(this.sky);
     this.scene.fog = new FogExp2(0xb0b8c0, 0.00005);
@@ -217,14 +226,14 @@ export class WorldRendererImpl implements WorldRenderer {
     const disp = linearToDisplay(acc as [number, number, number], this.renderer.toneMappingExposure);
     // Haze is a little greyer/brighter than the clear-sky horizon.
     const grey = (disp[0] + disp[1] + disp[2]) / 3;
-    const hz = 0.25 + 0.2 * Math.min(1, 25_000 / weather.visibilityM);
+    const hz = 0.12 + 0.24 * Math.min(1, 25_000 / weather.visibilityM);
     this.fogDisplay.setRGB(disp[0] + (grey - disp[0]) * hz, disp[1] + (grey - disp[1]) * hz, disp[2] + (grey - disp[2]) * hz);
     const fog = this.scene.fog as FogExp2;
     // three encodes fog.color (linear) to the output space before mixing; our display-space value must be decoded.
     fog.color.setRGB(this.fogDisplay.r, this.fogDisplay.g, this.fogDisplay.b, SRGBColorSpace);
     fog.density = 2.0 / Math.max(2000, weather.visibilityM);
     this.sky.material.uniforms.hazeColor.value.copy(this.fogDisplay);
-    this.sky.material.uniforms.hazeBand.value = 0.05 + 0.1 * Math.min(1, 20_000 / weather.visibilityM);
+    this.sky.material.uniforms.hazeBand.value = 0.03 + 0.1 * Math.min(1, 20_000 / weather.visibilityM);
 
     // Sun light: warm and weak near the horizon, dimmed by overcast.
     const el = Math.max(0, sun.elevationDeg);
@@ -259,6 +268,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.effects.setDate(date);
     const lightK = Math.min(1, 0.35 + this.sun.intensity / 3);
     this.effects.setFog(this.fogDisplay, fog.density, new Color(lightK, lightK * (1 - 0.1 * warm), lightK * (1 - 0.2 * warm)));
+    if (this.post) Object.assign(this.post.grade, gradeFor(sun.elevationDeg, overcast, weather.visibilityM));
   }
 
   private renderEnvironment(): void {
@@ -365,7 +375,9 @@ export class WorldRendererImpl implements WorldRenderer {
       camera.updateProjectionMatrix();
     }
     const t0 = performance.now();
+    this.renderer.info.reset();
     this.renderer.render(this.scene, camera);
+    this.post?.render(this.renderer, Math.min(0.1, this.frameTimes[this.frameTimes.length - 1] / 1000));
     this.lastCpu.render = performance.now() - t0;
     this.timings.render = (this.timings.render ?? 0) * 0.9 + this.lastCpu.render * 0.1;
   }
@@ -436,6 +448,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.towns.dispose();
     this.envTarget?.dispose();
     this.pmrem.dispose();
+    this.post?.dispose();
     this.mask.texture.dispose();
     this.effects.dispose();
     this.clouds.dispose();
