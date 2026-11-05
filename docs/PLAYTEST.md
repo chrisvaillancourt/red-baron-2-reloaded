@@ -75,6 +75,10 @@ its model and connection (USB or Bluetooth).
 - [ ] Switch to another app mid-flight and back: the flight is paused and resumes cleanly.
 - [ ] A career: enlist, fly two sorties, close Safari, reopen; the career is still there.
 - [ ] One flight of about 15 minutes: note stutter, heat and whether Safari reloads the page.
+- [ ] Graphics (visuals pass, `27ec8a2`, D-123/D-124): fly once on High and once on Medium
+      and note the report's fps p50/p95 for each. High now adds bloom, grade and grain;
+      Medium has grade and grain without bloom; Low has neither. Note anything that looks
+      wrong: cloud shadows, house windows and roofs, grain or the color grade.
 
 **Xbox controller (Q-13)**
 - [ ] Menus with the pad only: title → Quick Mission → briefing → take off (A selects,
