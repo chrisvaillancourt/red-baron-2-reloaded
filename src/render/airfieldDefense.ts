@@ -397,6 +397,10 @@ export async function createDefenseScene(canvas: HTMLCanvasElement, settings: Ga
     },
     render() {
       if (disposed || contextLost) return;
+      // Post effects go on last, so the gun in the foreground gets the same grade and grain.
+      const post = renderer.post;
+      const postOn = post?.enabled ?? false;
+      if (post) post.enabled = false;
       renderer.render(camera);
       const gl = renderer.renderer;
       const autoClear = gl.autoClear;
@@ -404,6 +408,10 @@ export async function createDefenseScene(canvas: HTMLCanvasElement, settings: Ga
       gl.clearDepth();
       gl.render(foreground, foregroundCamera);
       gl.autoClear = autoClear;
+      if (post && postOn) {
+        post.enabled = true;
+        post.render(gl, 1 / 60);
+      }
     },
     resize(width, height) {
       if (disposed) return;
