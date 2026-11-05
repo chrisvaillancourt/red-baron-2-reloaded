@@ -41,18 +41,19 @@ float facCov(float x, float a, float b, float w) {
 const WALL_FRAG = /* glsl */ `
 {
   vec3 n = normalize(vFacNormal);
+  // Derivatives first, outside any branch (undefined in non-uniform control flow).
+  bool alongX = abs(n.z) > 0.5;
+  float faceW = alongX ? vFacScale.x : vFacScale.z;
+  float u = (alongX ? vFacLocal.x : vFacLocal.z) * faceW + faceW * 0.5;   // 0..faceW, metres
+  float v = vFacLocal.y * vFacScale.y - 0.5;                                // height above ground, m
+  float wallH = vFacScale.y - 0.5;
+  float fw = max(fwidth(u), fwidth(v)) + 1e-4;
   if (abs(n.y) < 0.5) {
-    bool alongX = abs(n.z) > 0.5;
-    float faceW = alongX ? vFacScale.x : vFacScale.z;
-    float u = (alongX ? vFacLocal.x : vFacLocal.z) * faceW + faceW * 0.5;   // 0..faceW, metres
-    float v = vFacLocal.y * vFacScale.y - 0.5;                                // height above ground, m
-    float wallH = vFacScale.y - 0.5;
-    float fw = max(fwidth(u), fwidth(v)) + 1e-4;
     // Rising damp and grime near the ground, sun-bleached higher up.
     float damp = 1.0 - 0.16 * (1.0 - smoothstep(0.0, 0.9, v));
     float k = damp * (0.96 + 0.08 * vFacSeed);
     // Barns and sheds (low or windowless by chance) keep plain walls.
-    bool plain = wallH < 2.6 || vFacSeed < 0.12;
+    bool plain = vFacSeed < 0.12;
     if (!plain) {
       float bayW = 2.6 + 0.6 * fract(vFacSeed * 7.3);
       float bays = max(1.0, floor((faceW - 0.8) / bayW));
@@ -63,8 +64,10 @@ const WALL_FRAG = /* glsl */ `
       float lu = bu - bay * bayW;                     // 0..bayW within the bay
       float storey = floor(v / 2.9);
       float lv = v - storey * 2.9;                    // 0..2.9 within the storey
-      float topStorey = floor((wallH - 0.4) / 2.9);
-      float winW = 0.85, winB = storey < 0.5 ? 0.95 : 0.8, winT = 2.25;
+      float winT = 2.25;
+      // Only storeys whose whole window fits under the eaves.
+      float topStorey = floor((wallH - winT) / 2.9);
+      float winW = 0.85, winB = storey < 0.5 ? 0.95 : 0.8;
       float wc = 0.5 * bayW;
       float win = facCov(lu, wc - winW * 0.5, wc + winW * 0.5, fw) * facCov(lv, winB, winT, fw);
       // One door on the ground floor, in a bay picked by the seed.
@@ -100,13 +103,13 @@ const WALL_FRAG = /* glsl */ `
 const ROOF_FRAG = /* glsl */ `
 {
   vec3 n = normalize(vFacNormal);
+  // Distance up the slope from the eaves, metres; derivatives outside the branch.
+  float run = (0.55 - abs(vFacLocal.x)) * vFacScale.x;
+  float rise = vFacLocal.y * vFacScale.y;
+  float s = length(vec2(run, rise));
+  float along = vFacLocal.z * vFacScale.z;
+  float fw = max(fwidth(s), fwidth(along)) + 1e-4;
   if (abs(n.z) < 0.5) {
-    // Distance up the slope from the eaves, metres.
-    float run = (0.55 - abs(vFacLocal.x)) * vFacScale.x;
-    float rise = vFacLocal.y * vFacScale.y;
-    float s = length(vec2(run, rise));
-    float along = vFacLocal.z * vFacScale.z;
-    float fw = max(fwidth(s), fwidth(along)) + 1e-4;
     // Tile courses: a dark line every 0.32 m, fading to its mean when sub-pixel.
     float course = fract(s / 0.32);
     float line = 1.0 - smoothstep(0.0, min(0.5, fw / 0.32 + 0.12), course);

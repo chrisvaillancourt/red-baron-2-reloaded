@@ -177,6 +177,8 @@ export class AerodromeLayer {
     const grass = new Mesh(new PlaneGeometry(560, a.runwayLength + 120).rotateX(-Math.PI / 2), this.grassMat);
     grass.position.y = 0.05;
     grass.receiveShadow = true;
+    // Before other transparents (canopy glass, muzzle flashes) so it never covers them.
+    grass.renderOrder = -1;
     g.add(grass);
     // Landing T at the downwind end of the strip (allied practice; harmless on German fields).
     const T = new Group();
@@ -233,7 +235,8 @@ export class AerodromeLayer {
             // Less golf course: a little greyer, with patchy growth.
             c = mix(vec3(dot(c, vec3(0.3, 0.55, 0.15))), c, 0.8) * (0.86 + 0.26 * n1);
             // The landing lane near the T, worn toward dry earth, heaviest at the touchdown ends.
-            float lane = exp(-pow((x + 30.0 + (n1 - 0.5) * 40.0) / 55.0, 2.0));
+            float lt = (x + 30.0 + (n1 - 0.5) * 40.0) / 55.0;
+            float lane = exp(-lt * lt);
             float ends = 0.55 + 0.45 * smoothstep(0.18, 0.42, abs(uv.y - 0.5));
             float apron = smoothstep(70.0, 110.0, x) * (1.0 - smoothstep(190.0, 230.0, x)) * (1.0 - smoothstep(0.12, 0.2, abs(uv.y - 0.5)));
             float wear = clamp(lane * ends * (0.3 + 0.6 * n1) + apron * (0.35 + 0.5 * n1), 0.0, 1.0);
