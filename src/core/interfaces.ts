@@ -190,6 +190,12 @@ export interface WorldRenderer {
   /** Feed game events to the effects system (explosions, smoke, hits, flak). */
   handleEvent(e: GameEvent): void;
   render(camera: Camera): void;
+  /**
+   * Display-space post effects applied by render() (optional; absent or null when the
+   * preset has none). Diagnostics that judge the scene itself, such as pixel sampling,
+   * turn `enabled` off for their frame: grain and vignette vary every pixel.
+   */
+  readonly post?: { enabled: boolean } | null;
   resize(width: number, height: number): void;
   /** Visuals for balloons and ground targets. */
   createBalloonVisual(b: BalloonEntity): Object3D;

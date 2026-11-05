@@ -178,7 +178,6 @@ export class PostFx {
   private frame: FramebufferTexture | null = null;
   private downs: WebGLRenderTarget[] = [];
   private ups: WebGLRenderTarget[] = [];
-  private readonly size = new Vector2();
   private time = 0;
 
   constructor(options: PostFxOptions) {
@@ -214,9 +213,10 @@ export class PostFx {
   render(renderer: WebGLRenderer, dt: number): void {
     if (!this.enabled) return;
     this.time += dt;
-    renderer.getDrawingBufferSize(this.size);
-    const w = Math.max(1, Math.floor(this.size.x));
-    const h = Math.max(1, Math.floor(this.size.y));
+    // The real drawing buffer: the browser may clamp it below width × pixel ratio.
+    const gl = renderer.getContext();
+    const w = Math.max(1, gl.drawingBufferWidth);
+    const h = Math.max(1, gl.drawingBufferHeight);
     this.ensureTargets(w, h);
     const frame = this.frame!;
     const prevTarget = renderer.getRenderTarget();

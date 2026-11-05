@@ -42,12 +42,17 @@ describe('CloudShadows', () => {
     s.setWeather(w, new Vector3(0, 1, 0), 0);
     s.update(new Vector3(b.cx, 500, b.cz), 0);
     expect(s.sample(b.cx, b.cz, 0)).toBeGreaterThan(0.3);
-    // Outside the body's reach entirely (lobes stay within ~1.3 radii).
-    const far = b.cx + 3 * Math.max(b.rx, b.rz);
+    // Somewhere in the covered square that no body reaches (lobes stay within ~1.3 radii).
     const f = new CloudField(w);
-    const other = [-1, 0, 1].flatMap((i) => [-1, 0, 1].flatMap((j) => f.bodiesInCell(Math.floor(far / CLOUD_CELL) + i, Math.floor(b.cz / CLOUD_CELL) + j)));
-    const clearOfAll = other.every((o) => Math.hypot(o.cx - far, o.cz - b.cz) > 1.5 * Math.max(o.rx, o.rz));
-    if (clearOfAll) expect(s.sample(far, b.cz, 0)).toBe(0);
+    const near = [-3, -2, -1, 0, 1, 2, 3].flatMap((i) =>
+      [-3, -2, -1, 0, 1, 2, 3].flatMap((j) => f.bodiesInCell(Math.floor(b.cx / CLOUD_CELL) + i, Math.floor(b.cz / CLOUD_CELL) + j)),
+    );
+    let clear: [number, number] | null = null;
+    for (let dx = -9000; dx <= 9000 && !clear; dx += 500)
+      for (let dz = -9000; dz <= 9000 && !clear; dz += 500)
+        if (near.every((o) => Math.hypot(o.cx - (b.cx + dx), o.cz - (b.cz + dz)) > 1.6 * Math.max(o.rx, o.rz))) clear = [b.cx + dx, b.cz + dz];
+    expect(clear).not.toBeNull();
+    expect(s.sample(clear![0], clear![1], 0)).toBe(0);
   });
 
   it('throws the shadow away from a low sun by the cloud height', () => {
