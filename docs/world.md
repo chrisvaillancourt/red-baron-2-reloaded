@@ -102,6 +102,8 @@ in-cloud whiteout and the shared AI cloud-density field are unchanged.
 Check below-cloud and cloud-level views as well as dawn and overcast: denser
 billboards must not acquire hard circular edges or visible quad boundaries.
 
+**Exhaust** (`effects/effectsSystem.ts` `exhaust`). Running engines within 450 m of the camera leave a faint haze, emitted by distance flown: rotaries a bluish castor-oil trail even at low throttle, inlines a thin grey wisp that grows with throttle². Twins and pushers emit at their nacelles. Damaged aircraft show their damage trail instead.
+
 **Bombs** (`effects/bombEffects.ts`). The renderer draws the combat system's bombs in flight,
 which the game layer passes as `update(dt, camera, world, bullets, combat.bombs)`
 (`BombView`), so the drawn bomb is the sim's own, wind drift included. Each is a small finned

@@ -7,7 +7,7 @@
  */
 import { Color, Group, Vector3, type Camera } from 'three';
 import type { BombView, BulletView, WorldQuery } from '../../core/interfaces';
-import type { GameEvent, Side } from '../../core/types';
+import type { AircraftEntity, GameEvent, Side } from '../../core/types';
 import { landUseAt } from '../../world/landuse';
 import { BombEffects } from './bombEffects';
 import { ParticlePool, type ParticleSpawn } from './particles';
@@ -39,6 +39,9 @@ export class EffectsSystem {
   private readonly fires: GroundFire[] = [];
   private readonly emitAcc = new Map<number, number>();
   private readonly lastPos = new Map<number, Vector3>();
+  private readonly exhaustAcc = new Map<number, number>();
+  private readonly camPos = new Vector3();
+  private readonly tmp = new Vector3();
   private date = '1917-06-01';
 
   constructor(
@@ -247,6 +250,50 @@ export class EffectsSystem {
     this.puff({ x: p.x, y: p.y + 0.3, z: p.z, vx: rnd(0.5), vy: 1.5, vz: rnd(0.5), life: 1.6, size0: 0.4, size1: 2.4, color: c, alpha0: 0.75, alpha1: 0, drag: 2, windFollow: 1 });
   }
 
+  /**
+   * Faint exhaust haze behind a running engine, near the camera only. Rotaries (Camel,
+   * Dr.I, Nieuports) throw out the unburnt castor oil they ran on, so their trail is the
+   * thicker, bluish one; inlines leave a thin grey wisp at full throttle.
+   */
+  private exhaust(ac: AircraftEntity, moved: number): void {
+    const p = ac.state.position;
+    if (ac.outcome !== null || ac.state.engineRpm < 300) return;
+    const dist2 = p.distanceToSquared(this.camPos);
+    if (dist2 > 450 * 450) return;
+    const perf = ac.spec.performance;
+    const rotary = perf.engineType === 'rotary';
+    const thr = Math.min(1, Math.max(0, ac.controls.throttle));
+    const strength = rotary ? 0.35 + 0.65 * thr : thr * thr;
+    if (strength < 0.05) return;
+    const spacing = rotary ? 3 : 4.5;
+    let acc = (this.exhaustAcc.get(ac.id) ?? 0) + moved;
+    if (acc < spacing) {
+      this.exhaustAcc.set(ac.id, acc);
+      return;
+    }
+    const g = ac.spec.geometry;
+    const n = perf.engineCount ?? 1;
+    const fade = 1 - Math.sqrt(dist2) / 450;
+    const alpha = (rotary ? 0.34 : 0.18) * strength * (0.4 + 0.6 * fade);
+    const col: [number, number, number] = rotary ? [0.6, 0.62, 0.66] : [0.5, 0.5, 0.52];
+    let guard = 0;
+    while (acc > spacing && guard++ < 6) {
+      acc -= spacing;
+      for (let e = 0; e < n; e++) {
+        // Body frame: forward -Z. Nacelle engines exhaust at the nacelle; others just aft of the cowling.
+        const x = g.nacelle ? (n > 1 ? (e === 0 ? -1 : 1) * (g.nacelleOffsetX ?? 0) : 0) : 0;
+        const y = g.nacelle ? g.nacelle.centerY : -0.15;
+        const z = g.nacelle ? g.nacelle.centerZ + (g.nacelle.pusher ? g.nacelle.length * 0.5 : 0) : -g.length * 0.32;
+        this.tmp.set(x, y, z).applyQuaternion(ac.state.orientation).add(p);
+        this.puff({
+          x: this.tmp.x + rnd(0.15), y: this.tmp.y + rnd(0.15), z: this.tmp.z + rnd(0.15), vx: rnd(0.4), vy: rnd(0.3), vz: rnd(0.4),
+          life: rotary ? 2.4 : 1.6, size0: 0.4, size1: rotary ? 3.6 : 2.6, color: col, alpha0: alpha, alpha1: 0, drag: 1.5, windFollow: 1, lift: 0.2,
+        });
+      }
+    }
+    this.exhaustAcc.set(ac.id, acc);
+  }
+
   // --- events -------------------------------------------------------------------
 
   handleEvent(e: GameEvent): void {
@@ -302,6 +349,7 @@ export class EffectsSystem {
   update(dt: number, camera: Camera, world: WorldQuery, bullets: readonly BulletView[], bombs?: readonly BombView[]): void {
     this.tracers.update(bullets, camera, dt);
     this.bombs.update(world, bombs);
+    camera.getWorldPosition(this.camPos);
     // Smoke/fire trails from damaged aircraft (emitted by distance travelled).
     for (const ac of world.aircraft) {
       const d = ac.damage;
@@ -313,6 +361,7 @@ export class EffectsSystem {
       }
       const moved = last.distanceTo(p);
       last.copy(p);
+      if (!(d.smoking || d.onFire || d.engineDead) && moved <= 200) this.exhaust(ac, moved);
       if (!(d.smoking || d.onFire || d.engineDead) || moved > 200) continue;
       const onGround = ac.state.onGround || ac.outcome === 'crashed';
       if (onGround && !d.onFire) continue;
@@ -353,6 +402,7 @@ export class EffectsSystem {
     if (this.lastPos.size > world.aircraft.length + 8) {
       const ids = new Set(world.aircraft.map((a) => a.id));
       for (const id of this.lastPos.keys()) if (!ids.has(id)) this.lastPos.delete(id);
+      for (const id of this.exhaustAcc.keys()) if (!ids.has(id)) this.exhaustAcc.delete(id);
     }
     this.smoke.update(dt, this.wind, camera, true);
     this.glow.update(dt, this.wind, camera, false);
