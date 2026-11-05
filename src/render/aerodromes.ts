@@ -124,6 +124,7 @@ export class AerodromeLayer {
 
   constructor(date: string) {
     this.group.name = 'aerodromes';
+    this.wearGrass();
     this.build(date);
   }
 
@@ -200,6 +201,53 @@ export class AerodromeLayer {
     g.add(sock);
     this.socks.push(sock);
     return g;
+  }
+
+  /**
+   * Make the landing ground look used: patchy growth, a worn landing lane, a scuffed
+   * apron in front of the hangars, and a feathered, ragged edge into the fields
+   * around it instead of a hard-edged carpet.
+   */
+  private wearGrass(): void {
+    const m = this.grassMat;
+    m.transparent = true;
+    m.depthWrite = false;
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = 'varying vec2 vAeroUv;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvAeroUv = uv;');
+      sh.fragmentShader =
+        `varying vec2 vAeroUv;
+        float aeroHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+        float aeroNoise(vec2 p) {
+          vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(aeroHash(i), aeroHash(i + vec2(1, 0)), u.x), mix(aeroHash(i + vec2(0, 1)), aeroHash(i + vec2(1, 1)), u.x), u.y);
+        }\n` +
+        sh.fragmentShader.replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+          {
+            vec2 uv = vAeroUv;
+            float x = uv.x * 560.0 - 280.0;                 // metres across the field
+            float n1 = aeroNoise(uv * vec2(14.0, 22.0)) * 0.65 + aeroNoise(uv * vec2(37.0, 55.0) + 3.0) * 0.35;
+            float n2 = aeroNoise(uv * vec2(90.0, 140.0) + 7.0);
+            vec3 c = diffuseColor.rgb;
+            // Less golf course: a little greyer, with patchy growth.
+            c = mix(vec3(dot(c, vec3(0.3, 0.55, 0.15))), c, 0.8) * (0.86 + 0.26 * n1);
+            // The landing lane near the T, worn toward dry earth, heaviest at the touchdown ends.
+            float lane = exp(-pow((x + 30.0 + (n1 - 0.5) * 40.0) / 55.0, 2.0));
+            float ends = 0.55 + 0.45 * smoothstep(0.18, 0.42, abs(uv.y - 0.5));
+            float apron = smoothstep(70.0, 110.0, x) * (1.0 - smoothstep(190.0, 230.0, x)) * (1.0 - smoothstep(0.12, 0.2, abs(uv.y - 0.5)));
+            float wear = clamp(lane * ends * (0.3 + 0.6 * n1) + apron * (0.35 + 0.5 * n1), 0.0, 1.0);
+            // Dry, trampled earth at the grass's own brightness, a little darker (never frosty).
+            float lum = dot(c, vec3(0.3, 0.55, 0.15));
+            vec3 worn = vec3(1.12, 0.98, 0.7) * lum * (0.82 + 0.16 * n2);
+            diffuseColor.rgb = mix(c, worn, wear * 0.7);
+            // Ragged, feathered edge (about 25 m) into the surrounding ground.
+            float e = min(min(uv.x, 1.0 - uv.x) * 560.0, min(uv.y, 1.0 - uv.y) * 700.0);
+            diffuseColor.a *= smoothstep(0.0, 24.0, e + (n1 - 0.5) * 22.0);
+          }`,
+        );
+    };
+    m.customProgramCacheKey = () => 'rb2-aero-grass-v1';
   }
 
   /** Tint the mown grass to the season palette. */
