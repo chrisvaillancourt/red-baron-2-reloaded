@@ -17,6 +17,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  type Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Weather } from '../core/types';
@@ -110,6 +111,11 @@ export class AerodromeLayer {
   private readonly sockMat = new MeshStandardMaterial({ color: 0xe0dcd0, roughness: 0.8, side: DoubleSide });
   private readonly grassMat = new MeshStandardMaterial({ map: mownTexture(), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, color: 0x6e8a44 });
   private readonly drumMat = new MeshStandardMaterial({ color: 0x3a3d33, roughness: 0.6, metalness: 0.3 });
+
+  /** Lit materials, for renderer-wide shading such as cloud shadows. */
+  litMaterials(): Material[] {
+    return [this.canvasMat, this.germanCanvasMat, this.woodMat, this.tentMat, this.whiteMat, this.sockMat, this.grassMat, this.drumMat];
+  }
   private readonly hangarGeo = bessonneauGeometry();
   private readonly hutGeo = hut();
   private readonly tentGeo = tent();

@@ -28,6 +28,7 @@ import type { BombView, BulletView, WorldQuery, WorldRenderer } from '../core/in
 import type { BalloonEntity, GameEvent, GraphicsQuality, GroundTargetType, Side, TimeOfDay, Weather } from '../core/types';
 import { AerodromeLayer } from './aerodromes';
 import { CloudLayer } from './clouds';
+import { addCloudShadows, CloudShadows } from './cloudShadows';
 import { EffectsSystem } from './effects/effectsSystem';
 import { hourForTimeOfDay, seasonOf, sunPosition, turbidityFor } from './environment';
 import { balloonBurnState, createBalloonVisual, syncBalloonVisual } from './objects/balloon';
@@ -97,6 +98,7 @@ export class WorldRendererImpl implements WorldRenderer {
   private readonly trees: TreeLayer;
   private readonly aerodromes: AerodromeLayer;
   private readonly clouds: CloudLayer;
+  private readonly cloudShadows = new CloudShadows();
   private readonly rivers: RiverRibbons;
   private readonly roads: RoadRibbons;
   private readonly tmpColor = new Color();
@@ -162,7 +164,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.scene.add(this.sun, this.sun.target);
 
     this.mask = buildFeatureMask(this.date, this.quality.maskResolution);
-    this.terrainMaterial = createTerrainMaterial(this.mask.texture, this.mask.rect);
+    this.terrainMaterial = createTerrainMaterial(this.mask.texture, this.mask.rect, 1, this.cloudShadows.uniforms);
     this.terrain = new TerrainSystem(this.terrainMaterial, this.date, {
       maxLevel: this.quality.terrainMaxLevel,
       splitFactor: this.quality.terrainSplit,
@@ -185,6 +187,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.scene.add(this.aerodromes.group);
     this.clouds = new CloudLayer(this.quality);
     this.scene.add(this.clouds.group);
+    for (const m of [...this.trees.litMaterials(), ...this.towns.litMaterials(), ...this.aerodromes.litMaterials()]) addCloudShadows(m, this.cloudShadows.uniforms);
     this.effects = new EffectsSystem(this.quality.maxParticles, (x, z) => this.sideOfGround(x, z));
     this.scene.add(this.effects.group);
 
@@ -264,6 +267,7 @@ export class WorldRendererImpl implements WorldRenderer {
     }
     this.trees.setSeason(seasonOf(date).name);
     this.clouds.setWeather(weather, this.sunDirection, this.fogDisplay, overcast);
+    this.cloudShadows.setWeather(weather, this.sunDirection, overcast);
     this.effects.setWind(weather.wind);
     this.effects.setDate(date);
     const lightK = Math.min(1, 0.35 + this.sun.intensity / 3);
@@ -331,7 +335,10 @@ export class WorldRendererImpl implements WorldRenderer {
     T("rivers", () => this.rivers.update(cam));
     T("roads", () => this.roads.update(cam));
     this.aerodromes.update(dt, this.weather);
-    T("clouds", () => this.clouds.update(dt, camera, world.time));
+    T("clouds", () => {
+      this.clouds.update(dt, camera, world.time);
+      this.cloudShadows.update(cam, world.time);
+    });
     T("effects", () => this.effects.update(dt, camera, world, bullets, bombs));
     this.syncBalloons(world, dt);
     // In-cloud whiteout: thicken fog when the camera is inside a cloud.
@@ -452,6 +459,7 @@ export class WorldRendererImpl implements WorldRenderer {
     this.mask.texture.dispose();
     this.effects.dispose();
     this.clouds.dispose();
+    this.cloudShadows.dispose();
     const lost = this.renderer.getContext().isContextLost();
     this.renderer.dispose();
     if (lost) return;

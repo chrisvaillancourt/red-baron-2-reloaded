@@ -7,6 +7,7 @@
  * wire). Keeps three's lighting, shadows, fog and IBL.
  */
 import { Color, MeshStandardMaterial, Texture, Vector4, type IUniform } from 'three';
+import { CLOUD_SHADOW_GLSL, CloudShadows } from '../cloudShadows';
 
 export interface TerrainPalette {
   fields: string[]; // 6 crop colours
@@ -447,7 +448,13 @@ const FRAG_COLOR = /* glsl */ `
 }
 `;
 
-export function createTerrainMaterial(mask: Texture, maskRect: Vector4, detail = 1): MeshStandardMaterial {
+export function createTerrainMaterial(
+  mask: Texture,
+  maskRect: Vector4,
+  detail = 1,
+  /** CloudShadows.uniforms; without them the ground gets no cloud shadows. */
+  cloudShadow: Record<string, IUniform> = new CloudShadows().uniforms,
+): MeshStandardMaterial {
   const mat = new MeshStandardMaterial({ roughness: 0.96, metalness: 0, color: 0xffffff });
   const u: Record<string, IUniform> = {
     uMask: { value: mask },
@@ -468,6 +475,7 @@ export function createTerrainMaterial(mask: Texture, maskRect: Vector4, detail =
     uTrenches: { value: 1 },
     uDetail: { value: detail },
     uPxAngle: { value: 0.0019 },
+    ...cloudShadow,
   };
   mat.userData.uniforms = u;
   mat.onBeforeCompile = (shader) => {
@@ -478,8 +486,18 @@ export function createTerrainMaterial(mask: Texture, maskRect: Vector4, detail =
       vLand = aLand; vFront = aFront.x; vFresh = aFront.y;
       vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
     );
-    shader.fragmentShader = FRAG_PARS + shader.fragmentShader
+    shader.fragmentShader = FRAG_PARS + CLOUD_SHADOW_GLSL + shader.fragmentShader
       .replace('#include <color_fragment>', '#include <color_fragment>\n tWater = 0.0;\n' + FRAG_COLOR)
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        {
+          // Cumulus shadows darken only the sunlight (cloudShadows.ts).
+          float cs = cloudShadow(vWPos.xz);
+          reflectedLight.directDiffuse *= 1.0 - cs;
+          reflectedLight.directSpecular *= 1.0 - cs;
+        }`,
+      )
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
@@ -514,7 +532,7 @@ export function createTerrainMaterial(mask: Texture, maskRect: Vector4, detail =
         }`,
       );
   };
-  mat.customProgramCacheKey = () => 'rb2-terrain-v3';
+  mat.customProgramCacheKey = () => 'rb2-terrain-v4';
   return mat;
 }
 

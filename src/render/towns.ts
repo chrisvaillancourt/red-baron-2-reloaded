@@ -14,6 +14,7 @@ import {
   InstancedMesh,
   MeshStandardMaterial,
   Vector3,
+  type Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { QualityPreset } from './quality';
@@ -140,6 +141,11 @@ export class TownLayer {
   private readonly wallMat = new MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
   private readonly roofMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
   private readonly churchMat = new MeshStandardMaterial({ roughness: 0.9, vertexColors: true });
+
+  /** Lit materials, for renderer-wide shading such as cloud shadows. */
+  litMaterials(): Material[] {
+    return [this.wallMat, this.roofMat, this.churchMat];
+  }
   private date: string;
   /** Tile placement runs in a worker (a city tile is ~100-200 ms); stale-date results are dropped. */
   private worker: Worker | null = null;

@@ -1640,3 +1640,20 @@ visuals pass.
 - Presets: Low none, Medium grade/vignette/grain, High and Ultra add bloom. Measured on
   the M-series dev Mac at 1280×720, High, `shootWorld.mjs` views: 60 fps held, +5 draw
   calls a frame.
+
+## D-124 — Cloud shadows on the ground
+
+Cumulus cast no shadows, so from altitude the ground under a broken sky was evenly lit
+and gave no sense of the cloud layer's height. Shadows drifting over the fields are one of
+the strongest depth cues a flight sim has.
+
+- One 256² R8 coverage texture covers a 44 km square (172 m texels) in the clouds'
+  drifting frame. Each body is splatted on the CPU as 3–5 soft lobes, offset along the sun
+  by its mid height; the shader warps and thresholds the lookup with noise for ragged rims.
+  A rebuild costs about 1 ms and happens only after 3 km of travel or a weather change; wind
+  drift is a uniform, so shadows move smoothly between rebuilds.
+- Shadows darken only direct sunlight (`reflectedLight.direct*`), not sky light, by up
+  to 78 %. Off under a full overcast (the sun is already dimmed everywhere) and with the
+  sun below about 5°, where shadows stretch into noise.
+- Applied to terrain, trees, towns and aerodromes. Not to aircraft, balloons or ground
+  targets yet: they are small and rarely sit inside a shadow edge long enough to notice.
