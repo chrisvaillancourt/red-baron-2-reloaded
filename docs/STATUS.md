@@ -16,7 +16,7 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 
 | Track | Branch | Next action |
 |---|---|---|
-| Visuals pass | `feat/visuals-pass` | Owner asked for a visuals pass on 2026-11-04. Landed on the branch: post effects (D-123), cloud shadows (D-124), ground grain. Next: crater-wall striping, effects (fire, smoke, muzzle flash), aircraft in cloud shadow. Not pushed: every push deploys, and the hardware playtest is running. |
+| Visuals pass | `feat/visuals-pass` | Owner asked for a visuals pass on 2026-11-04. On the branch: post effects (D-123), cloud shadows (D-124), ground grain, exhaust haze, house facades, roof winding fix, worn aerodromes. Round 1 review (Opus + Sol) fixed; round 2 running. Not pushed: every push deploys, and the hardware playtest is running. Next: round 2 dispositions, full e2e, then the owner decides when to merge and deploy. |
 | — | — | Waiting on the owner's iPhone and Xbox playtest ([checklist](PLAYTEST.md#hardware-checklist-iphone-and-xbox-controller)) and the Q-07 and Q-09 decisions. |
 
 ## Next
