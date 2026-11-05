@@ -910,6 +910,13 @@ export class FlightSession {
   }
 
   private samplePixels(): void {
+    // Judge the scene, not the film grain: re-render this frame without post effects.
+    const post = this.renderer.post;
+    if (post?.enabled) {
+      post.enabled = false;
+      this.renderer.render(this.rig.camera);
+      post.enabled = true;
+    }
     const gl = this.renderer.renderer.getContext();
     const w = gl.drawingBufferWidth;
     const hgt = gl.drawingBufferHeight;

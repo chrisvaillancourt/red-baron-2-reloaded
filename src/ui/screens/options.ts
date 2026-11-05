@@ -138,7 +138,7 @@ export const optionsScreen: ScreenFactory = (ctx) => {
       null,
       optRow(
         'Graphics quality',
-        'Terrain detail, shadows, clouds and draw distance.',
+        'Terrain detail, shadows, clouds, draw distance and the color grade and glow.',
         segmented(
           [
             { value: 'low', label: 'Low' },

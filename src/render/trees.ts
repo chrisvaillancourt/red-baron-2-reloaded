@@ -17,6 +17,7 @@ import {
   MeshStandardMaterial,
   OctahedronGeometry,
   Vector3,
+  type Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { terrainHeightAt } from '../world/terrain';
@@ -200,6 +201,11 @@ export class TreeLayer {
     this.farMesh.count = 0;
     this.farMesh.frustumCulled = false;
     this.group.add(this.farMesh);
+  }
+
+  /** Lit materials, for renderer-wide shading such as cloud shadows. */
+  litMaterials(): Material[] {
+    return [this.material];
   }
 
   setDate(date: string): void {

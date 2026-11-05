@@ -1617,3 +1617,43 @@ understood, and compatible with the dependencies (three.js is MIT).
   Dynamix or Sierra's games; the title stays a non-commercial tribute (D-008).
 - Copyright holder: Chris Vaillancourt, 2026. `package.json` stays `private: true`, so
   nothing is published to npm.
+
+## D-123 — Display-space post effects
+
+The flown image read flat and milky: a wide white haze band at the horizon, low contrast
+and no glow from the sun, fires or muzzle flashes. On 2026-11-04 the owner asked for a
+visuals pass.
+
+- The scene still renders to the canvas exactly as before, and `PostFx`
+  (`src/render/post/postFx.ts`) then copies the frame (`copyFramebufferToTexture`) and
+  composites it back with a grade, vignette, grain and, on High/Ultra, bloom. No new
+  dependency.
+- Why not three's HDR path (`outputBufferType: HalfFloatType` + `setEffects`): it renders
+  the scene into a linear target, but three's fog and four custom shaders (sky haze,
+  cloud puffs, cloud deck, particles) mix a display-space fog color after tone mapping.
+  Moving them to linear would change every hazy pixel and need a full retune. The
+  display-space chain keeps them, keeps the canvas MSAA, and costs one copy.
+- The grade (`gradeFor`) is a gentle S-curve and +8 % saturation on clear days; a low sun
+  warms highlights and cools shadows; overcast and thick haze fall back toward neutral.
+  The haze itself got slightly bluer and its sky band narrower (`worldRenderer.ts`), the
+  other half of the milky look.
+- Presets: Low none, Medium grade/vignette/grain, High and Ultra add bloom. Measured on
+  the M-series dev Mac at 1280×720, High, `shootWorld.mjs` views: 60 fps held; +10 draw calls a frame with bloom (prefilter, four down, four up,
+  composite), +1 without.
+
+## D-124 — Cloud shadows on the ground
+
+Cumulus cast no shadows, so from altitude the ground under a broken sky was evenly lit
+and gave no sense of the cloud layer's height. Shadows drifting over the fields are one of
+the strongest depth cues a flight sim has.
+
+- One 256² R8 coverage texture covers a 44 km square (172 m texels) in the clouds'
+  drifting frame. Each body is splatted on the CPU as 3–5 soft lobes, offset along the sun
+  by its mid height; the shader warps and thresholds the lookup with noise for ragged rims.
+  A rebuild costs about 1 ms and happens only after 3 km of travel or a weather change; wind
+  drift is a uniform, so shadows move smoothly between rebuilds.
+- Shadows darken only direct sunlight (`reflectedLight.direct*`), not sky light, by up
+  to 78 %. Off under a full overcast (the sun is already dimmed everywhere) and with the
+  sun below about 5°, where shadows stretch into noise.
+- Applied to terrain, trees, towns and aerodromes. Not to aircraft, balloons or ground
+  targets yet: they are small and rarely sit inside a shadow edge long enough to notice.

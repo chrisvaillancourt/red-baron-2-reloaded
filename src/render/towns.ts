@@ -14,8 +14,10 @@ import {
   InstancedMesh,
   MeshStandardMaterial,
   Vector3,
+  type Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { addFacades, addRoofTiles } from './facades';
 import type { QualityPreset } from './quality';
 import { buildTownTile, TILE, type InstanceSet, type TownTileData, type TownTileRequest } from './townTiles';
 
@@ -30,13 +32,13 @@ function rng(seed: number): () => number {
 }
 
 // --- geometries (unit sized, base at y = 0) ---------------------------------
-function gableRoof(): BufferGeometry {
+export function gableRoof(): BufferGeometry {
   // Unit footprint 1x1 (x: -0.5..0.5, z: -0.5..0.5), ridge along z at height 1.
   const v = [
-    // left slope
-    -0.55, 0, -0.55, 0, 1, -0.55, 0, 1, 0.55, -0.55, 0, -0.55, 0, 1, 0.55, -0.55, 0, 0.55,
+    // left slope (counter-clockwise seen from outside, so the normal faces up and out)
+    -0.55, 0, -0.55, 0, 1, 0.55, 0, 1, -0.55, -0.55, 0, -0.55, -0.55, 0, 0.55, 0, 1, 0.55,
     // right slope
-    0.55, 0, -0.55, 0.55, 0, 0.55, 0, 1, 0.55, 0.55, 0, -0.55, 0, 1, 0.55, 0, 1, -0.55,
+    0.55, 0, -0.55, 0, 1, 0.55, 0.55, 0, 0.55, 0.55, 0, -0.55, 0, 1, -0.55, 0, 1, 0.55,
     // gable ends
     -0.5, 0, 0.5, 0.5, 0, 0.5, 0, 1, 0.5, 0.5, 0, -0.5, -0.5, 0, -0.5, 0, 1, -0.5,
   ];
@@ -100,19 +102,23 @@ function ruinGeometry(): BufferGeometry {
   return g;
 }
 
+/** Four-sided pyramid spire on the church tower, wound so its faces point up and out. */
+export function spireGeometry(): BufferGeometry {
+  const s = 3.4, h = 16, y0 = 22, t = y0 + h;
+  const pv = [s, y0, -s, -s, y0, -s, 0, t, 0, s, y0, s, s, y0, -s, 0, t, 0, -s, y0, s, s, y0, s, 0, t, 0, -s, y0, -s, -s, y0, s, 0, t, 0];
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pv, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
 function churchGeometry(): BufferGeometry {
   const stone = new Color('#9a948a');
   const slate = new Color('#4d4f55');
   const nave = colored(wallBox().scale(10, 11, 28), stone);
   const naveRoof = colored(gableRoof().scale(10.5, 6, 28.5).translate(0, 11, 0), slate);
   const tower = colored(wallBox().scale(6, 22, 6).translate(0, 0, 16), stone);
-  const spire = new BufferGeometry();
-  // Four-sided pyramid spire
-  const s = 3.4, h = 16, y0 = 22;
-  const pv = [-s, y0, -s, s, y0, -s, 0, y0 + h, 0, s, y0, -s, s, y0, s, 0, y0 + h, 0, s, y0, s, -s, y0, s, 0, y0 + h, 0, -s, y0, s, -s, y0, -s, 0, y0 + h, 0];
-  spire.setAttribute('position', new Float32BufferAttribute(pv, 3));
-  spire.translate(0, 0, 16);
-  spire.computeVertexNormals();
+  const spire = spireGeometry().translate(0, 0, 16);
   colored(spire, slate);
   [nave, tower].forEach((g) => g.deleteAttribute('uv'));
   return mergeGeometries([nave, naveRoof, tower, spire].map((g) => (g.index ? g.toNonIndexed() : g)))!;
@@ -140,6 +146,13 @@ export class TownLayer {
   private readonly wallMat = new MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
   private readonly roofMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
   private readonly churchMat = new MeshStandardMaterial({ roughness: 0.9, vertexColors: true });
+  /** Ruins share the wall look without windows (their walls are broken stubs). */
+  private readonly ruinMat = new MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
+
+  /** Lit materials, for renderer-wide shading such as cloud shadows. */
+  litMaterials(): Material[] {
+    return [this.wallMat, this.roofMat, this.churchMat, this.ruinMat];
+  }
   private date: string;
   /** Tile placement runs in a worker (a city tile is ~100-200 ms); stale-date results are dropped. */
   private worker: Worker | null = null;
@@ -158,6 +171,8 @@ export class TownLayer {
   ) {
     this.date = date;
     this.group.name = 'towns';
+    addFacades(this.wallMat);
+    addRoofTiles(this.roofMat);
     if (typeof Worker !== 'undefined') {
       try {
         this.worker = new Worker(new URL('./townWorker.ts', import.meta.url), { type: 'module' });
@@ -265,9 +280,9 @@ export class TownLayer {
     };
     add(this.wallGeo, this.wallMat, d.walls, true);
     add(this.roofGeo, this.roofMat, d.roofs, true);
-    add(this.ruinGeo, this.wallMat, d.ruins, true);
+    add(this.ruinGeo, this.ruinMat, d.ruins, true);
     add(this.churchGeo, this.churchMat, d.churches, false);
-    add(this.ruinGeo, this.wallMat, d.ruinedChurches, false);
+    add(this.ruinGeo, this.ruinMat, d.ruinedChurches, false);
     this.group.add(t.group);
   }
 
