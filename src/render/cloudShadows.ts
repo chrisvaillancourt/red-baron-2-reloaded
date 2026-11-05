@@ -37,7 +37,7 @@ float cloudShadow(vec2 worldXZ) {
   vec2 warp = vec2(csNoise(f / 700.0), csNoise(f / 700.0 + 7.3)) - 0.5;
   warp += (vec2(csNoise(f / 230.0 + 3.1), csNoise(f / 230.0 + 11.7)) - 0.5) * 0.4;
   vec2 uv = (f + warp * 520.0 - uCloudShadowRect.xy) * uCloudShadowRect.zw;
-  float edge = smoothstep(0.0, 0.06, uv.x) * smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.x) * smoothstep(1.0, 0.94, uv.y);
+  float edge = smoothstep(0.0, 0.06, uv.x) * smoothstep(0.0, 0.06, uv.y) * (1.0 - smoothstep(0.94, 1.0, uv.x)) * (1.0 - smoothstep(0.94, 1.0, uv.y));
   float c = texture2D(uCloudShadow, uv).r * edge;
   if (c <= 0.0) return 0.0;
   // Ragged rim: threshold the soft splat against fine noise.
@@ -52,7 +52,9 @@ float cloudShadow(vec2 worldXZ) {
  */
 export function addCloudShadows(material: Material, uniforms: Record<string, IUniform>): void {
   const prev = material.onBeforeCompile;
-  const prevKey = material.customProgramCacheKey;
+  // Capture the key now: three's default key is onBeforeCompile.toString(), which
+  // after the swap below would name the wrapper and lose the original hook's identity.
+  const prevKey = material.customProgramCacheKey.call(material);
   material.onBeforeCompile = (shader, renderer) => {
     prev.call(material, shader, renderer);
     Object.assign(shader.uniforms, uniforms);
@@ -77,7 +79,7 @@ export function addCloudShadows(material: Material, uniforms: Record<string, IUn
       }`,
     );
   };
-  material.customProgramCacheKey = () => `${prevKey.call(material)}|cloud-shadows-v1`;
+  material.customProgramCacheKey = () => `${prevKey}|cloud-shadows-v1`;
   material.needsUpdate = true;
 }
 

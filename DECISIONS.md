@@ -1638,8 +1638,8 @@ visuals pass.
   The haze itself got slightly bluer and its sky band narrower (`worldRenderer.ts`), the
   other half of the milky look.
 - Presets: Low none, Medium grade/vignette/grain, High and Ultra add bloom. Measured on
-  the M-series dev Mac at 1280×720, High, `shootWorld.mjs` views: 60 fps held, +5 draw
-  calls a frame.
+  the M-series dev Mac at 1280×720, High, `shootWorld.mjs` views: 60 fps held; +10 draw calls a frame with bloom (prefilter, four down, four up,
+  composite), +1 without.
 
 ## D-124 — Cloud shadows on the ground
 
