@@ -23,8 +23,6 @@ that changes Now or Next. History: [STATUS-ARCHIVE](STATUS-ARCHIVE.md).
 Nothing ready; see Blocked on the owner. Open contracts: [BACKLOG](BACKLOG.md). Visual
 follow-ups from the visuals pass are parked as H-32 to H-34 in
 [DEFERRED-TODOS](DEFERRED-TODOS.md#historical-conditional-ideas-preserve-individually-do-not-redispatch).
-The merged worktree `../rb2r-visuals` (branch `feat/visuals-pass`) can be removed once
-`tools/dev/worktrees.mjs` lists it as safe (H-25).
 
 ## Blocked on the owner
 
