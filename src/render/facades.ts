@@ -78,6 +78,11 @@ const WALL_FRAG = /* glsl */ `
         shut = (facCov(lu, wc - winW * 0.5 - 0.42, wc - winW * 0.5, fw) + facCov(lu, wc + winW * 0.5, wc + winW * 0.5 + 0.42, fw)) * facCov(lv, winB, winT, fw);
         shut *= inBays * step(storey, topStorey);
       }
+      // facCov filters one bay's window only; once a bay shrinks to a few pixels, blend to
+      // the repeating pattern's mean coverage so the facade keeps its average tone.
+      float far = smoothstep(0.15, 0.6, fw / bayW) * inBays * step(storey, topStorey);
+      win = mix(win, (winW / bayW) * ((winT - winB) / 2.9), far);
+      shut = mix(shut, fract(vFacSeed * 3.7) > 0.45 ? (0.84 / bayW) * ((winT - winB) / 2.9) : 0.0, far);
       float sill = facCov(lu, wc - winW * 0.5 - 0.1, wc + winW * 0.5 + 0.1, fw) * facCov(lv, winB - 0.12, winB, fw) * inBays * step(storey, topStorey) * (door ? 0.0 : 1.0);
       // Sub-pixel features fade to their average tone (coverage already box-filtered).
       vec3 glass = vec3(0.11, 0.12, 0.14) + 0.06 * vFacSeed;
